@@ -26,8 +26,7 @@ void print_sc_consts(ScalingConstants *c) {
     LOG_DEBUG("FESC: f10 %.2e a %.2e f7 %.2e", c->fesc_10, c->alpha_esc, c->fesc_7);
     LOG_DEBUG("SSFR: t* %.2e th %.8e sigma %.2e idx %.2e", c->t_star, c->t_h, c->sigma_sfr_lim,
               c->sigma_sfr_idx);
-    LOG_DEBUG("Turnovers (nofb) ACG %.2e MCG %.2e Upper %.2e", c->mturn_a_nofb, c->mturn_m_nofb,
-              c->acg_thresh);
+    LOG_DEBUG("Turnovers (nofb) ACG %.2e", c->mturn_acg_homogeneous);
     LOG_DEBUG("Limits (ACG,MCG) F* (%.2e %.2e) Fesc (%.2e %.2e)", c->Mlim_Fstar, c->Mlim_Fstar_mini,
               c->Mlim_Fesc, c->Mlim_Fesc_mini);
     return;
@@ -78,15 +77,22 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->pop2_ion = astro_params_global->POP2_ION;
     consts->pop3_ion = astro_params_global->POP3_ION;
 
-    consts->acg_thresh = atomic_cooling_threshold(redshift);
-    consts->mturn_a_nofb = astro_params_global->M_TURN;
-    if (astro_options_global->USE_MINI_HALOS)
-        consts->mturn_a_nofb = fmax(consts->acg_thresh, consts->mturn_a_nofb);
+    consts->mturn_acg_homogeneous =
+        fmax(atomic_cooling_threshold(redshift), astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
-    consts->mturn_m_nofb = 0.;
-    if (astro_options_global->USE_MINI_HALOS) {
-        consts->vcb_norel = astro_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
-        consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_norel);
+    switch (matter_options_global->V_CB_MODEL) {
+        case V_CB_MODEL_NO:
+            consts->vcb_const = 0.;
+            break;
+        case V_CB_MODEL_AVG_AUTO:
+            consts->vcb_const = cosmo_tables_global->V_CB_AVG;
+            break;
+        case V_CB_MODEL_AVG_DEBUG:
+            consts->vcb_const = astro_params_global->V_CB_AVG_DEBUG;
+            break;
+        default:  // V_CB_MODEL_FLUCTS
+            consts->vcb_const = 0.;
+            break;
     }
 
     consts->Mlim_Fstar =
@@ -140,16 +146,8 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
         }
     }
 
-    sc_z.acg_thresh = atomic_cooling_threshold(redshift);
-    sc_z.mturn_a_nofb = astro_params_global->M_TURN;
-    if (astro_options_global->USE_MINI_HALOS)
-        sc_z.mturn_a_nofb = fmax(sc_z.acg_thresh, sc_z.mturn_a_nofb);
-
-    sc_z.mturn_m_nofb = 0.;
-    if (astro_options_global->USE_MINI_HALOS) {
-        sc_z.vcb_norel = astro_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
-        sc_z.mturn_m_nofb = lyman_werner_threshold(redshift, 0., sc_z.vcb_norel);
-    }
+    sc_z.mturn_acg_homogeneous =
+        fmax(atomic_cooling_threshold(redshift), astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
     return sc_z;
 }
@@ -370,10 +368,17 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
         return;
     }
 
-    // See comments above for how f_sample_mini is distributed
-    mu_fstar_mini = f_7 * scaling_single_PL(halo_mass, f_a_mini, 1e7);
-    f_sample_mini = mu_fstar_mini * exp(-mturn_mcg / halo_mass - halo_mass / consts->acg_thresh +
-                                        star_rng * sigma_star - stoc_adjustment_term);
+    // No MCGs can form if their turnover mass is above the ACG turnover mass,
+    // or if the ACG and MCG turnover masses are the same (can happen if the reionization feedback
+    // is the dominant effect)
+    if (mturn_mcg >= mturn_acg) {
+        f_sample_mini = 0.;
+    } else {
+        // See comments above for how f_sample_mini is distributed
+        mu_fstar_mini = f_7 * scaling_single_PL(halo_mass, f_a_mini, 1e7);
+        f_sample_mini = mu_fstar_mini * exp(-mturn_mcg / halo_mass - halo_mass / mturn_acg +
+                                            star_rng * sigma_star - stoc_adjustment_term);
+    }
     if (f_sample_mini > 1.) f_sample_mini = 1.;
 
     star_mass_sample_mini = f_sample_mini * halo_mass * baryon_ratio;

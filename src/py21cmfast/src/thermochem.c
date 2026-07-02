@@ -14,7 +14,6 @@
 #include "logger.h"
 
 #define MIN_DENSITY_LOW_LIMIT (9e-8)
-#define SIGMAVCB (29.0)  // rms value of the DM-b relative velocity [im km/s]
 
 // ----------------------------------------------------------------------------------------- //
 
@@ -279,7 +278,7 @@ double atomic_cooling_threshold(float z) { return TtoM(z, 1e4, 0.59); }
 
 double molecular_cooling_threshold(float z) { return TtoM(z, 600, 1.22); }
 
-double lyman_werner_threshold(float z, float J_21_LW, float vcb) {
+double molecular_cooling_threshold_with_feedbacks(float z, float J_21_LW, float vcb) {
     // correction follows Schauer+20, fit jointly to LW feedback and relative velocities. They find
     // weaker effect of LW feedback than before (Stacy+11, Greif+11, etc.) due to HII self
     // shielding.
@@ -289,6 +288,11 @@ double lyman_werner_threshold(float z, float J_21_LW, float vcb) {
     double mcrit_noLW = 3.314e7 * pow(1. + z, -1.5);
     double f_LW = 1.0 + astro_params_global->A_LW * pow(J_21_LW, astro_params_global->BETA_LW);
 
+    // v_cb is normalized by the rms value of the DM-b relative velocity at kinematic decoupling,
+    // which, under the assumption of Maxwell-Boltzmann distribution, can be achieved by multiplying
+    // the mean v_cb by sqrt(3pi / 8). This gives about 29.3 km/s for LCDM cosmology with Planck
+    // 2018 parameters
+    double SIGMAVCB = cosmo_tables_global->V_CB_AVG * sqrt(3 * M_PI / 8);
     double f_vcb =
         pow(1.0 + astro_params_global->A_VCB * vcb / SIGMAVCB, astro_params_global->BETA_VCB);
 
@@ -306,12 +310,31 @@ double reionization_feedback(float z, float Gamma_halo_HII, float z_IN) {
            pow(1 - pow((1. + z) / (1. + z_IN), REION_SM13_C), REION_SM13_D);
 }
 
-void compute_mturns(float z, float J_21_LW, float vcb, float Gamma12, float z_reion,
-                    double *M_turn_a, double *M_turn_m) {
-    double M_turn_r = reionization_feedback(z, Gamma12, z_reion);
-    *M_turn_a = atomic_cooling_threshold(z);
-    *M_turn_m = lyman_werner_threshold(z, J_21_LW, vcb);
-    *M_turn_a = fmax(*M_turn_a, fmax(M_turn_r, astro_params_global->M_TURN));
-    *M_turn_m = fmax(*M_turn_m, fmax(M_turn_r, astro_params_global->M_TURN));
+void compute_mturns(double z, float J_21_LW, float vcb, float Gamma12, float z_reion,
+                    float *M_turn_a, float *M_turn_m) {
+    float M_turn_a_homo =
+        fmax(atomic_cooling_threshold(z), astro_params_global->M_TURN_STELLAR_FEEDBACK);
+    compute_mturns_inhomogeneous(z, M_turn_a_homo, J_21_LW, vcb, Gamma12, z_reion, M_turn_a,
+                                 M_turn_m);
+    return;
+}
+
+void compute_mturns_inhomogeneous(double z, double M_turn_a_homo, float J_21_LW, float vcb,
+                                  float Gamma12, float z_reion, float *M_turn_a, float *M_turn_m) {
+    float M_turn_r;
+    *M_turn_a = M_turn_a_homo;
+    if (uses_reionization_feedback(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+        M_turn_r = reionization_feedback(z, Gamma12, z_reion);
+    }
+    if (uses_reionization_feedback_in_acgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+        *M_turn_a = fmax(*M_turn_a, M_turn_r);
+    }
+    if (astro_options_global->USE_MINI_HALOS) {
+        *M_turn_m = fmax(molecular_cooling_threshold_with_feedbacks(z, J_21_LW, vcb),
+                         astro_params_global->M_TURN_STELLAR_FEEDBACK);
+        if (uses_reionization_feedback_in_mcgs(astro_options_global->REIONIZATION_FEEDBACK_MODEL)) {
+            *M_turn_m = fmax(*M_turn_m, M_turn_r);
+        }
+    }
     return;
 }

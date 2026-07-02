@@ -729,7 +729,7 @@ int ComputeInitialConditions(random_huge random_seed, InitialConditions *boxes) 
             }
         }
 
-        if (matter_options_global->USE_RELATIVE_VELOCITIES) {
+        if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
             compute_relative_velocities(HIRES_box, HIRES_box_saved, boxes->lowres_vcb);
         }
 

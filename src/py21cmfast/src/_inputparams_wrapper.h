@@ -3,8 +3,19 @@
 */
 // WARNING: DO NOT #include THIS FILE IN THE C CODE EXCEPT FOR IN InputParameters.h
 
+// MatterOptions enums
 typedef int hmf_model_t;
 typedef int source_model_t;
+typedef int v_cb_model_t;
+typedef int filter_t;
+typedef int sample_method_t;
+typedef int perturb_algorithm_t;
+typedef int power_spectrum_t;
+typedef int use_interpolation_tables_t;
+// AstroOptions enums
+typedef int photon_cons_type_t;
+typedef int recombination_model_t;
+typedef int reionization_feedback_model_t;
 typedef int integration_method_t;
 
 typedef struct CosmoParams {
@@ -60,21 +71,20 @@ typedef struct SimulationOptions {
 
 typedef struct MatterOptions {
     bool USE_FFTW_WISDOM;
-    hmf_model_t HMF;
-    int USE_RELATIVE_VELOCITIES;
-    int POWER_SPECTRUM;
-    int USE_INTERPOLATION_TABLES;
     bool PERTURB_ON_HIGH_RES;
-    int PERTURB_ALGORITHM;
     bool MINIMIZE_MEMORY;
     bool KEEP_3D_VELOCITIES;
     bool DEXM_OPTIMIZE;
-    int FILTER;
-    int HALO_FILTER;
     bool SMOOTH_EVOLVED_DENSITY_FIELD;
-
+    hmf_model_t HMF;
+    v_cb_model_t V_CB_MODEL;
+    power_spectrum_t POWER_SPECTRUM;
+    use_interpolation_tables_t USE_INTERPOLATION_TABLES;
+    perturb_algorithm_t PERTURB_ALGORITHM;
+    filter_t FILTER;
+    filter_t HALO_FILTER;
     source_model_t SOURCE_MODEL;
-    int SAMPLE_METHOD;
+    sample_method_t SAMPLE_METHOD;
 } MatterOptions;
 
 typedef struct AstroParams {
@@ -106,7 +116,7 @@ typedef struct AstroParams {
 
     float T_RE;
 
-    float M_TURN;
+    float M_TURN_STELLAR_FEEDBACK;
     float R_BUBBLE_MAX;
     float ION_Tvir_MIN;
     double F_H2_SHIELD;
@@ -119,7 +129,7 @@ typedef struct AstroParams {
     double A_VCB;
     double BETA_VCB;
 
-    double FIXED_VAVG;
+    double V_CB_AVG_DEBUG;
     double POP2_ION;
     double POP3_ION;
 
@@ -141,20 +151,20 @@ typedef struct AstroOptions {
     bool USE_X_RAY_HEATING;
     bool USE_CMB_HEATING;  // CMB Heating Flag
     bool USE_LYA_HEATING;  // Lya Heating Flag
-    int RECOMB_MODEL;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
-    bool FIX_VCB_AVG;
     bool USE_EXP_FILTER;
     bool CELL_RECOMB;
     bool LYA_MULTIPLE_SCATTERING;
     bool USE_ADIABATIC_FLUCTUATIONS;
-    int PHOTON_CONS_TYPE;
     bool USE_UPPER_STELLAR_TURNOVER;
     bool HALO_SCALING_RELATIONS_MEDIAN;
-    int HII_FILTER;
-    int HEAT_FILTER;
     bool IONISE_ENTIRE_SPHERE;
+    photon_cons_type_t PHOTON_CONS_TYPE;
+    filter_t HII_FILTER;
+    filter_t HEAT_FILTER;
+    recombination_model_t RECOMB_MODEL;
+    reionization_feedback_model_t REIONIZATION_FEEDBACK_MODEL;
     integration_method_t INTEGRATION_METHOD_ATOMIC;
     integration_method_t INTEGRATION_METHOD_MINI;
 } AstroOptions;
@@ -170,6 +180,7 @@ typedef struct CosmoTables {
     Table1D *transfer_vcb;
     double ps_norm;
     bool USE_SIGMA_8;
+    double V_CB_AVG;
 } CosmoTables;
 
 typedef struct ConfigSettings {

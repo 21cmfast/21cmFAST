@@ -60,7 +60,20 @@ def compute_global_reionization_at_z(
         #       This limitation however should be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600.
         #       When that happens, note that the call below to evaluate_Nion_z calls run_global_evolution,
         #       so be careful to avoid infinite recursion!
-        nion, _ = evaluate_Nion_z(inputs=inputs, redshifts=np.asarray(redshift))
+        # TODO: we compute Nion below with no reionization feedback, since reionization feedback would make the ACG turnover mass
+        # to depend on the simulation's fields (specifically, on ionisation_rate_G12 and z_reion). If we hadn't done this, the ACG turnover mass will
+        # be evaluated from running a global evolution, causing an inifinite recursion! This might be fixed by passing the "correct" turnover mass
+        # to evaluate_Nion_z, but I am not sure it worths the effort, since this tricky situation happens only when the user runs a global evolution
+        # with USE_TS_FLUCT=False, which is kinda pointless because it would yield the wrong global 21-cm signal. Having said that, it should be noted
+        # that also with USE_TS_FLUCT=True, the ACG turnover mass is currently ALWAYS evaluated in SpinTemperatureBox.c with no reionization feedback,
+        # (see https://github.com/21cmfast/21cmFAST/issues/470).
+        inputs_no_reionization_feedback = inputs.evolve_input_structs(
+            REIONIZATION_FEEDBACK_MODEL="NONE"
+        )
+        nion, _ = evaluate_Nion_z(
+            inputs=inputs_no_reionization_feedback,
+            redshifts=np.asarray(redshift),
+        )
         Q_HI = 1.0 - nion
         # We don't need J_LW_21 because we currently don't allow to have mini-halos when USE_TS_FLUCT=False.
         # TODO: this limitation will be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600
@@ -89,8 +102,14 @@ def compute_global_reionization_at_z(
     # TODO: is there a more clever way to estimate global z_reion?
     z_reion = -1.0 if Q_HI > 0.0 else redshift
 
-    # Global v_cb is determined according to the flag FIX_VCB_AVG
-    v_cb = inputs.astro_params.FIXED_VAVG if inputs.astro_options.FIX_VCB_AVG else 0.0
+    # Global v_cb is determined according to V_CB_MODEL
+    match inputs.matter_options.V_CB_MODEL:
+        case "NONE":
+            v_cb = 0.0
+        case "AVG-AUTO" | "FLUCTS":
+            v_cb = inputs.cosmo_tables.V_CB_AVG
+        case "AVG-DEBUG":
+            v_cb = inputs.astro_params.V_CB_AVG_DEBUG
 
     M_turn_a, M_turn_m = compute_mturns(
         inputs=inputs,
@@ -116,7 +135,8 @@ def compute_global_reionization_at_z(
             .with_value(val=val * np.ones(shape)),
         )
     box.log10_Mturnover_ave = np.log10(M_turn_a)
-    box.log10_Mturnover_MINI_ave = np.log10(M_turn_m)
+    if M_turn_m is not None:
+        box.log10_Mturnover_MINI_ave = np.log10(M_turn_m)
     return box
 
 

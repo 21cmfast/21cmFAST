@@ -500,7 +500,8 @@ void calculate_spectral_factors(double zp) {
 
 // fill fftwf boxes, do the r2c transform and normalise
 void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, float *input_j21,
-                          fftwf_complex *output_dens, fftwf_complex *output_LW) {
+                          fftwf_complex *output_dens, fftwf_complex *output_LW,
+                          ScalingConstants *sc) {
     int i, j, k;
     index_huge ct, index_f;
     double curr_vcb, curr_j21, M_buf;
@@ -532,7 +533,7 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
     }
 
     if (astro_options_global->USE_MINI_HALOS) {
-        curr_vcb = astro_options_global->FIX_VCB_AVG ? astro_params_global->FIXED_VAVG : 0;
+        curr_vcb = sc->vcb_const;
 #pragma omp parallel for firstprivate(curr_vcb) private(i, j, k, curr_j21, M_buf, ct, index_f) \
     num_threads(simulation_options_global->N_THREADS) collapse(3)
         for (i = 0; i < box_dim[0]; i++) {
@@ -540,15 +541,15 @@ void prepare_filter_boxes(double redshift, float *input_dens, float *input_vcb, 
                 for (k = 0; k < box_dim[2]; k++) {
                     ct = grid_index_general(i, j, k, box_dim);
                     index_f = grid_index_fftw_r(i, j, k, box_dim);
-                    if (!astro_options_global->FIX_VCB_AVG &&
-                        matter_options_global->USE_RELATIVE_VELOCITIES) {
+                    if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
                         curr_vcb = input_vcb[ct];
                     }
                     curr_j21 = input_j21[ct];
                     // NOTE: we don't use reionization_feedback here, I assume it wouldn't do much
                     // but it's inconsistent
-                    M_buf = lyman_werner_threshold(redshift, curr_j21, curr_vcb);
-                    M_buf = fmax(M_buf, astro_params_global->M_TURN);
+                    M_buf =
+                        molecular_cooling_threshold_with_feedbacks(redshift, curr_j21, curr_vcb);
+                    M_buf = fmax(M_buf, astro_params_global->M_TURN_STELLAR_FEEDBACK);
                     *((float *)output_LW + index_f) = log10(M_buf);
                 }
             }
@@ -832,15 +833,21 @@ void fill_freqint_tables(double zp, double x_e_ave, double filling_factor_of_HI_
         // weighting of the average
         //   density -> volume weighted cell average || halo -> halo weighted average
         for (R_ct = R_start; R_ct < R_end; R_ct++) {
+            // TODO: At the moment, inhomogeneous reionization feedback cannot be accounted in
+            // SpinTemperatureBox.c,
+            //      see https://github.com/21cmfast/21cmFAST/issues/470. Thus, we use the
+            //      homogeneous (feedback-free) ACG turnover mass. It is important to remember to
+            //      fix this when issue #470 is fixed!
             if (astro_options_global->USE_MINI_HALOS) {
-                lower_int_limit =
-                    fmax(nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave,
-                                         filling_factor_of_HI_zp, log10_Mcrit_LW_ave[R_ct], sc),
-                         (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
-            } else {
                 lower_int_limit = fmax(
-                    nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp, sc),
+                    nu_tau_one_MINI(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
+                                    log10(sc->mturn_acg_homogeneous), log10_Mcrit_LW_ave[R_ct], sc),
                     (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
+            } else {
+                lower_int_limit =
+                    fmax(nu_tau_one(zp, zpp_for_evolve_list[R_ct], x_e_ave, filling_factor_of_HI_zp,
+                                    log10(sc->mturn_acg_homogeneous), sc),
+                         (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
             }
             // set up frequency integral table for later interpolation for the cell's x_e value
             for (x_e_ct = 0; x_e_ct < x_int_NXHII; x_e_ct++) {
@@ -969,9 +976,15 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
     // For consistency between halo and non-halo based, the NO_LIGHT and filling_factor_zp
     //   are based on the expected global Nion. as mentioned above it would be nice to
     //   change this to a saved reionisation/sfrd history from previous snapshots
-    sum_nion = EvaluateNionTs(zp, &sc);
+    // TODO: At the moment, inhomogeneous reionization feedback cannot be accounted in
+    // SpinTemperatureBox.c,
+    //      see https://github.com/21cmfast/21cmFAST/issues/470. Thus, we use the homogeneous
+    //      (feedback-free) ACG turnover mass. It is important to remember to fix this when issue
+    //      #470 is fixed!
+    sum_nion = EvaluateNionTs(zp, log10(sc.mturn_acg_homogeneous), &sc);
     if (astro_options_global->USE_MINI_HALOS) {
-        sum_nion_mini = EvaluateNionTs_MINI(zp, log10_Mcrit_LW_ave[0], &sc);
+        sum_nion_mini =
+            EvaluateNionTs_MINI(zp, log10(sc.mturn_acg_homogeneous), log10_Mcrit_LW_ave[0], &sc);
     }
 
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)", sum_nion, sum_nion_mini);
@@ -996,9 +1009,15 @@ int global_reion_properties(double zp, double x_e_ave, double *log10_Mcrit_LW_av
         // Now global SFRD at (R_ct) for the mean fixing
         for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
             zpp = zpp_for_evolve_list[R_ct];
-            mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp, &sc);
+            // TODO: At the moment, inhomogeneous reionization feedback cannot be accounted in
+            // SpinTemperatureBox.c,
+            //      see https://github.com/21cmfast/21cmFAST/issues/470. Thus, we use the
+            //      homogeneous (feedback-free) ACG turnover mass. It is important to remember to
+            //      fix this when issue #470 is fixed!
+            mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp, log10(sc.mturn_acg_homogeneous), &sc);
             if (astro_options_global->USE_MINI_HALOS) {
-                mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp, log10_Mcrit_LW_ave[R_ct], &sc);
+                mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp, log10(sc.mturn_acg_homogeneous),
+                                                            log10_Mcrit_LW_ave[R_ct], &sc);
             }
         }
         fill_freqint_tables(zp, x_e_ave, *Q_HI, log10_Mcrit_LW_ave, 0, &sc);
@@ -1048,14 +1067,18 @@ void calculate_sfrd_from_grid(int R_ct, float *dens_R_grid, float *Mcrit_R_grid,
             if (astro_options_global->USE_MINI_HALOS) curr_mcrit = Mcrit_R_grid[box_ct];
 
             if (matter_options_global->SOURCE_MODEL == SOURCE_MODEL_E_INTEGRAL) {
-                fcoll = EvaluateSFRD_Conditional(curr_dens, zpp_growth[R_ct], M_min_R[R_ct],
-                                                 M_max_R[R_ct], M_max_R[R_ct], sigma_max[R_ct], sc);
+                // TODO: we use below the homogeneous ACG turnover mass, because we don't have
+                // the inhomogeneous reionization feedback in this module! (see
+                // https://github.com/21cmfast/21cmFAST/issues/470)
+                fcoll = EvaluateSFRD_Conditional(curr_dens, log10(sc->mturn_acg_homogeneous),
+                                                 zpp_growth[R_ct], M_min_R[R_ct], M_max_R[R_ct],
+                                                 M_max_R[R_ct], sigma_max[R_ct], sc);
                 sfrd_grid[box_ct] = (1. + curr_dens) * fcoll;
 
                 if (astro_options_global->USE_MINI_HALOS) {
                     fcoll_MINI = EvaluateSFRD_Conditional_MINI(
-                        curr_dens, curr_mcrit, zpp_growth[R_ct], M_min_R[R_ct], M_max_R[R_ct],
-                        M_max_R[R_ct], sigma_max[R_ct], sc);
+                        curr_dens, log10(sc->mturn_acg_homogeneous), curr_mcrit, zpp_growth[R_ct],
+                        M_min_R[R_ct], M_max_R[R_ct], M_max_R[R_ct], sigma_max[R_ct], sc);
                     sfrd_grid_mini[box_ct] = (1. + curr_dens) * fcoll_MINI;
                 }
             } else {
@@ -1398,6 +1421,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     if (!TsInterpArraysInitialised) {
         alloc_global_arrays();
     }
+    ScalingConstants sc, sc_sfrd;
+    set_scaling_constants(redshift, &sc, false);
 
     // NOTE: For the code to work, previous_spin_temp MUST be allocated &
     // calculated if redshift < Z_HEAT_MAX
@@ -1448,7 +1473,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
         LOG_ULTRA_DEBUG("Starting unfiltered boxes.");
         prepare_filter_boxes(redshift, perturbed_field->density, ini_boxes->lowres_vcb,
                              previous_spin_temp->J_21_LW, delta_unfiltered,
-                             log10_Mcrit_LW_unfiltered);
+                             log10_Mcrit_LW_unfiltered, &sc);
         LOG_ULTRA_DEBUG("Prepared unfiltered boxes.");
         // fill the filtered boxes if we are storing them all
         if (!matter_options_global->MINIMIZE_MEMORY) {
@@ -1459,7 +1484,8 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                 // NOTE: we are using previous_zp LW threshold for all zpp, inconsistent with the
                 // halo model
                 // minimum turnover NOTE: should be zpp_max?
-                log10_Mcrit_limit = log10(lyman_werner_threshold(redshift, 0., 0.));
+                log10_Mcrit_limit =
+                    log10(molecular_cooling_threshold_with_feedbacks(redshift, 0., 0.));
                 fill_Rbox_table(log10_Mcrit_LW, log10_Mcrit_LW_unfiltered, R_values,
                                 astro_params_global->N_STEP_TS, log10_Mcrit_limit, 1,
                                 min_log10_MturnLW, ave_log10_MturnLW, max_log10_MturnLW);
@@ -1554,7 +1580,6 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
     int R_index;
     float *delta_box_input;
     float *Mcrit_box_input = NULL;  // may be unused
-    ScalingConstants sc, sc_sfrd;
 
     // if we have stars, fill in the heating term boxes
     if (!NO_LIGHT) {
@@ -1597,9 +1622,16 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                         &ave_log10_MturnLW[R_ct], &max_log10_MturnLW[R_ct]);
                     }
                     // get the global things we missed before
-                    mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp_for_evolve_list[R_ct], &sc);
+                    // TODO: At the moment, inhomogeneous reionization feedback cannot be accounted
+                    // in SpinTemperatureBox.c,
+                    //      see https://github.com/21cmfast/21cmFAST/issues/470. Thus, we use the
+                    //      homogeneous (feedback-free) ACG turnover mass. It is important to
+                    //      remember to fix this when issue #470 is fixed!
+                    mean_sfr_zpp[R_ct] = EvaluateSFRD(zpp_for_evolve_list[R_ct],
+                                                      log10(sc.mturn_acg_homogeneous), &sc);
                     if (astro_options_global->USE_MINI_HALOS) {
                         mean_sfr_zpp_mini[R_ct] = EvaluateSFRD_MINI(zpp_for_evolve_list[R_ct],
+                                                                    log10(sc.mturn_acg_homogeneous),
                                                                     ave_log10_MturnLW[R_ct], &sc);
                     }
                     // fill one row of the interp tables
@@ -1623,15 +1655,15 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                     "%.4e",
                     zpp_for_evolve_list[R_ct], ave_fcoll, mean_sfr_zpp[R_ct],
                     Nion_General(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]), log(M_MAX_INTEGRAL),
-                                 sc_sfrd.mturn_a_nofb, &sc_sfrd),
+                                 sc_sfrd.mturn_acg_homogeneous, &sc_sfrd),
                     M_min_R[R_ct], avg_fix_term, z_edge_factor);
                 if (astro_options_global->USE_MINI_HALOS) {
                     LOG_SUPER_DEBUG(
                         "MINI sfrd val %.3e global %.3e (int %.3e) ratio %.3e log10McritLW %.3e",
                         ave_fcoll_MINI, mean_sfr_zpp_mini[R_ct],
                         Nion_General_MINI(zpp_for_evolve_list[R_ct], log(M_min_R[R_ct]),
-                                          log(M_MAX_INTEGRAL), pow(10., ave_log10_MturnLW[R_ct]),
-                                          &sc_sfrd),
+                                          log(M_MAX_INTEGRAL), sc_sfrd.mturn_acg_homogeneous,
+                                          pow(10., ave_log10_MturnLW[R_ct]), &sc_sfrd),
                         avg_fix_term_MINI, ave_log10_MturnLW[R_ct]);
                 }
 #endif
@@ -1748,7 +1780,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                                   log(M_max_R[R_ct]), M_max_R[R_ct],
                                                   sigma_max[R_ct],
                                                   delNL0[R_index][box_ct] * zpp_growth[R_ct],
-                                                  sc_sfrd.mturn_a_nofb, &sc_sfrd,
+                                                  sc_sfrd.mturn_acg_homogeneous, &sc_sfrd,
                                                   astro_options_global->INTEGRATION_METHOD_ATOMIC) *
                                 z_edge_factor * (1 + delNL0[R_index][box_ct] * zpp_growth[R_ct]) *
                                 avg_fix_term * astro_params_global->F_STAR10;
@@ -1772,6 +1804,7 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                                     zpp_growth[R_ct], log(M_min_R[R_ct]), log(M_max_R[R_ct]),
                                     log(M_max_R[R_ct]), sigma_max[R_ct],
                                     delNL0[R_index][box_ct] * zpp_growth[R_ct],
+                                    sc_sfrd.mturn_acg_homogeneous,
                                     pow(10, log10_Mcrit_LW[R_ct][box_ct]), &sc_sfrd,
                                     astro_options_global->INTEGRATION_METHOD_MINI) *
                                     z_edge_factor *

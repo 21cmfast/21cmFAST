@@ -35,6 +35,7 @@ def default_input_struct_lc_mini(default_input_struct_lc):
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
+        M_TURN_STELLAR_FEEDBACK=5.0,
     )
 
 
@@ -115,6 +116,14 @@ def test_bad_integral_inputs(default_input_struct):
     redshifts = np.linspace(6, 35, num=20)
     lnM_base = np.linspace(7, 13, num=30)
     densities = np.linspace(-1, 3, num=25)
+
+    with pytest.raises(ValueError, match="The shapes of redshifts and"):
+        cf.get_molecular_cooling_threshold_with_feedbacks(
+            inputs=default_input_struct,
+            redshifts=redshifts,
+            J_LW_21=densities,
+            v_cb=redshifts,
+        )
 
     with pytest.raises(ValueError, match="The shapes of redshifts and"):
         cf.compute_mturns(
@@ -441,7 +450,7 @@ def test_ps_runs(default_input_struct):
 
     with pytest.raises(
         ValueError,
-        match=r"inputs.matter_options.USE_RELATIVE_VELOCITIES must be True in order to compute the v_cb power spectrum\.",
+        match=r"inputs.matter_options.V_CB_MODEL must be 'FLUCTS' in order to compute the v_cb power spectrum\.",
     ):
         cf.get_vcb_power_values(
             inputs=default_input_struct,
@@ -451,7 +460,7 @@ def test_ps_runs(default_input_struct):
     ps = cf.get_vcb_power_values(
         inputs=default_input_struct.evolve_input_structs(
             POWER_SPECTRUM="CLASS",
-            USE_RELATIVE_VELOCITIES=True,
+            V_CB_MODEL="FLUCTS",
             K_MAX_FOR_CLASS=1.0,
         ),
         k_values=k_values,
@@ -685,10 +694,102 @@ def test_removed_arguments_are_cleaned_up_in_v5():
         )
 
 
-def test_roundtrip_mturns(default_input_struct_ts):
+@pytest.mark.parametrize("use_mini_halos", [True, False])
+@pytest.mark.parametrize("reionization_feedback_model", ["NONE", "ACG", "MCG", "BOTH"])
+@pytest.mark.parametrize("log10_m_turn_stellar_feedback", [5.0, 6.0, 7.0, 8.0, 9.0])
+def test_compute_mturns_model(
+    default_input_struct_ts,
+    use_mini_halos,
+    log10_m_turn_stellar_feedback,
+    reionization_feedback_model,
+):
+    """
+    Test that the the turnover masses follow our model.
+
+    Our model is that the turnover mass is the maximum of three mass scales:
+    1. The atomic (molecular) cooling mass scale for ACGs (MCGs)
+    2. The stellar feedback mass scale
+    3. The reionization feedback mass scale (if applicable)
+
+    If we make a change in the turnover mass model in the C code, this test should fail and we should update it to reflect the new model.
+    """
+    if not use_mini_halos and reionization_feedback_model in ["MCG", "BOTH"]:
+        pytest.skip(
+            "NO POINT IN TESTING REIONIZATION FEEDBACK ON MCG TURNOVER MASS WITHOUT MCGS"
+        )
+
+    nz = 20
+    redshifts = np.linspace(5, 35, num=nz)
+    # Draw fields from a uniform distribution to test the function.
+    # The actual values don't matter, as long as they are within the expected range
+    rng = np.random.default_rng(1337)
+    J_LW_21 = rng.uniform(low=0, high=10, size=nz)
+    v_cb = rng.uniform(low=0, high=50, size=nz)
+    ionisation_rate_G12 = rng.uniform(low=0, high=10, size=nz)
+    z_reion = rng.uniform(low=5, high=10, size=nz)
+
+    inputs = default_input_struct_ts.evolve_input_structs(
+        RECOMB_MODEL="inhomogeneous",
+        M_TURN_STELLAR_FEEDBACK=log10_m_turn_stellar_feedback,
+        USE_MINI_HALOS=use_mini_halos,
+        REIONIZATION_FEEDBACK_MODEL=reionization_feedback_model,
+    )
+    # Compute the turnover masses from the C code, these are the values under test
+    # NOTE: to save time, the C code actually computes the inhomogeneous turnover masses at every cell,
+    #       while the homogeneous ACG turnover mass is computed outside the box loop.
+    #       The function below already includes the homogeneous ACG turnover mass in its calculation
+    Mturn_a_test, M_turn_m_test = cf.compute_mturns(
+        inputs=inputs,
+        redshifts=redshifts,
+        J_LW_21=J_LW_21,
+        v_cb=v_cb,
+        ionisation_rate_G12=ionisation_rate_G12,
+        z_reion=z_reion,
+    )
+    # Compute the "standard" turnover masses for ACGs and MCGs
+    M_turn_a = cf.get_atomic_cooling_mass_threshold(
+        inputs=inputs,
+        redshifts=redshifts,
+    )
+    M_turn_m = cf.get_molecular_cooling_threshold_with_feedbacks(
+        inputs=inputs,
+        redshifts=redshifts,
+        J_LW_21=J_LW_21,
+        v_cb=v_cb,
+    )
+    # Compute the reionization feedback turnover mass, if applicable
+    if reionization_feedback_model != "NONE":
+        M_turn_r = cf.get_reionization_feedback(
+            inputs=inputs,
+            redshifts=redshifts,
+            ionisation_rate_G12=ionisation_rate_G12,
+            z_reion=z_reion,
+        )
+
+    # Determine the final turnover masses by taking the maximum of three mass scales
+    M_turn_a = np.maximum(M_turn_a, pow(10.0, log10_m_turn_stellar_feedback))
+    if reionization_feedback_model in ["ACG", "BOTH"]:
+        M_turn_a = np.maximum(M_turn_a, M_turn_r)
+    if use_mini_halos:
+        M_turn_m = np.maximum(M_turn_m, pow(10.0, log10_m_turn_stellar_feedback))
+        if reionization_feedback_model in ["MCG", "BOTH"]:
+            M_turn_m = np.maximum(M_turn_m, M_turn_r)
+
+    # Compare the results
+    np.testing.assert_allclose(Mturn_a_test, M_turn_a, rtol=1e-4)
+    if use_mini_halos:
+        np.testing.assert_allclose(M_turn_m_test, M_turn_m, rtol=1e-4)
+
+
+@pytest.mark.parametrize("v_cb_model", ["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"])
+def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
     inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", K_MAX_FOR_CLASS=1.0
+        USE_MINI_HALOS=True,
+        RECOMB_MODEL="inhomogeneous",
+        K_MAX_FOR_CLASS=1.0,
+        V_CB_MODEL=v_cb_model,
+        POWER_SPECTRUM="CLASS" if v_cb_model == "FLUCTS" else "EH",
     )
     # Run global evolution and extract global fields
     global_evolution = p21c.run_global_evolution(inputs=inputs)
@@ -697,7 +798,15 @@ def test_roundtrip_mturns(default_input_struct_ts):
     J_21_LW_global = global_evolution.quantities["J_21_LW"]
     z_reion_global = global_evolution.quantities["z_reion"]
     ionisation_rate_G12_global = global_evolution.quantities["ionisation_rate_G12"]
-    v_cb = inputs.astro_params.FIXED_VAVG if inputs.astro_options.FIX_VCB_AVG else 0.0
+    # Global v_cb is determined according to V_CB_MODEL
+    match inputs.matter_options.V_CB_MODEL:
+        case "NONE":
+            v_cb = 0.0
+        case "AVG-AUTO" | "FLUCTS":
+            v_cb = inputs.cosmo_tables.V_CB_AVG
+        case "AVG-DEBUG":
+            v_cb = inputs.astro_params.V_CB_AVG_DEBUG
+
     # Given the above fields, compute mturns using the cfuncs function
     Mturn_a_global, M_turn_m_global = cf.compute_mturns(
         inputs=inputs,

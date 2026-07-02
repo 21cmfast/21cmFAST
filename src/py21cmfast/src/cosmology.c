@@ -142,9 +142,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
     if (flag_int == 0) {  // Initialize vectors and read file
         kclass = cosmo_tables_global->transfer_density->x_values;
         Tmclass = cosmo_tables_global->transfer_density->y_values;
-        Tvclass_vcb = cosmo_tables_global->transfer_vcb->y_values;
         size_density = cosmo_tables_global->transfer_density->size;
-        size_vcb = cosmo_tables_global->transfer_vcb->size;
 
         gsl_set_error_handler_off();
         // Set up spline table for densities
@@ -155,23 +153,31 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
 
         LOG_SUPER_DEBUG("Generated CLASS Density Spline.");
 
-        // Set up spline table for velocities
-        acc_vcb = gsl_interp_accel_alloc();
-        spline_vcb = gsl_spline_alloc(gsl_interp_cspline, size_vcb);
-        gsl_status = gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, size_vcb);
-        CATCH_GSL_ERROR(gsl_status);
-
-        LOG_SUPER_DEBUG("Generated CLASS velocity Spline.");
-
         eh_ratio_at_kmax = Tmclass[size_density - 1] / kclass[size_density - 1] /
                            kclass[size_density - 1] /
                            transfer_function_EH(kclass[size_density - 1]);
+
+        if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
+            Tvclass_vcb = cosmo_tables_global->transfer_vcb->y_values;
+            size_vcb = cosmo_tables_global->transfer_vcb->size;
+
+            // Set up spline table for velocities
+            acc_vcb = gsl_interp_accel_alloc();
+            spline_vcb = gsl_spline_alloc(gsl_interp_cspline, size_vcb);
+            gsl_status = gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, size_vcb);
+            CATCH_GSL_ERROR(gsl_status);
+
+            LOG_SUPER_DEBUG("Generated CLASS velocity Spline.");
+        }
+
         return 0;
     } else if (flag_int == -1) {
         gsl_spline_free(spline_density);
         gsl_interp_accel_free(acc_density);
-        gsl_spline_free(spline_vcb);
-        gsl_interp_accel_free(acc_vcb);
+        if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
+            gsl_spline_free(spline_vcb);
+            gsl_interp_accel_free(acc_vcb);
+        }
         return 0;
     }
 
@@ -286,9 +292,8 @@ double power_in_k(double k) {
         primordial = primordial_curvature_power_spectrum(k);
         p = cosmo_consts.sigma_norm * primordial * T * T / pow(k, 3);
 
-        // NOTE: USE_RELATIVE_VELOCITIES is only allowed if using CLASS
         if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS &&
-            matter_options_global->USE_RELATIVE_VELOCITIES) {
+            uses_v_cb(matter_options_global->V_CB_MODEL)) {
             // jbm:Add average relvel suppression
             p *= 1.0 - A_VCB_PM * exp(-pow(log(k / KP_VCB_PM), 2.0) /
                                       (2.0 * SIGMAK_VCB_PM * SIGMAK_VCB_PM));
@@ -319,7 +324,7 @@ double power_in_vcb(double k) {
         }
     } else {
         LOG_ERROR(
-            "Cannot get P_cb unless using CLASS: %i\n Set USE_RELATIVE_VELOCITIES 0 or use "
+            "Cannot get P_cb unless using CLASS: %i\n Set V_CB_MODEL != V_CB_MODEL_NO or use "
             "CLASS.\n",
             matter_options_global->POWER_SPECTRUM);
         Throw(ValueError);
@@ -629,7 +634,7 @@ double deltac_nonlinear(float z) {
 
 /*
  T in K, M in Msun, mu is mean molecular weight
- from Barkana & Loeb 2001
+ from Barkana & Loeb 2001 (this is inversion of their Eq. 26)
 
  SUPRESS = 0 for no radiation field supression;
  SUPRESS = 1 for supression (step function at z=z_ss, at v=v_zz)

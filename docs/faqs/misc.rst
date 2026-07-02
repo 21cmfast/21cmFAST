@@ -9,6 +9,17 @@ Historically, ``21cmFAST`` was initially designed to simulate very fast reioniza
 
 In general, before running a full lightcone simulation via ``run_lightcone``, it's a good practice to make a quick calculation with ``run_global_evolution`` (find more information and limitations of this feature in `the global evolution tutorial <../tutorials/global_evolution.ipynb>`_).
 
+I get different results compared to older versions of 21cmFAST, why?
+--------------------------------------------------------------------
+
+``21cmFAST`` has undergone significant changes since its initial release, and the results of the code
+have changed accordingly. Specifically, for new v4 users, it is important to note that a new
+``SOURCE_MODEL`` parameter was introduced in ``MatterOptions``. In order to mimic the behavior of
+the code in v3, you can either set ``SOURCE_MODEL`` on ``"CONST-ION-EFF"`` or ``"E-INTEGRAL"``,
+the former (latter) corresponds to setting ``USE_MASS_DEPENDENT_ZETA`` on ``False`` (``True``) in v3.
+Despite our efforts to maintain backward reproducability, a few changes in the logics of these source
+models have been made in v4, see `the documentation for changes from v3 <../updates_from_v3.rst>`_
+for more details.
 
 My run seg-faulted, what should I do?
 -------------------------------------

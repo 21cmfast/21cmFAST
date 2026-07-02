@@ -120,7 +120,7 @@ def test_relvels():
         DIM=300,
         BOX_LEN=300,
         POWER_SPECTRUM="CLASS",
-        USE_RELATIVE_VELOCITIES=True,
+        V_CB_MODEL="FLUCTS",
         N_THREADS=cpu_count(),  # To make this one a bit faster.
     )
     ic = p21c.compute_initial_conditions(inputs=inputs)

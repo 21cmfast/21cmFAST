@@ -56,6 +56,16 @@
 #define RECOMB_MODEL_HOMOGENEOUS 1
 #define RECOMB_MODEL_INHOMOGENEOUS 2
 
+#define V_CB_MODEL_NO 0
+#define V_CB_MODEL_AVG_AUTO 1
+#define V_CB_MODEL_FLUCTS 2
+#define V_CB_MODEL_AVG_DEBUG 3
+
+#define REIONIZATION_FEEDBACK_MODEL_NONE 0
+#define REIONIZATION_FEEDBACK_MODEL_ACG 1
+#define REIONIZATION_FEEDBACK_MODEL_MCG 2
+#define REIONIZATION_FEEDBACK_MODEL_BOTH 3
+
 static inline bool source_model_is_mass_dependent(int source_model) {
     return source_model != SOURCE_MODEL_CONST_ION_EFF;
 }
@@ -80,6 +90,22 @@ static inline bool uses_interpolation_tables(int interpolation_mode) {
 static inline bool uses_hmf_interpolation(int interpolation_mode) {
     return interpolation_mode == INTERPOLATION_HMF;
 }
+
+static inline bool uses_reionization_feedback(int reionization_feedback_model) {
+    return reionization_feedback_model != REIONIZATION_FEEDBACK_MODEL_NONE;
+}
+
+static inline bool uses_reionization_feedback_in_acgs(int reionization_feedback_model) {
+    return (reionization_feedback_model == REIONIZATION_FEEDBACK_MODEL_ACG ||
+            reionization_feedback_model == REIONIZATION_FEEDBACK_MODEL_BOTH);
+}
+
+static inline bool uses_reionization_feedback_in_mcgs(int reionization_feedback_model) {
+    return (reionization_feedback_model == REIONIZATION_FEEDBACK_MODEL_MCG ||
+            reionization_feedback_model == REIONIZATION_FEEDBACK_MODEL_BOTH);
+}
+
+static inline bool uses_v_cb(int v_cb_model) { return v_cb_model != V_CB_MODEL_NO; }
 
 static inline bool uses_recombination(int recomb_model) { return recomb_model != RECOMB_MODEL_NO; }
 

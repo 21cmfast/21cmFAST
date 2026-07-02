@@ -6,7 +6,7 @@
 
 [MatterOptions]
 SOURCE_MODEL = 'E-INTEGRAL'
-USE_RELATIVE_VELOCITIES = true
+V_CB_MODEL = 'FLUCTS'
 
 [AstroParams]
 F_STAR10 = -1.25
@@ -16,7 +16,7 @@ F_ESC7_MINI = -1.35
 ALPHA_STAR = 0.5
 ALPHA_STAR_MINI = 0.0
 ALPHA_ESC = -0.3
-M_TURN = 5.0 # not included in Munoz21, so we set very low
+M_TURN_STELLAR_FEEDBACK = 5.0 # not included in Munoz21, so we set very low
 t_STAR = 0.5
 L_X = 40.5
 X_RAY_SPEC_INDEX = 1.0
@@ -34,3 +34,4 @@ USE_TS_FLUCT = true
 RECOMB_MODEL = 'inhomogeneous'
 HII_FILTER = 'sharp-k'
 INTEGRATION_METHOD_MINI='GAMMA-APPROX'
+REIONIZATION_FEEDBACK_MODEL = 'BOTH'

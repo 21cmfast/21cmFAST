@@ -58,8 +58,9 @@ void set_alphacons_params(double norm, double slope);
 /* ------------------------------- */
 
 /* Non-OutputStruct data products */
-int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, float *M_TURNs,
-              double *M_uv_z, double *M_h_z, double *log10phi);
+int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, double *z_LF,
+              double *M_TURNs_ACG, double *M_TURNs_MCG, double *M_uv_z, double *M_h_z,
+              double *log10phi);
 
 float ComputeTau(int NPoints, float *redshifts, float *global_xHI, float z_re_HeII);
 /*-----------------------------*/
@@ -96,19 +97,20 @@ void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, do
                             int n_masslim, double *lnM_lo, double *lnM_hi, double *out_n);
 void get_halomass_at_probability(double redshift, double z_prev, int n_conditions,
                                  double *cond_values, double *probabilities, double *out_mass);
-void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
-                       double *out_sfrd, double *out_sfrd_mini);
-void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnovers_mcg,
-                       double *out_nion, double *out_nion_mini);
+void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnovers_acg,
+                       double *log10_turnovers_mcg, double *out_sfrd, double *out_sfrd_mini);
+void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnovers_acg,
+                       double *log10_turnovers_mcg, double *out_nion, double *out_nion_mini);
 void get_conditional_FgtrM(double redshift, double R, int n_densities, double *densities,
                            double *out_fcoll, double *out_dfcoll);
 void get_conditional_SFRD(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturns_mini, double *out_sfrd, double *out_sfrd_mini);
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_sfrd,
+                          double *out_sfrd_mini);
 void get_conditional_Nion(double redshift, double R, int n_densities, double *densities,
                           double log10_mturn_acg, double log10_mturn_mcg, double *out_nion,
                           double *out_nion_mini);
 void get_conditional_Xray(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturns_mini, double *out_xray);
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_xray);
 /*--------------------------------*/
 
 /* Error framework testing */
@@ -143,9 +145,11 @@ double power_in_k(double k);
 double power_in_vcb(double k);
 double get_delta_crit(int HMF, double sigma, double growthf);
 double atomic_cooling_threshold(float z);
+double molecular_cooling_threshold_with_feedbacks(float z, float J_21_LW, float vcb);
+double reionization_feedback(float z, float Gamma_halo_HII, float z_IN);
 double unconditional_hmf(double growthf, double lnM, double z, int HMF);
 double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF);
 double expected_nhalo(double redshift);
-void compute_mturns(float z, float J_21_LW, float vcb, float Gamma12, float z_reion,
-                    double *M_turn_a, double *M_turn_m);
+void compute_mturns(double z, float J_21_LW, float vcb, float Gamma12, float z_reion,
+                    float *M_turn_a, float *M_turn_m);
 /*-----------------------*/

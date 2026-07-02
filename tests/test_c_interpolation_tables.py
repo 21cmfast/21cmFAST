@@ -70,20 +70,21 @@ def z_range():
 
 
 @pytest.fixture(scope="module")
-def default_input_struct_lc_mini(default_input_struct_lc):
+def default_input_struct_mini(default_input_struct_lc):
     """A default input struct with mini halos turned on."""
     return default_input_struct_lc.evolve_input_structs(
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
-    ).with_logspaced_redshifts(zmin=OPTIONS_HMF["PS"][0], step=1.2)
+        M_TURN_STELLAR_FEEDBACK=5.0,
+    ).with_logspaced_redshifts(zmin=6, step=1.2)
 
 
 @pytest.fixture(scope="module")
-def default_global_evolution(default_input_struct_lc_mini):
+def default_global_evolution_mini(default_input_struct_mini):
     """A default global signal (with mini halos)."""
-    return p21c.run_global_evolution(inputs=default_input_struct_lc_mini)
+    return p21c.run_global_evolution(inputs=default_input_struct_mini)
 
 
 def get_delta_subset(inputs, redshift, R, delta_range):
@@ -374,14 +375,17 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-def test_SFRD_z_tables(name, z_range, default_global_evolution, plt):
+def test_SFRD_z_tables(name, z_range, default_global_evolution_mini, plt):
     redshift, kwargs = OPTIONS_HMF[name]
+    global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        node_redshifts=global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
@@ -390,14 +394,14 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution, plt):
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
         redshifts=z_range,
-        global_evolution=default_global_evolution,
+        global_evolution=global_evolution,
     )
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation"
         ),
         redshifts=z_range,
-        global_evolution=default_global_evolution,
+        global_evolution=global_evolution,
     )
 
     abs_tol = 1e-5
@@ -441,14 +445,17 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-def test_Nion_z_tables(name, z_range, default_global_evolution, plt):
+def test_Nion_z_tables(name, z_range, default_global_evolution_mini, plt):
     redshift, kwargs = OPTIONS_HMF[name]
+    global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        node_redshifts=global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
@@ -457,14 +464,14 @@ def test_Nion_z_tables(name, z_range, default_global_evolution, plt):
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
         redshifts=z_range,
-        global_evolution=default_global_evolution,
+        global_evolution=global_evolution,
     )
     nion_integrals, nion_integrals_mini = cf.evaluate_Nion_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation"
         ),
         redshifts=z_range,
-        global_evolution=default_global_evolution,
+        global_evolution=global_evolution,
     )
 
     abs_tol = 2e-6
@@ -520,8 +527,16 @@ def test_Nion_z_tables(name, z_range, default_global_evolution, plt):
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
+@pytest.mark.parametrize("reionization_feedback_model", ["NONE", "ACG", "MCG", "BOTH"])
 def test_Nion_conditional_tables(
-    name, delta_range, R, mini, intmethod, default_global_evolution, plt
+    name,
+    delta_range,
+    R,
+    mini,
+    reionization_feedback_model,
+    intmethod,
+    default_global_evolution_mini,
+    plt,
 ):
     if intmethod == "FFCOLL":
         if name != "PS":
@@ -532,34 +547,46 @@ def test_Nion_conditional_tables(
             )
 
     mini_flag = mini == "mini"
+
+    if not mini_flag and reionization_feedback_model in ["MCG", "BOTH"]:
+        pytest.skip(
+            "NO POINT IN TESTING REIONIZATION FEEDBACK ON MCG TURNOVER MASS WITHOUT MCGS"
+        )
+
     redshift, kwargs = OPTIONS_HMF[name]
+    global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        REIONIZATION_FEEDBACK_MODEL=reionization_feedback_model,
+        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
+        node_redshifts=global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
     Nion_tables, Nion_tables_mini = cf.evaluate_Nion_cond(
         inputs=inputs.evolve_input_structs(
-            USE_INTERPOLATION_TABLES="hmf-interpolation"
+            USE_INTERPOLATION_TABLES="hmf-interpolation",
         ),
         redshift=redshift,
         radius=R,
         densities=delta_range,
-        global_evolution=default_global_evolution,
+        global_evolution=global_evolution,
     )
 
     Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_cond(
         inputs=inputs.evolve_input_structs(
-            USE_INTERPOLATION_TABLES="sigma-interpolation"
+            USE_INTERPOLATION_TABLES="sigma-interpolation",
         ),
         redshift=redshift,
         radius=R,
         densities=delta_range,
-        global_evolution=default_global_evolution,
+        global_evolution=global_evolution,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -637,8 +664,16 @@ def test_Nion_conditional_tables(
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
+@pytest.mark.parametrize("reionization_feedback_model", ["NONE", "ACG", "MCG", "BOTH"])
 def test_Xray_conditional_tables(
-    name, delta_range, R, mini, intmethod, default_global_evolution, plt
+    name,
+    delta_range,
+    R,
+    mini,
+    reionization_feedback_model,
+    intmethod,
+    default_global_evolution_mini,
+    plt,
 ):
     if intmethod == "FFCOLL":
         if name != "PS":
@@ -650,38 +685,45 @@ def test_Xray_conditional_tables(
 
     mini_flag = mini == "mini"
 
+    if not mini_flag and reionization_feedback_model in ["MCG", "BOTH"]:
+        pytest.skip(
+            "NO POINT IN TESTING REIONIZATION FEEDBACK ON MCG TURNOVER MASS WITHOUT MCGS"
+        )
+
     redshift, kwargs = OPTIONS_HMF[name]
+    global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        REIONIZATION_FEEDBACK_MODEL=reionization_feedback_model,
+        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
+        node_redshifts=global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
     Xray_tables = cf.evaluate_Xray_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation",
-            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         redshift=redshift,
         radius=R,
         densities=delta_range,
-        global_evolution=default_global_evolution,
+        global_evolution=global_evolution,
     )
 
     Xray_integrals = cf.evaluate_Xray_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation",
-            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         redshift=redshift,
         radius=R,
         densities=delta_range,
-        global_evolution=default_global_evolution,
+        global_evolution=global_evolution,
     )
 
     abs_tol = 0.0
@@ -718,11 +760,20 @@ def test_Xray_conditional_tables(
     )
 
 
+@pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
+@pytest.mark.parametrize("reionization_feedback_model", ["NONE", "ACG", "MCG", "BOTH"])
 def test_SFRD_conditional_table(
-    name, delta_range, R, intmethod, default_global_evolution, plt
+    name,
+    delta_range,
+    R,
+    mini,
+    reionization_feedback_model,
+    intmethod,
+    default_global_evolution_mini,
+    plt,
 ):
     if intmethod == "FFCOLL":
         if name != "PS":
@@ -730,38 +781,47 @@ def test_SFRD_conditional_table(
         else:
             pytest.xfail("FFCOLL TABLES drop sharply at high Mturn, causing failure")
 
+    mini_flag = mini == "mini"
+
+    if not mini_flag and reionization_feedback_model in ["MCG", "BOTH"]:
+        pytest.skip(
+            "NO POINT IN TESTING REIONIZATION FEEDBACK ON MCG TURNOVER MASS WITHOUT MCGS"
+        )
+
     redshift, kwargs = OPTIONS_HMF[name]
+    global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
-        USE_MINI_HALOS=True,
+        USE_MINI_HALOS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        REIONIZATION_FEEDBACK_MODEL=reionization_feedback_model,
+        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
+        node_redshifts=global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
     SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation",
-            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         radius=R,
         redshift=redshift,
         densities=delta_range,
-        global_evolution=default_global_evolution,
+        global_evolution=global_evolution,
     )
 
     SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation",
-            INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-            INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
         ),
         radius=R,
         redshift=redshift,
         densities=delta_range,
-        global_evolution=default_global_evolution,
+        global_evolution=global_evolution,
     )
 
     # The bilinear interpolation we use underperforms at high mturn due to the sharp
@@ -769,19 +829,34 @@ def test_SFRD_conditional_table(
     # rather than a level we expect from interp tables remedies this for now.
     # TODO: In future we should investigate cubic splines etc.
     abs_tol = 1e-8
+
     if plt == mpl.pyplot:
-        make_table_comparison_plot(
-            [delta_range, delta_range],
-            [None, None],
-            [SFRD_tables, SFRD_tables_mini],
-            [SFRD_integrals, SFRD_integrals_mini],
-            plt,
-            abstol=abs_tol,
-            reltol=RELATIVE_TOLERANCE,
-            label_test=[True, False],
-            xlabels=["delta", "delta"],
-            ylabels=["SFRD", "SFRD_mini"],
-        )
+        if mini_flag:
+            make_table_comparison_plot(
+                [delta_range, delta_range],
+                [None, None],
+                [SFRD_tables, SFRD_tables_mini],
+                [SFRD_integrals, SFRD_integrals_mini],
+                plt,
+                abstol=abs_tol,
+                reltol=RELATIVE_TOLERANCE,
+                label_test=[True, False],
+                xlabels=["delta", "delta"],
+                ylabels=["SFRD", "SFRD_mini"],
+            )
+        else:
+            make_table_comparison_plot(
+                [delta_range],
+                [None],
+                [SFRD_tables],
+                [SFRD_integrals],
+                plt,
+                abstol=abs_tol,
+                reltol=RELATIVE_TOLERANCE,
+                label_test=[True],
+                xlabels=["delta"],
+                ylabels=["SFRD"],
+            )
 
     sel_delta = get_delta_subset(inputs, redshift, R, delta_range)
 
@@ -793,14 +868,16 @@ def test_SFRD_conditional_table(
         RELATIVE_TOLERANCE,
         "SFRD_c",
     )
-    print_failure_stats(
-        SFRD_tables_mini[sel_delta],
-        SFRD_integrals_mini[sel_delta],
-        [delta_range[sel_delta]],
-        abs_tol,
-        RELATIVE_TOLERANCE,
-        "SFRD_c_mini",
-    )
+
+    if mini_flag:
+        print_failure_stats(
+            SFRD_tables_mini[sel_delta],
+            SFRD_integrals_mini[sel_delta],
+            [delta_range[sel_delta]],
+            abs_tol,
+            RELATIVE_TOLERANCE,
+            "SFRD_c_mini",
+        )
 
     np.testing.assert_allclose(
         SFRD_tables[sel_delta],
@@ -808,12 +885,14 @@ def test_SFRD_conditional_table(
         atol=abs_tol,
         rtol=RELATIVE_TOLERANCE,
     )
-    np.testing.assert_allclose(
-        SFRD_tables_mini[sel_delta],
-        SFRD_integrals_mini[sel_delta],
-        atol=abs_tol,
-        rtol=RELATIVE_TOLERANCE,
-    )
+
+    if mini_flag:
+        np.testing.assert_allclose(
+            SFRD_tables_mini[sel_delta],
+            SFRD_integrals_mini[sel_delta],
+            atol=abs_tol,
+            rtol=RELATIVE_TOLERANCE,
+        )
 
 
 INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
@@ -823,15 +902,18 @@ INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("integrand", INTEGRAND_OPTIONS)
 def test_conditional_integral_methods(
-    R, delta_range, name, integrand, default_global_evolution, plt
+    R, delta_range, name, integrand, default_global_evolution_mini, plt
 ):
     redshift, kwargs = OPTIONS_HMF[name]
+    global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
-        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == default_global_evolution.node_redshifts
+        ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        node_redshifts=global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
 
@@ -853,7 +935,7 @@ def test_conditional_integral_methods(
                 redshift=redshift,
                 radius=R,
                 densities=delta_range,
-                global_evolution=default_global_evolution,
+                global_evolution=global_evolution,
             )
         else:
             buf, buf_mini = cf.evaluate_Nion_cond(
@@ -861,7 +943,7 @@ def test_conditional_integral_methods(
                 redshift=redshift,
                 radius=R,
                 densities=delta_range,
-                global_evolution=default_global_evolution,
+                global_evolution=global_evolution,
             )
         integrals.append(buf)
         integrals_mini.append(buf_mini)

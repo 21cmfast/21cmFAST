@@ -32,6 +32,7 @@ from .._cfg import config
 from ..c_21cmfast import ffi
 from ._utils import snake_to_camel
 from .classy_interface import (
+    compute_rms,
     find_redshift_kinematic_decoupling,
     get_transfer_function,
     k_transfer,
@@ -60,9 +61,12 @@ def choice_field(*, validator=None, **kwargs):
     return field(validator=vld, transformer=choice_transformer, converter=str, **kwargs)
 
 
-def logtransformer(x, att: attrs.Attribute):
+def logtransformer(x: float | None, att: attrs.Attribute):
     """Convert from log to linear space."""
-    return 10**x
+    if x is None:
+        return None
+    else:
+        return 10**x
 
 
 def dex2exp_transformer(x, att: attrs.Attribute):
@@ -131,6 +135,10 @@ Planck18 = Planck15.clone(
     Neff=3.044,
     name="Planck18",
 )
+
+# The mean value of the amplitude of the relative velocity between baryons and cold dark matter at kinematic decoupling, in km/s,
+# for LCDM Planck 2018 cosmology
+V_CB_AVG_DEFAULT = 27.0
 
 
 @attrs.define(frozen=True, kw_only=True)
@@ -351,12 +359,30 @@ class Table1D:
 
 @attrs.define(frozen=True, kw_only=True)
 class CosmoTables:
-    """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor)."""
+    """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor).
 
-    transfer_density: Table1D = field(default=None)
-    transfer_vcb: Table1D = field(default=None)
-    ps_norm: float = field(default=None)
-    USE_SIGMA_8: bool = field(default=None)
+    Attributes
+    ----------
+    transfer_density : Table1D | None
+        Interpolation table for the density transfer function.
+        In InputParameters, becomes non-trivial only if MatterOptions.POWER_SPECTRUM is set to "CLASS".
+    transfer_vcb : Table1D | None
+        Interpolation table for the velocity transfer function.
+        In InputParameters, becomes non-trivial only if MatterOptions.POWER_SPECTRUM is set to "CLASS" and MatterOptions.V_CB_MODEL = "FLUCTS".
+    USE_SIGMA_8 : bool | None
+        Flag to indicate whether to use CosmoParams.SIGMA_8 or CosmoParams.A_s for the normalization of the power spectrum.
+    ps_norm : float | None
+        Normalization factor for the power spectrum. If USE_SIGMA_8 is True, this is set to CosmoParams.SIGMA_8, otherwise it is set to CosmoParams.A_s.
+    V_CB_AVG : float | None
+        Mean value of the amplitude of the relative velocity between baryons and cold dark matter at kinematic decoupling, in km/s.
+        In InputParameters, becomes non-trivial only if MatterOptions.V_CB_MODEL is set to "AVG-AUTO".
+    """
+
+    transfer_density: Table1D | None = field(default=None)
+    transfer_vcb: Table1D | None = field(default=None)
+    ps_norm: float | None = field(default=None)
+    USE_SIGMA_8: bool | None = field(default=None)
+    V_CB_AVG: float | None = field(default=None)
 
     @classmethod
     def new(cls, x: dict | Self | None = None, **kwargs):
@@ -633,19 +659,21 @@ class MatterOptions(InputStruct):
         Delos (Delos+23)
         Reed07 (Reed+07; arXiv:0607150)
         Yung24 (Yung+24; arXiv:2304.04348)
-    USE_RELATIVE_VELOCITIES: int, optional
+    USE_RELATIVE_VELOCITIES: bool or None, optional
         Flag to decide whether to use relative velocities.
-        If True, POWER_SPECTRUM is automatically set to 5. Default False.
+        This parameter is deprecated and will be removed in a future version, see V_CB_MODEL for the new method
+        to control the relative velocity.
     POWER_SPECTRUM
-        Determines which power spectrum to use, default EH (unless `USE_RELATIVE_VELOCITIES`
-        is True). Use the following codes:
+        Determines which power spectrum to use, default EH (unless `V_CB_MODEL`
+        is "FLUCTS"). Use the following codes:
 
         * EH : Eisenstein & Hu 1999
         * BBKS: Bardeen et al. 1986
         * EFSTATHIOU: Efstathiou et al. 1992
         * PEEBLES: Peebles 1980
         * WHITE: White 1985
-        * CLASS: Uses fits from the CLASS code
+        * CLASS: Runs the CLASS code to compute the power spectrum. This is the most precise, but also the slowest (can take ~30 seconds
+          at most and can be reduced if USE_MINI_HALOS=False or K_MAX_FOR_CLASS is set to a low value).
     PERTURB_ON_HIGH_RES
         Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
         resolution grid.
@@ -699,6 +727,18 @@ class MatterOptions(InputStruct):
     KEEP_3D_VELOCITIES
         Whether to keep the 3D velocities in the ICs.
         If False, only the z velocity is kept.
+    V_CB_MODEL
+        The model to use for the relative velocity field between the (cold) dark matter and the baryons,
+        at the moment of kinematic decoupling. Options are:
+
+        * ``NONE``: Zero relative velocity is assumed.
+        * ``AVG-AUTO``: The mean of the amplitude of the relative velocity is used in every cell in the box. It is computed from linear theory,
+          given the cosmological parameters.
+        * ``FLUCTS``: The relative velocity field is computed on the Lagrangian grid using linear theory. The relative velocity field
+          is assumed to be curl-free and completely correlated with the density field (in Fourier space). In this option, POWER_SPECTRUM
+          is automatically set to ``CLASS``.
+        * ``AVG-DEBUG``: A single value for the amplitude of the relative velocity is used in every cell in the box. It is set by the ``V_CB_AVG_DEBUG``
+        parameter in AstroParams. This is only for debugging purposes and should not be used in production.
     SOURCE_MODEL
         The source model to use in the simulation. Options are:
 
@@ -729,7 +769,10 @@ class MatterOptions(InputStruct):
     HMF: Literal["PS", "ST", "WATSON", "WATSON-Z", "DELOS", "REED07", "YUNG24"] = (
         choice_field(default="ST")
     )
-    USE_RELATIVE_VELOCITIES: bool = field(default=False, converter=bool)
+    _USE_RELATIVE_VELOCITIES: bool | None = field(
+        default=None, converter=attrs.converters.optional(bool)
+    )
+    V_CB_MODEL: Literal["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"] = choice_field()
     POWER_SPECTRUM: Literal["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"] = (
         choice_field()
     )
@@ -762,13 +805,59 @@ class MatterOptions(InputStruct):
 
     @POWER_SPECTRUM.default
     def _ps_default(self):
-        return "CLASS" if self.USE_RELATIVE_VELOCITIES else "EH"
+        return "CLASS" if self.V_CB_MODEL == "FLUCTS" else "EH"
 
     @POWER_SPECTRUM.validator
     def _POWER_SPECTRUM_vld(self, att, val):
-        if self.USE_RELATIVE_VELOCITIES and val != "CLASS":
+        if self.V_CB_MODEL == "FLUCTS" and val != "CLASS":
             raise ValueError(
-                "Can only use 'CLASS' power spectrum with relative velocities"
+                "When using V_CB_MODEL='FLUCTS', you must use POWER_SPECTRUM = 'CLASS'! "
+                "Please set POWER_SPECTRUM to 'CLASS' or change V_CB_MODEL to something else."
+            )
+
+    @cached_property
+    def USE_RELATIVE_VELOCITIES(self) -> bool:
+        """Whether to use the fluctuating field of the relative velocity between (cold) dark matter and baryons.
+
+        This is a deprecated property, and will be removed in v5. Please use V_CB_MODEL instead.
+        """
+        if self._USE_RELATIVE_VELOCITIES is None:
+            # User didn't explicitly set USE_RELATIVE_VELOCITIES, infer from V_CB_MODEL
+            return self.V_CB_MODEL == "FLUCTS"
+        else:
+            return self._USE_RELATIVE_VELOCITIES
+
+    @V_CB_MODEL.default
+    def _default_v_cb_model(self):
+        if self._USE_RELATIVE_VELOCITIES is None:
+            return "NONE"
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "USE_RELATIVE_VELOCITIES",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "USE_RELATIVE_VELOCITIES is deprecated and will be removed in a future version. "
+                    "Please use V_CB_MODEL directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return "FLUCTS" if self._USE_RELATIVE_VELOCITIES else "NONE"
+
+    @V_CB_MODEL.validator
+    def _v_cb_model_vld(self, att, val):
+        if self._USE_RELATIVE_VELOCITIES is True and val == "NONE":
+            raise ValueError(
+                "V_CB_MODEL is set to 'NONE' but USE_RELATIVE_VELOCITIES is True! "
+                "Either set USE_RELATIVE_VELOCITIES to False or change V_CB_MODEL to 'FLUCTS'."
+            )
+        if self._USE_RELATIVE_VELOCITIES is False and val != "NONE":
+            raise ValueError(
+                f"V_CB_MODEL is set to '{val}' but USE_RELATIVE_VELOCITIES is False! "
+                "Either set USE_RELATIVE_VELOCITIES to True or change V_CB_MODEL to 'FLUCTS'."
             )
 
     @SOURCE_MODEL.validator
@@ -1112,7 +1201,7 @@ class AstroOptions(InputStruct):
     USE_LYA_HEATING : bool, optional
         Whether to use Lyman-alpha heating. (cf Sec. 3 of Reis+2021,
         https://doi.org/10.1093/mnras/stab2089)
-    INHOMO_RECO : bool, optional
+    INHOMO_RECO : bool or None, optional
         Whether to perform inhomogeneous recombinations. Increases the computation
         time. This parameter is deprecated and will be removed in a future version, see RECOMB_MODEL
         for the new method to control the recombination algorithm.
@@ -1144,10 +1233,23 @@ class AstroOptions(InputStruct):
         * f-photoncons: Adjustment to the escape fraction normalisation, runs one
           calibration simulation to find the adjustment as a function of xH where
           ``f'/f = xH_global/xH_calibration``
-    FIX_VCB_AVG: bool, optional
-        Determines whether to use a fixed vcb=VAVG (*regardless* of
-        USE_RELATIVE_VELOCITIES). It includes the average effect of velocities but not
-        its fluctuations. See `Muñoz+21 <https://arxiv.org/abs/2110.13919>`_)
+    REIONIZATION_FEEDBACK_MODEL: str, optional
+        The model to use for the reionization feedback on the turnover mass, see Sobacchi and Mesinger 2013 (https://arxiv.org/pdf/1301.6776).
+        Options are:
+
+        * ``NONE``: No reionization feedback is applied on neither ACGs nor MCGs.
+        * ``ACG``: Reionization feedback is applied only on ACGs. This is a bit slower than
+            the previous option because the ACG turnover mass in this model is inhomogeneous
+            and needs to be calculated at every cell.
+        * ``MCG``: Reionization feedback is applied only on MCGs. This does not increase the computation
+            time since the MCG turnover mass in inhomogeneous by nature due to LW flux, see Qin et al. 2020 (https://arxiv.org/pdf/2003.04442).
+            Becomes relevant only when ``USE_MINI_HALOS`` is True.
+        * ``BOTH``: Reionization feedback is applied on both ACGs and MCGs. Becomes relevant only when ``USE_MINI_HALOS`` is True.
+    FIX_VCB_AVG: bool or None, optional
+        Whether to fix the amplitude of the relative velocity between (cold) dark matter and
+        baryons on a constant mean value from linear perturbation theory. This parameter is
+        deprecated and will be removed in a future version, see V_CB_MODEL for the new method
+        to control the relative velocity.
     USE_EXP_FILTER: bool, optional
         Use the exponential filter (MFP-epsilon(r) from Davies & Furlanetto 2021) when
         calculating ionising emissivity fields.
@@ -1220,7 +1322,9 @@ class AstroOptions(InputStruct):
         default=None, converter=attrs.converters.optional(bool)
     )
     USE_TS_FLUCT: bool = field(default=False, converter=bool)
-    FIX_VCB_AVG: bool = field(default=False, converter=bool)
+    _FIX_VCB_AVG: bool | None = field(
+        default=None, converter=attrs.converters.optional(bool)
+    )
     USE_EXP_FILTER: bool = field(default=True, converter=bool)
     CELL_RECOMB: bool = field(default=True, converter=bool)
     LYA_MULTIPLE_SCATTERING = field(default=False, converter=bool)
@@ -1237,20 +1341,45 @@ class AstroOptions(InputStruct):
     HEAT_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     IONISE_ENTIRE_SPHERE: bool = field(default=False, converter=bool)
     RECOMB_MODEL: Literal["none", "homogeneous", "inhomogeneous"] = choice_field()
+    REIONIZATION_FEEDBACK_MODEL: Literal["NONE", "ACG", "MCG", "BOTH"] = choice_field()
     INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
     INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
+
+    @cached_property
+    def FIX_VCB_AVG(self) -> bool:
+        """Whether to fix the amplitude of the relative velocity between (cold) dark matter and baryons on a constant mean value from linear perturbation theory.
+
+        This is a deprecated property, and will be removed in v5. Please use V_CB_MODEL instead.
+        """
+        return self._FIX_VCB_AVG
 
     @cached_property
     def INHOMO_RECO(self) -> bool:
         """Whether to perform inhomogeneous recombinations.
 
-        This is a deprecated property, and will be removed in a future version. Please use RECOMB_MODEL instead.
+        This is a deprecated property, and will be removed in v5. Please use RECOMB_MODEL instead.
         """
         if self._INHOMO_RECO is None:
             # User didn't explicitly set INHOMO_RECO, infer from RECOMB_MODEL
             return self.RECOMB_MODEL != "none"
         else:
             return self._INHOMO_RECO
+
+    @REIONIZATION_FEEDBACK_MODEL.default
+    def _default_reionization_feedback_model(self):
+        return "BOTH" if self.USE_MINI_HALOS else "NONE"
+
+    @REIONIZATION_FEEDBACK_MODEL.validator
+    def _reionization_feedback_model_vld(self, att, val):
+        if not self.USE_MINI_HALOS and val in ["MCG", "BOTH"]:
+            equiv_model = "NONE" if val == "MCG" else "ACG"
+            warnings.warn(
+                f"REIONIZATION_FEEDBACK_MODEL is set to '{val}' but USE_MINI_HALOS is False! "
+                f"This is equivalent to setting REIONIZATION_FEEDBACK_MODEL='{equiv_model}'. "
+                "Either set USE_MINI_HALOS to True or change REIONIZATION_FEEDBACK_MODEL to 'NONE' or 'ACG' "
+                "to silence this warning",
+                stacklevel=2,
+            )
 
     @RECOMB_MODEL.default
     def _default_recomb_model(self):
@@ -1383,7 +1512,12 @@ class AstroParams(InputStruct):
     ALPHA_ESC : float, optional
         Power-law index of escape fraction as a function of halo mass. See Sec 2.1 of
         Park+2018.
-    M_TURN : float, optional
+    M_TURN : float or None, optional
+        Turnover mass (in log10 solar mass units) for quenching of star formation in
+        halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
+        This parameter is deprecated and will be removed in a future version, see M_TURN_STELLAR_FEEDBACK for the new way to directly
+        control this parameter.
+    M_TURN_STELLAR_FEEDBACK : float, optional
         Turnover mass (in log10 solar mass units) for quenching of star formation in
         halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
         See Sec 2.1 of Park+2018.
@@ -1437,9 +1571,15 @@ class AstroParams(InputStruct):
         Lognormal scatter (dex) of the Xray luminosity relation (a function of stellar
         mass, star formation rate and redshift). This scatter is uniform across all
         halo properties and redshifts.
-    FIXED_VAVG : float, optional
-        The fixed value of the average velocity used when AstroOptions.FIX_VCB_AVG is
-        set to True.
+    FIXED_VAVG : float or None, optional
+        A possible input that sets a fixed constant value for the amplitude of the relative velocity between (cold) dark matter and baryons,
+        in units of km/s. Becomes relevant only when AstroOptions.FIX_VCB_AVG is True.
+        This parameter is deprecated and will be removed in a future version, see V_CB_AVG_DEBUG for the new way to directly
+        control this parameter.
+    V_CB_AVG_DEBUG : float, optional
+        A possible input that sets a fixed constant value for the amplitude of the relative velocity between (cold) dark matter and baryons,
+        in units of km/s. Should be used only for debugging and testing purposes.
+        Becomes relevant only when MatterOptions.V_CB_MODEL is "AVG-DEBUG".
     POP2_ION: float, optional
         Number of ionizing photons per baryon produced by Pop II stars.
     POP3_ION: float, optional
@@ -1492,8 +1632,13 @@ class AstroParams(InputStruct):
         converter=float,
         transformer=logtransformer,
     )
-    M_TURN: float = field(
-        default=8.7,
+    _M_TURN: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=validators.optional(validators.gt(0)),
+        transformer=logtransformer,
+    )
+    M_TURN_STELLAR_FEEDBACK: float = field(
         converter=float,
         validator=validators.gt(0),
         transformer=logtransformer,
@@ -1550,9 +1695,11 @@ class AstroParams(InputStruct):
     )
 
     T_RE: float = field(default=2e4, converter=float)
-    FIXED_VAVG: float = field(
-        default=25.86, converter=float, validator=validators.gt(0)
+    _FIXED_VAVG: float | None = field(
+        default=None, converter=attrs.converters.optional(float)
     )
+    V_CB_AVG_DEBUG: float = field(converter=float, validator=validators.gt(0))
+
     POP2_ION: float = field(default=5000.0, converter=float)
     POP3_ION: float = field(default=44021.0, converter=float)
 
@@ -1615,6 +1762,64 @@ class AstroParams(InputStruct):
                 NU_X_MAX
                 """
             )
+
+    @cached_property
+    def FIXED_VAVG(self) -> float | None:
+        """A fixed constant value for the amplitude of the relative velocity between (cold) dark matter and baryons, in units of km/s.
+
+        Becomes relevant only when AstroOptions.FIX_VCB_AVG is True.
+
+        This is a deprecated property, and will be removed in v5. Please use V_CB_AVG_DEBUG instead.
+        """
+        return self._FIXED_VAVG
+
+    @V_CB_AVG_DEBUG.default
+    def _default_v_cb_avg_debug(self):
+        if self._FIXED_VAVG is None:
+            return V_CB_AVG_DEFAULT
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "FIXED_VAVG",
+                deprecated_in="4.2.0",
+                removed_in="5.0.0",
+                details=(
+                    "FIXED_VAVG is deprecated and will be removed in a future version. "
+                    "Please use V_CB_AVG_DEBUG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._FIXED_VAVG
+
+    @cached_property
+    def M_TURN(self) -> float | None:
+        """Turnover mass (in log10 solar mass units) for quenching of star formation in halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
+
+        This is a deprecated property, and will be removed in v5. Please use M_TURN_STELLAR_FEEDBACK instead.
+        """
+        return self._M_TURN
+
+    @M_TURN_STELLAR_FEEDBACK.default
+    def _default_m_turn_stellar_feedback(self):
+        if self._M_TURN is None:
+            return 8.7
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "M_TURN",
+                deprecated_in="4.2.0",
+                removed_in="5.0.0",
+                details=(
+                    "M_TURN is deprecated and will be removed in a future version. "
+                    "Please use M_TURN_STELLAR_FEEDBACK directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._M_TURN
 
 
 class InputCrossValidationError(ValueError):
@@ -1724,7 +1929,9 @@ class InputParameters:
 
     @cached_property
     def cosmo_tables(self) -> CosmoTables:
-        """Cosmological tables derived from fundamental input parameters."""
+        """Cosmological tables and constants derived from fundamental input parameters."""
+        V_CB_AVG = V_CB_AVG_DEFAULT
+
         if self.matter_options.POWER_SPECTRUM == "CLASS":
             if self.simulation_options.K_MAX_FOR_CLASS is not None:
                 k_max = self.simulation_options.K_MAX_FOR_CLASS / un.Mpc
@@ -1757,49 +1964,76 @@ class InputParameters:
                 output="mTk,vTk",
                 P_k_max=k_max,
             )
+
             # Linear matter density transfer function at z=0
             transfer_density = get_transfer_function(
                 classy_output=classy_output, kind="d_m", z=0.0
             )
-            # Linear vcb transfer function at kinematic decoupling
-            z_dec = find_redshift_kinematic_decoupling(classy_output)
-            transfer_vcb = (
-                (
-                    get_transfer_function(
-                        classy_output=classy_output, kind="v_cb", z=z_dec
-                    )
-                    / constants.c  # Need to normalize by c, because ComputeInitialConditions() accepts to receive a dimensionless transfer function
-                ).to(un.dimensionless_unscaled)
-            )
-
             # Include a sample at k=0
             k_transfer_with_0 = np.concatenate(([0.0], k_transfer))
             transfer_density = np.concatenate(([0.0], transfer_density))
-            transfer_vcb = np.concatenate(([0.0], transfer_vcb))
+            # Create a Table1D for the density transfer function
+            transfer_density = Table1D(
+                size=k_transfer_with_0.size,
+                x_values=k_transfer_with_0,
+                y_values=transfer_density,
+            )
+
+            # Find the redshift of kinematic decoupling
+            z_dec = find_redshift_kinematic_decoupling(classy_output)
+
+            # If we use the fluctuations of the v_cb field, find its transfer function at the redshift of kinematic decoupling
+            if self.matter_options.V_CB_MODEL == "FLUCTS":
+                # Linear vcb transfer function at kinematic decoupling
+                transfer_vcb = (
+                    (
+                        get_transfer_function(
+                            classy_output=classy_output, kind="v_cb", z=z_dec
+                        )
+                        / constants.c  # Need to normalize by c, because ComputeInitialConditions() expects to receive a dimensionless transfer function
+                    ).to(un.dimensionless_unscaled)
+                )
+                # Include a sample at k=0
+                transfer_vcb = np.concatenate(([0.0], transfer_vcb))
+                # Create a Table1D for the vcb transfer function
+                transfer_vcb = Table1D(
+                    size=k_transfer_with_0.size,
+                    x_values=k_transfer_with_0,
+                    y_values=transfer_vcb,
+                )
+            else:
+                transfer_vcb = None
+
+            # Compute the RMS value of the v_cb field at kinematic decoupling
+            # For LCDM cosmology with Planck 2018 parameters, the rms is 29.3 km/s
+            V_CB_RMS = (
+                compute_rms(classy_output, kind="v_cb", redshifts=z_dec)
+                .to("km/s")
+                .value[0]
+            )
+            # Assuming a Maxwell-Boltzmann distribution (consistent with the v_cb field distribution when V_CB_MODEL="FLUCTS"),
+            # the mean value is given by the rms times sqrt(8/3pi) = 0.92
+            # This gives a mean value of ~ 27 km/s for Planck 2018 cosmology
+            V_CB_AVG = np.sqrt(8 / (3 * np.pi)) * V_CB_RMS
 
             # we use A_s to normalize the power spectrum only if it was provided
             USE_SIGMA_8 = self.cosmo_params._A_s is None
 
             cosmo_tables = CosmoTables(
-                transfer_density=Table1D(
-                    size=k_transfer_with_0.size,
-                    x_values=k_transfer_with_0,
-                    y_values=transfer_density,
-                ),
-                transfer_vcb=Table1D(
-                    size=k_transfer_with_0.size,
-                    x_values=k_transfer_with_0,
-                    y_values=transfer_vcb,
-                ),
+                transfer_density=transfer_density,
+                transfer_vcb=transfer_vcb,
                 ps_norm=self.cosmo_params.SIGMA_8
                 if USE_SIGMA_8
                 else self.cosmo_params.A_s,
                 USE_SIGMA_8=USE_SIGMA_8,
+                V_CB_AVG=V_CB_AVG,
             )
         else:
             # we ALWAYS use sigma8 to normalize the power spectrum if we don't use CLASS
             cosmo_tables = CosmoTables(
-                ps_norm=self.cosmo_params.SIGMA_8, USE_SIGMA_8=True
+                ps_norm=self.cosmo_params.SIGMA_8,
+                USE_SIGMA_8=True,
+                V_CB_AVG=V_CB_AVG,
             )
         return cosmo_tables
 
@@ -1808,14 +2042,51 @@ class InputParameters:
         if self.matter_options is None:
             return
         if val.USE_MINI_HALOS:
-            if not self.matter_options.USE_RELATIVE_VELOCITIES and not val.FIX_VCB_AVG:
+            if self.matter_options.V_CB_MODEL == "NONE":
                 warnings.warn(
-                    "USE_MINI_HALOS needs USE_RELATIVE_VELOCITIES to get the right evolution!",
+                    "USE_MINI_HALOS needs a non-trivial V_CB_MODEL to get the right evolution!",
                     stacklevel=2,
                 )
             if self.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
                 raise ValueError(
                     "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True"
+                )
+        elif self.matter_options.V_CB_MODEL != "NONE":
+            warnings.warn(
+                "USE_MINI_HALOS is False but V_CB_MODEL != 'NONE'. Note that the relative velocity between (cold) dark matter and baryons"
+                " is only relevant when mini-halos are present.",
+                stacklevel=2,
+            )
+
+        if self.astro_options.FIX_VCB_AVG is not None:
+            # User set explicitly FIX_VCB_AVG, raise a warning that it is deprecated and will be removed in a future version
+            warnings.warn(
+                deprecation.DeprecatedWarning(
+                    "FIX_VCB_AVG",
+                    deprecated_in="4.3.0",
+                    removed_in="5.0.0",
+                    details=(
+                        "FIX_VCB_AVG is deprecated and will be removed in a future version. "
+                        "Please use V_CB_MODEL directly instead."
+                    ),
+                ),
+                stacklevel=2,
+            )
+            if (
+                not self.astro_options.FIX_VCB_AVG
+                and self.matter_options.V_CB_MODEL == "AVG-DEBUG"
+            ):
+                raise ValueError(
+                    "FIX_VCB_AVG=False is not compatible with V_CB_MODEL = 'AVG-DEBUG'! "
+                    "Either change V_CB_MODEL or set FIX_VCB_AVG to True."
+                )
+            elif (
+                self.astro_options.FIX_VCB_AVG
+                and self.matter_options.V_CB_MODEL != "AVG-DEBUG"
+            ):
+                raise ValueError(
+                    f"FIX_VCB_AVG=True is not compatible with V_CB_MODEL = {self.matter_options.V_CB_MODEL}! "
+                    "Either change V_CB_MODEL or set FIX_VCB_AVG to False."
                 )
 
         if self.matter_options.lagrangian_source_grid:
@@ -1876,11 +2147,11 @@ class InputParameters:
                 stacklevel=2,
             )
 
-        if val.M_TURN > 8 and self.astro_options.USE_MINI_HALOS:
+        if val.M_TURN_STELLAR_FEEDBACK > 8 and self.astro_options.USE_MINI_HALOS:
             warnings.warn(
-                "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of M_TURN",
+                "You are setting M_TURN_STELLAR_FEEDBACK > 8 when USE_MINI_HALOS=True. "
+                "The star formation in mini-halos with a mass smaller than M_TURN_STELLAR_FEEDBACK "
+                "is highly suppressed. Make sure you know what you are doing!",
                 stacklevel=2,
             )
 
@@ -2283,7 +2554,8 @@ def check_halomass_range(inputs: InputParameters) -> None:
         min_integral_mass = 1e5 * un.M_sun
     else:
         min_integral_mass = (
-            max(inputs.astro_params.cdict["M_TURN"] / 50, 1e5) * un.M_sun
+            max(inputs.astro_params.cdict["M_TURN_STELLAR_FEEDBACK"] / 50, 1e5)
+            * un.M_sun
         )
     max_integral_mass = 1e16 * un.M_sun  # define macro in hmf.h
 
@@ -2343,7 +2615,7 @@ def check_halomass_range(inputs: InputParameters) -> None:
 
     if min(min(mass_limits)) > min_integral_mass:
         warnings.warn(
-            f"The minimum halo mass {min(min(mass_limits)):.2e} is high compared to the turnover {inputs.astro_params.cdict['M_TURN']:.2e}. "
+            f"The minimum halo mass {min(min(mass_limits)):.2e} is high compared to the turnover {inputs.astro_params.cdict['M_TURN_STELLAR_FEEDBACK']:.2e}. "
             f"Halos below {min(min(mass_limits)):.2e} will not be accounted for in the simulation.",
             stacklevel=2,
         )

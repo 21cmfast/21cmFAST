@@ -96,13 +96,14 @@ OPTIONS_TESTRUNS = {
             "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "USE_TS_FLUCT": True,
-            "M_TURN": 5.0,
+            "M_TURN_STELLAR_FEEDBACK": 5.0,
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
             "N_THREADS": 4,
-            "USE_RELATIVE_VELOCITIES": True,
+            "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
             "K_MAX_FOR_CLASS": 1.0,
+            "REIONIZATION_FEEDBACK_MODEL": "BOTH",
         },
     ],
     "mini_gamma_approx": [
@@ -112,7 +113,7 @@ OPTIONS_TESTRUNS = {
             "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "USE_TS_FLUCT": True,
-            "M_TURN": 5.0,
+            "M_TURN_STELLAR_FEEDBACK": 5.0,
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
             "N_THREADS": 4,
@@ -120,6 +121,7 @@ OPTIONS_TESTRUNS = {
             "INTEGRATION_METHOD_ATOMIC": "GAMMA-APPROX",
             "POWER_SPECTRUM": "CLASS",
             "K_MAX_FOR_CLASS": 1.0,
+            "REIONIZATION_FEEDBACK_MODEL": "BOTH",
         },
     ],
     "ts": [
@@ -180,10 +182,11 @@ OPTIONS_TESTRUNS = {
             "USE_TS_FLUCT": True,
             "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
-            "USE_RELATIVE_VELOCITIES": True,
+            "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
-            "M_TURN": 5.0,
+            "M_TURN_STELLAR_FEEDBACK": 5.0,
             "K_MAX_FOR_CLASS": 1.0,
+            "REIONIZATION_FEEDBACK_MODEL": "BOTH",
         },
     ],
     "sampler_ts": [
@@ -266,11 +269,12 @@ OPTIONS_TESTRUNS = {
             "USE_MINI_HALOS": True,
             "RECOMB_MODEL": "inhomogeneous",
             "N_THREADS": 4,
-            "USE_RELATIVE_VELOCITIES": True,
+            "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
             "K_MAX_FOR_CLASS": 1.0,
             "R_BUBBLE_MAX": 50.0,
-            "M_TURN": 5.0,
+            "M_TURN_STELLAR_FEEDBACK": 5.0,
+            "REIONIZATION_FEEDBACK_MODEL": "BOTH",
         },
     ],
 }
@@ -294,6 +298,9 @@ def get_node_z(redshift, lc=False, **kwargs):
 
     Values for the spacing and maximum go kwargs --> test defaults --> struct defaults
     """
+    if "node_redshifts" in kwargs:
+        return kwargs["node_redshifts"]
+
     node_redshifts = None
     max_redshift = redshift + 2
     if (
@@ -327,6 +334,7 @@ def get_node_z(redshift, lc=False, **kwargs):
 
 def get_all_options_struct(redshift, lc=False, **kwargs):
     node_redshifts = get_node_z(redshift, lc=lc, **kwargs)
+    kwargs.pop("node_redshifts", None)  # Remove node_redshifts from kwargs if present
 
     inputs = InputParameters(
         node_redshifts=node_redshifts,
