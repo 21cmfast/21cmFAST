@@ -4,3 +4,14 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
+    cooldown:
+      default-days: 14
+    groups:
+      incremental:
+        # Group all minor/patch updates together, but not major updates.
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
