@@ -50,10 +50,10 @@ void set_integral_constants(IntegralCondition *consts, double redshift, double M
 int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, HaloCatalog *halos,
                    TsBox *previous_spin_temp, IonizedBox *previous_ionize_box, HaloBox *grids);
 
-void get_cell_integrals(double dens, double l10_mturn_a, double l10_mturn_m,
+void get_cell_integrals(double dens, double l10_mturn_acg, double l10_mturn_mcg,
                         ScalingConstants *consts, IntegralCondition *int_consts,
                         HaloProperties *properties);
-void set_halo_properties(double halo_mass, double M_turn_a, double M_turn_m,
+void set_halo_properties(double halo_mass, double M_turn_acg, double M_turn_mcg,
                          ScalingConstants *consts, double *input_rng, HaloProperties *output);
 
 int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,

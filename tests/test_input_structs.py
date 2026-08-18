@@ -200,7 +200,7 @@ class TestCosmoParams:
 class TestAstroParams:
     """Tests of AstroParams."""
 
-    def test_fix_vcb_avg_deprecated_warning(self):
+    def test_fixed_vavg_deprecated_warning(self):
         """Test that using FIXED_VAVG=True shows deprecation warning."""
         fixed_vavg = 1.0  # dummy value for testing
         with pytest.warns(
@@ -214,6 +214,19 @@ class TestAstroParams:
     def test_fixed_vavg_is_removed(self):
         """Fails when the removed_in version is reached, reminding you to delete FIXED_VAVG."""
         AstroParams(FIXED_VAVG=1.0)
+
+    def test_mturn_deprecated_warning(self):
+        """Test that using a non-None value for M_TURN shows deprecation warning."""
+        mturn = 8.7  # dummy value for testing
+        with pytest.warns(deprecation.DeprecatedWarning, match="M_TURN is deprecated"):
+            astro_params = AstroParams(M_TURN=mturn)
+        assert mturn == astro_params.M_TURN
+        assert mturn == astro_params.M_TURN_STELLAR_FEEDBACK
+
+    @deprecation.fail_if_not_removed
+    def test_mturn_is_removed(self):
+        """Fails when the removed_in version is reached, reminding you to delete M_TURN."""
+        AstroParams(M_TURN=8.7)
 
 
 class TestAstroOptions:
@@ -287,6 +300,16 @@ class TestAstroOptions:
             match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
         ):
             AstroOptions(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
+
+    @pytest.mark.parametrize("use_mini_halos", [True, False])
+    def test_use_reionization_photoheating_feedback_default(self, use_mini_halos):
+        """Test that USE_REIONIZATION_PHOTOHEATING_FEEDBACK defaults to the correct value based on USE_MINI_HALOS."""
+        opts = AstroOptions(
+            USE_MINI_HALOS=use_mini_halos,
+            RECOMB_MODEL="inhomogeneous",
+            USE_TS_FLUCT=True,
+        )
+        assert opts.USE_MINI_HALOS == opts.USE_REIONIZATION_PHOTOHEATING_FEEDBACK
 
     @pytest.mark.parametrize("recomb_model", ["none", "homogeneous", "inhomogeneous"])
     def test_recomb_model_basic(self, recomb_model):
@@ -660,9 +683,9 @@ class TestInputParameters:
 
     WARNINGS_CASES: ClassVar = [
         (
-            "You are setting M_TURN > 8 when USE_MINI_HALOS=True.",
+            "You are setting M_TURN_STELLAR_FEEDBACK > 8 when USE_MINI_HALOS=True.",
             {
-                "astro_params": AstroParams(M_TURN=10),
+                "astro_params": AstroParams(M_TURN_STELLAR_FEEDBACK=10),
                 "astro_options": AstroOptions(
                     USE_MINI_HALOS=True, USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous"
                 ),

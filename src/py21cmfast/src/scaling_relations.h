@@ -41,9 +41,8 @@ typedef struct ScalingConstants {
     double pop3_ion;
 
     double vcb_const;
-    double acg_thresh;
-    double mturn_a_nofb;
-    double mturn_m_nofb;
+    double atomic_cooling_threshold;
+    double mturn_acg_homogeneous;
 
     double Mlim_Fstar;
     double Mlim_Fesc;
@@ -59,8 +58,8 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
 void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
                   ScalingConstants *consts, double *sfr, double *sfr_mini);
 void get_halo_metallicity(double sfr, double stellar, double redshift, double *z_out);
-void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng,
-                   ScalingConstants *consts, double *xray_out);
+void get_halo_xray(double sfr, double sfr_mini, double metallicity, double metallicity_mini,
+                   double xray_rng, ScalingConstants *consts, double *xray_out);
 
 double scaling_PL_limit(double M, double norm, double alpha, double pivot, double limit);
 double log_scaling_PL_limit(double lnM, double ln_norm, double alpha, double ln_pivot,

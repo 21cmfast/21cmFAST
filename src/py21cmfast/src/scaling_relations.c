@@ -26,8 +26,8 @@ void print_sc_consts(ScalingConstants *c) {
     LOG_DEBUG("FESC: f10 %.2e a %.2e f7 %.2e", c->fesc_10, c->alpha_esc, c->fesc_7);
     LOG_DEBUG("SSFR: t* %.2e th %.8e sigma %.2e idx %.2e", c->t_star, c->t_h, c->sigma_sfr_lim,
               c->sigma_sfr_idx);
-    LOG_DEBUG("Turnovers (nofb) ACG %.2e MCG %.2e Upper %.2e", c->mturn_a_nofb, c->mturn_m_nofb,
-              c->acg_thresh);
+    LOG_DEBUG("Turnovers ACG homogeneous %.2e atomic cooling threshold %.2e",
+              c->mturn_acg_homogeneous, c->atomic_cooling_threshold);
     LOG_DEBUG("Limits (ACG,MCG) F* (%.2e %.2e) Fesc (%.2e %.2e)", c->Mlim_Fstar, c->Mlim_Fstar_mini,
               c->Mlim_Fesc, c->Mlim_Fesc_mini);
     return;
@@ -78,10 +78,9 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->pop2_ion = astro_params_global->POP2_ION;
     consts->pop3_ion = astro_params_global->POP3_ION;
 
-    consts->acg_thresh = atomic_cooling_threshold(redshift);
-    consts->mturn_a_nofb = astro_params_global->M_TURN;
-    if (astro_options_global->USE_MINI_HALOS)
-        consts->mturn_a_nofb = fmax(consts->acg_thresh, consts->mturn_a_nofb);
+    consts->atomic_cooling_threshold = atomic_cooling_threshold(redshift);
+    consts->mturn_acg_homogeneous =
+        fmax(consts->atomic_cooling_threshold, astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
     switch (matter_options_global->V_CB_MODEL) {
         case V_CB_MODEL_NO:
@@ -96,11 +95,6 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
         default:  // V_CB_MODEL_FLUCTS
             consts->vcb_const = 0.;
             break;
-    }
-
-    consts->mturn_m_nofb = 0.;
-    if (astro_options_global->USE_MINI_HALOS) {
-        consts->mturn_m_nofb = lyman_werner_threshold(redshift, 0., consts->vcb_const);
     }
 
     consts->Mlim_Fstar =
@@ -154,15 +148,9 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
         }
     }
 
-    sc_z.acg_thresh = atomic_cooling_threshold(redshift);
-    sc_z.mturn_a_nofb = astro_params_global->M_TURN;
-    if (astro_options_global->USE_MINI_HALOS)
-        sc_z.mturn_a_nofb = fmax(sc_z.acg_thresh, sc_z.mturn_a_nofb);
-
-    sc_z.mturn_m_nofb = 0.;
-    if (astro_options_global->USE_MINI_HALOS) {
-        sc_z.mturn_m_nofb = lyman_werner_threshold(redshift, 0., sc_z.vcb_const);
-    }
+    sc_z.atomic_cooling_threshold = atomic_cooling_threshold(redshift);
+    sc_z.mturn_acg_homogeneous =
+        fmax(sc_z.atomic_cooling_threshold, astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
     return sc_z;
 }
@@ -383,10 +371,17 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
         return;
     }
 
-    // See comments above for how f_sample_mini is distributed
-    mu_fstar_mini = f_7 * scaling_single_PL(halo_mass, f_a_mini, 1e7);
-    f_sample_mini = mu_fstar_mini * exp(-mturn_mcg / halo_mass - halo_mass / consts->acg_thresh +
-                                        star_rng * sigma_star - stoc_adjustment_term);
+    // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
+    // (the multiplication by 1.001 is to avoid floating point issues)
+    if (mturn_acg > consts->atomic_cooling_threshold * 1.001) {
+        f_sample_mini = 0.;
+    } else {
+        // See comments above for how f_sample_mini is distributed
+        mu_fstar_mini = f_7 * scaling_single_PL(halo_mass, f_a_mini, 1e7);
+        f_sample_mini = mu_fstar_mini *
+                        exp(-mturn_mcg / halo_mass - halo_mass / consts->atomic_cooling_threshold +
+                            star_rng * sigma_star - stoc_adjustment_term);
+    }
     if (f_sample_mini > 1.) f_sample_mini = 1.;
 
     star_mass_sample_mini = f_sample_mini * halo_mass * baryon_ratio;
@@ -466,8 +461,8 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
     *z_out = z_sample;
 }
 
-void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_rng,
-                   ScalingConstants *consts, double *xray_out) {
+void get_halo_xray(double sfr, double sfr_mini, double metallicity, double metallicity_mini,
+                   double xray_rng, ScalingConstants *consts, double *xray_out) {
     double sigma_xray = consts->sigma_xray;
     double mu_x, xray_sample;
 
@@ -481,7 +476,7 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double xray_
     if (astro_options_global->USE_MINI_HALOS) {
         // Since there *are* some SFR-dependent
         // models, this is done separately
-        mu_x_mini = get_lx_on_sfr(sfr_mini, metallicity, consts->l_x_mini) *
+        mu_x_mini = get_lx_on_sfr(sfr_mini, metallicity_mini, consts->l_x_mini) *
                     (sfr_mini * physconst.s_per_yr);
     }
     mu_x += mu_x_mini;

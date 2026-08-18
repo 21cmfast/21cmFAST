@@ -10,7 +10,7 @@ V_CB_MODEL = 'FLUCTS'
 
 [AstroParams]
 R_BUBBLE_MAX = 50.0
-M_TURN = 5.0
+M_TURN_STELLAR_FEEDBACK = 5.0
 
 [AstroOptions]
 USE_EXP_FILTER = false
@@ -20,3 +20,4 @@ USE_MINI_HALOS = true
 USE_TS_FLUCT = true
 RECOMB_MODEL = 'inhomogeneous'
 HII_FILTER = 'sharp-k'
+USE_REIONIZATION_PHOTOHEATING_FEEDBACK = true
