@@ -140,8 +140,8 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     // X-ray emissivity is only needed if we compute the spin temperature
     if (astro_options_global->USE_TS_FLUCT) {
         prefactor_xray = RHOcrit * cosmo_params_global->OMm;
-        // The following constant factors are missing for the Eulerian source models
-        if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
+        // The following constant factors are missing if we don't use metallicity
+        if (!astro_options_global->USE_METALLICITY) {
             prefactor_xray *=
                 (astro_params_global->L_X * 1e-38 * physconst.s_per_yr * cosmo_params_global->OMb *
                  consts->fstar_10 / cosmo_params_global->OMm);
@@ -151,15 +151,14 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
                 prefactor_xray *= 1. / dt_dz;
             }
         }
-        // For the Lagrangian source models, the mini-halos contribution is already included in the
-        // integral over the hmf, but for the Euelerian source models it is not already included and
-        // we set the prefactor below
-        if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL) &&
-            astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             prefactor_xray_mini = RHOcrit * cosmo_params_global->OMm;
-            prefactor_xray_mini *= (astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr *
-                                    cosmo_params_global->OMb * consts->fstar_7 /
-                                    cosmo_params_global->OMm / consts->t_star / consts->t_h);
+            // The following constant factors are missing if we don't use metallicity
+            if (!astro_options_global->USE_METALLICITY) {
+                prefactor_xray_mini *= (astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr *
+                                        cosmo_params_global->OMb * consts->fstar_7 /
+                                        cosmo_params_global->OMm / consts->t_star / consts->t_h);
+            }
         } else {
             prefactor_xray_mini = 0.;
         }
@@ -244,19 +243,16 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
 
     // X-ray emissivity is required only for the spin temperature calculation
     if (astro_options_global->USE_TS_FLUCT) {
-        if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL)) {
+        if (astro_options_global->USE_METALLICITY) {
             integral_xray = Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
             if (astro_options_global->USE_MINI_HALOS) {
-                integral_xray += Xray_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_acg,
-                                                   M_turn_mcg, consts);
+                integral_xray_mini = Xray_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_acg,
+                                                       M_turn_mcg, consts);
             }
         } else {
-            // For Eulerian source models, the X-ray emissivity is proportional to the SFRD, so we
+            // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
             // take advantage of it
             integral_xray = intgrl_sfrd;
-            // Note that for the Lagrangian source models, the mini-halos contribution is already
-            // included in the integral over the hmf, but for the Euelerian source models it is not
-            // already included and we set the integral below
             if (astro_options_global->USE_MINI_HALOS) {
                 integral_xray_mini = intgrl_sfrd_mini;
             }
@@ -430,19 +426,20 @@ void get_cell_integrals(double dens, double l10_mturn_acg, double l10_mturn_mcg,
     }
     // X-ray emissivity is required only for the spin temperature calculation
     if (astro_options_global->USE_TS_FLUCT) {
-        if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL)) {
+        if (astro_options_global->USE_METALLICITY) {
             properties->halo_xray =
                 EvaluateXray_Conditional(dens, l10_mturn_acg, consts->redshift, growth_z, M_min,
                                          M_max, M_cell, sigma_cell, consts);
             if (astro_options_global->USE_MINI_HALOS) {
-                properties->halo_xray += EvaluateXray_Conditional_MINI(
+                properties->halo_xray_mini = EvaluateXray_Conditional_MINI(
                     dens, l10_mturn_acg, l10_mturn_mcg, consts->redshift, growth_z, M_min, M_max,
                     M_cell, sigma_cell, consts);
             }
         } else {
-            // For Eulerian source models, the X-ray emissivity is proportional to the SFRD, so we
+            // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
             // take advantage of it
             properties->halo_xray = properties->stellar_mass;
+            properties->halo_xray_mini = properties->stellar_mass_mini;
         }
     }
     // If the user is interested in extra fields, we also compute them
@@ -473,6 +470,7 @@ void get_cell_integrals(double dens, double l10_mturn_acg, double l10_mturn_mcg,
             properties->halo_xray *= 1. + dens;
             if (astro_options_global->USE_MINI_HALOS) {
                 properties->stellar_mass_mini *= 1. + dens;
+                properties->halo_xray_mini *= 1. + dens;
             }
         }
         if (config_settings.EXTRA_HALOBOX_FIELDS) {
@@ -582,7 +580,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
         }
 
         if (astro_options_global->USE_TS_FLUCT) {
-            if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL)) {
+            if (astro_options_global->USE_METALLICITY) {
                 initialise_Xray_Conditional_table(ev_consts->redshift, min_density, max_density,
                                                   M_min, M_max, M_cell, ev_consts);
             }

@@ -258,8 +258,8 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     // X-ray emissivity is only needed if we compute the spin temperature
     if (astro_options_global->USE_TS_FLUCT) {
         prefactor_xray = RHOcrit * cosmo_params_global->OMm * vol_ratio_out;
-        // The following constant factors are missing for the Eulerian source models
-        if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
+        // The following constant factors are missing if we don't use metallicity
+        if (!astro_options_global->USE_METALLICITY) {
             prefactor_xray *=
                 (astro_params_global->L_X * 1e-38 * physconst.s_per_yr * cosmo_params_global->OMb *
                  consts->fstar_10 / cosmo_params_global->OMm);
@@ -269,15 +269,14 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                 prefactor_xray *= 1. / dt_dz;
             }
         }
-        // For the Lagrangian source models, the mini-halos contribution is already included in the
-        // integral over the hmf, but for the Euelerian source models it is not already included and
-        // we set the prefactor below
-        if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL) &&
-            astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MINI_HALOS) {
             prefactor_xray_mini = RHOcrit * cosmo_params_global->OMm * vol_ratio_out;
-            prefactor_xray_mini *= (astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr *
-                                    cosmo_params_global->OMb * consts->fstar_7 /
-                                    cosmo_params_global->OMm / consts->t_star / consts->t_h);
+            // The following constant factors are missing if we don't use metallicity
+            if (!astro_options_global->USE_METALLICITY) {
+                prefactor_xray_mini *= (astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr *
+                                        cosmo_params_global->OMb * consts->fstar_7 /
+                                        cosmo_params_global->OMm / consts->t_star / consts->t_h);
+            }
         } else {
             prefactor_xray_mini = 0.;
         }
@@ -401,15 +400,9 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                     if (astro_options_global->USE_TS_FLUCT) {
                         do_cic_interpolation(boxes->halo_sfr, pos, out_dim,
                                              properties.stellar_mass * prefactor_sfr);
-                        // Note that prefactor_xray_mini is zero for the Lagrangian source models,
-                        // or if there are no mini-halos. For the Eulerian source models,
-                        // properties.halo_xray = properties.stellar_mass, so
-                        // properties.stellar_mass_mini below can be viewed as
-                        // properties.halo_xray_mini (we just don't have that field)
-                        do_cic_interpolation(
-                            boxes->halo_xray, pos, out_dim,
-                            properties.halo_xray * prefactor_xray +
-                                properties.stellar_mass_mini * prefactor_xray_mini);
+                        do_cic_interpolation(boxes->halo_xray, pos, out_dim,
+                                             properties.halo_xray * prefactor_xray +
+                                                 properties.halo_xray_mini * prefactor_xray_mini);
                         if (astro_options_global->USE_MINI_HALOS) {
                             do_cic_interpolation(boxes->halo_sfr_mini, pos, out_dim,
                                                  properties.stellar_mass_mini * prefactor_sfr_mini);

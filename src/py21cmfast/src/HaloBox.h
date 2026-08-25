@@ -23,6 +23,7 @@ typedef struct HaloProperties {
     double fescweighted_sfr;
     double n_ion;
     double halo_xray;
+    double halo_xray_mini;
     double metallicity;
 } HaloProperties;
 
