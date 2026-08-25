@@ -77,8 +77,10 @@ void set_halo_properties(double halo_mass, double M_turn_acg, double M_turn_mcg,
     double metallicity_mini = 0;
     double xray_lum = 0;
     if (astro_options_global->USE_TS_FLUCT) {
-        get_halo_metallicity(sfr, stellar_mass, consts->redshift, &metallicity);
-        get_halo_metallicity(sfr_mini, stellar_mass_mini, consts->redshift, &metallicity_mini);
+        if (astro_options_global->USE_METALLICITY) {
+            get_halo_metallicity(sfr, stellar_mass, consts->redshift, &metallicity);
+            get_halo_metallicity(sfr_mini, stellar_mass_mini, consts->redshift, &metallicity_mini);
+        }
         get_halo_xray(sfr, sfr_mini, metallicity, metallicity_mini, input_rng[2], consts,
                       &xray_lum);
     }

@@ -59,6 +59,7 @@ DEFAULT_INPUTS_TESTRUNS = {
     "CELL_RECOMB": False,
     "USE_TS_FLUCT": False,
     "USE_UPPER_STELLAR_TURNOVER": False,
+    "USE_METALLICITY": False,
     "N_THREADS": 2,
 }
 

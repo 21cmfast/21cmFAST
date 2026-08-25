@@ -488,8 +488,10 @@ double xray_fraction_doublePL(double lnM, void *param_struct) {
     double stars = M * Fstar * cosmo_params_global->OMb / cosmo_params_global->OMm;
     double sfr = stars / (p.t_star * p.t_h);
 
-    double metallicity;
-    get_halo_metallicity(sfr, stars, p.redshift, &metallicity);
+    double metallicity = 0.;
+    if (astro_options_global->USE_METALLICITY) {
+        get_halo_metallicity(sfr, stars, p.redshift, &metallicity);
+    }
     double l_x = get_lx_on_sfr(sfr, metallicity, p.l_x_norm);
 
     return physconst.s_per_yr * sfr * l_x;
@@ -505,8 +507,10 @@ double xray_fraction_doublePL_mini(double lnM, void *param_struct) {
     double stars_mini = M * Fstar_mini * cosmo_params_global->OMb / cosmo_params_global->OMm;
     double sfr_mini = stars_mini / (p.t_star * p.t_h);
 
-    double metallicity_mini;
-    get_halo_metallicity(sfr_mini, stars_mini, p.redshift, &metallicity_mini);
+    double metallicity_mini = 0.;
+    if (astro_options_global->USE_METALLICITY) {
+        get_halo_metallicity(sfr_mini, stars_mini, p.redshift, &metallicity_mini);
+    }
     double l_x_mini = get_lx_on_sfr(sfr_mini, metallicity_mini, p.l_x_norm);
 
     return physconst.s_per_yr * sfr_mini * l_x_mini;
