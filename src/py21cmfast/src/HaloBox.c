@@ -201,7 +201,6 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     double intgrl_n_ion, intgrl_sfrd;
     double intgrl_n_ion_mini = 0., intgrl_sfrd_mini = 0., integral_xray = 0.,
            integral_xray_mini = 0.;
-    ScalingConstants consts_sfrd = evolve_scaling_constants_sfr(consts);
 
     // Compute the n_ion integral and combine with the appropriate prefactor
     intgrl_n_ion = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
@@ -216,10 +215,10 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     // (stellar density)
     if (astro_options_global->USE_TS_FLUCT || config_settings.EXTRA_HALOBOX_FIELDS) {
         if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-            intgrl_sfrd = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_acg, &consts_sfrd);
+            intgrl_sfrd = SFRD_General(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
             if (astro_options_global->USE_MINI_HALOS) {
-                intgrl_sfrd_mini = Nion_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_acg,
-                                                     M_turn_mcg, &consts_sfrd);
+                intgrl_sfrd_mini = SFRD_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_acg,
+                                                     M_turn_mcg, consts);
             }
         } else {
             // For the mass-independent source model, the SFRD is proportional to the derivative of
