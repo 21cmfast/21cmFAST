@@ -208,4 +208,3 @@ def test_obtain_starting_point_carries_cached_halobox(tmp_path_factory):
     assert idx >= 0
     assert coeval is not None
     assert coeval.halobox is not None
-
