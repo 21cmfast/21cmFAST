@@ -804,7 +804,7 @@ def _redshift_loop_generator(
                     f"Computing Redshift {z} ({iz + 1}/{len(all_redshifts)}) iterations."
                 )
             if iz < start_idx:
-                if resume_cache is not None and z in inputs.node_redshifts:
+                if resume_cache is not None and z in inputs.node_redshifts and inputs.matter_options.lagrangian_source_grid:
                     cached_halobox = resume_cache.get_output_struct_at_z(
                         "HaloBox", z=z
                     )

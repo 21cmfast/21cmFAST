@@ -53,7 +53,7 @@ def create_full_run_cache(cachedir: Path,
     o._init_arrays()
     for k, v in o.arrays.items():
         setattr(o, k, v.with_value(v.value))
-    h5.write_output_to_hdf5(o, fld)
+    h5.write_output_to_hdf5(o, cache.InitialConditions)
     return cache
 
 
