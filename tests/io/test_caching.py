@@ -18,10 +18,9 @@ from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import outputs
 
 
-def create_full_run_cache(cachedir: Path, 
-                          template: str = "latest", 
-                          save_optional: bool = True
-                          ) -> caching.RunCache:
+def create_full_run_cache(
+    cachedir: Path, template: str = "latest", save_optional: bool = True
+) -> caching.RunCache:
     inputs = InputParameters.from_template(
         template,
         random_seed=12345,
@@ -29,7 +28,7 @@ def create_full_run_cache(cachedir: Path,
     ).evolve_input_structs(HII_DIM=10, DIM=20, BOX_LEN=75.0, ZPRIME_STEP_FACTOR=1.3)
     cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(cachedir))
     if save_optional:
-        all_fields=attrs.asdict(cache, recurse=False).items()
+        all_fields = attrs.asdict(cache, recurse=False).items()
     else:
         all_fields = cache.get_required_fields().items()
     for fldname, fld in all_fields:
@@ -79,7 +78,9 @@ def no_xraysource_run_cache(tmp_path_factory):
     ``matter_options.lagrangian_source_grid`` is True.
     """
     cache = create_full_run_cache(
-        tmp_path_factory.mktemp("no_xraysource_run_cache"), template="latest-dhalos", save_optional=False
+        tmp_path_factory.mktemp("no_xraysource_run_cache"),
+        template="latest-dhalos",
+        save_optional=False,
     )
     return cache
 
@@ -261,9 +262,7 @@ class TestRunCache:
 
         assert not partial_run_cache.is_complete()
 
-    def test_is_complete_ignores_missing_xray_source_box(
-        self, no_xraysource_run_cache
-    ):
+    def test_is_complete_ignores_missing_xray_source_box(self, no_xraysource_run_cache):
         """Regression test: is_complete() must not require XraySourceBox either.
 
         See test_is_complete_at_ignores_missing_xray_source_box for the rationale;

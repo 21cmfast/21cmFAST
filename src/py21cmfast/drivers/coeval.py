@@ -805,9 +805,7 @@ def _redshift_loop_generator(
                 )
             if iz < start_idx:
                 if resume_cache is not None and z in inputs.node_redshifts:
-                    cached_halobox = resume_cache.get_output_struct_at_z(
-                        "HaloBox", z=z
-                    )
+                    cached_halobox = resume_cache.get_output_struct_at_z("HaloBox", z=z)
                     hbox_arr.append(cached_halobox)
                 continue
 
