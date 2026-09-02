@@ -2068,8 +2068,7 @@ class InputParameters:
             warnings.warn(
                 "Your model (either SOURCE_MODEL=='CONST-ION-EFF' or INTEGRATION_METHOD_X=='GAMMA-APPROX')"
                 "uses the EPS conditional mass function normalised to the unconditional mass"
-                "function provided by the user as matter_options.HMF"
-                "Redshift of kinematic decoupling: {z_dec}",
+                "function provided by the user as matter_options.HMF",
                 stacklevel=2,
             )
 
