@@ -1921,6 +1921,9 @@ class InputParameters:
 
             # Find the redshift of kinematic decoupling
             z_dec = find_redshift_kinematic_decoupling(classy_output)
+            warnings.warn(
+                f"Redshift of kinematic decoupling is z_dec = {z_dec:.2f}", stacklevel=2
+            )
 
             # If we use the fluctuations of the v_cb field, find its transfer function at the redshift of kinematic decoupling
             if self.matter_options.V_CB_MODEL == "FLUCTS":
