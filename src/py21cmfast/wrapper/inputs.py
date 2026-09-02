@@ -1914,16 +1914,13 @@ class InputParameters:
                     x_values=k_transfer_with_0,
                     y_values=transfer_density,
                 )
+                # Find the redshift of kinematic decoupling
+                z_dec = find_redshift_kinematic_decoupling(classy_output)
             else:  # If providing your own transfer function, simply load it in
                 transfer_density = np.loadtxt(
                     self.matter_options.POWER_SPECTRUM_FILE
                 )  # File should be two columns, k and T(k)
-
-            # Find the redshift of kinematic decoupling
-            z_dec = find_redshift_kinematic_decoupling(classy_output)
-            warnings.warn(
-                f"Redshift of kinematic decoupling is z_dec = {z_dec:.2f}", stacklevel=2
-            )
+                z_dec = 1010.0
 
             # If we use the fluctuations of the v_cb field, find its transfer function at the redshift of kinematic decoupling
             if self.matter_options.V_CB_MODEL == "FLUCTS":
