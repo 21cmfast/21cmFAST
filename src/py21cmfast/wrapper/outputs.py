@@ -372,7 +372,6 @@ class OutputStruct(ABC):
 
     def ensure_input_computed(self, input_box: Self, load: bool = False) -> bool:
         """Ensure all the inputs have been computed."""
-        # TODO: This is a hack to avoid having ValueError because the RadiationFieldSetup doesn't have any arrays if mini-halos are not used. This should be fixed in the future.
         if input_box.dummy:
             return True
 
