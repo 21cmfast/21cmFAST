@@ -136,28 +136,33 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     } else {
         prefactor_stars_mini = 0.;
     }
+    // Need to compensate for the SFRD timescale because for the mass-dependent source models
+    // we use the SFRD integral to get the stellar mass integral
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        prefactor_stars = consts->t_star * consts->t_h;
+        if (astro_options_global->USE_MINI_HALOS) {
+            prefactor_stars_mini = consts->t_star * consts->t_h;
+        }
+    }
 
     // X-ray emissivity is only needed if we compute the spin temperature
     if (astro_options_global->USE_TS_FLUCT) {
         prefactor_xray = RHOcrit * cosmo_params_global->OMm;
         // The following constant factors are missing if we don't use metallicity
         if (!astro_options_global->USE_METALLICITY) {
-            prefactor_xray *=
-                (astro_params_global->L_X * 1e-38 * physconst.s_per_yr * cosmo_params_global->OMb *
-                 consts->fstar_10 / cosmo_params_global->OMm);
             if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-                prefactor_xray *= 1. / consts->t_star / consts->t_h;
+                prefactor_xray = astro_params_global->L_X * 1e-38 * physconst.s_per_yr;
             } else {
-                prefactor_xray *= 1. / dt_dz;
+                prefactor_xray *= (astro_params_global->L_X * 1e-38 * physconst.s_per_yr *
+                                   cosmo_params_global->OMb * consts->fstar_10 /
+                                   cosmo_params_global->OMm / dt_dz);
             }
         }
         if (astro_options_global->USE_MINI_HALOS) {
             prefactor_xray_mini = RHOcrit * cosmo_params_global->OMm;
             // The following constant factors are missing if we don't use metallicity
             if (!astro_options_global->USE_METALLICITY) {
-                prefactor_xray_mini *= (astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr *
-                                        cosmo_params_global->OMb * consts->fstar_7 /
-                                        cosmo_params_global->OMm / consts->t_star / consts->t_h);
+                prefactor_xray_mini = (astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr);
             }
         } else {
             prefactor_xray_mini = 0.;
@@ -166,14 +171,16 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
 
     // Set the prefactors for the SFRD and Nion
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
+        prefactor_nion = RHOcrit * cosmo_params_global->OMb * consts->fstar_10 * consts->fesc_10 *
+                         consts->pop2_ion;
         if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
+            prefactor_nion_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7 *
+                                  consts->fesc_7 * consts->pop3_ion;
         }
         if (astro_options_global->USE_TS_FLUCT) {
-            prefactor_sfr = prefactor_stars / consts->t_star / consts->t_h;
+            prefactor_sfr = 1.;
             if (astro_options_global->USE_MINI_HALOS) {
-                prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / consts->t_h;
+                prefactor_sfr_mini = 1.;
             }
         }
     } else {
@@ -189,11 +196,9 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     // Finally, set prefactors for weighted SFRD (used for recombination calculations)
     if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
         uses_recombination(astro_options_global->RECOMB_MODEL)) {
-        prefactor_wsfr =
-            prefactor_stars * consts->fesc_10 * consts->pop2_ion / consts->t_star / consts->t_h;
+        prefactor_wsfr = prefactor_nion / consts->t_star / consts->t_h;
         if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_wsfr_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion /
-                                  consts->t_star / consts->t_h;
+            prefactor_wsfr_mini = prefactor_nion_mini / consts->t_star / consts->t_h;
         }
     }
 

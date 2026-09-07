@@ -254,28 +254,35 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     } else {
         prefactor_stars_mini = 0.;
     }
+    // Need to compensate for the SFRD timescale because for the mass-dependent source models
+    // we use the SFRD integral to get the stellar mass integral
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        prefactor_stars = consts->t_star * consts->t_h * vol_ratio_out;
+        if (astro_options_global->USE_MINI_HALOS) {
+            prefactor_stars_mini = consts->t_star * consts->t_h * vol_ratio_out;
+        }
+    }
 
     // X-ray emissivity is only needed if we compute the spin temperature
     if (astro_options_global->USE_TS_FLUCT) {
         prefactor_xray = RHOcrit * cosmo_params_global->OMm * vol_ratio_out;
         // The following constant factors are missing if we don't use metallicity
         if (!astro_options_global->USE_METALLICITY) {
-            prefactor_xray *=
-                (astro_params_global->L_X * 1e-38 * physconst.s_per_yr * cosmo_params_global->OMb *
-                 consts->fstar_10 / cosmo_params_global->OMm);
             if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-                prefactor_xray *= 1. / consts->t_star / consts->t_h;
+                prefactor_xray =
+                    astro_params_global->L_X * 1e-38 * physconst.s_per_yr * vol_ratio_out;
             } else {
-                prefactor_xray *= 1. / dt_dz;
+                prefactor_xray *= (astro_params_global->L_X * 1e-38 * physconst.s_per_yr *
+                                   cosmo_params_global->OMb * consts->fstar_10 /
+                                   cosmo_params_global->OMm / dt_dz);
             }
         }
         if (astro_options_global->USE_MINI_HALOS) {
             prefactor_xray_mini = RHOcrit * cosmo_params_global->OMm * vol_ratio_out;
             // The following constant factors are missing if we don't use metallicity
             if (!astro_options_global->USE_METALLICITY) {
-                prefactor_xray_mini *= (astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr *
-                                        cosmo_params_global->OMb * consts->fstar_7 /
-                                        cosmo_params_global->OMm / consts->t_star / consts->t_h);
+                prefactor_xray_mini =
+                    (astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr) * vol_ratio_out;
             }
         } else {
             prefactor_xray_mini = 0.;
@@ -284,14 +291,16 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
 
     // Set the prefactors for the SFRD and Nion
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        prefactor_nion = prefactor_stars * consts->fesc_10 * consts->pop2_ion;
+        prefactor_nion = RHOcrit * cosmo_params_global->OMb * consts->fstar_10 * consts->fesc_10 *
+                         consts->pop2_ion * vol_ratio_out;
         if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_nion_mini = prefactor_stars_mini * consts->fesc_7 * consts->pop3_ion;
+            prefactor_nion_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7 *
+                                  consts->fesc_7 * consts->pop3_ion * vol_ratio_out;
         }
         if (astro_options_global->USE_TS_FLUCT) {
-            prefactor_sfr = prefactor_stars / consts->t_star / consts->t_h;
+            prefactor_sfr = vol_ratio_out;
             if (astro_options_global->USE_MINI_HALOS) {
-                prefactor_sfr_mini = prefactor_stars_mini / consts->t_star / consts->t_h;
+                prefactor_sfr_mini = vol_ratio_out;
             }
         }
     } else {

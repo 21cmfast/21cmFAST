@@ -1262,7 +1262,8 @@ double SFRD_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
     // fraction terms
     ScalingConstants sc_sfrd;
     sc_sfrd = evolve_scaling_constants_sfr(sc);
-    return Nion_General_integral(z, lnM_Min, lnM_Max, mturn_acg, &sc_sfrd);
+    double sfrd_integral = Nion_General_integral(z, lnM_Min, lnM_Max, mturn_acg, &sc_sfrd);
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->t_star / sc->t_h;
 }
 
 double SFRD_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_acg,
@@ -1277,7 +1278,9 @@ double SFRD_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_
     // fraction terms
     ScalingConstants sc_sfrd;
     sc_sfrd = evolve_scaling_constants_sfr(sc);
-    return Nion_General_MINI_integral(z, lnM_Min, lnM_Max, mturn_acg, mturn_mcg, &sc_sfrd);
+    double sfrd_integral =
+        Nion_General_MINI_integral(z, lnM_Min, lnM_Max, mturn_acg, mturn_mcg, &sc_sfrd);
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_7 / sc->t_star / sc->t_h;
 }
 
 double Nion_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
@@ -1302,9 +1305,9 @@ double SFRD_Conditional(double growthf, double lnM1, double lnM2, double lnM_con
     // fraction terms
     ScalingConstants sc_sfrd;
     sc_sfrd = evolve_scaling_constants_sfr(sc);
-
-    return Nion_Conditional_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2, mturn_acg,
-                                     &sc_sfrd, method);
+    double sfrd_integral = Nion_Conditional_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
+                                                     mturn_acg, &sc_sfrd, method);
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->t_star / sc->t_h;
 }
 
 double SFRD_Conditional_MINI(double growthf, double lnM1, double lnM2, double lnM_cond,
@@ -1321,8 +1324,9 @@ double SFRD_Conditional_MINI(double growthf, double lnM1, double lnM2, double ln
     ScalingConstants sc_sfrd;
     sc_sfrd = evolve_scaling_constants_sfr(sc);
 
-    return Nion_Conditional_MINI_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2, mturn_acg,
-                                          mturn_mcg, &sc_sfrd, method);
+    double sfrd_integral = Nion_Conditional_MINI_integral(
+        growthf, lnM1, lnM2, lnM_cond, sigma2, delta2, mturn_acg, mturn_mcg, &sc_sfrd, method);
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_7 / sc->t_star / sc->t_h;
 }
 
 double Nion_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
