@@ -229,6 +229,9 @@ double transfer_function(double k) {
             return transfer_function_White(k);
         case 5:
             return transfer_function_CLASS(k, 1, 0);
+        case 6:
+            return np.ascontiguousarray(
+                np.loadtxt(matter_options_global->POWER_SPECTRUM_FILE) [:, 1]);
         default:
             LOG_ERROR("No such power spectrum defined: %i", matter_options_global->POWER_SPECTRUM);
             Throw(ValueError);
