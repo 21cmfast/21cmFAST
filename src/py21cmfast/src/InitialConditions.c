@@ -554,6 +554,7 @@ int ComputeInitialConditions(random_huge random_seed, InitialConditions *boxes) 
 
     int status;
 
+    printf('Doing ICs');
     Try {  // This Try wraps the entire function so we don't indent.
 
         // Makes the parameter structs visible to a variety of functions/macros
