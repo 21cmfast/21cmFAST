@@ -303,26 +303,50 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
     double min_dens = -1;
     double max_dens = 10;
     double dens;
+    double xray_integral, xray_integral_mini;
     for (i = 0; i < n_densities; i++) {
         dens = densities[i];
         if (dens < min_dens) min_dens = dens;
         if (dens > max_dens) max_dens = dens;
     }
 
-    double X_RAY_FACTOR = RHOcrit * cosmo_params_global->OMm * 1e38;
+    double X_RAY_FACTOR = 1e38;
+    double X_RAY_FACTOR_MINI = 1e38;
+    if (!astro_options_global->USE_METALLICITY) {
+        X_RAY_FACTOR *= sc.l_x;
+        X_RAY_FACTOR_MINI *= sc.l_x_mini;
+    }
 
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        initialise_Xray_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc);
+        if (astro_options_global->USE_METALLICITY) {
+            initialise_Xray_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
+                                              &sc);
+        } else {
+            initialise_SFRD_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
+                                              &sc);
+        }
     }
     for (i = 0; i < n_densities; i++) {
-        out_xray[i] = X_RAY_FACTOR * EvaluateXray_Conditional(densities[i], log10_mturn_acg,
-                                                              redshift, growthf, M_min, M_cond,
-                                                              M_cond, sigma_cond, &sc);
+        if (astro_options_global->USE_METALLICITY) {
+            xray_integral =
+                EvaluateXray_Conditional(densities[i], log10_mturn_acg, redshift, growthf, M_min,
+                                         M_cond, M_cond, sigma_cond, &sc);
+        } else {
+            xray_integral = EvaluateSFRD_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
+                                                     M_cond, M_cond, sigma_cond, &sc);
+        }
+        out_xray[i] = X_RAY_FACTOR * xray_integral;
         if (astro_options_global->USE_MINI_HALOS) {
-            out_xray[i] += X_RAY_FACTOR *
-                           EvaluateXray_Conditional_MINI(densities[i], log10_mturn_acg,
-                                                         log10_mturn_mcg, redshift, growthf, M_min,
-                                                         M_cond, M_cond, sigma_cond, &sc);
+            if (astro_options_global->USE_METALLICITY) {
+                xray_integral_mini = EvaluateXray_Conditional_MINI(
+                    densities[i], log10_mturn_acg, log10_mturn_mcg, redshift, growthf, M_min,
+                    M_cond, M_cond, sigma_cond, &sc);
+            } else {
+                xray_integral_mini =
+                    EvaluateSFRD_Conditional_MINI(densities[i], log10_mturn_acg, log10_mturn_mcg,
+                                                  growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
+            }
+            out_xray[i] += X_RAY_FACTOR_MINI * xray_integral_mini;
         }
     }
 }

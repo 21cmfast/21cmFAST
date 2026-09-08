@@ -66,8 +66,8 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->sigma_sfr_lim = astro_params_global->SIGMA_SFR_LIM;
     consts->sigma_sfr_idx = astro_params_global->SIGMA_SFR_INDEX;
     // setting units to 1e38 erg s -1 so we can store in float
-    consts->l_x = astro_params_global->L_X * 1e-38;
-    consts->l_x_mini = astro_params_global->L_X_MINI * 1e-38;
+    consts->l_x = astro_params_global->L_X * 1e-38 * physconst.s_per_yr;
+    consts->l_x_mini = astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr;
     consts->sigma_xray = astro_params_global->SIGMA_LX;
 
     consts->alpha_esc = astro_params_global->ALPHA_ESC;
@@ -501,14 +501,13 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double metal
     // https://arxiv.org/pdf/2504.17254) Note that the mu parameter is adjusted with exp(-sigma^2
     // /2), in case we want to interpret it as the mean of the xray distribution, this exponent is
     // absorbed in the line for xray_sample below for computational efficiency
-    mu_x = get_lx_on_sfr(sfr, metallicity, consts->l_x) * (sfr * physconst.s_per_yr);
+    mu_x = get_lx_on_sfr(sfr, metallicity, consts->l_x) * sfr;
 
     double mu_x_mini = 0.;
     if (astro_options_global->USE_MINI_HALOS) {
         // Since there *are* some SFR-dependent
         // models, this is done separately
-        mu_x_mini = get_lx_on_sfr(sfr_mini, metallicity_mini, consts->l_x_mini) *
-                    (sfr_mini * physconst.s_per_yr);
+        mu_x_mini = get_lx_on_sfr(sfr_mini, metallicity_mini, consts->l_x_mini) * sfr_mini;
     }
     mu_x += mu_x_mini;
 

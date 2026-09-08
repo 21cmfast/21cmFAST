@@ -116,17 +116,10 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
 
     // X-ray emissivity is only needed if we compute the spin temperature
     if (astro_options_global->USE_TS_FLUCT) {
-        prefactor_xray = RHOcrit * cosmo_params_global->OMm;
-        // The following constant factors are missing if we don't use metallicity
-        if (!astro_options_global->USE_METALLICITY) {
-            prefactor_xray = astro_params_global->L_X * 1e-38 * physconst.s_per_yr;
-        }
+        prefactor_xray = 1.;
         if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_xray_mini = RHOcrit * cosmo_params_global->OMm;
-            // The following constant factors are missing if we don't use metallicity
-            if (!astro_options_global->USE_METALLICITY) {
-                prefactor_xray_mini = (astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr);
-            }
+            prefactor_xray_mini = 1.;
+
         } else {
             prefactor_xray_mini = 0.0;
         }
@@ -210,9 +203,9 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
         } else {
             // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
             // take advantage of it
-            integral_xray = intgrl_sfrd;
+            integral_xray = consts->l_x * intgrl_sfrd;
             if (astro_options_global->USE_MINI_HALOS) {
-                integral_xray_mini = intgrl_sfrd_mini;
+                integral_xray_mini = consts->l_x_mini * intgrl_sfrd_mini;
             }
         }
         averages_out->halo_xray =
@@ -388,8 +381,8 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
         } else {
             // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
             // take advantage of it
-            properties->halo_xray = properties->stellar_mass;
-            properties->halo_xray_mini = properties->stellar_mass_mini;
+            properties->halo_xray = consts->l_x * properties->stellar_mass;
+            properties->halo_xray_mini = consts->l_x_mini * properties->stellar_mass_mini;
         }
     }
     // If the user is interested in extra fields, we also compute them

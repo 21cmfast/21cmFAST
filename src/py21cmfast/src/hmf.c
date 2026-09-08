@@ -493,7 +493,7 @@ double xray_fraction_doublePL(double lnM, void *param_struct) {
     }
     double l_x = get_lx_on_sfr(sfr, metallicity, p.l_x_norm);
 
-    return physconst.s_per_yr * sfr * l_x;
+    return sfr * l_x;
 }
 
 double xray_fraction_doublePL_mini(double lnM, void *param_struct) {
@@ -512,7 +512,7 @@ double xray_fraction_doublePL_mini(double lnM, void *param_struct) {
     }
     double l_x_mini = get_lx_on_sfr(sfr_mini, metallicity_mini, p.l_x_norm);
 
-    return physconst.s_per_yr * sfr_mini * l_x_mini;
+    return sfr_mini * l_x_mini;
 }
 
 double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF) {
@@ -1017,7 +1017,8 @@ double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
         .sfr_timescale = sc->sfr_timescale,
         .gamma_type = 5,
     };
-    return IntegratedNdM(lnM_Min, lnM_Max, params, &u_xray_integrand, 0);
+    double xray_integral = IntegratedNdM(lnM_Min, lnM_Max, params, &u_xray_integrand, 0);
+    return xray_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
 double Xray_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_acg,
@@ -1042,7 +1043,8 @@ double Xray_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_
         .sfr_timescale = sc->sfr_timescale,
         .gamma_type = 6,
     };
-    return IntegratedNdM(lnM_Min, lnM_Max, params, &u_xray_integrand_mini, 0);
+    double xray_integral = IntegratedNdM(lnM_Min, lnM_Max, params, &u_xray_integrand_mini, 0);
+    return xray_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
 double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
@@ -1203,7 +1205,8 @@ double Xray_Conditional(double redshift, double growthf, double lnM1, double lnM
     if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
         params.HMF = HMF_PS;
 
-    return IntegratedNdM(lnM1, lnM2, params, &c_xray_integrand, method);
+    double xray_integral = IntegratedNdM(lnM1, lnM2, params, &c_xray_integrand, method);
+    return xray_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
 double Xray_Conditional_MINI(double redshift, double growthf, double lnM1, double lnM2,
@@ -1248,7 +1251,8 @@ double Xray_Conditional_MINI(double redshift, double growthf, double lnM1, doubl
     if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
         params.HMF = HMF_PS;
 
-    return IntegratedNdM(lnM1, lnM2, params, &c_xray_integrand_mini, method);
+    double xray_integral = IntegratedNdM(lnM1, lnM2, params, &c_xray_integrand_mini, method);
+    return xray_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
 double SFRD_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
