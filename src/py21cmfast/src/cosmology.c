@@ -226,6 +226,7 @@ double transfer_function_FILE(double k, int flag_int, int flag_dv) {
 
     static bool warning_printed;
     static double eh_ratio_at_kmax;
+    printf('Checkpoint 1');
 
     if (flag_int == 0) {  // Initialize vectors and read file
         kclass = cosmo_tables_global->transfer_density->x_values;
@@ -268,6 +269,7 @@ double transfer_function_FILE(double k, int flag_int, int flag_dv) {
         }
         return 0;
     }
+    printf('Checkpoint 2');
 
     if (k > kclass[size_density - 1]) {  // k>kmax
         if (!warning_printed) {
@@ -300,7 +302,8 @@ double transfer_function_FILE(double k, int flag_int, int flag_dv) {
             ans = 0.0;  // neither densities not velocities?
         }
     }
-    printf('Checkpoint') return ans;
+    printf('Checkpoint 3');
+    return ans;
 }
 
 double transfer_function(double k) {
