@@ -23,6 +23,8 @@
 #include "logger.h"
 #include "rng.h"
 
+printf("Checkpoint 0");
+
 void adj_complex_conj(fftwf_complex *HIRES_box) {
     /*****  Adjust the complex conjugate relations for a real array  *****/
 
