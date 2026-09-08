@@ -308,6 +308,7 @@ double transfer_function_FILE(double k, int flag_int, int flag_dv) {
 
 double transfer_function(double k) {
     switch (matter_options_global->POWER_SPECTRUM) {
+        printf('Checkpoint -1');
         case 0:
             return transfer_function_EH(k);
         case 1:
