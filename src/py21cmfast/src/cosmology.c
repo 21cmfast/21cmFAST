@@ -300,7 +300,7 @@ double transfer_function_FILE(double k, int flag_int, int flag_dv) {
             ans = 0.0;  // neither densities not velocities?
         }
     }
-    return ans;
+    print('Checkpoint') return ans;
 }
 
 double transfer_function(double k) {
@@ -318,7 +318,6 @@ double transfer_function(double k) {
         case 5:
             return transfer_function_CLASS(k, 1, 0);
         case 6:
-            printf("%f", k);
             return transfer_function_FILE(k, 1, 0);
         default:
             LOG_ERROR("No such power spectrum defined for value: %i",
