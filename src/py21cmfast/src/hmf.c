@@ -131,8 +131,7 @@ struct parameters_gsl_MF_integrals {
 
     // X-ray additions
     double l_x_norm;
-    double t_h;
-    double t_star;
+    double sfr_timescale;
 
     // needed for FAST_FCOLL gamma approximations
     int gamma_type;
@@ -486,7 +485,7 @@ double xray_fraction_doublePL(double lnM, void *param_struct) {
             p.Mturn_acg / M + p.f_star_norm);
 
     double stars = M * Fstar * cosmo_params_global->OMb / cosmo_params_global->OMm;
-    double sfr = stars / (p.t_star * p.t_h);
+    double sfr = stars / (p.sfr_timescale);
 
     double metallicity = 0.;
     if (astro_options_global->USE_METALLICITY) {
@@ -505,7 +504,7 @@ double xray_fraction_doublePL_mini(double lnM, void *param_struct) {
             p.Mturn_mcg / M - M / p.Mturn_upper + p.f_star_norm);
 
     double stars_mini = M * Fstar_mini * cosmo_params_global->OMb / cosmo_params_global->OMm;
-    double sfr_mini = stars_mini / (p.t_star * p.t_h);
+    double sfr_mini = stars_mini / (p.sfr_timescale);
 
     double metallicity_mini = 0.;
     if (astro_options_global->USE_METALLICITY) {
@@ -657,7 +656,7 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
                   params.alpha_star, params.Mlim_star);
         LOG_ERROR("f_escn=%.3e a_esc=%.3e Mlim_esc=%.3e", params.f_esc_norm, params.alpha_esc,
                   params.Mlim_esc);
-        LOG_ERROR("t_*=%.3e t_h=%.3e lx=%.3e", params.t_star, params.t_h, params.l_x_norm);
+        LOG_ERROR("sfr_timescale=%.3e lx=%.3e", params.sfr_timescale, params.l_x_norm);
         LOG_ERROR("Mturn_mcg %.3e Mturn_up %.3e gamma_type %d", params.Mturn_mcg,
                   params.Mturn_upper, params.gamma_type);
         CATCH_GSL_ERROR(status);
@@ -1015,8 +1014,7 @@ double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
         .Mlim_star = log(sc->Mlim_Fstar),
         .HMF = matter_options_global->HMF,
         .l_x_norm = sc->l_x,
-        .t_h = t_hubble(z),
-        .t_star = sc->t_star,
+        .sfr_timescale = sc->sfr_timescale,
         .gamma_type = 5,
     };
     return IntegratedNdM(lnM_Min, lnM_Max, params, &u_xray_integrand, 0);
@@ -1041,8 +1039,7 @@ double Xray_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_
         .Mlim_star = log(sc->Mlim_Fstar_mini),
         .HMF = matter_options_global->HMF,
         .l_x_norm = sc->l_x_mini,
-        .t_h = t_hubble(z),
-        .t_star = sc->t_star,
+        .sfr_timescale = sc->sfr_timescale,
         .gamma_type = 6,
     };
     return IntegratedNdM(lnM_Min, lnM_Max, params, &u_xray_integrand_mini, 0);
@@ -1184,8 +1181,7 @@ double Xray_Conditional(double redshift, double growthf, double lnM1, double lnM
         .Mlim_star = log(sc->Mlim_Fstar),
         .HMF = matter_options_global->HMF,
         .l_x_norm = sc->l_x,
-        .t_h = sc->t_h,
-        .t_star = sc->t_star,
+        .sfr_timescale = sc->sfr_timescale,
         .sigma_cond = sigma2,
         .delta = delta2,
         .gamma_type = -5,
@@ -1230,8 +1226,7 @@ double Xray_Conditional_MINI(double redshift, double growthf, double lnM1, doubl
         .Mlim_star = log(sc->Mlim_Fstar_mini),
         .HMF = matter_options_global->HMF,
         .l_x_norm = sc->l_x_mini,
-        .t_h = sc->t_h,
-        .t_star = sc->t_star,
+        .sfr_timescale = sc->sfr_timescale,
         .sigma_cond = sigma2,
         .delta = delta2,
         .gamma_type = -6,
@@ -1263,7 +1258,7 @@ double SFRD_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
     ScalingConstants sc_sfrd;
     sc_sfrd = evolve_scaling_constants_sfr(sc);
     double sfrd_integral = Nion_General_integral(z, lnM_Min, lnM_Max, mturn_acg, &sc_sfrd);
-    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->t_star / sc->t_h;
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->sfr_timescale;
 }
 
 double SFRD_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_acg,
@@ -1280,7 +1275,7 @@ double SFRD_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_
     sc_sfrd = evolve_scaling_constants_sfr(sc);
     double sfrd_integral =
         Nion_General_MINI_integral(z, lnM_Min, lnM_Max, mturn_acg, mturn_mcg, &sc_sfrd);
-    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_7 / sc->t_star / sc->t_h;
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_7 / sc->sfr_timescale;
 }
 
 double Nion_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
@@ -1301,13 +1296,18 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_
 
 double SFRD_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
                         double delta2, double mturn_acg, ScalingConstants *sc, int method) {
-    // NOTE: We use the same Nion integral to compute the SFRD integral, but we eliminate the escape
-    // fraction terms
-    ScalingConstants sc_sfrd;
-    sc_sfrd = evolve_scaling_constants_sfr(sc);
-    double sfrd_integral = Nion_Conditional_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
-                                                     mturn_acg, &sc_sfrd, method);
-    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->t_star / sc->t_h;
+    double sfrd_integral;
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        // NOTE: We use the same Nion integral to compute the SFRD integral, but we eliminate the
+        // escape fraction terms
+        ScalingConstants sc_sfrd;
+        sc_sfrd = evolve_scaling_constants_sfr(sc);
+        sfrd_integral = Nion_Conditional_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
+                                                  mturn_acg, &sc_sfrd, method);
+    } else {
+        sfrd_integral = dfcoll_dz(sc->redshift, sc->sigma_min, delta2, sc->sigma_cell);
+    }
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->sfr_timescale;
 }
 
 double SFRD_Conditional_MINI(double growthf, double lnM1, double lnM2, double lnM_cond,
@@ -1326,7 +1326,7 @@ double SFRD_Conditional_MINI(double growthf, double lnM1, double lnM2, double ln
 
     double sfrd_integral = Nion_Conditional_MINI_integral(
         growthf, lnM1, lnM2, lnM_cond, sigma2, delta2, mturn_acg, mturn_mcg, &sc_sfrd, method);
-    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_7 / sc->t_star / sc->t_h;
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_7 / sc->sfr_timescale;
 }
 
 double Nion_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,

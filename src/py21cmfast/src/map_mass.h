@@ -10,9 +10,9 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
 
 void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                         float *vel_pointers[3], float *vel_pointers_2LPT[3], int vel_dim[3],
-                        HaloBox *boxes, int out_dim[3], float *mturn_acg_grid,
-                        float *mturn_mcg_grid, ScalingConstants *consts,
-                        IntegralCondition *integral_cond);
+                        HaloBox *boxes, int out_dim[3], double M_min, double M_max,
+                        float *log10_mturn_acg_grid, float *log10_mturn_mcg_grid,
+                        ScalingConstants *consts);
 
 void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers[3],
                         float *vel_pointers_2LPT[3], int vel_dim[3], float *mturn_acg_grid,

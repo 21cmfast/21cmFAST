@@ -2,7 +2,6 @@
 #define _PS_H
 
 void init_ps();
-double dicke(double z);
 double sigma_z0(double M);
 double dsigmasqdm_z0(double M);
 

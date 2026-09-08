@@ -215,9 +215,9 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
 //  are on the innermost loops, any generalisation is likely to slow things down.
 void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                         float *vel_pointers[3], float *vel_pointers_2LPT[3], int vel_dim[3],
-                        HaloBox *boxes, int out_dim[3], float *log10_mturn_acg_grid,
-                        float *log10_mturn_mcg_grid, ScalingConstants *consts,
-                        IntegralCondition *integral_cond) {
+                        HaloBox *boxes, int out_dim[3], double M_min, double M_max,
+                        float *log10_mturn_acg_grid, float *log10_mturn_mcg_grid,
+                        ScalingConstants *consts) {
     double growth_factor, init_growth_factor, displacement_factor_2LPT,
         init_displacement_factor_2LPT;
     double dim_ratio_vel, dim_ratio_out;
@@ -257,9 +257,9 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     // Need to compensate for the SFRD timescale because for the mass-dependent source models
     // we use the SFRD integral to get the stellar mass integral
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        prefactor_stars = consts->t_star * consts->t_h * vol_ratio_out;
+        prefactor_stars = consts->sfr_timescale * vol_ratio_out;
         if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_stars_mini = consts->t_star * consts->t_h * vol_ratio_out;
+            prefactor_stars_mini = consts->sfr_timescale * vol_ratio_out;
         }
     }
 
@@ -325,7 +325,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
         dim_ratio_out = (double)out_dim[0] / (double)dens_dim[0];
 
         // Setup IC velocity factors
-        growth_factor = dicke(redshift);
+        growth_factor = consts->growth_factor;
         displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
 
         init_growth_factor = dicke(simulation_options_global->INITIAL_REDSHIFT);
@@ -391,8 +391,8 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                         l10_mturn_mcg = log10_mturn_mcg_grid[dens_index];
                     }
 
-                    get_cell_integrals(curr_dens, l10_mturn_acg, l10_mturn_mcg, consts,
-                                       integral_cond, &properties);
+                    get_cell_integrals(curr_dens, M_min, M_max, l10_mturn_acg, l10_mturn_mcg,
+                                       consts, &properties);
 
                     // using the properties struct:
                     // stellar_mass --> no F_esc integral ACG
@@ -439,7 +439,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
         uses_recombination(astro_options_global->RECOMB_MODEL)) {
         // Without stochasticity, these grids are the same to a constant
-        double prefactor_wsfr = 1 / consts->t_h / consts->t_star;
+        double prefactor_wsfr = 1 / consts->sfr_timescale;
         if (uses_recombination(astro_options_global->RECOMB_MODEL)) {
 #pragma omp parallel for num_threads(simulation_options_global->N_THREADS)
             for (index_huge i = 0; i < HII_TOT_NUM_PIXELS; i++) {
@@ -462,7 +462,7 @@ void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers
     double cell_vol_inv = cell_size_inv_o * cell_size_inv_o * cell_size_inv_o;
 
     // Setup IC velocity factors
-    double growth_factor = dicke(redshift);
+    double growth_factor = consts->growth_factor;
     double displacement_factor_2LPT = -(3.0 / 7.0) * growth_factor * growth_factor;  // 2LPT eq. D8
 
     double init_growth_factor = dicke(simulation_options_global->INITIAL_REDSHIFT);

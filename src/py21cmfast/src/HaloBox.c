@@ -25,28 +25,6 @@
 #include "scaling_relations.h"
 #include "thermochem.h"
 
-// TODO: this should probably be somewhere else
-void set_integral_constants(IntegralCondition *consts, double redshift, double M_min, double M_max,
-                            double M_cell) {
-    consts->redshift = redshift;
-    consts->growth_factor = dicke(redshift);
-    consts->M_min = M_min;
-    consts->M_max = M_max;
-    consts->lnM_min = log(M_min);
-    consts->lnM_max = log(M_max);
-    consts->M_cell = M_cell;
-    consts->lnM_cell = log(M_cell);
-    consts->sigma_min = sigma_z0(M_min);
-    if (simulation_options_global->HII_DIM == 1 && simulation_options_global->BOX_LEN > 1e5) {
-        // When simulating only the global signal, the box/cell size should be infinite, so the
-        // conditional sigma is 0
-        consts->sigma_cell = 0.;
-    } else {
-        // no table since this should be called once
-        consts->sigma_cell = sigma_z0(M_cell);
-    }
-}
-
 // calculates halo properties from astro parameters plus the correlated rng
 // The inputs include all properties with a separate RNG
 // The outputs include all sampled halo properties PLUS all properties which cannot be recovered
@@ -111,7 +89,6 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
                       ScalingConstants *consts, HaloProperties *averages_out) {
     LOG_SUPER_DEBUG("Getting Box averages z=%.2f M [%.2e %.2e] Mt [%.2e %.2e]", consts->redshift,
                     M_min, M_max, M_turn_acg, M_turn_mcg);
-    double t_h = consts->t_h;
     double lnMmax = log(M_max);
     double lnMmin = log(M_min);
     double dt_dz;
@@ -139,9 +116,9 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     // Need to compensate for the SFRD timescale because for the mass-dependent source models
     // we use the SFRD integral to get the stellar mass integral
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        prefactor_stars = consts->t_star * consts->t_h;
+        prefactor_stars = consts->sfr_timescale;
         if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_stars_mini = consts->t_star * consts->t_h;
+            prefactor_stars_mini = consts->sfr_timescale;
         }
     }
 
@@ -196,9 +173,9 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     // Finally, set prefactors for weighted SFRD (used for recombination calculations)
     if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
         uses_recombination(astro_options_global->RECOMB_MODEL)) {
-        prefactor_wsfr = prefactor_nion / consts->t_star / consts->t_h;
+        prefactor_wsfr = prefactor_nion / consts->sfr_timescale;
         if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_wsfr_mini = prefactor_nion_mini / consts->t_star / consts->t_h;
+            prefactor_wsfr_mini = prefactor_nion_mini / consts->sfr_timescale;
         }
     }
 
@@ -384,15 +361,12 @@ void mean_fix_grids(double M_min, double M_max, HaloBox *grids, PerturbedField *
 }
 
 // Evaluate Mass function integrals given information from the cell
-void get_cell_integrals(double dens, double l10_mturn_acg, double l10_mturn_mcg,
-                        ScalingConstants *consts, IntegralCondition *int_consts,
+void get_cell_integrals(double dens, double M_min, double M_max, double l10_mturn_acg,
+                        double l10_mturn_mcg, ScalingConstants *consts,
                         HaloProperties *properties) {
-    double M_min = int_consts->M_min;
-    double M_max = int_consts->M_max;
-    double growth_z = int_consts->growth_factor;
-    double M_cell = int_consts->M_cell;
-    double sigma_cell = int_consts->sigma_cell;
-    double sigma_min = int_consts->sigma_min;
+    double growth_z = consts->growth_factor;
+    double M_cell = consts->M_cell;
+    double sigma_cell = consts->sigma_cell;
 
     // set all fields to zero
     memset(properties, 0, sizeof(HaloProperties));
@@ -424,6 +398,7 @@ void get_cell_integrals(double dens, double l10_mturn_acg, double l10_mturn_mcg,
                                                   M_min, M_max, M_cell, sigma_cell, consts);
             }
         } else {
+            double sigma_min = consts->sigma_min;
             properties->stellar_mass =
                 EvaluatedFcolldz(dens, consts->redshift, sigma_min, sigma_cell);
         }
@@ -492,7 +467,9 @@ void get_cell_integrals(double dens, double l10_mturn_acg, double l10_mturn_mcg,
 int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                     PerturbedField *perturbed_field, float *log10_mturn_acg_grid,
                     float *log10_mturn_mcg_grid, ScalingConstants *consts, HaloBox *grids) {
-    double M_cell;
+    double lnM_min = log(M_min);
+    double lnM_max = log(M_max);
+    double M_cell = consts->M_cell;
     // If our scaling relations define a median, the scatter will will increase the mean value
     // due to the asymmetry of the lognormal distribution, we mimic this in the
     // sub-sampler component.
@@ -502,7 +479,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     if (astro_options_global->HALO_SCALING_RELATIONS_MEDIAN) {
         _ev_consts = mimic_scatter_in_consts(consts);
     }
-    double growthf = dicke(ev_consts->redshift);
+    double growthf = ev_consts->growth_factor;
 
     // find grid limits for tables
     double min_density = 0.;
@@ -552,10 +529,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
         vel_pointers_2LPT[2] = ini_boxes->hires_vz_2LPT;
         dens_pointer = ini_boxes->hires_density;
     }
-    M_cell = RHOcrit * cosmo_params_global->OMm * VOLUME / num_pixels;
 
-    IntegralCondition integral_cond;
-    set_integral_constants(&integral_cond, ev_consts->redshift, M_min, M_max, M_cell);
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         index_huge i;
@@ -580,7 +554,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
         if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
             (astro_options_global->USE_MINI_HALOS &&
              astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE)) {
-            initialise_GL(integral_cond.lnM_min, integral_cond.lnM_max);
+            initialise_GL(lnM_min, lnM_max);
         }
 
         if (astro_options_global->USE_TS_FLUCT) {
@@ -607,14 +581,13 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                                            M_max, M_cell, ev_consts, false);
 
         if (config_settings.EXTRA_HALOBOX_FIELDS) {
-            initialise_dNdM_tables(min_density, max_density, integral_cond.lnM_min,
-                                   integral_cond.lnM_max, integral_cond.growth_factor,
-                                   integral_cond.lnM_cell, false);
+            initialise_dNdM_tables(min_density, max_density, lnM_min, lnM_max,
+                                   ev_consts->growth_factor, log(M_cell), false);
         }
     }
     move_grid_galprops(ev_consts->redshift, dens_pointer, grid_dim, vel_pointers, vel_pointers_2LPT,
-                       grid_dim, grids, out_dim, log10_mturn_acg_grid, log10_mturn_mcg_grid,
-                       ev_consts, &integral_cond);
+                       grid_dim, grids, out_dim, M_min, M_max, log10_mturn_acg_grid,
+                       log10_mturn_mcg_grid, ev_consts);
 
     LOG_ULTRA_DEBUG("Cell 0 Totals: NI: %.2e", grids->n_ion[0]);
     if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&

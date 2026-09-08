@@ -142,7 +142,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
 
     // recombination_rate returns in units (1e15s)^-1
     consts->fabs_dtdz = fabs(dtdz(redshift)) / 1e15;
-    consts->growth_factor = dicke(redshift);
+    consts->growth_factor = sc.growth_factor;
     consts->prev_growth_factor = dicke(prev_redshift);
 
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
@@ -214,8 +214,14 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
                               consts->ion_eff_factor / 1.0e-12;
     if (consts->lagrangian_source_grids)
         consts->gamma_prefactor /= RHOcrit * cosmo_params_global->OMb;
-    else
-        consts->gamma_prefactor = consts->gamma_prefactor / (sc.t_h * sc.t_star);
+    else if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
+        consts->gamma_prefactor = consts->gamma_prefactor / (sc.sfr_timescale);
+    else {
+        // TODO: The usage of t_STAR in the mass-independent source model seems inconsistent,
+        // especially with how we compute the SFRD in HaloBox.c.
+        consts->gamma_prefactor =
+            consts->gamma_prefactor / astro_params_global->t_STAR / t_hubble(redshift);
+    }
 
     consts->gamma_prefactor_mini =
         consts->gamma_prefactor * consts->ion_eff_factor_mini / consts->ion_eff_factor;
