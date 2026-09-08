@@ -397,8 +397,8 @@ void calculate_spectral_factors(double zp) {
             if (astro_options_global->USE_MINI_HALOS) {
                 sum_ly2_val_MINI = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
 
-                if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
-                    nuprime = physconst.nu_LW_thresh / physconst.nu_ion_HI;
+                if (nuprime < physconst.nu_LW_thresh / physconst.nu_Ly_alpha)
+                    nuprime = physconst.nu_LW_thresh / physconst.nu_Ly_alpha;
                 // NOTE: are we comparing nuprime at z' and z'' correctly here?
                 //   currently: emitted frequency >= received frequency of next n
                 if (nuprime >= nu_n(2 + 1)) continue;
@@ -418,8 +418,8 @@ void calculate_spectral_factors(double zp) {
             if (astro_options_global->USE_MINI_HALOS) {
                 sum_lynto2_val_MINI += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 
-                if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
-                    nuprime = physconst.nu_LW_thresh / physconst.nu_ion_HI;
+                if (nuprime < physconst.nu_LW_thresh / physconst.nu_Ly_alpha)
+                    nuprime = physconst.nu_LW_thresh / physconst.nu_Ly_alpha;
                 if (nuprime >= nu_n(n_ct + 1)) continue;
                 sum_lyLW_val +=
                     (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
@@ -1840,8 +1840,11 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                 dstarlya_dt_box[box_ct] * zp_consts.lya_star_prefactor * zp_consts.volunit_inv;
             rad.delta = curr_delta;
             if (astro_options_global->USE_MINI_HALOS) {
+                // Convert the energy-weighted dimensionless spectrum to an intensity per unit
+                // LW-band frequency, in units of 1e-21 erg s^-1 Hz^-1 cm^-2 sr^-1.
                 rad.dstarLW_dt = dstarlyLW_dt_box[box_ct] * zp_consts.lya_star_prefactor *
-                                 zp_consts.volunit_inv * physconst.h_p * 1e21;
+                                 zp_consts.volunit_inv * physconst.h_p * physconst.nu_Ly_alpha /
+                                 (physconst.nu_ion_HI - physconst.nu_LW_thresh) * 1e21;
             }
             if (astro_options_global->USE_LYA_HEATING) {
                 rad.dstarlya_cont_dt = dstarlya_cont_dt_box[box_ct] * zp_consts.lya_star_prefactor *
