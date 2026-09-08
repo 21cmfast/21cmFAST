@@ -318,7 +318,7 @@ double transfer_function(double k) {
         case 5:
             return transfer_function_CLASS(k, 1, 0);
         case 6:
-            printf(transfer_function_FILE(k, 1, 0));
+            printf("%f", transfer_function_FILE(k, 1, 0));
             return transfer_function_FILE(k, 1, 0);
         default:
             LOG_ERROR("No such power spectrum defined for value: %i",
