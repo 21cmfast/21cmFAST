@@ -1253,11 +1253,16 @@ double Xray_Conditional_MINI(double redshift, double growthf, double lnM1, doubl
 
 double SFRD_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
                     ScalingConstants *sc) {
-    // NOTE: We use the same Nion integral to compute the SFRD integral, but we eliminate the escape
-    // fraction terms
-    ScalingConstants sc_sfrd;
-    sc_sfrd = evolve_scaling_constants_sfr(sc);
-    double sfrd_integral = Nion_General_integral(z, lnM_Min, lnM_Max, mturn_acg, &sc_sfrd);
+    double sfrd_integral;
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        // NOTE: We use the same Nion integral to compute the SFRD integral, but we eliminate the
+        // escape fraction terms
+        ScalingConstants sc_sfrd;
+        sc_sfrd = evolve_scaling_constants_sfr(sc);
+        sfrd_integral = Nion_General_integral(z, lnM_Min, lnM_Max, mturn_acg, &sc_sfrd);
+    } else {
+        sfrd_integral = dFcoll_dz_General(z, lnM_Min, lnM_Max);
+    }
     return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->sfr_timescale;
 }
 
@@ -1305,7 +1310,7 @@ double SFRD_Conditional(double growthf, double lnM1, double lnM2, double lnM_con
         sfrd_integral = Nion_Conditional_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
                                                   mturn_acg, &sc_sfrd, method);
     } else {
-        sfrd_integral = dfcoll_dz(sc->redshift, sc->sigma_min, delta2, sc->sigma_cell);
+        sfrd_integral = dfcoll_dz(sc->redshift, sc->sigma_min, delta2, sigma2);
     }
     return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->sfr_timescale;
 }
@@ -1413,7 +1418,7 @@ double FgtrM_bias(double z, double M, double del_bias, double sig_bias) {
     return sigmaparam_FgtrM_bias(z, EvaluateSigma(log(M)), del_bias, sig_bias);
 }
 
-//  Redshift derivative of the conditional collapsed fraction
+//  Redshift derivative of the conditional collapsed fraction (assuming EPS)
 float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias) {
     double dz, z1, z2;
     double fc1, fc2, ans;
@@ -1423,6 +1428,19 @@ float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias) {
     z2 = z - dz;
     fc1 = sigmaparam_FgtrM_bias(z1, sigma_min, del_bias, sig_bias);
     fc2 = sigmaparam_FgtrM_bias(z2, sigma_min, del_bias, sig_bias);
+    ans = (fc1 - fc2) / (2.0 * dz);
+    return ans;
+}
+
+//  Redshift derivative of the unconditional collapsed fraction (for any HMF)
+double dFcoll_dz_General(float z, double lnMmin, double lnMmax) {
+    double dz, z1, z2;
+    double fc1, fc2, ans;
+    dz = 0.001;
+    z1 = z + dz;
+    z2 = z - dz;
+    fc1 = Fcoll_General(z1, lnMmin, lnMmax);
+    fc2 = Fcoll_General(z2, lnMmin, lnMmax);
     ans = (fc1 - fc2) / (2.0 * dz);
     return ans;
 }

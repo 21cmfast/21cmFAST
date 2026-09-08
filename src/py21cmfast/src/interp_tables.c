@@ -452,7 +452,8 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
     // The ACG table could become 2D (delta,mturn) if we apply the inhomogeneous reionization
     // feedback on the ACG turnover mass, otherwise it is 1D (delta) while mturn is set
     // deterministically by the redshift
-    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+        source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         if (!SFRD_conditional_table2D.allocated) {
             allocate_RGTable2D_f(NDELTA, NMTURN, &SFRD_conditional_table2D);
         }
@@ -503,7 +504,8 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
     {
 #pragma omp for
         for (i = 0; i < NDELTA; i++) {
-            if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+            if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+                source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
                 for (j = 0; j < NMTURN; j++) {
                     SFRD_conditional_table2D.z_arr[i][j] = log(SFRD_Conditional(
                         growthf, lnMmin, lnMmax, lnM_condition, sigma2, overdense_table[i],
@@ -996,7 +998,7 @@ void free_global_tables() {
     free_RGTable2D(&Xray_z_table_2D);
 }
 
-// NOTE: with SOURCE_MODEL==0 both EvaluateNionTs and EvaluateSFRD return Fcoll
+// NOTE: with SOURCE_MODEL==0 EvaluateNionTs returns Fcoll
 double EvaluateNionTs(double redshift, double log10_Mturn_ACG_ave, ScalingConstants *sc) {
     // differences in turnover are handled by table setup
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
@@ -1051,19 +1053,17 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_ACG_ave, double l
 
 double EvaluateSFRD(double redshift, double log10_Mturn_ACG_ave, ScalingConstants *sc) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
-            // TODO: at the moment, EvaluateSFRD always uses 1D interpolation table, even though
-            // it receives log10_Mturn_ACG_ave as an input. This is because this function is only
-            // used within the scope of SpinTemperatureBox.c, and there is a known issue
-            // (https://github.com/21cmfast/21cmFAST/issues/470) that currently prevents us from
-            // applying the reionization feedback on the ACG turnover mass in that module.
-            // Therefore, log10_Mturn_ACG_ave that EvaluateSFRD receives now must be the
-            // feedback-free turnover mass, which is exactly what we use in contructing the 1D
-            // interpolation table (see comment in initialise_SFRD_spline). It is important to
-            // remember to allow this function to use 2D interpolation table in the future when
-            // issue #470 is fixed!
-            return EvaluateRGTable1D(redshift, &SFRD_z_table);
-        return EvaluateRGTable1D(redshift, &fcoll_z_table);
+        // TODO: at the moment, EvaluateSFRD always uses 1D interpolation table, even though
+        // it receives log10_Mturn_ACG_ave as an input. This is because this function is only
+        // used within the scope of SpinTemperatureBox.c, and there is a known issue
+        // (https://github.com/21cmfast/21cmFAST/issues/470) that currently prevents us from
+        // applying the reionization feedback on the ACG turnover mass in that module.
+        // Therefore, log10_Mturn_ACG_ave that EvaluateSFRD receives now must be the
+        // feedback-free turnover mass, which is exactly what we use in contructing the 1D
+        // interpolation table (see comment in initialise_SFRD_spline). It is important to
+        // remember to allow this function to use 2D interpolation table in the future when
+        // issue #470 is fixed!
+        return EvaluateRGTable1D(redshift, &SFRD_z_table);
     }
 
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
@@ -1074,10 +1074,7 @@ double EvaluateSFRD(double redshift, double log10_Mturn_ACG_ave, ScalingConstant
 
     ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
-    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
-        return SFRD_General(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_z);
-
-    return Fcoll_General(redshift, lnMmin, lnMmax);
+    return SFRD_General(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_z);
 }
 
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_ACG_ave, double log10_Mturn_MCG_ave,
@@ -1104,7 +1101,8 @@ double EvaluateSFRD_Conditional(double delta, double log10Mturn_acg, double grow
                                 double M_max, double M_cond, double sigma_max,
                                 ScalingConstants *sc) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK)
+        if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+            source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
             return exp(EvaluateRGTable2D_f(delta, log10Mturn_acg, &SFRD_conditional_table2D));
         return exp(EvaluateRGTable1D_f(delta, &SFRD_conditional_table1D));
     }

@@ -64,6 +64,7 @@ double conditional_hmf(double growthf, double lnM, double delta_cond, double sig
 double FgtrM(double z, double M);
 double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig_large);
 float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias);
+double dFcoll_dz_General(float z, double lnMmin, double lnMmax);
 double splined_erfc(double x);
 
 /* Other values required in other files */

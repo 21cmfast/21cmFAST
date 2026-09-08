@@ -2113,6 +2113,14 @@ class InputParameters:
                 stacklevel=2,
             )
 
+        if (
+            val.USE_REIONIZATION_PHOTOHEATING_FEEDBACK
+            and self.matter_options.SOURCE_MODEL == "CONST-ION-EFF"
+        ):
+            raise NotImplementedError(
+                "USE_REIONIZATION_PHOTOHEATING_FEEDBACK is not yet compatible with SOURCE_MODEL == CONST-ION-EFF"
+            )
+
     @astro_params.validator
     def _astro_params_validator(self, att, val):
         if val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN:

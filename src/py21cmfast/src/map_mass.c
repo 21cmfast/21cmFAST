@@ -248,19 +248,11 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     }
 
     // Set the prefactors for the stellar mass
-    prefactor_stars = RHOcrit * cosmo_params_global->OMb * consts->fstar_10 * vol_ratio_out;
-    if (astro_options_global->USE_MINI_HALOS) {
-        prefactor_stars_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7 * vol_ratio_out;
-    } else {
-        prefactor_stars_mini = 0.;
-    }
     // Need to compensate for the SFRD timescale because for the mass-dependent source models
     // we use the SFRD integral to get the stellar mass integral
-    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        prefactor_stars = consts->sfr_timescale * vol_ratio_out;
-        if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_stars_mini = consts->sfr_timescale * vol_ratio_out;
-        }
+    prefactor_stars = consts->sfr_timescale * vol_ratio_out;
+    if (astro_options_global->USE_MINI_HALOS) {
+        prefactor_stars_mini = consts->sfr_timescale * vol_ratio_out;
     }
 
     // X-ray emissivity is only needed if we compute the spin temperature
@@ -268,14 +260,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
         prefactor_xray = RHOcrit * cosmo_params_global->OMm * vol_ratio_out;
         // The following constant factors are missing if we don't use metallicity
         if (!astro_options_global->USE_METALLICITY) {
-            if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-                prefactor_xray =
-                    astro_params_global->L_X * 1e-38 * physconst.s_per_yr * vol_ratio_out;
-            } else {
-                prefactor_xray *= (astro_params_global->L_X * 1e-38 * physconst.s_per_yr *
-                                   cosmo_params_global->OMb * consts->fstar_10 /
-                                   cosmo_params_global->OMm / dt_dz);
-            }
+            prefactor_xray = astro_params_global->L_X * 1e-38 * physconst.s_per_yr * vol_ratio_out;
         }
         if (astro_options_global->USE_MINI_HALOS) {
             prefactor_xray_mini = RHOcrit * cosmo_params_global->OMm * vol_ratio_out;
@@ -285,33 +270,33 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                     (astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr) * vol_ratio_out;
             }
         } else {
-            prefactor_xray_mini = 0.;
+            prefactor_xray_mini = 0.0;
         }
     }
 
-    // Set the prefactors for the SFRD and Nion
+    // Set the prefactors for the SFRD
+    if (astro_options_global->USE_TS_FLUCT) {
+        prefactor_sfr = vol_ratio_out;
+        if (astro_options_global->USE_MINI_HALOS) {
+            prefactor_sfr_mini = vol_ratio_out;
+        }
+    }
+
+    // Set the prefactors for Nion
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         prefactor_nion = RHOcrit * cosmo_params_global->OMb * consts->fstar_10 * consts->fesc_10 *
                          consts->pop2_ion * vol_ratio_out;
         if (astro_options_global->USE_MINI_HALOS) {
             prefactor_nion_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7 *
                                   consts->fesc_7 * consts->pop3_ion * vol_ratio_out;
-        }
-        if (astro_options_global->USE_TS_FLUCT) {
-            prefactor_sfr = vol_ratio_out;
-            if (astro_options_global->USE_MINI_HALOS) {
-                prefactor_sfr_mini = vol_ratio_out;
-            }
+        } else {
+            prefactor_nion_mini = 0.0;
         }
     } else {
         prefactor_nion = RHOcrit * cosmo_params_global->OMb * astro_params_global->HII_EFF_FACTOR *
                          vol_ratio_out;
-        if (astro_options_global->USE_TS_FLUCT) {
-            prefactor_sfr = prefactor_stars / dt_dz;
-        }
-        // No mini-halos contribution for the mass-independent source models
-        prefactor_sfr_mini = 0.;
-        prefactor_nion_mini = 0.;
+        // No mini-halos for the mass-independent source models
+        prefactor_nion_mini = 0.0;
     }
 
     // We need the following only for the Lagrangian source models

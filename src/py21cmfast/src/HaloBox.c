@@ -107,19 +107,11 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     }
 
     // Set the prefactors for the stellar mass
-    prefactor_stars = RHOcrit * cosmo_params_global->OMb * consts->fstar_10;
-    if (astro_options_global->USE_MINI_HALOS) {
-        prefactor_stars_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7;
-    } else {
-        prefactor_stars_mini = 0.;
-    }
     // Need to compensate for the SFRD timescale because for the mass-dependent source models
     // we use the SFRD integral to get the stellar mass integral
-    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        prefactor_stars = consts->sfr_timescale;
-        if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_stars_mini = consts->sfr_timescale;
-        }
+    prefactor_stars = consts->sfr_timescale;
+    if (astro_options_global->USE_MINI_HALOS) {
+        prefactor_stars_mini = consts->sfr_timescale;
     }
 
     // X-ray emissivity is only needed if we compute the spin temperature
@@ -127,13 +119,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
         prefactor_xray = RHOcrit * cosmo_params_global->OMm;
         // The following constant factors are missing if we don't use metallicity
         if (!astro_options_global->USE_METALLICITY) {
-            if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-                prefactor_xray = astro_params_global->L_X * 1e-38 * physconst.s_per_yr;
-            } else {
-                prefactor_xray *= (astro_params_global->L_X * 1e-38 * physconst.s_per_yr *
-                                   cosmo_params_global->OMb * consts->fstar_10 /
-                                   cosmo_params_global->OMm / dt_dz);
-            }
+            prefactor_xray = astro_params_global->L_X * 1e-38 * physconst.s_per_yr;
         }
         if (astro_options_global->USE_MINI_HALOS) {
             prefactor_xray_mini = RHOcrit * cosmo_params_global->OMm;
@@ -142,32 +128,32 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
                 prefactor_xray_mini = (astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr);
             }
         } else {
-            prefactor_xray_mini = 0.;
+            prefactor_xray_mini = 0.0;
         }
     }
 
-    // Set the prefactors for the SFRD and Nion
+    // Set the prefactors for the SFRD
+    if (astro_options_global->USE_TS_FLUCT) {
+        prefactor_sfr = 1.0;
+        if (astro_options_global->USE_MINI_HALOS) {
+            prefactor_sfr_mini = 1.0;
+        }
+    }
+
+    // Set the prefactors for Nion
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         prefactor_nion = RHOcrit * cosmo_params_global->OMb * consts->fstar_10 * consts->fesc_10 *
                          consts->pop2_ion;
         if (astro_options_global->USE_MINI_HALOS) {
             prefactor_nion_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7 *
                                   consts->fesc_7 * consts->pop3_ion;
-        }
-        if (astro_options_global->USE_TS_FLUCT) {
-            prefactor_sfr = 1.;
-            if (astro_options_global->USE_MINI_HALOS) {
-                prefactor_sfr_mini = 1.;
-            }
+        } else {
+            prefactor_nion_mini = 0.0;
         }
     } else {
         prefactor_nion = RHOcrit * cosmo_params_global->OMb * astro_params_global->HII_EFF_FACTOR;
-        if (astro_options_global->USE_TS_FLUCT) {
-            prefactor_sfr = prefactor_stars / dt_dz;
-        }
-        // No mini-halos contribution for the mass-independent source models
-        prefactor_sfr_mini = 0.;
-        prefactor_nion_mini = 0.;
+        // No mini-halos for the mass-independent source models
+        prefactor_nion_mini = 0.0;
     }
 
     // Finally, set prefactors for weighted SFRD (used for recombination calculations)
@@ -176,6 +162,8 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
         prefactor_wsfr = prefactor_nion / consts->sfr_timescale;
         if (astro_options_global->USE_MINI_HALOS) {
             prefactor_wsfr_mini = prefactor_nion_mini / consts->sfr_timescale;
+        } else {
+            prefactor_wsfr_mini = 0.0;
         }
     }
 
@@ -196,21 +184,10 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     // The SFRD integrals are required for either spin temperature calculations or for extra fields
     // (stellar density)
     if (astro_options_global->USE_TS_FLUCT || config_settings.EXTRA_HALOBOX_FIELDS) {
-        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-            intgrl_sfrd = SFRD_General(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
-            if (astro_options_global->USE_MINI_HALOS) {
-                intgrl_sfrd_mini = SFRD_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_acg,
-                                                     M_turn_mcg, consts);
-            }
-        } else {
-            // For the mass-independent source model, the SFRD is proportional to the derivative of
-            // the collapsed fraction with respect to redshift. We compute this derivative very
-            // similarly to dfcoll_dz in hmf.c.
-            double dz, fc1, fc2;
-            dz = 0.001;
-            fc1 = Fcoll_General(consts->redshift + dz, lnMmin, lnMmax);
-            fc2 = Fcoll_General(consts->redshift - dz, lnMmin, lnMmax);
-            intgrl_sfrd = (fc1 - fc2) / (2.0 * dz);
+        intgrl_sfrd = SFRD_General(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
+        if (astro_options_global->USE_MINI_HALOS) {
+            intgrl_sfrd_mini =
+                SFRD_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_acg, M_turn_mcg, consts);
         }
     }
 
@@ -389,18 +366,12 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
     }
     // SFRD is required for either the spin temperature calculation, or for extra fields
     if (astro_options_global->USE_TS_FLUCT || config_settings.EXTRA_HALOBOX_FIELDS) {
-        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-            properties->stellar_mass = EvaluateSFRD_Conditional(
-                dens, l10_mturn_acg, growth_z, M_min, M_max, M_cell, sigma_cell, consts);
-            if (astro_options_global->USE_MINI_HALOS) {
-                properties->stellar_mass_mini =
-                    EvaluateSFRD_Conditional_MINI(dens, l10_mturn_acg, l10_mturn_mcg, growth_z,
-                                                  M_min, M_max, M_cell, sigma_cell, consts);
-            }
-        } else {
-            double sigma_min = consts->sigma_min;
-            properties->stellar_mass =
-                EvaluatedFcolldz(dens, consts->redshift, sigma_min, sigma_cell);
+        properties->stellar_mass = EvaluateSFRD_Conditional(dens, l10_mturn_acg, growth_z, M_min,
+                                                            M_max, M_cell, sigma_cell, consts);
+        if (astro_options_global->USE_MINI_HALOS) {
+            properties->stellar_mass_mini =
+                EvaluateSFRD_Conditional_MINI(dens, l10_mturn_acg, l10_mturn_mcg, growth_z, M_min,
+                                              M_max, M_cell, sigma_cell, consts);
         }
     }
     // X-ray emissivity is required only for the spin temperature calculation
@@ -562,19 +533,8 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                 initialise_Xray_Conditional_table(ev_consts->redshift, min_density, max_density,
                                                   M_min, M_max, M_cell, ev_consts);
             }
-
-            if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-                initialise_SFRD_Conditional_table(ev_consts->redshift, min_density, max_density,
-                                                  M_min, M_max, M_cell, ev_consts);
-            } else {
-                // Note that sigma_max = sigma(M_cell), this is because sigma_max serves as the
-                // sigma that corresponds to the conditional volume/mass, which is the cell mass in
-                // this case
-                double sigma_min = EvaluateSigma(log(M_min));
-                double sigma_max = EvaluateSigma(log(M_cell));
-                initialise_FgtrM_delta_table(min_density, max_density, ev_consts->redshift, growthf,
-                                             sigma_min, sigma_max);
-            }
+            initialise_SFRD_Conditional_table(ev_consts->redshift, min_density, max_density, M_min,
+                                              M_max, M_cell, ev_consts);
         }
 
         initialise_Nion_Conditional_spline(ev_consts->redshift, min_density, max_density, M_min,
