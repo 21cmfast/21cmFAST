@@ -300,7 +300,7 @@ double transfer_function_FILE(double k, int flag_int, int flag_dv) {
             ans = 0.0;  // neither densities not velocities?
         }
     }
-    print('Checkpoint') return ans;
+    printf('Checkpoint') return ans;
 }
 
 double transfer_function(double k) {
