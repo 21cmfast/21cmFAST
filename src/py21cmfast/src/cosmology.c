@@ -215,6 +215,94 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
     return ans;
 }
 
+double transfer_function_FILE(double k, int flag_int, int flag_dv) {
+    static double *kclass, *Tmclass, *Tvclass_vcb;
+    static int size_density, size_vcb;
+
+    static gsl_interp_accel *acc_density, *acc_vcb;
+    static gsl_spline *spline_density, *spline_vcb;
+    double ans;
+    int gsl_status;
+
+    static bool warning_printed;
+    static double eh_ratio_at_kmax;
+
+    if (flag_int == 0) {  // Initialize vectors and read file
+        kclass = cosmo_tables_global->transfer_density->x_values;
+        Tmclass = cosmo_tables_global->transfer_density->y_values;
+        size_density = cosmo_tables_global->transfer_density->size;
+
+        gsl_set_error_handler_off();
+        // Set up spline table for densities
+        acc_density = gsl_interp_accel_alloc();
+        spline_density = gsl_spline_alloc(gsl_interp_cspline, size_density);
+        gsl_status = gsl_spline_init(spline_density, kclass, Tmclass, size_density);
+        CATCH_GSL_ERROR(gsl_status);
+
+        LOG_SUPER_DEBUG("Generated CLASS Density Spline.");
+
+        eh_ratio_at_kmax = Tmclass[size_density - 1] / kclass[size_density - 1] /
+                           kclass[size_density - 1] /
+                           transfer_function_EH(kclass[size_density - 1]);
+
+        if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
+            Tvclass_vcb = cosmo_tables_global->transfer_vcb->y_values;
+            size_vcb = cosmo_tables_global->transfer_vcb->size;
+
+            // Set up spline table for velocities
+            acc_vcb = gsl_interp_accel_alloc();
+            spline_vcb = gsl_spline_alloc(gsl_interp_cspline, size_vcb);
+            gsl_status = gsl_spline_init(spline_vcb, kclass, Tvclass_vcb, size_vcb);
+            CATCH_GSL_ERROR(gsl_status);
+
+            LOG_SUPER_DEBUG("Generated CLASS velocity Spline.");
+        }
+
+        return 0;
+    } else if (flag_int == -1) {
+        gsl_spline_free(spline_density);
+        gsl_interp_accel_free(acc_density);
+        if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
+            gsl_spline_free(spline_vcb);
+            gsl_interp_accel_free(acc_vcb);
+        }
+        return 0;
+    }
+
+    if (k > kclass[size_density - 1]) {  // k>kmax
+        if (!warning_printed) {
+            LOG_WARNING(
+                "Called transfer_function_CLASS with k=%f, larger than kmax! performing linear "
+                "extrapolation with Eisenstein & Hu",
+                k);
+            warning_printed = true;
+        }
+        if (flag_dv == 0) {  // output is density
+            return eh_ratio_at_kmax * transfer_function_EH(k) * k * k;
+        } else if (flag_dv == 1) {  // output is rel velocity, do a log-log linear extrapolation
+            return exp(log(Tvclass_vcb[size_vcb - 1]) +
+                       (log(Tvclass_vcb[size_vcb - 1]) - log(Tvclass_vcb[size_vcb - 2])) /
+                           (log(kclass[size_vcb - 1]) - log(kclass[size_vcb - 2])) *
+                           (log(k) - log(kclass[size_vcb - 1])));
+
+        }  // we just set it to the last value, since sometimes it wants large k for R<<cell_size,
+           // which does not matter much.
+        else {
+            LOG_ERROR("Invalid flag_dv %d passed to transfer_function_CLASS", flag_dv);
+            Throw(ValueError);
+        }
+    } else {                 // Do spline
+        if (flag_dv == 0) {  // output is density
+            ans = gsl_spline_eval(spline_density, k, acc_density);
+        } else if (flag_dv == 1) {  // output is relative velocity
+            ans = gsl_spline_eval(spline_vcb, k, acc_vcb);
+        } else {
+            ans = 0.0;  // neither densities not velocities?
+        }
+    }
+    return ans;
+}
+
 double transfer_function(double k) {
     switch (matter_options_global->POWER_SPECTRUM) {
         case 0:
@@ -230,10 +318,10 @@ double transfer_function(double k) {
         case 5:
             return transfer_function_CLASS(k, 1, 0);
         case 6:
-            return np.ascontiguousarray(
-                np.loadtxt(matter_options_global->POWER_SPECTRUM_FILE) [:, 1]);
+            return transfer_function_FILE(k, 1, 0);
         default:
-            LOG_ERROR("No such power spectrum defined: %i", matter_options_global->POWER_SPECTRUM);
+            LOG_ERROR("No such power spectrum defined for value: %i",
+                      matter_options_global->POWER_SPECTRUM);
             Throw(ValueError);
     }
 }
