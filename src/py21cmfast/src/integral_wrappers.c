@@ -66,12 +66,12 @@ void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, do
     for (i = 0; i < n_conditions; i++) {
         stoc_set_consts_cond(&hs_const_struct, cond_values[i]);
         for (j = 0; j < n_masslim; j++) {
-            buf = Nhalo_Conditional(hs_const_struct.growth_out, lnM_lo[j], lnM_hi[j],
+            buf = nhalo_Conditional(hs_const_struct.growth_out, lnM_lo[j], lnM_hi[j],
                                     hs_const_struct.lnM_cond, hs_const_struct.sigma_cond,
                                     hs_const_struct.delta,
                                     0  // QAG
                                     ) *
-                  hs_const_struct.M_cond;
+                  hs_const_struct.M_cond / (RHOcrit * cosmo_params_global->OMm);
             out_n[i * n_masslim + j] = buf;
         }
     }

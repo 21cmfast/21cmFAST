@@ -221,9 +221,6 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     double growth_factor, init_growth_factor, displacement_factor_2LPT,
         init_displacement_factor_2LPT;
     double dim_ratio_vel, dim_ratio_out;
-    double prefactor_mass, prefactor_stars, prefactor_stars_mini;
-    double prefactor_xray, prefactor_xray_mini;
-    double prefactor_sfr, prefactor_sfr_mini, prefactor_nion, prefactor_nion_mini;
     double velocity_displacement_factor[3], velocity_displacement_factor_2LPT[3];
 
     // The following factor must be unity for Eulerian source models
@@ -235,45 +232,6 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
             "Volume ratio between output emissivity grid and input density grids is not unity for "
             "Eulerian source models.");
         Throw(ValueError);
-    }
-
-    // The following factor is needed only if the user is interested in extra fields
-    if (config_settings.EXTRA_HALOBOX_FIELDS) {
-        prefactor_mass = RHOcrit * cosmo_params_global->OMm * vol_ratio_out;
-    }
-
-    // Set the prefactors for the stellar mass
-    // Need to compensate for the SFRD timescale because for the mass-dependent source models
-    // we use the SFRD integral to get the stellar mass integral
-    prefactor_stars = consts->sfr_timescale * vol_ratio_out;
-    if (astro_options_global->USE_MINI_HALOS) {
-        prefactor_stars_mini = consts->sfr_timescale * vol_ratio_out;
-    }
-
-    // X-ray emissivity is only needed if we compute the spin temperature
-    if (astro_options_global->USE_TS_FLUCT) {
-        prefactor_xray = vol_ratio_out;
-        if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_xray_mini = vol_ratio_out;
-        } else {
-            prefactor_xray_mini = 0.0;
-        }
-    }
-
-    // Set the prefactors for the SFRD
-    if (astro_options_global->USE_TS_FLUCT) {
-        prefactor_sfr = vol_ratio_out;
-        if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_sfr_mini = vol_ratio_out;
-        }
-    }
-
-    // Set the prefactors for Nion
-    prefactor_nion = vol_ratio_out;
-    if (astro_options_global->USE_MINI_HALOS) {
-        prefactor_nion_mini = vol_ratio_out;
-    } else {
-        prefactor_nion_mini = 0.0;
     }
 
     // We need the following only for the Lagrangian source models
@@ -357,56 +315,71 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                                        consts, &properties);
 
                     // using the properties struct:
-                    // stellar_mass --> no F_esc integral ACG
-                    // stellar_mass_mini --> no F_esc integral MCG
+                    // halo_sfr --> no F_esc integral ACG
+                    // sfr_mini --> no F_esc integral MCG
                     // n_ion --> F_esc integral ACG
                     // fescweighted_sfr --> F_esc integral MCG
                     // halo_xray --> Xray integral
 
-                    // Note that properties.fescweighted_sfr can be viewed as properties.n_ion_mini
-                    // (we just don't have that field)
+                    // Compute n_ion
                     do_cic_interpolation(boxes->n_ion, pos, out_dim,
-                                         properties.n_ion * prefactor_nion +
-                                             properties.fescweighted_sfr * prefactor_nion_mini);
+                                         properties.n_ion * vol_ratio_out);
+
+                    // Compute SFRD (only required for spin temperature calculations)
                     if (astro_options_global->USE_TS_FLUCT) {
                         do_cic_interpolation(boxes->halo_sfr, pos, out_dim,
-                                             properties.stellar_mass * prefactor_sfr);
-                        do_cic_interpolation(boxes->halo_xray, pos, out_dim,
-                                             properties.halo_xray * prefactor_xray +
-                                                 properties.halo_xray_mini * prefactor_xray_mini);
+                                             properties.halo_sfr * vol_ratio_out);
                         if (astro_options_global->USE_MINI_HALOS) {
                             do_cic_interpolation(boxes->halo_sfr_mini, pos, out_dim,
-                                                 properties.stellar_mass_mini * prefactor_sfr_mini);
+                                                 properties.sfr_mini * vol_ratio_out);
                         }
                     }
 
+                    // Compute X-ray emissivity (only required for spin temperature calculations)
+                    // For the non-metallicity case, the X-ray emissivity is proportional to the
+                    // SFRD, so we we compute it at the end of this function to avoid doing the CIC
+                    // interpolation.
+                    if (astro_options_global->USE_TS_FLUCT &&
+                        astro_options_global->USE_METALLICITY) {
+                        do_cic_interpolation(boxes->halo_xray, pos, out_dim,
+                                             properties.halo_xray * vol_ratio_out);
+                    }
+
+                    // If the user is interested in extra fields, we also compute them
                     if (config_settings.EXTRA_HALOBOX_FIELDS) {
                         do_cic_interpolation(boxes->count, pos, out_dim, properties.count);
                         do_cic_interpolation(boxes->halo_mass, pos, out_dim,
-                                             properties.halo_mass * prefactor_mass);
+                                             properties.halo_mass * vol_ratio_out);
                         do_cic_interpolation(boxes->halo_stars, pos, out_dim,
-                                             properties.stellar_mass * prefactor_stars);
+                                             properties.stellar_mass * vol_ratio_out);
                         if (astro_options_global->USE_MINI_HALOS) {
-                            do_cic_interpolation(
-                                boxes->halo_stars_mini, pos, out_dim,
-                                properties.stellar_mass_mini * prefactor_stars_mini);
+                            do_cic_interpolation(boxes->halo_stars_mini, pos, out_dim,
+                                                 properties.stellar_mass_mini * vol_ratio_out);
                         }
                     }
                 }
             }
         }
     }
-    // Only Lagrangian source models require having whalo_sfr in IonisationBox.c
-    // TODO: I think this should be changed in the future
-    if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
-        uses_recombination(astro_options_global->RECOMB_MODEL)) {
-        // Without stochasticity, these grids are the same to a constant
-        double prefactor_wsfr = RHOcrit * cosmo_params_global->OMb / consts->sfr_timescale;
-        if (uses_recombination(astro_options_global->RECOMB_MODEL)) {
+
 #pragma omp parallel for num_threads(simulation_options_global->N_THREADS)
-            for (index_huge i = 0; i < HII_TOT_NUM_PIXELS; i++) {
-                boxes->whalo_sfr[i] = boxes->n_ion[i] * prefactor_wsfr;
+    for (index_huge i = 0; i < HII_TOT_NUM_PIXELS; i++) {
+        // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
+        // take advantage of it
+        if (astro_options_global->USE_TS_FLUCT && !astro_options_global->USE_METALLICITY) {
+            boxes->halo_xray[i] = consts->l_x * boxes->halo_sfr[i];
+            if (astro_options_global->USE_MINI_HALOS) {
+                boxes->halo_xray[i] += consts->l_x_mini * boxes->halo_sfr_mini[i];
             }
+        }
+        // Only Lagrangian source models require having whalo_sfr in IonisationBox.c
+        // TODO: I think this should be changed in the future
+        if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
+            uses_recombination(astro_options_global->RECOMB_MODEL)) {
+            // Without stochasticity, the weighted SFRD is n_ion times the constants that give it
+            // units of SFRD
+            double prefactor_wsfr = RHOcrit * cosmo_params_global->OMb / consts->sfr_timescale;
+            boxes->whalo_sfr[i] = boxes->n_ion[i] * prefactor_wsfr;
         }
     }
 }

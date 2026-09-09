@@ -68,7 +68,7 @@ static RGTable2D_f Xray_conditional_table_MINI = {.allocated = false};
 
 // Tables for the catalogues
 static RGTable1D Nhalo_table = {.allocated = false};
-static RGTable1D Mcoll_table = {.allocated = false};
+static RGTable1D Fcoll_table = {.allocated = false};
 static RGTable2D Nhalo_inv_table = {.allocated = false};
 
 // Tables for the old parametrization
@@ -324,7 +324,8 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
     // The ACG table could become 2D (delta,mturn) if we apply the inhomogeneous reionization
     // feedback on the ACG turnover mass, otherwise it is 1D (delta) while mturn is set
     // deterministically by the redshift
-    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+        source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         if (prev) {
             table_acg_2d = &Nion_conditional_table_prev;
         } else {
@@ -383,7 +384,8 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
     {
 #pragma omp for
         for (i = 0; i < NDELTA; i++) {
-            if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+            if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+                source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
                 for (j = 0; j < NMTURN; j++) {
                     table_acg_2d->z_arr[i][j] = log(Nion_Conditional(
                         growthf, lnMmin, lnMmax, lnM_condition, sigma2, overdense_table[i],
@@ -716,10 +718,10 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     Nhalo_table.x_min = xmin;
     Nhalo_table.x_width = (xmax - xmin) / ((double)nx - 1);
 
-    if (!Mcoll_table.allocated) allocate_RGTable1D(nx, &Mcoll_table);
+    if (!Fcoll_table.allocated) allocate_RGTable1D(nx, &Fcoll_table);
 
-    Mcoll_table.x_min = xmin;
-    Mcoll_table.x_width = (xmax - xmin) / ((double)nx - 1);
+    Fcoll_table.x_min = xmin;
+    Fcoll_table.x_width = (xmax - xmin) / ((double)nx - 1);
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS) private(i) \
     firstprivate(sigma_cond, lnM_cond)
@@ -742,9 +744,9 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             }
 
             Nhalo_table.y_arr[i] =
-                Nhalo_Conditional(growth_out, ymin, ymax, lnM_cond, sigma_cond, delta, 0);
-            Mcoll_table.y_arr[i] =
-                Mcoll_Conditional(growth_out, ymin, ymax, lnM_cond, sigma_cond, delta, 0);
+                nhalo_Conditional(growth_out, ymin, ymax, lnM_cond, sigma_cond, delta, 0);
+            Fcoll_table.y_arr[i] =
+                Fcoll_Conditional(growth_out, ymin, ymax, lnM_cond, sigma_cond, delta, 0);
         }
     }
     LOG_SUPER_DEBUG("Done.");
@@ -764,7 +766,7 @@ struct rf_inv_params {
 double dndm_inv_f(double lnM_min, void *params) {
     struct rf_inv_params *p = (struct rf_inv_params *)params;
     double integral =
-        Nhalo_Conditional(p->growthf, lnM_min, p->lnM_cond, p->lnM_cond, p->sigma, p->delta, 0);
+        nhalo_Conditional(p->growthf, lnM_min, p->lnM_cond, p->lnM_cond, p->sigma, p->delta, 0);
     // This ensures that we never find the root if the ratio is zero, since that will set to M_cond
     double result =
         integral == 0 ? 2 * simulation_options_global->MIN_LOGPROB : log(integral / p->rf_norm);
@@ -863,7 +865,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
             params_rf.sigma = sigma_cond;
 
             // NOTE: The total number density and collapsed fraction must be
-            norm = Nhalo_Conditional(growth_out, lnM_min, lnM_cond, lnM_cond, sigma_cond, delta, 0);
+            norm = nhalo_Conditional(growth_out, lnM_min, lnM_cond, lnM_cond, sigma_cond, delta, 0);
             // LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.4f D %.2f n %d ==>
             // %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
             params_rf.rf_norm = norm;
@@ -961,7 +963,7 @@ void initialise_J_split_table(int Nbin, double umin, double umax, double gamma1)
 void free_dNdM_tables() {
     free_RGTable2D(&Nhalo_inv_table);
     free_RGTable1D(&Nhalo_table);
-    free_RGTable1D(&Mcoll_table);
+    free_RGTable1D(&Fcoll_table);
     free_RGTable1D(&J_split_table);
     if (matter_options_global->SAMPLE_METHOD == SAMPLE_PARTITION) {
         gsl_spline_free(Sigma_inv_table);
@@ -1129,7 +1131,8 @@ double EvaluateNion_Conditional(double delta, double log10Mturn_acg, double grow
                                 bool prev) {
     RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK)
+        if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+            source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
             return exp(EvaluateRGTable2D_f(delta, log10Mturn_acg, table));
         return exp(EvaluateRGTable1D_f(delta, &Nion_conditional_table1D));
     }
@@ -1206,18 +1209,18 @@ double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double 
     return dfcoll_dz(redshift, sigma_min, delta, sigma_max);
 }
 
-double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond,
-                     double sigma, double delta) {
+double Evaluate_nhalo_Conditional(double condition, double growthf, double lnMmin, double lnMmax,
+                                  double M_cond, double sigma, double delta) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))
         return EvaluateRGTable1D(condition, &Nhalo_table);
-    return Nhalo_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
+    return nhalo_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
 }
 
-double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond,
-                     double sigma, double delta) {
+double EvaluateFcoll_Conditional(double condition, double growthf, double lnMmin, double lnMmax,
+                                 double M_cond, double sigma, double delta) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))
-        return EvaluateRGTable1D(condition, &Mcoll_table);
-    return Mcoll_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
+        return EvaluateRGTable1D(condition, &Fcoll_table);
+    return Fcoll_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
 }
 
 // extrapolation function for log-probability based tables

@@ -34,11 +34,11 @@ double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
 double Xray_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_acg,
                          double mturn_mcg, ScalingConstants *sc);
 double Fcoll_General(double z, double lnM_min, double lnM_max);
-double Nhalo_General(double z, double lnM_min, double lnM_max);
+double nhalo_General(double z, double lnM_min, double lnM_max);
 
-double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
+double nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
                          double delta, int method);
-double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
+double Fcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
                          double delta, int method);
 double SFRD_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
                         double delta2, double mturn_acg, ScalingConstants *sc, int method);

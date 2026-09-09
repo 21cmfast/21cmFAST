@@ -946,14 +946,15 @@ double FgtrM_wsigma(double z, double sig) {
     return splined_erfc(del / (sqrt(2) * sig));
 }
 
-double Nhalo_General(double z, double lnM_min, double lnM_max) {
+double nhalo_General(double z, double lnM_min, double lnM_max) {
     struct parameters_gsl_MF_integrals integral_params = {
         .redshift = z,
         .growthf = dicke(z),
         .HMF = matter_options_global->HMF,
         .gamma_type = 1,
     };
-    return IntegratedNdM(lnM_min, lnM_max, integral_params, &u_mf_integrand, 0);
+    double nhalo_integral = IntegratedNdM(lnM_min, lnM_max, integral_params, &u_mf_integrand, 0);
+    return nhalo_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
 double Fcoll_General(double z, double lnM_min, double lnM_max) {
@@ -1047,7 +1048,7 @@ double Xray_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_
     return xray_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
-double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
+double nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
                          double delta, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
@@ -1064,15 +1065,16 @@ double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
     if (delta > MAX_DELTAC_FRAC * get_delta_crit(params.HMF, sigma, growthf)) {
         // this limit is not ideal, but covers floating point errors when we set lnM2==log(M_cond)
         if (lnM_cond * (1 - FRACT_FLOAT_ERR) <= lnM2)
-            return 1. / exp(lnM_cond);
+            return RHOcrit * cosmo_params_global->OMm / exp(lnM_cond);
         else
             return 0.;
     }
 
-    return IntegratedNdM(lnM1, lnM2, params, &c_mf_integrand, method);
+    double nhalo_integral = IntegratedNdM(lnM1, lnM2, params, &c_mf_integrand, method);
+    return nhalo_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
-double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
+double Fcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
                          double delta, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,

@@ -119,8 +119,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         // simulation_options_global->N_THREADS;
 
 #if LOG_LEVEL >= DEBUG_LEVEL
-        double nhalo_debug = Nhalo_General(redshift, log(M_MIN), log(M_MAX_INTEGRAL)) * VOLUME *
-                             cosmo_params_global->OMm * RHOcrit;
+        double nhalo_debug = nhalo_General(redshift, log(M_MIN), log(M_MAX_INTEGRAL)) * VOLUME;
         // expected halos above minimum filter mass
         LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e] D %.3e", nhalo_debug,
                   M_MIN, M_MAX_INTEGRAL, growth_factor);
