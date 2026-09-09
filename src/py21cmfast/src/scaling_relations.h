@@ -44,7 +44,8 @@ typedef struct ScalingConstants {
     double atomic_cooling_threshold;
     double mturn_acg_homogeneous;
 
-    double sigma_min;
+    double sigma_min_sfr;
+    double sigma_min_ion;
     double M_cell;
     double sigma_cell;
 

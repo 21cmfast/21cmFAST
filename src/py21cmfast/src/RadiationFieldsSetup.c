@@ -226,13 +226,13 @@ void fill_freqint_tables(double zp, RadiationFieldsSetup *rad_setup, ScalingCons
             if (astro_options_global->USE_MINI_HALOS) {
                 lower_int_limit =
                     fmax(nu_tau_one_MINI(zp, rad_setup->zpp_avg[R_ct], rad_setup->x_e_ave_zp,
-                                         rad_setup->Q_HI_zp, log10(sc->mturn_acg_homogeneous),
+                                         log10(sc->mturn_acg_homogeneous),
                                          rad_setup->ave_log10_MturnLW[R_ct], sc),
                          (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
             } else {
                 lower_int_limit =
                     fmax(nu_tau_one(zp, rad_setup->zpp_avg[R_ct], rad_setup->x_e_ave_zp,
-                                    rad_setup->Q_HI_zp, log10(sc->mturn_acg_homogeneous), sc),
+                                    log10(sc->mturn_acg_homogeneous), sc),
                          (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
             }
             // set up frequency integral table for later interpolation for the cell's x_e value
@@ -308,13 +308,7 @@ int global_reion_properties(double zp, RadiationFieldsSetup *rad_setup) {
         //   ~100 redshifts. The benefit of interpolating here would only matter if we keep the same
         //   table over subsequent snapshots, which we don't seem to do. The Nion table is used in
         //   nu_tau_one a lot but I think there's a better way to do that
-        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-            /* initialise interpolation of the mean collapse fraction for global reionization.*/
-            initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max,
-                                      &sc);
-        } else {
-            init_FcollTable(determine_zpp_min, determine_zpp_max, true);
-        }
+        initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, &sc);
     }
 
     // For consistency between halo and non-halo based, the NO_LIGHT and filling_factor_zp
@@ -333,20 +327,8 @@ int global_reion_properties(double zp, RadiationFieldsSetup *rad_setup) {
 
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)", sum_nion, sum_nion_mini);
 
-    double ION_EFF_FACTOR, ION_EFF_FACTOR_MINI = 0.;
-    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 *
-                         astro_params_global->POP2_ION;
-        ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI *
-                              astro_params_global->POP3_ION;
-    } else {
-        // no mini-halos when SOURCE_MODE is mass independent (constant ionization efficiency)
-        ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
-    }
-
     // NOTE: only used without MASS_DEPENDENT_ZETA
-    rad_setup->Q_HI_zp = 1 - (ION_EFF_FACTOR * sum_nion + ION_EFF_FACTOR_MINI * sum_nion_mini) /
-                                 (1.0 - rad_setup->x_e_ave_zp);
+    rad_setup->Q_HI_zp = 1 - (sum_nion + sum_nion_mini) / (1.0 - rad_setup->x_e_ave_zp);
 
     // Initialise freq tables & prefactors (x_e by R tables)
     fill_freqint_tables(zp, rad_setup, &sc);

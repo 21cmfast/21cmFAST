@@ -117,7 +117,8 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
         consts->sigma_cell = sigma_z0(consts->M_cell);
     }
     if (!source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        consts->sigma_min = sigma_z0(minimum_source_mass(redshift, true));
+        consts->sigma_min_sfr = sigma_z0(minimum_source_mass(redshift, true));
+        consts->sigma_min_ion = sigma_z0(minimum_source_mass(redshift, false));
     }
 
     consts->Mlim_Fstar =
@@ -182,7 +183,8 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
         fmax(sc_z.atomic_cooling_threshold, astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
     if (!source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        sc_z.sigma_min = sigma_z0(minimum_source_mass(redshift, true));
+        sc_z.sigma_min_sfr = sigma_z0(minimum_source_mass(redshift, true));
+        sc_z.sigma_min_ion = sigma_z0(minimum_source_mass(redshift, false));
     }
 
     return sc_z;

@@ -998,23 +998,20 @@ void free_global_tables() {
     free_RGTable2D(&Xray_z_table_2D);
 }
 
-// NOTE: with SOURCE_MODEL==0 EvaluateNionTs returns Fcoll
 double EvaluateNionTs(double redshift, double log10_Mturn_ACG_ave, ScalingConstants *sc) {
     // differences in turnover are handled by table setup
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
-            // TODO: at the moment, EvaluateNionTs always uses 1D interpolation table, even though
-            // it receives log10_Mturn_ACG_ave as an input. This is because this function is only
-            // used within the scope of SpinTemperatureBox.c, and there is a known issue
-            // (https://github.com/21cmfast/21cmFAST/issues/470) that currently prevents us from
-            // applying the reionization feedback on the ACG turnover mass in that module.
-            // Therefore, log10_Mturn_ACG_ave that EvaluateNionTs receives now must be the
-            // feedback-free turnover mass, which is exactly what we use in contructing the 1D
-            // interpolation table (see comment in initialise_Nion_Ts_spline). It is important to
-            // remember to allow this function to use 2D interpolation table in the future when
-            // issue #470 is fixed!
-            return EvaluateRGTable1D(redshift, &Nion_z_table);
-        return EvaluateRGTable1D(redshift, &fcoll_z_table);
+        // TODO: at the moment, EvaluateNionTs always uses 1D interpolation table, even though
+        // it receives log10_Mturn_ACG_ave as an input. This is because this function is only
+        // used within the scope of SpinTemperatureBox.c, and there is a known issue
+        // (https://github.com/21cmfast/21cmFAST/issues/470) that currently prevents us from
+        // applying the reionization feedback on the ACG turnover mass in that module.
+        // Therefore, log10_Mturn_ACG_ave that EvaluateNionTs receives now must be the
+        // feedback-free turnover mass, which is exactly what we use in contructing the 1D
+        // interpolation table (see comment in initialise_Nion_Ts_spline). It is important to
+        // remember to allow this function to use 2D interpolation table in the future when
+        // issue #470 is fixed!
+        return EvaluateRGTable1D(redshift, &Nion_z_table);
     }
 
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
@@ -1025,10 +1022,7 @@ double EvaluateNionTs(double redshift, double log10_Mturn_ACG_ave, ScalingConsta
 
     ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
-    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
-        return Nion_General(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_z);
-
-    return Fcoll_General(redshift, lnMmin, lnMmax);
+    return Nion_General(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_z);
 }
 
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_ACG_ave, double log10_Mturn_MCG_ave,

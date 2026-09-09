@@ -177,10 +177,6 @@ class TestPerturb:
         }[inputs.matter_options.PERTURB_ALGORITHM]
         dens = np.roll(ics.get("lowres_density"), roll_var, (0, 1, 2)) * d_z
 
-        prefac_nion = (
-            inputs.cosmo_params.cosmo.critical_density(0).to("Msun Mpc-3").value
-            * inputs.cosmo_params.OMb
-        )
         prefac_xray = 1e-38
 
         integral_sfrd, _ = cf.evaluate_SFRD_cond(
@@ -196,7 +192,6 @@ class TestPerturb:
             radius=cell_radius,
             densities=dens,
         )
-        integral_nion *= prefac_nion
 
         integral_xray = cf.evaluate_Xray_cond(
             inputs=inputs,

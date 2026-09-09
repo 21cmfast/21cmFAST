@@ -1289,7 +1289,15 @@ double SFRD_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_
 
 double Nion_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
                     ScalingConstants *sc) {
-    return Nion_General_integral(z, lnM_Min, lnM_Max, mturn_acg, sc);
+    double nion_integral, nion_prefactor;
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        nion_integral = Nion_General_integral(z, lnM_Min, lnM_Max, mturn_acg, sc);
+        nion_prefactor = sc->fstar_10 * sc->fesc_10 * sc->pop2_ion;
+    } else {
+        nion_integral = Fcoll_General(z, lnM_Min, lnM_Max);
+        nion_prefactor = astro_params_global->HII_EFF_FACTOR;
+    }
+    return nion_integral * nion_prefactor;
 }
 
 double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_acg,
@@ -1300,7 +1308,10 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_
         return 0.;
     }
 
-    return Nion_General_MINI_integral(z, lnM_Min, lnM_Max, mturn_acg, mturn_mcg, sc);
+    double nion_integral, nion_prefactor;
+    nion_integral = Nion_General_MINI_integral(z, lnM_Min, lnM_Max, mturn_acg, mturn_mcg, sc);
+    nion_prefactor = sc->fstar_7 * sc->fesc_7 * sc->pop3_ion;
+    return nion_integral * nion_prefactor;
 }
 
 double SFRD_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
@@ -1314,7 +1325,7 @@ double SFRD_Conditional(double growthf, double lnM1, double lnM2, double lnM_con
         sfrd_integral = Nion_Conditional_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
                                                   mturn_acg, &sc_sfrd, method);
     } else {
-        sfrd_integral = dfcoll_dz(sc->redshift, sc->sigma_min, delta2, sigma2);
+        sfrd_integral = dfcoll_dz(sc->redshift, sc->sigma_min_sfr, delta2, sigma2);
     }
     return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->sfr_timescale;
 }
@@ -1340,8 +1351,16 @@ double SFRD_Conditional_MINI(double growthf, double lnM1, double lnM2, double ln
 
 double Nion_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
                         double delta2, double mturn_acg, ScalingConstants *sc, int method) {
-    return Nion_Conditional_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2, mturn_acg, sc,
-                                     method);
+    double nion_integral, nion_prefactor;
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        nion_integral = Nion_Conditional_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
+                                                  mturn_acg, sc, method);
+        nion_prefactor = sc->fstar_10 * sc->fesc_10 * sc->pop2_ion;
+    } else {
+        nion_integral = FgtrM_bias_fast(growthf, delta2, sc->sigma_min_ion, sigma2);
+        nion_prefactor = astro_params_global->HII_EFF_FACTOR;
+    }
+    return nion_integral * nion_prefactor;
 }
 
 double Nion_Conditional_MINI(double growthf, double lnM1, double lnM2, double lnM_cond,
@@ -1353,8 +1372,11 @@ double Nion_Conditional_MINI(double growthf, double lnM1, double lnM2, double ln
         return 0.;
     }
 
-    return Nion_Conditional_MINI_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2, mturn_acg,
-                                          mturn_mcg, sc, method);
+    double nion_integral, nion_prefactor;
+    nion_integral = Nion_Conditional_MINI_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
+                                                   mturn_acg, mturn_mcg, sc, method);
+    nion_prefactor = sc->fstar_7 * sc->fesc_7 * sc->pop3_ion;
+    return nion_integral * nion_prefactor;
 }
 
 float erfcc(float x) {

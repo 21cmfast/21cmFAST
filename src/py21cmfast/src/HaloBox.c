@@ -68,8 +68,9 @@ void set_halo_properties(double halo_mass, double M_turn_acg, double M_turn_mcg,
     if (astro_options_global->USE_MINI_HALOS)
         fesc_mini = fmin(consts->fesc_7 * pow(halo_mass / 1e7, consts->alpha_esc), 1);
 
-    n_ion_sample =
-        stellar_mass * consts->pop2_ion * fesc + stellar_mass_mini * consts->pop3_ion * fesc_mini;
+    n_ion_sample = (stellar_mass * consts->pop2_ion * fesc +
+                    stellar_mass_mini * consts->pop3_ion * fesc_mini) /
+                   (RHOcrit * cosmo_params_global->OMb);
     wsfr_sample = sfr * consts->pop2_ion * fesc + sfr_mini * consts->pop3_ion * fesc_mini;
 
     output->halo_mass = halo_mass;
@@ -91,15 +92,10 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
                     M_min, M_max, M_turn_acg, M_turn_mcg);
     double lnMmax = log(M_max);
     double lnMmin = log(M_min);
-    double dt_dz;
     double prefactor_mass, prefactor_stars, prefactor_stars_mini;
     double prefactor_xray, prefactor_xray_mini;
     double prefactor_sfr, prefactor_sfr_mini, prefactor_nion, prefactor_nion_mini;
     double prefactor_wsfr, prefactor_wsfr_mini;
-
-    if (!source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        dt_dz = dtdz(consts->redshift);
-    }
 
     // The following factor is needed only if the user is interested in extra fields
     if (config_settings.EXTRA_HALOBOX_FIELDS) {
@@ -116,9 +112,9 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
 
     // X-ray emissivity is only needed if we compute the spin temperature
     if (astro_options_global->USE_TS_FLUCT) {
-        prefactor_xray = 1.;
+        prefactor_xray = 1.0;
         if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_xray_mini = 1.;
+            prefactor_xray_mini = 1.0;
 
         } else {
             prefactor_xray_mini = 0.0;
@@ -134,27 +130,19 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     }
 
     // Set the prefactors for Nion
-    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        prefactor_nion = RHOcrit * cosmo_params_global->OMb * consts->fstar_10 * consts->fesc_10 *
-                         consts->pop2_ion;
-        if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_nion_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7 *
-                                  consts->fesc_7 * consts->pop3_ion;
-        } else {
-            prefactor_nion_mini = 0.0;
-        }
+    prefactor_nion = 1.0;
+    if (astro_options_global->USE_MINI_HALOS) {
+        prefactor_nion_mini = 1.0;
     } else {
-        prefactor_nion = RHOcrit * cosmo_params_global->OMb * astro_params_global->HII_EFF_FACTOR;
-        // No mini-halos for the mass-independent source models
         prefactor_nion_mini = 0.0;
     }
 
     // Finally, set prefactors for weighted SFRD (used for recombination calculations)
     if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
         uses_recombination(astro_options_global->RECOMB_MODEL)) {
-        prefactor_wsfr = prefactor_nion / consts->sfr_timescale;
+        prefactor_wsfr = RHOcrit * cosmo_params_global->OMb / consts->sfr_timescale;
         if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_wsfr_mini = prefactor_nion_mini / consts->sfr_timescale;
+            prefactor_wsfr_mini = RHOcrit * cosmo_params_global->OMb / consts->sfr_timescale;
         } else {
             prefactor_wsfr_mini = 0.0;
         }

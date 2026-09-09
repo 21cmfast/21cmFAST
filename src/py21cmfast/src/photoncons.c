@@ -167,11 +167,9 @@ int InitialisePhotonCons() {
                 if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
                     // TODO: the passed ACG turnover mass that we give below has to be updated to
                     // be more consistent with what's done in the rest of the code
-                    Nion0 = ION_EFF_FACTOR *
-                            Nion_General(z0, lnMmin, lnMmax,
+                    Nion0 = Nion_General(z0, lnMmin, lnMmax,
                                          astro_params_global->M_TURN_STELLAR_FEEDBACK, &sc_0);
-                    Nion1 = ION_EFF_FACTOR *
-                            Nion_General(z1, lnMmin, lnMmax,
+                    Nion1 = Nion_General(z1, lnMmin, lnMmax,
                                          astro_params_global->M_TURN_STELLAR_FEEDBACK, &sc_1);
                 } else {
                     // set the minimum source mass

@@ -221,7 +221,6 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     double growth_factor, init_growth_factor, displacement_factor_2LPT,
         init_displacement_factor_2LPT;
     double dim_ratio_vel, dim_ratio_out;
-    double dt_dz;
     double prefactor_mass, prefactor_stars, prefactor_stars_mini;
     double prefactor_xray, prefactor_xray_mini;
     double prefactor_sfr, prefactor_sfr_mini, prefactor_nion, prefactor_nion_mini;
@@ -236,10 +235,6 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
             "Volume ratio between output emissivity grid and input density grids is not unity for "
             "Eulerian source models.");
         Throw(ValueError);
-    }
-
-    if (!source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        dt_dz = dtdz(redshift);
     }
 
     // The following factor is needed only if the user is interested in extra fields
@@ -274,19 +269,10 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     }
 
     // Set the prefactors for Nion
-    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        prefactor_nion = RHOcrit * cosmo_params_global->OMb * consts->fstar_10 * consts->fesc_10 *
-                         consts->pop2_ion * vol_ratio_out;
-        if (astro_options_global->USE_MINI_HALOS) {
-            prefactor_nion_mini = RHOcrit * cosmo_params_global->OMb * consts->fstar_7 *
-                                  consts->fesc_7 * consts->pop3_ion * vol_ratio_out;
-        } else {
-            prefactor_nion_mini = 0.0;
-        }
+    prefactor_nion = vol_ratio_out;
+    if (astro_options_global->USE_MINI_HALOS) {
+        prefactor_nion_mini = vol_ratio_out;
     } else {
-        prefactor_nion = RHOcrit * cosmo_params_global->OMb * astro_params_global->HII_EFF_FACTOR *
-                         vol_ratio_out;
-        // No mini-halos for the mass-independent source models
         prefactor_nion_mini = 0.0;
     }
 
@@ -415,7 +401,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
     if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
         uses_recombination(astro_options_global->RECOMB_MODEL)) {
         // Without stochasticity, these grids are the same to a constant
-        double prefactor_wsfr = 1 / consts->sfr_timescale;
+        double prefactor_wsfr = RHOcrit * cosmo_params_global->OMb / consts->sfr_timescale;
         if (uses_recombination(astro_options_global->RECOMB_MODEL)) {
 #pragma omp parallel for num_threads(simulation_options_global->N_THREADS)
             for (index_huge i = 0; i < HII_TOT_NUM_PIXELS; i++) {
