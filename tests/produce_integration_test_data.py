@@ -100,7 +100,7 @@ OPTIONS_TESTRUNS = {
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
             "N_THREADS": 4,
-            "USE_RELATIVE_VELOCITIES": True,
+            "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
             "K_MAX_FOR_CLASS": 1.0,
         },
@@ -180,7 +180,7 @@ OPTIONS_TESTRUNS = {
             "USE_TS_FLUCT": True,
             "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
-            "USE_RELATIVE_VELOCITIES": True,
+            "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
             "M_TURN": 5.0,
             "K_MAX_FOR_CLASS": 1.0,
@@ -266,7 +266,7 @@ OPTIONS_TESTRUNS = {
             "USE_MINI_HALOS": True,
             "RECOMB_MODEL": "inhomogeneous",
             "N_THREADS": 4,
-            "USE_RELATIVE_VELOCITIES": True,
+            "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
             "K_MAX_FOR_CLASS": 1.0,
             "R_BUBBLE_MAX": 50.0,
@@ -378,11 +378,11 @@ def get_lc_fields(inputs):
     if not inputs.astro_options.USE_TS_FLUCT:
         [
             quantities.remove(k)
-            for k in {
+            for k in (
                 "spin_temperature",
                 "xray_ionised_fraction",
                 "kinetic_temp_neutral",
-            }
+            )
         ]
     if not inputs.astro_options.USE_MINI_HALOS:
         quantities.remove("J_21_LW")
@@ -605,7 +605,7 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
 
     message += "----- First 10 -----\n"
     for j in range(min(10, sel_failed.sum())):
-        input_arr = [f"{failed_inp[i][j]:.4e}" for i, finp in enumerate(failed_inp)]
+        input_arr = [f"{finp[j]:.4e}" for i, finp in enumerate(failed_inp)]
         message += (
             f"CRD {input_arr}"
             + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}\n"

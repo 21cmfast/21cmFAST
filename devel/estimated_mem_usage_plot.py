@@ -12,7 +12,7 @@ matter_params = MatterParams(
         "BOX_LEN": 2000.0,
         "DIM": 1000,
         "N_THREADS": 8,
-        "USE_RELATIVE_VELOCITIES": True,
+        "V_CB_MODEL": "FLUCTS",
         "POWER_SPECTRUM": 5,
         "USE_FFTW_WISDOM": True,
         "PERTURB_ON_HIGH_RES": True,

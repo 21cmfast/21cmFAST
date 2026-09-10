@@ -21,11 +21,13 @@ def _read(name: str):
 if "TOXENV" in os.environ and "SETUPPY_CFLAGS" in os.environ:
     os.environ["CFLAGS"] = os.environ["SETUPPY_CFLAGS"]
 
+HMF_REQ = "hmf>=3.6.2"
+
 test_req = [
     "clang-format",
     "clang-tidy",
     "mpmath",
-    "hmf>=3.6.0",
+    HMF_REQ,
     "pre-commit",
     "pytest>=5.0",
     "pytest-cov",
@@ -47,7 +49,7 @@ setup(
     license="MIT license",
     description="A semi-numerical cosmological simulation code for the 21cm signal",
     long_description="{}\n{}".format(
-        re.compile("^.. start-badges.*^.. end-badges", re.M | re.S).sub(
+        re.compile("^.. start-badges.*^.. end-badges", re.MULTILINE | re.DOTALL).sub(
             "", _read("README.rst")
         ),
         re.sub(":[a-z]+:`~?(.*?)`", r"``\1``", _read("CHANGELOG.rst")),
@@ -92,7 +94,7 @@ setup(
         "classy>=3.3.4",
         "cyclopts",
         "tomlkit",
-        "hmf>=3.6.0",
+        HMF_REQ,
         "deprecation",
     ],
     extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},

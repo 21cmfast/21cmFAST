@@ -79,7 +79,7 @@ void writeMatterOptions(MatterOptions *p) {
         "\n        MatterOptions:\n"
         "       HMF=%2d\n"
         "       POWER_SPECTRUM=%2d\n"
-        "       USE_RELATIVE_VELOCITIES=%1d\n"
+        "       V_CB_MODEL=%1d\n"
         "       PERTURB_ON_HIGH_RES=%1d\n"
         "       USE_FFTW_WISDOM=%1d\n"
         "       USE_INTERPOLATION_TABLES=%1d\n"
@@ -92,8 +92,8 @@ void writeMatterOptions(MatterOptions *p) {
         "       SOURCE_MODEL=%2d\n"
         "       SMOOTH_EVOLVED_DENSITY_FIELD=%1d\n"
         "       DEXM_OPTIMIZE=%1d\n",
-        p->HMF, p->POWER_SPECTRUM, p->USE_RELATIVE_VELOCITIES, p->PERTURB_ON_HIGH_RES,
-        p->USE_FFTW_WISDOM, p->USE_INTERPOLATION_TABLES, p->PERTURB_ALGORITHM, p->MINIMIZE_MEMORY,
+        p->HMF, p->POWER_SPECTRUM, p->V_CB_MODEL, p->PERTURB_ON_HIGH_RES, p->USE_FFTW_WISDOM,
+        p->USE_INTERPOLATION_TABLES, p->PERTURB_ALGORITHM, p->MINIMIZE_MEMORY,
         p->KEEP_3D_VELOCITIES, p->SAMPLE_METHOD, p->FILTER, p->HALO_FILTER, p->SOURCE_MODEL,
         p->SMOOTH_EVOLVED_DENSITY_FIELD, p->DEXM_OPTIMIZE);
 }
@@ -172,7 +172,6 @@ void writeAstroOptions(AstroOptions *p) {
         "       USE_EXP_FILTER=%1d\n"
         "       USE_CMB_HEATING=%1d\n"
         "       USE_LYA_HEATING=%1d\n"
-        "       FIX_VCB_AVG=%1d\n"
         "       CELL_RECOMB=%1d\n"
         "       PHOTON_CONS_TYPE=%2d\n"
         "       USE_UPPER_STELLAR_TURNOVER=%1d\n"
@@ -183,7 +182,7 @@ void writeAstroOptions(AstroOptions *p) {
         "       INTEGRATION_METHOD_ATOMIC=%2d\n"
         "       INTEGRATION_METHOD_MINI=%2d\n",
         p->USE_MINI_HALOS, p->RECOMB_MODEL, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER,
-        p->USE_CMB_HEATING, p->USE_LYA_HEATING, p->FIX_VCB_AVG, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
+        p->USE_CMB_HEATING, p->USE_LYA_HEATING, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
         p->USE_UPPER_STELLAR_TURNOVER, p->HALO_SCALING_RELATIONS_MEDIAN, p->HII_FILTER,
         p->HEAT_FILTER, p->IONISE_ENTIRE_SPHERE, p->INTEGRATION_METHOD_ATOMIC,
         p->INTEGRATION_METHOD_MINI);

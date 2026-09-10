@@ -5,6 +5,7 @@
 
 typedef int hmf_model_t;
 typedef int source_model_t;
+typedef int v_cb_model_t;
 typedef int integration_method_t;
 
 typedef struct CosmoParams {
@@ -61,7 +62,7 @@ typedef struct SimulationOptions {
 typedef struct MatterOptions {
     bool USE_FFTW_WISDOM;
     hmf_model_t HMF;
-    int USE_RELATIVE_VELOCITIES;
+    v_cb_model_t V_CB_MODEL;
     int POWER_SPECTRUM;
     int USE_INTERPOLATION_TABLES;
     bool PERTURB_ON_HIGH_RES;
@@ -119,7 +120,7 @@ typedef struct AstroParams {
     double A_VCB;
     double BETA_VCB;
 
-    double FIXED_VAVG;
+    double V_CB_AVG_DEBUG;
     double POP2_ION;
     double POP3_ION;
 
@@ -144,7 +145,6 @@ typedef struct AstroOptions {
     int RECOMB_MODEL;
     bool USE_TS_FLUCT;
     bool M_MIN_in_Mass;
-    bool FIX_VCB_AVG;
     bool USE_EXP_FILTER;
     bool CELL_RECOMB;
     bool LYA_MULTIPLE_SCATTERING;
@@ -170,6 +170,7 @@ typedef struct CosmoTables {
     Table1D *transfer_vcb;
     double ps_norm;
     bool USE_SIGMA_8;
+    double V_CB_AVG;
 } CosmoTables;
 
 typedef struct ConfigSettings {

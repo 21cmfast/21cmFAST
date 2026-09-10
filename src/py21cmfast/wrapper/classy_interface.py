@@ -82,13 +82,13 @@ def run_classy(**kwargs) -> Class:
     # Set level to highest order, unless it is specified in kwargs
     level = kwargs.pop("level", "distortions")
 
-    for k in kwargs:
+    for k, value in kwargs.items():
         # "P_k_max_1/Mpc" cannot serve as a kwarg, but this is the input that CLASS expects to receive,
         # so we control this input with "P_k_max" instead
         if k == "P_k_max":
-            params["P_k_max_1/Mpc"] = kwargs["P_k_max"]
+            params["P_k_max_1/Mpc"] = value
         else:
-            params[k] = kwargs[k]
+            params[k] = value
 
     # Set N_ur=3.044 and pop out m_ncdm if N_ncdm=0 (no massive neutrinos)
     if params["N_ncdm"] == 0:
@@ -269,8 +269,7 @@ def compute_rms(
     else:
         smoothing_radius *= units.Mpc
 
-    if isinstance(redshifts, int | float):
-        redshifts = [redshifts]
+    redshifts = np.atleast_1d(redshifts)
 
     A_s = classy_output.get_current_derived_parameters(["A_s"])["A_s"]
     priomordial_PS = A_s * pow(k_transfer / k_pivot, classy_output.n_s() - 1.0)
@@ -286,7 +285,7 @@ def compute_rms(
         kr_small = kr[kr < 1.0e-3]
         W_k[kr < 1.0e-3] = 1.0 - 3.0 * (kr_small**2) / 10.0
 
-        integrand = priomordial_PS * (transfer * W_k) ** 2
+        integrand = priomordial_PS * (transfer.value * W_k) ** 2
         var = intg.simpson(integrand, x=np.log(k_transfer / k_transfer.unit))
         rms_list.append(np.sqrt(var))
     # NOTE: intg.simpson removes the unit information, which is why we multiply by the unit when we return

@@ -358,7 +358,7 @@ def test_perturb_halos(default_input_struct_ts):
         PERTURB_ON_HIGH_RES=True,
         RECOMB_MODEL="inhomogeneous",
         USE_MINI_HALOS=True,
-        USE_RELATIVE_VELOCITIES=True,
+        V_CB_MODEL="FLUCTS",
         POWER_SPECTRUM="CLASS",
     )
     ics = compute_initial_conditions(

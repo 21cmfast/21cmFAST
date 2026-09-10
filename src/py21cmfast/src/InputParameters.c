@@ -22,6 +22,7 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
         cosmo_tables_global = malloc(sizeof(CosmoTables));
         cosmo_tables_global->ps_norm = cosmo_tables->ps_norm;
         cosmo_tables_global->USE_SIGMA_8 = cosmo_tables->USE_SIGMA_8;
+        cosmo_tables_global->V_CB_AVG = cosmo_tables->V_CB_AVG;
 
         if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
             n = cosmo_tables->transfer_density->size;
@@ -34,15 +35,17 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
             memcpy(cosmo_tables_global->transfer_density->y_values,
                    cosmo_tables->transfer_density->y_values, n * sizeof(double));
 
-            n = cosmo_tables->transfer_vcb->size;
-            cosmo_tables_global->transfer_vcb = malloc(sizeof(Table1D));
-            cosmo_tables_global->transfer_vcb->size = n;
-            cosmo_tables_global->transfer_vcb->x_values = malloc(n * sizeof(double));
-            cosmo_tables_global->transfer_vcb->y_values = malloc(n * sizeof(double));
-            memcpy(cosmo_tables_global->transfer_vcb->x_values,
-                   cosmo_tables->transfer_vcb->x_values, n * sizeof(double));
-            memcpy(cosmo_tables_global->transfer_vcb->y_values,
-                   cosmo_tables->transfer_vcb->y_values, n * sizeof(double));
+            if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
+                n = cosmo_tables->transfer_vcb->size;
+                cosmo_tables_global->transfer_vcb = malloc(sizeof(Table1D));
+                cosmo_tables_global->transfer_vcb->size = n;
+                cosmo_tables_global->transfer_vcb->x_values = malloc(n * sizeof(double));
+                cosmo_tables_global->transfer_vcb->y_values = malloc(n * sizeof(double));
+                memcpy(cosmo_tables_global->transfer_vcb->x_values,
+                       cosmo_tables->transfer_vcb->x_values, n * sizeof(double));
+                memcpy(cosmo_tables_global->transfer_vcb->y_values,
+                       cosmo_tables->transfer_vcb->y_values, n * sizeof(double));
+            }
         }
 
         allocated_cosmo_tables = true;
@@ -63,9 +66,11 @@ void Free_cosmo_tables_global() {
             free(cosmo_tables_global->transfer_density->x_values);
             free(cosmo_tables_global->transfer_density->y_values);
             free(cosmo_tables_global->transfer_density);
-            free(cosmo_tables_global->transfer_vcb->x_values);
-            free(cosmo_tables_global->transfer_vcb->y_values);
-            free(cosmo_tables_global->transfer_vcb);
+            if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
+                free(cosmo_tables_global->transfer_vcb->x_values);
+                free(cosmo_tables_global->transfer_vcb->y_values);
+                free(cosmo_tables_global->transfer_vcb);
+            }
         }
         free(cosmo_tables_global);
         allocated_cosmo_tables = false;

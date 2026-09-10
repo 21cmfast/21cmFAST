@@ -70,6 +70,11 @@ ignore = [
     "D103",  # ignore missing docstring in tests
     "DTZ",   # ignore datetime in tests
     "T",     # print statements
+    # `pytest.fixture` is listed in lint.pydocstyle.property-decorators (so that
+    # fixtures get the relaxed docstring treatment properties get), but that
+    # option is also consulted by PLR0206, which then wrongly treats pytest
+    # fixtures as properties and flags their (perfectly normal) parameters.
+    "PLR0206",
 ]
 "devel/*.py" = [
   "T",

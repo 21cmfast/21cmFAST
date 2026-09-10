@@ -475,9 +475,9 @@ class OutputStruct(ABC):
         # Perform the C computation
         try:
             exitcode = self._c_compute_function(*inputs, self._cstruct)
-        except TypeError as e:
+        except TypeError:
             logger.error(f"Arguments to {self._c_compute_function.__name__}: {inputs}")
-            raise e
+            raise
 
         _process_exitcode(exitcode, self._c_compute_function, args)
 
@@ -576,7 +576,7 @@ class InitialConditions(OutputStruct):
                     "lowres_vz_2LPT": Array(shape, dtype=np.float32),
                 }
 
-        if inputs.matter_options.USE_RELATIVE_VELOCITIES:
+        if inputs.matter_options.V_CB_MODEL == "FLUCTS":
             out["lowres_vcb"] = Array(shape, dtype=np.float32)
 
         return cls(inputs=inputs, **out, **kw)
@@ -606,7 +606,7 @@ class InitialConditions(OutputStruct):
                 keep.append("hires_vy_2LPT")
                 keep.append("hires_vz_2LPT")
 
-        if self.matter_options.USE_RELATIVE_VELOCITIES:
+        if self.matter_options.V_CB_MODEL == "FLUCTS":
             keep.append("lowres_vcb")
 
         self.prepare(keep=keep, force=force)
@@ -614,7 +614,7 @@ class InitialConditions(OutputStruct):
     def prepare_for_spin_temp(self, force: bool = False):
         """Ensure ICs have all boxes required for spin_temp, and no more."""
         keep = []
-        if self.matter_options.USE_RELATIVE_VELOCITIES:
+        if self.matter_options.V_CB_MODEL == "FLUCTS":
             keep.append("lowres_vcb")
 
         if self.matter_options.lagrangian_source_grid:
@@ -723,7 +723,10 @@ class PerturbedField(OutputStructZ):
         required = []
 
         if not isinstance(input_box, InitialConditions):
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for PerturbedField!"
             )
 
@@ -746,7 +749,7 @@ class PerturbedField(OutputStructZ):
                     "lowres_vz_2LPT",
                 ]
 
-        if self.matter_options.USE_RELATIVE_VELOCITIES:
+        if self.matter_options.V_CB_MODEL == "FLUCTS":
             required.append("lowres_vcb")
 
         return required
@@ -872,7 +875,10 @@ class HaloCatalog(OutputStructZ):
                     "xray_rng",
                 ]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for HaloCatalog!"
             )
         return required
@@ -1008,7 +1014,7 @@ class PerturbedHaloCatalog(OutputStructZ):
             if self.matter_options.PERTURB_ALGORITHM == "2LPT":
                 required += [f"{k}_2LPT" for k in required]
 
-            if self.matter_options.USE_RELATIVE_VELOCITIES:
+            if self.matter_options.V_CB_MODEL == "FLUCTS":
                 required += ["lowres_vcb"]
 
         elif isinstance(input_box, TsBox):
@@ -1026,7 +1032,10 @@ class PerturbedHaloCatalog(OutputStructZ):
                 "xray_rng",
             ]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for PerturbedHaloCatalog!"
             )
 
@@ -1164,10 +1173,18 @@ class HaloBox(OutputStructZ):
             if self.matter_options.PERTURB_ALGORITHM == "2LPT":
                 required += [f"{k}_2LPT" for k in required if "_v" in k]
 
-            if self.matter_options.USE_RELATIVE_VELOCITIES:
+            if (
+                self.matter_options.V_CB_MODEL == "FLUCTS"
+                and self.astro_options.USE_MINI_HALOS
+            ):
                 required += ["lowres_vcb"]
         else:
-            raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
+                f"{type(input_box)} is not an input required for HaloBox!"
+            )
 
         return required
 
@@ -1290,7 +1307,12 @@ class XraySourceBox(OutputStructZ):
         """Return all input arrays required to compute this object."""
         required = []
         if not isinstance(input_box, HaloBox):
-            raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
+                f"{type(input_box)} is not an input required for HaloBox!"
+            )
 
         required += ["halo_sfr", "halo_xray"]
         if self.astro_options.USE_MINI_HALOS:
@@ -1398,7 +1420,7 @@ class TsBox(OutputStructZ):
         required = []
         if isinstance(input_box, InitialConditions):
             if (
-                self.matter_options.USE_RELATIVE_VELOCITIES
+                self.matter_options.V_CB_MODEL == "FLUCTS"
                 and self.astro_options.USE_MINI_HALOS
             ):
                 required += ["lowres_vcb"]
@@ -1418,7 +1440,10 @@ class TsBox(OutputStructZ):
                 if self.astro_options.USE_MINI_HALOS:
                     required += ["filtered_sfr_mini"]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for PerturbedHaloCatalog!"
             )
 
@@ -1556,8 +1581,8 @@ class IonizedBox(OutputStructZ):
         required = []
         if isinstance(input_box, InitialConditions):
             if (
-                self.matter_options.USE_RELATIVE_VELOCITIES
-                and self.matter_options.mass_dependent_zeta
+                self.matter_options.V_CB_MODEL == "FLUCTS"
+                and self.astro_options.USE_MINI_HALOS
             ):
                 required += ["lowres_vcb"]
         elif isinstance(input_box, PerturbedField):
@@ -1585,7 +1610,10 @@ class IonizedBox(OutputStructZ):
             if self.astro_options.RECOMB_MODEL != "none":
                 required += ["whalo_sfr"]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for IonizedBox!"
             )
 
@@ -1680,7 +1708,10 @@ class BrightnessTemp(OutputStructZ):
         elif isinstance(input_box, IonizedBox):
             required += ["neutral_fraction"]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for BrightnessTemp!"
             )
 

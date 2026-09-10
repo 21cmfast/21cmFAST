@@ -6,25 +6,9 @@ import matplotlib as mpl
 import numpy as np
 import pytest
 from hmf import MassFunction
-from scipy import optimize
 
 import py21cmfast as p21c
 from py21cmfast.wrapper import cfuncs as cf
-
-YUNG24_PHYSICAL_PARAMS = {
-    "A_0": 0.13765772,
-    "A_1": -0.01003821,
-    "A_2": 0.00102964,
-    "a_0": 1.06641384,
-    "a_1": 0.02475576,
-    "a_2": -0.00283342,
-    "b_0": 4.86693806,
-    "b_1": 0.09212356,
-    "b_2": -0.01426283,
-    "c_0": 1.19837952,
-    "c_1": -0.00142967,
-    "c_2": -0.00033074,
-}
 
 
 @pytest.fixture(scope="module")
@@ -287,118 +271,60 @@ def test_hmf_runs(default_input_struct, hmf_model, ps_model):
 @pytest.mark.parametrize("ps_model", ["EH", "BBKS"])
 def test_new_hmf_matches_reference(default_input_struct, hmf_model, ps_model):
     redshift = 8.0
-    if hmf_model == "REED07":
-        transfer_map = {
-            "EH": "EH_NoBAO",
-            "BBKS": "BBKS",
+    transfer_map = {
+        "EH": "EH_NoBAO",
+        "BBKS": "BBKS",
+    }
+    if ps_model == "BBKS":
+        transfer_params = {
+            "use_sugiyama_baryons": True,
+            "use_liddle_baryons": False,
         }
-        if ps_model == "BBKS":
-            transfer_params = {
-                "use_sugiyama_baryons": True,
-                "use_liddle_baryons": False,
-            }
-        else:
-            transfer_params = {}
-
-        comparison_mf = MassFunction(
-            z=redshift,
-            Mmin=7,
-            Mmax=12,
-            hmf_model="Reed07",
-            transfer_model=transfer_map[ps_model],
-            transfer_params=transfer_params,
-            growth_model="GenMFGrowth",
-            delta_c=1.686,
-        )
-        inputs = default_input_struct.clone(
-            cosmo_params=p21c.CosmoParams.from_astropy(
-                comparison_mf.cosmo,
-                SIGMA_8=comparison_mf.sigma_8,
-                POWER_INDEX=comparison_mf.n,
-            ),
-        ).evolve_input_structs(
-            POWER_SPECTRUM=ps_model,
-            HMF=hmf_model,
-            USE_INTERPOLATION_TABLES="no-interpolation",
-        )
-        h = inputs.cosmo_params.cosmo.h
-        masses = comparison_mf.m / h
-        hmf_vals = cf.return_uhmf_value(
-            inputs=inputs,
-            redshift=redshift,
-            mass_values=masses,
-        )
-        mass_dens = (
-            inputs.cosmo_params.cosmo.critical_density(0).to("M_sun Mpc^-3").value
-            * inputs.cosmo_params.cosmo.Om0
-        )
-
-        np.testing.assert_allclose(
-            mass_dens * hmf_vals,
-            comparison_mf.dndlnm * (h**3),
-            rtol=2e-2,
-        )
     else:
-        masses = np.logspace(7, 12, num=64)
-        inputs = default_input_struct.evolve_input_structs(
-            POWER_SPECTRUM=ps_model,
-            HMF=hmf_model,
-            USE_INTERPOLATION_TABLES="no-interpolation",
-        )
-        hmf_vals = cf.return_uhmf_value(
-            inputs=inputs, redshift=redshift, mass_values=masses
-        )
-        sigma0, dsigmasqdm = cf.evaluate_sigma(inputs=inputs, masses=masses)
+        transfer_params = {}
 
-        ps_inputs = inputs.evolve_input_structs(HMF="PS")
-        ps_hmf_vals = cf.return_uhmf_value(
-            inputs=ps_inputs, redshift=redshift, mass_values=masses
-        )
-        test_idx = len(masses) // 2
-        delta_c = 1.686
+    hmf_model_map = {"REED07": "Reed07", "YUNG24": "Yung24"}
+    hmf_params_map = {"REED07": {}, "YUNG24": {"units": "physical"}}
 
-        def ps_difference(growth):
-            sigma_z = sigma0[test_idx] * growth
-            dsigmadm = dsigmasqdm[test_idx] * growth / (2 * sigma0[test_idx])
-            expected = (
-                -np.sqrt(2 / np.pi)
-                * (delta_c / sigma_z**2)
-                * dsigmadm
-                * np.exp(-(delta_c**2) / (2 * sigma_z**2))
-            )
-            return expected - ps_hmf_vals[test_idx]
+    comparison_mf = MassFunction(
+        z=redshift,
+        Mmin=7,
+        Mmax=12,
+        hmf_model=hmf_model_map[hmf_model],
+        hmf_params=hmf_params_map[hmf_model],
+        transfer_model=transfer_map[ps_model],
+        transfer_params=transfer_params,
+        growth_model="GenMFGrowth",
+        delta_c=1.686,
+    )
+    inputs = default_input_struct.clone(
+        cosmo_params=p21c.CosmoParams.from_astropy(
+            comparison_mf.cosmo,
+            SIGMA_8=comparison_mf.sigma_8,
+            POWER_INDEX=comparison_mf.n,
+        ),
+    ).evolve_input_structs(
+        POWER_SPECTRUM=ps_model,
+        HMF=hmf_model,
+        USE_INTERPOLATION_TABLES="no-interpolation",
+    )
+    h = inputs.cosmo_params.cosmo.h
+    masses = comparison_mf.m / h
+    hmf_vals = cf.return_uhmf_value(
+        inputs=inputs,
+        redshift=redshift,
+        mass_values=masses,
+    )
+    mass_dens = (
+        inputs.cosmo_params.cosmo.critical_density(0).to("M_sun Mpc^-3").value
+        * inputs.cosmo_params.cosmo.Om0
+    )
 
-        growth = optimize.brentq(ps_difference, 1e-4, 1.0)
-        sigma = sigma0 * growth
-        dlnsdlnm = -masses * dsigmasqdm / (2 * sigma0**2)
-
-        # TODO: Switch this branch to using hmf once Yung24 is merged there.
-        z = redshift
-        a_z = (
-            YUNG24_PHYSICAL_PARAMS["a_0"]
-            + YUNG24_PHYSICAL_PARAMS["a_1"] * z
-            + YUNG24_PHYSICAL_PARAMS["a_2"] * z**2
-        )
-        b_z = (
-            YUNG24_PHYSICAL_PARAMS["b_0"]
-            + YUNG24_PHYSICAL_PARAMS["b_1"] * z
-            + YUNG24_PHYSICAL_PARAMS["b_2"] * z**2
-        )
-        c_z = (
-            YUNG24_PHYSICAL_PARAMS["c_0"]
-            + YUNG24_PHYSICAL_PARAMS["c_1"] * z
-            + YUNG24_PHYSICAL_PARAMS["c_2"] * z**2
-        )
-        A_z = (
-            YUNG24_PHYSICAL_PARAMS["A_0"]
-            + YUNG24_PHYSICAL_PARAMS["A_1"] * z
-            + YUNG24_PHYSICAL_PARAMS["A_2"] * z**2
-        )
-        f_sigma = A_z * ((sigma / b_z) ** (-a_z) + 1) * np.exp(-c_z / sigma**2)
-
-        expected = f_sigma * dlnsdlnm / masses
-
-        np.testing.assert_allclose(hmf_vals, expected, rtol=1e-6)
+    np.testing.assert_allclose(
+        mass_dens * hmf_vals,
+        comparison_mf.dndlnm * (h**3),
+        rtol=2e-2,
+    )
 
 
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])
@@ -441,7 +367,7 @@ def test_ps_runs(default_input_struct):
 
     with pytest.raises(
         ValueError,
-        match=r"inputs.matter_options.USE_RELATIVE_VELOCITIES must be True in order to compute the v_cb power spectrum\.",
+        match=r"inputs.matter_options.V_CB_MODEL must be 'FLUCTS' in order to compute the v_cb power spectrum\.",
     ):
         cf.get_vcb_power_values(
             inputs=default_input_struct,
@@ -451,7 +377,7 @@ def test_ps_runs(default_input_struct):
     ps = cf.get_vcb_power_values(
         inputs=default_input_struct.evolve_input_structs(
             POWER_SPECTRUM="CLASS",
-            USE_RELATIVE_VELOCITIES=True,
+            V_CB_MODEL="FLUCTS",
             K_MAX_FOR_CLASS=1.0,
         ),
         k_values=k_values,
@@ -685,10 +611,15 @@ def test_removed_arguments_are_cleaned_up_in_v5():
         )
 
 
-def test_roundtrip_mturns(default_input_struct_ts):
+@pytest.mark.parametrize("v_cb_model", ["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"])
+def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
     inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", K_MAX_FOR_CLASS=1.0
+        USE_MINI_HALOS=True,
+        RECOMB_MODEL="inhomogeneous",
+        K_MAX_FOR_CLASS=1.0,
+        V_CB_MODEL=v_cb_model,
+        POWER_SPECTRUM="CLASS" if v_cb_model == "FLUCTS" else "EH",
     )
     # Run global evolution and extract global fields
     global_evolution = p21c.run_global_evolution(inputs=inputs)
@@ -697,7 +628,15 @@ def test_roundtrip_mturns(default_input_struct_ts):
     J_21_LW_global = global_evolution.quantities["J_21_LW"]
     z_reion_global = global_evolution.quantities["z_reion"]
     ionisation_rate_G12_global = global_evolution.quantities["ionisation_rate_G12"]
-    v_cb = inputs.astro_params.FIXED_VAVG if inputs.astro_options.FIX_VCB_AVG else 0.0
+    # Global v_cb is determined according to V_CB_MODEL
+    match inputs.matter_options.V_CB_MODEL:
+        case "NONE":
+            v_cb = 0.0
+        case "AVG-AUTO" | "FLUCTS":
+            v_cb = inputs.cosmo_tables.V_CB_AVG
+        case "AVG-DEBUG":
+            v_cb = inputs.astro_params.V_CB_AVG_DEBUG
+
     # Given the above fields, compute mturns using the cfuncs function
     Mturn_a_global, M_turn_m_global = cf.compute_mturns(
         inputs=inputs,

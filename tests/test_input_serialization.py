@@ -18,6 +18,7 @@ class TestConvertInputsToDict:
         assert "CosmoTables" in out
         assert "ps_norm" in out["CosmoTables"]
         assert "USE_SIGMA_8" in out["CosmoTables"]
+        assert "V_CB_AVG" in out["CosmoTables"]
 
     def test_minimal_preserves_empty_cosmo_tables(self, monkeypatch):
         """Test that an intentionally empty CosmoTables dict is preserved in minimal mode."""
@@ -72,6 +73,7 @@ class TestPrepareInputsForSerialization:
         assert "CosmoTables" in out
         assert "ps_norm" in out["CosmoTables"]
         assert "USE_SIGMA_8" in out["CosmoTables"]
+        assert "V_CB_AVG" in out["CosmoTables"]
 
     @pytest.mark.parametrize(
         "inputs",

@@ -41,7 +41,7 @@ def detect_default_compiler():
 
     print(f"Using compiler from {source}: {_compiler}")
 
-    result = run([_compiler, "--version"], capture_output=True, text=True)
+    result = run([_compiler, "--version"], capture_output=True, text=True, check=False)
     compiler_banner = f"{result.stdout}\n{result.stderr}".lower()
 
     # Check for clang first: clang banners often include "linux-gnu", which
@@ -71,7 +71,7 @@ c_files = [str(fl.relative_to(LOCATION)) for fl in sorted(CLOC.glob("*.c"))]
 # Set the C-code logging level.
 # If DEBUG is set, we default to the highest level, but if not,
 # we set it to the level just above no logging at all.
-log_level = os.environ.get("LOG_LEVEL", 4 if "DEBUG" in os.environ else 1)
+log_level = os.environ.get("LOG_LEVEL", "4" if "DEBUG" in os.environ else "1")
 available_levels = [
     "NONE",
     "ERROR",
