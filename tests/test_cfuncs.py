@@ -110,6 +110,18 @@ def test_run_lf(
     assert np.all(lf_minih[~np.isnan(lf_minih)] > -30)
     assert lf_minih.shape == (3, 100)
 
+    # Test component="both" to cover the combined ACG+MCG luminosity function
+    _muv_both, _mhalo_both, lf_both = p21c.compute_luminosity_function(
+        redshifts=[7, 8, 9],
+        nbins=100,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
+        component="both",
+        inputs=default_input_struct_lc_mini,
+    )
+    assert np.all(lf_both[~np.isnan(lf_both)] > -30)
+    assert lf_both.shape == (3, 100)
+
 
 def test_run_tau():
     inputs = p21c.InputParameters(random_seed=9)

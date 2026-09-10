@@ -66,13 +66,16 @@ def test_lightcone_quantities(
         != lc.lightcones["brightness_temp"].max()
     )
 
-    lcn_ts = p21c.RectilinearLightconer.with_equal_cdist_slices(
-        min_redshift=lightcone_min_redshift,
-        max_redshift=max_redshift,
-        resolution=ic.simulation_options.cell_size,
-        cosmo=ic.cosmo_params.cosmo,
-        quantities=("spin_temperature", "density"),
-    )
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="with_equal_cdist_slices is deprecated"
+    ):
+        lcn_ts = p21c.RectilinearLightconer.with_equal_cdist_slices(
+            min_redshift=lightcone_min_redshift,
+            max_redshift=max_redshift,
+            resolution=ic.simulation_options.cell_size,
+            cosmo=ic.cosmo_params.cosmo,
+            quantities=("spin_temperature", "density"),
+        )
 
     # Raise an error since we're not doing spin temp.
     with pytest.raises(AttributeError):
