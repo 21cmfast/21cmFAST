@@ -215,34 +215,6 @@ class TestCosmoParams:
 class TestAstroParams:
     """Tests of AstroParams."""
 
-    def test_fixed_vavg_deprecated_warning(self):
-        """Test that using FIXED_VAVG=True shows deprecation warning."""
-        fixed_vavg = 1.0  # dummy value for testing
-        with pytest.warns(
-            deprecation.DeprecatedWarning, match="FIXED_VAVG is deprecated"
-        ):
-            astro_params = AstroParams(FIXED_VAVG=fixed_vavg)
-        assert fixed_vavg == astro_params.FIXED_VAVG
-        assert fixed_vavg == astro_params.V_CB_AVG_DEBUG
-
-    @deprecation.fail_if_not_removed
-    def test_fixed_vavg_is_removed(self):
-        """Fails when the removed_in version is reached, reminding you to delete FIXED_VAVG."""
-        AstroParams(FIXED_VAVG=1.0)
-
-    def test_mturn_deprecated_warning(self):
-        """Test that using a non-None value for M_TURN shows deprecation warning."""
-        mturn = 8.7  # dummy value for testing
-        with pytest.warns(deprecation.DeprecatedWarning, match="M_TURN is deprecated"):
-            astro_params = AstroParams(M_TURN=mturn)
-        assert mturn == astro_params.M_TURN
-        assert mturn == astro_params.M_TURN_STELLAR_FEEDBACK
-
-    @deprecation.fail_if_not_removed
-    def test_mturn_is_removed(self):
-        """Fails when the removed_in version is reached, reminding you to delete M_TURN."""
-        AstroParams(M_TURN=8.7)
-
 
 class TestAstroOptions:
     """Tests of AstroOptions."""
@@ -332,20 +304,6 @@ class TestAstroOptions:
         opts_none = AstroOptions(RECOMB_MODEL=recomb_model)
         assert recomb_model == opts_none.RECOMB_MODEL
         assert opts_none.INHOMO_RECO is False if recomb_model == "none" else True
-
-    def test_inhomo_reco_deprecated_warning(self):
-        """Test that using INHOMO_RECO=True shows deprecation warning."""
-        with pytest.warns(
-            deprecation.DeprecatedWarning, match="INHOMO_RECO is deprecated"
-        ):
-            opts = AstroOptions(INHOMO_RECO=True)
-        assert opts.RECOMB_MODEL == "inhomogeneous"
-        assert opts.INHOMO_RECO is True
-
-    @deprecation.fail_if_not_removed
-    def test_inhomo_reco_is_removed(self):
-        """Fails when the removed_in version is reached, reminding you to delete INHOMO_RECO."""
-        AstroOptions(INHOMO_RECO=True)
 
     def test_inhomo_reco_not_provided_sets_none(self):
         """Test that INHOMO_RECO=False (or not provided) sets RECOMB_MODEL='none'."""
@@ -569,20 +527,6 @@ class TestMatterOptions:
         assert (
             opts_none.USE_RELATIVE_VELOCITIES is False if v_cb_model == "NONE" else True
         )
-
-    def test_use_relative_velocities_deprecated_warning(self):
-        """Test that using USE_RELATIVE_VELOCITIES=True shows deprecation warning."""
-        with pytest.warns(
-            deprecation.DeprecatedWarning, match="USE_RELATIVE_VELOCITIES is deprecated"
-        ):
-            opts = MatterOptions(USE_RELATIVE_VELOCITIES=True)
-        assert opts.V_CB_MODEL == "FLUCTS"
-        assert opts.USE_RELATIVE_VELOCITIES is True
-
-    @deprecation.fail_if_not_removed
-    def test_use_relative_velocities_is_removed(self):
-        """Fails when the removed_in version is reached, reminding you to delete USE_RELATIVE_VELOCITIES."""
-        MatterOptions(USE_RELATIVE_VELOCITIES=True)
 
     def test_use_relative_velocities_not_provided_sets_none(self):
         """Test that USE_RELATIVE_VELOCITIES=False (or not provided) sets V_CB_MODEL='NONE'."""

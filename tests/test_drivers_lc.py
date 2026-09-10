@@ -30,10 +30,15 @@ def test_lightcone_quantities(
         deprecation.DeprecatedWarning, match="with_equal_cdist_slices is deprecated"
     ):
         lcn = p21c.RectilinearLightconer.with_equal_cdist_slices(
-            min_redshift=2.0,
+            min_redshift=lightcone_min_redshift,
             max_redshift=max_redshift,
             resolution=ic.simulation_options.cell_size,
             cosmo=ic.cosmo_params.cosmo,
+            quantities=(
+                "density",
+                "brightness_temp",
+                "ionisation_rate_G12",
+            ),
         )
 
     lc = p21c.run_lightcone(
