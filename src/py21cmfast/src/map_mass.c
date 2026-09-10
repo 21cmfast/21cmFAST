@@ -376,10 +376,23 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
         // TODO: I think this should be changed in the future
         if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
             uses_recombination(astro_options_global->RECOMB_MODEL)) {
-            // Without stochasticity, the weighted SFRD is n_ion times the constants that give it
-            // units of SFRD
-            double prefactor_wsfr = RHOcrit * cosmo_params_global->OMb / consts->sfr_timescale;
-            boxes->whalo_sfr[i] = boxes->n_ion[i] * prefactor_wsfr;
+            if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+                // For the mass-dependent source model, without stochasticity, the weighted SFRD is
+                // n_ion times the constants that give it units of SFRD
+                double prefactor_wsfr = RHOcrit * cosmo_params_global->OMb / consts->sfr_timescale;
+                boxes->whalo_sfr[i] = boxes->n_ion[i] * prefactor_wsfr;
+            } else {
+                // For the mass-independent source model, the weighted SFRD is proportional to the
+                // SFRD
+                // TODO: This is a dead code at the moment, but it's useful to keep it here since in
+                // the future we might want to use
+                //       the weighted SFRD for Eulerian source models as well.
+                //       Note that halo_sfr might not be evaluated in some scenarios.
+                //       Also note that currently in IonisationBox.c, t_STAR is used for the
+                //       weighted SFRD, which I think is a mistake
+                boxes->whalo_sfr[i] =
+                    boxes->halo_sfr[i] / consts->fstar_10 * astro_params_global->HII_EFF_FACTOR;
+            }
         }
     }
 }

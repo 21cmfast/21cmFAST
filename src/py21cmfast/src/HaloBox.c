@@ -135,8 +135,16 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
             nhalo_General(consts->redshift, lnMmin, lnMmax) * VOLUME / HII_TOT_NUM_PIXELS;
         averages_out->halo_mass =
             Fcoll_General(consts->redshift, lnMmin, lnMmax) * RHOcrit * cosmo_params_global->OMm;
-        // The SFRD is the stellar mass in all halos divided by the SFR timescale
-        averages_out->stellar_mass = averages_out->halo_sfr * consts->sfr_timescale;
+        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+            // For the mass-dependent source model, the SFRD is the stellar mass density in all
+            // halos divided by the SFR timescale
+            averages_out->stellar_mass = averages_out->halo_sfr * consts->sfr_timescale;
+        } else {
+            // For the mass-independent source model, the stellar mass density is proportional to
+            // the collapsed fraction (and n_ion)
+            averages_out->stellar_mass = averages_out->n_ion * RHOcrit * cosmo_params_global->OMb *
+                                         consts->fstar_10 / astro_params_global->HII_EFF_FACTOR;
+        }
         if (astro_options_global->USE_MINI_HALOS) {
             averages_out->stellar_mass_mini = averages_out->sfr_mini * consts->sfr_timescale;
         }
@@ -146,9 +154,22 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     // TODO: I think this should be changed in the future
     if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
         uses_recombination(astro_options_global->RECOMB_MODEL)) {
-        // The weighted SFRD is n_ion times the constants that give it units of SFRD
-        averages_out->fescweighted_sfr =
-            averages_out->n_ion * RHOcrit * cosmo_params_global->OMb / consts->sfr_timescale;
+        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+            // For the mass-dependent source model, the weighted SFRD is n_ion times the constants
+            // that give it units of SFRD
+            averages_out->fescweighted_sfr =
+                averages_out->n_ion * RHOcrit * cosmo_params_global->OMb / consts->sfr_timescale;
+        } else {
+            // For the mass-independent source model, the weighted SFRD is proportional to the SFRD
+            // TODO: This is a dead code at the moment, but it's useful to keep it here since in the
+            // future we might want to use
+            //       the weighted SFRD for Eulerian source models as well.
+            //       Note that halo_sfr might not be evaluated in some scenarios.
+            //       Also note that currently in IonisationBox.c, t_STAR is used for the weighted
+            //       SFRD, which I think is a mistake
+            averages_out->fescweighted_sfr =
+                averages_out->halo_sfr / consts->fstar_10 * astro_params_global->HII_EFF_FACTOR;
+        }
     }
 
     return 0;
@@ -310,8 +331,16 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
         properties->halo_mass = EvaluateFcoll_Conditional(dens, growth_z, log(M_min), log(M_max),
                                                           M_cell, sigma_cell, dens) *
                                 RHOcrit * cosmo_params_global->OMm;
-        // The SFRD is the stellar mass in all halos divided by the SFR timescale
-        properties->stellar_mass = properties->halo_sfr * consts->sfr_timescale;
+        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+            // For the mass-dependent source model, the SFRD is the stellar mass density in all
+            // halos divided by the SFR timescale
+            properties->stellar_mass = properties->halo_sfr * consts->sfr_timescale;
+        } else {
+            // For the mass-independent source model, the stellar mass density is proportional to
+            // the collapsed fraction (and n_ion)
+            properties->stellar_mass = properties->n_ion * RHOcrit * cosmo_params_global->OMb *
+                                       consts->fstar_10 / astro_params_global->HII_EFF_FACTOR;
+        }
         if (astro_options_global->USE_MINI_HALOS) {
             properties->stellar_mass_mini = properties->sfr_mini * consts->sfr_timescale;
         }

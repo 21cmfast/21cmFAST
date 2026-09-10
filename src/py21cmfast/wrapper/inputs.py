@@ -2121,6 +2121,11 @@ class InputParameters:
                 "USE_REIONIZATION_PHOTOHEATING_FEEDBACK is not yet compatible with SOURCE_MODEL == CONST-ION-EFF"
             )
 
+        if val.USE_METALLICITY and self.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
+            raise NotImplementedError(
+                "USE_METALLICITY is not yet compatible with SOURCE_MODEL == CONST-ION-EFF"
+            )
+
     @astro_params.validator
     def _astro_params_validator(self, att, val):
         if val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN:
