@@ -26,6 +26,11 @@ from py21cmfast.wrapper.inputs import CosmoTables, Table1D
 _TEMPLATES = tmpl.list_templates()
 _ALL_ALIASES = list(chain.from_iterable(t["aliases"] for t in _TEMPLATES))
 
+# Physics advisory warnings expected from the non-default parameter combinations
+# used to test input struct validation across a range of configurations:
+# - POWER_SPECTRUM=EH: tests explicitly exercise the Eisenstein-Hu power spectrum
+# - Maximum halo mass: test configurations use aggressive halo mass ranges
+# - USE_MINI_HALOS/V_CB_MODEL: tests probe edge-case struct combinations
 pytestmark = [
     pytest.mark.filterwarnings(
         "ignore:^You have chosen to work with POWER_SPECTRUM=EH:UserWarning"

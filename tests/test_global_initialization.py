@@ -10,6 +10,12 @@ from py21cmfast.drivers._global_initialization import (
 
 N_REPEAT = 10
 
+# Physics advisory warnings expected from the small-box configurations used
+# throughout the initialization test suite:
+# - Maximum halo mass: small boxes trigger the upper halo mass limit warning
+# - R_BUBBLE_MAX: tests set bubble sizes that approach or exceed box dimensions
+# - USE_MINI_HALOS/V_CB_MODEL: tests probe mini-halo configurations without
+#   enabling relative velocities, triggering the parameter mismatch advisory
 pytestmark = [
     pytest.mark.filterwarnings("ignore:^The maximum halo mass:UserWarning"),
     pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning"),

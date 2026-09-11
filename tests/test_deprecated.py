@@ -88,6 +88,9 @@ def test_use_relative_velocities_is_removed():
 
 
 @pytest.mark.parametrize("fix_vcb_avg", [True, False])
+# When FIX_VCB_AVG=False, USE_MINI_HALOS is False but V_CB_MODEL is non-trivial,
+# triggering this parameter mismatch advisory. The advisory is unrelated to the
+# FIX_VCB_AVG deprecation behavior under test.
 @pytest.mark.filterwarnings(
     "ignore:^USE_MINI_HALOS is False but V_CB_MODEL:UserWarning"
 )

@@ -12,6 +12,11 @@ from py21cmfast._templates import create_params_from_template
 from py21cmfast.cli import Parameters, ParameterSelection, RunParams, _run_setup, app
 from py21cmfast.io.h5 import read_output_struct
 
+# Physics advisory warnings that fire for the non-default parameter combinations
+# used to test the command-line interface:
+# - R_BUBBLE_MAX: CLI tests use bubble sizes that trigger the size advisory
+# - USE_TS_FLUCT: certain CLI tests run without spin temperature fluctuations
+# - Your model: certain SOURCE_MODEL/INTEGRATION_METHOD combinations in CLI tests
 pytestmark = [
     pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning"),
     pytest.mark.filterwarnings(
@@ -283,6 +288,9 @@ class TestRunICS:
         ics = read_output_struct(outfile)
         assert ics.simulation_options.HII_DIM == 32
 
+    # Uses "default" (not "ignore") so the warning passes through to the CLI output.
+    # This test asserts that warnings are correctly formatted and displayed via capsys;
+    # suppressing the warning with "ignore" would break the capsys assertion.
     @pytest.mark.filterwarnings("default:Resolution is likely too low:UserWarning")
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""

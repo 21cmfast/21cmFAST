@@ -11,6 +11,12 @@ from py21cmfast import GlobalEvolution
 
 DATA_PATH = Path(__file__).parent / "test_data"
 
+# Physics advisory warnings that fire throughout the global evolution test suite
+# due to the fast, non-default parameter configurations used for speed:
+# - Maximum halo mass: small simulation boxes truncate the halo mass function
+# - USE_TS_FLUCT=False: several tests deliberately disable spin temperature fluctuations
+# - Your model: certain EPS/GAMMA-APPROX model combinations trigger this advisory
+# - POWER_SPECTRUM: tests exercise non-default matter power spectrum options
 pytestmark = [
     pytest.mark.filterwarnings("ignore:^The maximum halo mass:UserWarning"),
     pytest.mark.filterwarnings(
@@ -128,6 +134,9 @@ def test_global_evolution_bad_inputs(default_input_struct_ts, source_model):
             )
 
 
+# USE_MINI_HALOS=True requires a non-trivial V_CB_MODEL; this test checks
+# database compatibility without configuring relative velocities, intentionally
+# triggering this parameter mismatch advisory.
 @pytest.mark.filterwarnings(
     "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
 )

@@ -137,6 +137,9 @@ def test_run_lc_bad_inputs(
         )
 
 
+# Writing output to a specific lightcone filename causes OutputCache to emit a
+# warning when it detects an existing cache at that path. This is the expected
+# cache collision behavior being exercised by this test.
 @pytest.mark.filterwarnings("ignore:^The cache at OutputCache:UserWarning")
 def test_lc_with_lightcone_filename(
     ic, rectlcn, default_input_struct_lc, tmpdirec, cache

@@ -23,6 +23,12 @@ from py21cmfast.wrapper.exceptions import ArgumentValueError
 from . import test_c_interpolation_tables as cint
 from .produce_integration_test_data import get_all_options_struct, print_failure_stats
 
+# The halo sampler tests probe extreme regions of the halo mass function where
+# numerical edge cases are expected:
+# - divide by zero / invalid value: arise in log and division operations at the
+#   tails of the conditional mass function where the PDF approaches zero
+# - binned_cmf: fires when the binned CMF diverges from the analytic at extreme masses
+# - Maximum halo mass: test mass ranges extend beyond the simulation box scale
 pytestmark = [
     pytest.mark.filterwarnings(
         "ignore:divide by zero encountered in log:RuntimeWarning"
@@ -371,6 +377,9 @@ def test_halo_buffer_overflow_error_message(default_input_struct):
         stderr_path.unlink()
 
 
+# M_TURN_STELLAR_FEEDBACK is set to a non-default value to exercise the full
+# perturbed halo catalog code path; this triggers the stellar feedback
+# turnover mass advisory which is expected behavior for this configuration.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting M_TURN_STELLAR_FEEDBACK:UserWarning"
 )

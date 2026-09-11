@@ -26,6 +26,14 @@ YUNG24_PHYSICAL_PARAMS = {
     "c_2": -0.00033074,
 }
 
+# Physics advisory warnings that fire during parameter initialization throughout
+# this module. These reflect deliberate non-default configurations used to
+# stress-test the C functions and are expected behavior, not bugs:
+# - mass function other than PS/ST: tests exercise non-default HMF options
+# - USE_MINI_HALOS/V_CB_MODEL mismatch: tests probe edge-case parameter combinations
+# - R_BUBBLE_MAX: tests use aggressive bubble sizes relative to the box
+# - USE_MINI_HALOS is False, so only ACG LFs: LF tests run without mini-halos enabled
+# - M_TURN_STELLAR_FEEDBACK: tests set non-default stellar feedback turnover masses
 pytestmark = [
     pytest.mark.filterwarnings(
         "ignore:^A selection of a mass function other than:UserWarning"
