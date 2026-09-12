@@ -54,10 +54,10 @@ double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_acg, double
 
 void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth1,
                             double param, bool from_catalog);
-double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond,
-                     double sigma, double delta);
-double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond,
-                     double sigma, double delta);
+double Evaluate_nhalo_Conditional(double condition, double growthf, double lnMmin, double lnMmax,
+                                  double M_cond, double sigma, double delta);
+double EvaluateFcoll_Conditional(double condition, double growthf, double lnMmin, double lnMmax,
+                                 double M_cond, double sigma, double delta);
 
 void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, double growth1,
                                    double param, bool from_catalog);

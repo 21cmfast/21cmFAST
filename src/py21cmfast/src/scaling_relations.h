@@ -11,6 +11,7 @@
 //   unit changes
 typedef struct ScalingConstants {
     double redshift;
+    double growth_factor;
     bool fix_mean;
     bool scaling_median;
 
@@ -25,8 +26,7 @@ typedef struct ScalingConstants {
     double fstar_7;
     double alpha_star_mini;
 
-    double t_h;
-    double t_star;
+    double sfr_timescale;
     double sigma_sfr_lim;
     double sigma_sfr_idx;
 
@@ -43,6 +43,11 @@ typedef struct ScalingConstants {
     double vcb_const;
     double atomic_cooling_threshold;
     double mturn_acg_homogeneous;
+
+    double sigma_min_sfr;
+    double sigma_min_ion;
+    double M_cell;
+    double sigma_cell;
 
     double Mlim_Fstar;
     double Mlim_Fesc;

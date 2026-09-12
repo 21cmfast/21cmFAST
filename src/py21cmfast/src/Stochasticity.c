@@ -53,8 +53,7 @@ double expected_nhalo(double redshift) {
     double M_max = RHOcrit * cosmo_params_global->OMm * VOLUME / HII_TOT_NUM_PIXELS;
     double result;
 
-    result = Nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME * cosmo_params_global->OMm *
-             RHOcrit;
+    result = nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME;
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f", result, M_min,
               M_max, redshift);
 
@@ -156,7 +155,7 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
 // set the constants which are calculated once per condition
 void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double cond_val) {
-    double m_exp, n_exp;
+    double fcoll_exp, n_exp;
 
     // Here the condition is a mass, volume is the Lagrangian volume and delta_l is set by the
     // redshift difference which represents the difference in delta_crit across redshifts
@@ -194,14 +193,17 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         const_struct->expected_M = 0;
         const_struct->expected_N = 0;
     } else {
-        n_exp = EvaluateNhalo(const_struct->cond_val, const_struct->growth_out,
-                              const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->M_cond,
-                              const_struct->sigma_cond, const_struct->delta);
-        m_exp = EvaluateMcoll(const_struct->cond_val, const_struct->growth_out,
-                              const_struct->lnM_min, const_struct->lnM_max_tb, const_struct->M_cond,
-                              const_struct->sigma_cond, const_struct->delta);
-        const_struct->expected_N = n_exp * const_struct->M_cond;
-        const_struct->expected_M = m_exp * const_struct->M_cond;
+        n_exp = Evaluate_nhalo_Conditional(const_struct->cond_val, const_struct->growth_out,
+                                           const_struct->lnM_min, const_struct->lnM_max_tb,
+                                           const_struct->M_cond, const_struct->sigma_cond,
+                                           const_struct->delta);
+        fcoll_exp = EvaluateFcoll_Conditional(const_struct->cond_val, const_struct->growth_out,
+                                              const_struct->lnM_min, const_struct->lnM_max_tb,
+                                              const_struct->M_cond, const_struct->sigma_cond,
+                                              const_struct->delta);
+        const_struct->expected_N =
+            n_exp * const_struct->M_cond / (RHOcrit * cosmo_params_global->OMm);
+        const_struct->expected_M = fcoll_exp * const_struct->M_cond;
     }
     return;
 }

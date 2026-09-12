@@ -66,12 +66,12 @@ void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, do
     for (i = 0; i < n_conditions; i++) {
         stoc_set_consts_cond(&hs_const_struct, cond_values[i]);
         for (j = 0; j < n_masslim; j++) {
-            buf = Nhalo_Conditional(hs_const_struct.growth_out, lnM_lo[j], lnM_hi[j],
+            buf = nhalo_Conditional(hs_const_struct.growth_out, lnM_lo[j], lnM_hi[j],
                                     hs_const_struct.lnM_cond, hs_const_struct.sigma_cond,
                                     hs_const_struct.delta,
                                     0  // QAG
                                     ) *
-                  hs_const_struct.M_cond;
+                  hs_const_struct.M_cond / (RHOcrit * cosmo_params_global->OMm);
             out_n[i * n_masslim + j] = buf;
         }
     }
@@ -104,7 +104,6 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
     int i;
     double z_min = simulation_options_global->Z_HEAT_MAX;
     double z_max = 0.;
-    double SFRD_FACTOR, SFRD_FACTOR_MINI;
 
     for (i = 0; i < n_redshift; i++) {
         if (redshifts[i] < z_min) z_min = redshifts[i];
@@ -116,15 +115,10 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
     }
 
     for (i = 0; i < n_redshift; i++) {
-        SFRD_FACTOR = astro_params_global->F_STAR10 * cosmo_params_global->OMb * RHOcrit /
-                      astro_params_global->t_STAR / t_hubble(redshifts[i]);
-        out_sfrd[i] = SFRD_FACTOR * EvaluateSFRD(redshifts[i], log10_turnovers_acg[i], &sc);
+        out_sfrd[i] = EvaluateSFRD(redshifts[i], log10_turnovers_acg[i], &sc);
         if (astro_options_global->USE_MINI_HALOS) {
-            SFRD_FACTOR_MINI = astro_params_global->F_STAR7_MINI * cosmo_params_global->OMb *
-                               RHOcrit / astro_params_global->t_STAR / t_hubble(redshifts[i]);
-            out_sfrd_mini[i] =
-                SFRD_FACTOR_MINI * EvaluateSFRD_MINI(redshifts[i], log10_turnovers_acg[i],
-                                                     log10_turnovers_mcg[i], &sc);
+            out_sfrd_mini[i] = EvaluateSFRD_MINI(redshifts[i], log10_turnovers_acg[i],
+                                                 log10_turnovers_mcg[i], &sc);
         }
     }
 }
@@ -142,26 +136,14 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
         if (redshifts[i] > z_max) z_max = redshifts[i];
     }
 
-    double ION_EFF_FACTOR, ION_EFF_FACTOR_MINI;
-    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 *
-                         astro_params_global->POP2_ION;
-        ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI *
-                              astro_params_global->POP3_ION;
-    } else {
-        // no mini-halos when SOURCE_MODE is mass independent (constant ionization efficiency)
-        ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
-    }
-
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_Nion_Ts_spline(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
     }
     for (i = 0; i < n_redshift; i++) {
-        out_nion[i] = ION_EFF_FACTOR * EvaluateNionTs(redshifts[i], log10_turnovers_acg[i], &sc);
+        out_nion[i] = EvaluateNionTs(redshifts[i], log10_turnovers_acg[i], &sc);
         if (astro_options_global->USE_MINI_HALOS)
-            out_nion_mini[i] =
-                ION_EFF_FACTOR_MINI * EvaluateNionTs_MINI(redshifts[i], log10_turnovers_acg[i],
-                                                          log10_turnovers_mcg[i], &sc);
+            out_nion_mini[i] = EvaluateNionTs_MINI(redshifts[i], log10_turnovers_acg[i],
+                                                   log10_turnovers_mcg[i], &sc);
     }
 }
 
@@ -215,10 +197,6 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
     double min_dens = -1;
     double max_dens = 10;
     double dens;
-    double SFRD_FACTOR = astro_params_global->F_STAR10 * cosmo_params_global->OMb * RHOcrit /
-                         astro_params_global->t_STAR / t_hubble(redshift);
-    double SFRD_FACTOR_MINI = astro_params_global->F_STAR7_MINI * cosmo_params_global->OMb *
-                              RHOcrit / astro_params_global->t_STAR / t_hubble(redshift);
 
     for (i = 0; i < n_densities; i++) {
         dens = densities[i];
@@ -230,14 +208,12 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
         initialise_SFRD_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc);
     }
     for (i = 0; i < n_densities; i++) {
-        out_sfrd[i] =
-            SFRD_FACTOR * EvaluateSFRD_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
-                                                   M_cond, M_cond, sigma_cond, &sc);
+        out_sfrd[i] = EvaluateSFRD_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
+                                               M_cond, M_cond, sigma_cond, &sc);
         if (astro_options_global->USE_MINI_HALOS) {
             out_sfrd_mini[i] =
-                SFRD_FACTOR_MINI * EvaluateSFRD_Conditional_MINI(densities[i], log10_mturn_acg,
-                                                                 log10_mturn_mcg, growthf, M_min,
-                                                                 M_cond, M_cond, sigma_cond, &sc);
+                EvaluateSFRD_Conditional_MINI(densities[i], log10_mturn_acg, log10_mturn_mcg,
+                                              growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
         }
     }
 }
@@ -268,31 +244,18 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
         if (dens > max_dens) max_dens = dens;
     }
 
-    double ION_EFF_FACTOR, ION_EFF_FACTOR_MINI;
-    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        ION_EFF_FACTOR = astro_params_global->F_STAR10 * astro_params_global->F_ESC10 *
-                         astro_params_global->POP2_ION;
-        ION_EFF_FACTOR_MINI = astro_params_global->F_STAR7_MINI * astro_params_global->F_ESC7_MINI *
-                              astro_params_global->POP3_ION;
-    } else {
-        // no mini-halos when SOURCE_MODE is mass independent (constant ionization efficiency)
-        ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
-    }
-
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         initialise_Nion_Conditional_spline(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc,
                                            false);
     }
     for (i = 0; i < n_densities; i++)
-        out_nion[i] =
-            ION_EFF_FACTOR * EvaluateNion_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
-                                                      M_cond, M_cond, sigma_cond, &sc, false);
+        out_nion[i] = EvaluateNion_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
+                                               M_cond, M_cond, sigma_cond, &sc, false);
     if (astro_options_global->USE_MINI_HALOS) {
         for (i = 0; i < n_densities; i++)
-            out_nion_mini[i] =
-                ION_EFF_FACTOR_MINI * EvaluateNion_Conditional_MINI(
-                                          densities[i], log10_mturn_acg, log10_mturn_mcg, growthf,
-                                          M_min, M_cond, M_cond, sigma_cond, &sc, false);
+            out_nion_mini[i] = EvaluateNion_Conditional_MINI(
+                densities[i], log10_mturn_acg, log10_mturn_mcg, growthf, M_min, M_cond, M_cond,
+                sigma_cond, &sc, false);
     }
 }
 
@@ -315,26 +278,50 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
     double min_dens = -1;
     double max_dens = 10;
     double dens;
+    double xray_integral, xray_integral_mini;
     for (i = 0; i < n_densities; i++) {
         dens = densities[i];
         if (dens < min_dens) min_dens = dens;
         if (dens > max_dens) max_dens = dens;
     }
 
-    double X_RAY_FACTOR = RHOcrit * cosmo_params_global->OMm * 1e38;
+    double X_RAY_FACTOR = 1e38;
+    double X_RAY_FACTOR_MINI = 1e38;
+    if (!astro_options_global->USE_METALLICITY) {
+        X_RAY_FACTOR *= sc.l_x;
+        X_RAY_FACTOR_MINI *= sc.l_x_mini;
+    }
 
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        initialise_Xray_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc);
+        if (astro_options_global->USE_METALLICITY) {
+            initialise_Xray_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
+                                              &sc);
+        } else {
+            initialise_SFRD_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
+                                              &sc);
+        }
     }
     for (i = 0; i < n_densities; i++) {
-        out_xray[i] = X_RAY_FACTOR * EvaluateXray_Conditional(densities[i], log10_mturn_acg,
-                                                              redshift, growthf, M_min, M_cond,
-                                                              M_cond, sigma_cond, &sc);
+        if (astro_options_global->USE_METALLICITY) {
+            xray_integral =
+                EvaluateXray_Conditional(densities[i], log10_mturn_acg, redshift, growthf, M_min,
+                                         M_cond, M_cond, sigma_cond, &sc);
+        } else {
+            xray_integral = EvaluateSFRD_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
+                                                     M_cond, M_cond, sigma_cond, &sc);
+        }
+        out_xray[i] = X_RAY_FACTOR * xray_integral;
         if (astro_options_global->USE_MINI_HALOS) {
-            out_xray[i] += X_RAY_FACTOR *
-                           EvaluateXray_Conditional_MINI(densities[i], log10_mturn_acg,
-                                                         log10_mturn_mcg, redshift, growthf, M_min,
-                                                         M_cond, M_cond, sigma_cond, &sc);
+            if (astro_options_global->USE_METALLICITY) {
+                xray_integral_mini = EvaluateXray_Conditional_MINI(
+                    densities[i], log10_mturn_acg, log10_mturn_mcg, redshift, growthf, M_min,
+                    M_cond, M_cond, sigma_cond, &sc);
+            } else {
+                xray_integral_mini =
+                    EvaluateSFRD_Conditional_MINI(densities[i], log10_mturn_acg, log10_mturn_mcg,
+                                                  growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
+            }
+            out_xray[i] += X_RAY_FACTOR_MINI * xray_integral_mini;
         }
     }
 }

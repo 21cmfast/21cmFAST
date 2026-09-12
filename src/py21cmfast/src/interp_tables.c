@@ -68,7 +68,7 @@ static RGTable2D_f Xray_conditional_table_MINI = {.allocated = false};
 
 // Tables for the catalogues
 static RGTable1D Nhalo_table = {.allocated = false};
-static RGTable1D Mcoll_table = {.allocated = false};
+static RGTable1D Fcoll_table = {.allocated = false};
 static RGTable2D Nhalo_inv_table = {.allocated = false};
 
 // Tables for the old parametrization
@@ -128,8 +128,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
 
 #pragma omp parallel private(i, j) num_threads(simulation_options_global -> N_THREADS)
     {
-        ScalingConstants sc_sfrd;
-        sc_sfrd = evolve_scaling_constants_sfr(sc);
+        ScalingConstants sc_z;
         double mturn_mcg;
         double z_val;
         double lnMmin;
@@ -137,7 +136,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
         for (i = 0; i < Nbin; i++) {
             z_val = SFRD_z_table.x_min +
                     i * SFRD_z_table.x_width;  // both tables will have the same values here
-            sc_sfrd = evolve_scaling_constants_to_redshift(z_val, &sc_sfrd, false);
+            sc_z = evolve_scaling_constants_to_redshift(z_val, sc, false);
             lnMmin = log(minimum_source_mass(z_val, true));
             // TODO: at the moment, we use the homogeneous (feedback-free) ACG turnover mass for the
             // ACG SFRD table, since this interpolation table is only used within the scope of
@@ -147,7 +146,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
             // a 2D interpolation table for the ACG SFRD table in the future when issue #470 is
             // fixed!
             SFRD_z_table.y_arr[i] =
-                Nion_General(z_val, lnMmin, lnMmax, sc_sfrd.mturn_acg_homogeneous, &sc_sfrd);
+                SFRD_General(z_val, lnMmin, lnMmax, sc_z.mturn_acg_homogeneous, &sc_z);
             if (isfinite(SFRD_z_table.y_arr[i]) == 0) {
                 LOG_ERROR("Detected either an infinite or NaN value in SFRD table");
                 Throw(TableGenerationError);
@@ -159,8 +158,8 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
             if (astro_options_global->USE_MINI_HALOS) {
                 for (j = 0; j < NMTURN; j++) {
                     mturn_mcg = pow(10, SFRD_z_table_MINI.y_min + j * SFRD_z_table_MINI.y_width);
-                    SFRD_z_table_MINI.z_arr[i][j] = Nion_General_MINI(
-                        z_val, lnMmin, lnMmax, sc_sfrd.mturn_acg_homogeneous, mturn_mcg, &sc_sfrd);
+                    SFRD_z_table_MINI.z_arr[i][j] = SFRD_General_MINI(
+                        z_val, lnMmin, lnMmax, sc_z.mturn_acg_homogeneous, mturn_mcg, &sc_z);
                     if (isfinite(SFRD_z_table_MINI.z_arr[i][j]) == 0) {
                         LOG_ERROR("Detected either an infinite or NaN value in SFRD_MINI table");
                         Throw(TableGenerationError);
@@ -325,7 +324,8 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
     // The ACG table could become 2D (delta,mturn) if we apply the inhomogeneous reionization
     // feedback on the ACG turnover mass, otherwise it is 1D (delta) while mturn is set
     // deterministically by the redshift
-    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+        source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         if (prev) {
             table_acg_2d = &Nion_conditional_table_prev;
         } else {
@@ -384,9 +384,10 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
     {
 #pragma omp for
         for (i = 0; i < NDELTA; i++) {
-            if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+            if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+                source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
                 for (j = 0; j < NMTURN; j++) {
-                    table_acg_2d->z_arr[i][j] = log(Nion_ConditionalM(
+                    table_acg_2d->z_arr[i][j] = log(Nion_Conditional(
                         growthf, lnMmin, lnMmax, lnM_condition, sigma2, overdense_table[i],
                         mturns_acg[j], sc, astro_options_global->INTEGRATION_METHOD_ATOMIC));
 
@@ -399,9 +400,9 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
             } else {
                 // use homogeneous (feedback-free) ACG turnover mass
                 Nion_conditional_table1D.y_arr[i] =
-                    log(Nion_ConditionalM(growthf, lnMmin, lnMmax, lnM_condition, sigma2,
-                                          overdense_table[i], sc->mturn_acg_homogeneous, sc,
-                                          astro_options_global->INTEGRATION_METHOD_ATOMIC));
+                    log(Nion_Conditional(growthf, lnMmin, lnMmax, lnM_condition, sigma2,
+                                         overdense_table[i], sc->mturn_acg_homogeneous, sc,
+                                         astro_options_global->INTEGRATION_METHOD_ATOMIC));
                 if (Nion_conditional_table1D.y_arr[i] < -40.)
                     Nion_conditional_table1D.y_arr[i] = -40.;
                 if (isfinite(Nion_conditional_table1D.y_arr[i]) == 0) {
@@ -417,7 +418,7 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
                     // the reionization feedback dominates, then the ACG turnover mass is higher
                     // than the atomic cooling threshold, in which case the MCG contribution is
                     // negligible (see comment in EvaluateNion_Conditional_MINI)
-                    table_mcg_2d->z_arr[i][j] = log(Nion_ConditionalM_MINI(
+                    table_mcg_2d->z_arr[i][j] = log(Nion_Conditional_MINI(
                         growthf, lnMmin, lnMmax, lnM_condition, sigma2, overdense_table[i],
                         sc->mturn_acg_homogeneous, mturns_mcg[j], sc,
                         astro_options_global->INTEGRATION_METHOD_MINI));
@@ -453,7 +454,8 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
     // The ACG table could become 2D (delta,mturn) if we apply the inhomogeneous reionization
     // feedback on the ACG turnover mass, otherwise it is 1D (delta) while mturn is set
     // deterministically by the redshift
-    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+        source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         if (!SFRD_conditional_table2D.allocated) {
             allocate_RGTable2D_f(NDELTA, NMTURN, &SFRD_conditional_table2D);
         }
@@ -500,19 +502,16 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
             min_density + (float)i / ((float)NDELTA - 1.) * (max_density - min_density);
     }
 
-    // Since we want to use the same integration functions as we use for Nion, we strip away the
-    // escape fraction terms in our scaling constants
-    ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
-
 #pragma omp parallel private(i, j) num_threads(simulation_options_global -> N_THREADS)
     {
 #pragma omp for
         for (i = 0; i < NDELTA; i++) {
-            if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+            if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+                source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
                 for (j = 0; j < NMTURN; j++) {
-                    SFRD_conditional_table2D.z_arr[i][j] = log(Nion_ConditionalM(
+                    SFRD_conditional_table2D.z_arr[i][j] = log(SFRD_Conditional(
                         growthf, lnMmin, lnMmax, lnM_condition, sigma2, overdense_table[i],
-                        mturns_acg[j], &sc_sfrd, astro_options_global->INTEGRATION_METHOD_ATOMIC));
+                        mturns_acg[j], sc, astro_options_global->INTEGRATION_METHOD_ATOMIC));
 
                     if (SFRD_conditional_table2D.z_arr[i][j] < -50.)
                         SFRD_conditional_table2D.z_arr[i][j] = -50.;
@@ -524,10 +523,10 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
                 }
             } else {
                 // use homogeneous (feedback-free) ACG turnover mass
-                SFRD_conditional_table1D.y_arr[i] = log(
-                    Nion_ConditionalM(growthf, lnMmin, lnMmax, lnM_condition, sigma2,
-                                      overdense_table[i], sc_sfrd.mturn_acg_homogeneous, &sc_sfrd,
-                                      astro_options_global->INTEGRATION_METHOD_ATOMIC));
+                SFRD_conditional_table1D.y_arr[i] =
+                    log(SFRD_Conditional(growthf, lnMmin, lnMmax, lnM_condition, sigma2,
+                                         overdense_table[i], sc->mturn_acg_homogeneous, sc,
+                                         astro_options_global->INTEGRATION_METHOD_ATOMIC));
 
                 if (SFRD_conditional_table1D.y_arr[i] < -50.)
                     SFRD_conditional_table1D.y_arr[i] = -50.;
@@ -544,9 +543,9 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
                     // the reionization feedback dominates, then the ACG turnover mass is higher
                     // than the atomic cooling threshold, in which case the MCG contribution is
                     // negligible (see comment in EvaluateSFRD_Conditional_MINI)
-                    SFRD_conditional_table_MINI.z_arr[i][j] = log(Nion_ConditionalM_MINI(
+                    SFRD_conditional_table_MINI.z_arr[i][j] = log(SFRD_Conditional_MINI(
                         growthf, lnMmin, lnMmax, lnM_condition, sigma2, overdense_table[i],
-                        sc_sfrd.mturn_acg_homogeneous, mturns_mcg[j], &sc_sfrd,
+                        sc->mturn_acg_homogeneous, mturns_mcg[j], sc,
                         astro_options_global->INTEGRATION_METHOD_MINI));
 
                     if (SFRD_conditional_table_MINI.z_arr[i][j] < -50.)
@@ -637,9 +636,9 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
             if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
                 for (j = 0; j < NMTURN; j++) {
                     Xray_conditional_table_2D.z_arr[i][j] =
-                        log(Xray_ConditionalM(redshift, growthf, lnMmin, lnMmax, lnM_condition,
-                                              sigma2, overdense_table[i], mturns_acg[j], sc,
-                                              astro_options_global->INTEGRATION_METHOD_ATOMIC));
+                        log(Xray_Conditional(redshift, growthf, lnMmin, lnMmax, lnM_condition,
+                                             sigma2, overdense_table[i], mturns_acg[j], sc,
+                                             astro_options_global->INTEGRATION_METHOD_ATOMIC));
 
                     if (Xray_conditional_table_2D.z_arr[i][j] < -50.)
                         Xray_conditional_table_2D.z_arr[i][j] = -50.;
@@ -653,9 +652,9 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
             } else {
                 // use homogeneous (feedback-free) ACG turnover mass
                 Xray_conditional_table_1D.y_arr[i] =
-                    log(Xray_ConditionalM(redshift, growthf, lnMmin, lnMmax, lnM_condition, sigma2,
-                                          overdense_table[i], sc->mturn_acg_homogeneous, sc,
-                                          astro_options_global->INTEGRATION_METHOD_ATOMIC));
+                    log(Xray_Conditional(redshift, growthf, lnMmin, lnMmax, lnM_condition, sigma2,
+                                         overdense_table[i], sc->mturn_acg_homogeneous, sc,
+                                         astro_options_global->INTEGRATION_METHOD_ATOMIC));
 
                 if (Xray_conditional_table_1D.y_arr[i] < -50.)
                     Xray_conditional_table_1D.y_arr[i] = -50.;
@@ -673,7 +672,7 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
                     // the reionization feedback dominates,  then the ACG turnover mass is higher
                     // than the atomic cooling threshold, in which case the MCG contribution is
                     // negligible (see comment in EvaluateXray_Conditional_MINI)
-                    Xray_conditional_table_MINI.z_arr[i][j] = log(Xray_ConditionalM_MINI(
+                    Xray_conditional_table_MINI.z_arr[i][j] = log(Xray_Conditional_MINI(
                         redshift, growthf, lnMmin, lnMmax, lnM_condition, sigma2,
                         overdense_table[i], sc->mturn_acg_homogeneous, mturns_mcg[j], sc,
                         astro_options_global->INTEGRATION_METHOD_MINI));
@@ -719,10 +718,10 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
     Nhalo_table.x_min = xmin;
     Nhalo_table.x_width = (xmax - xmin) / ((double)nx - 1);
 
-    if (!Mcoll_table.allocated) allocate_RGTable1D(nx, &Mcoll_table);
+    if (!Fcoll_table.allocated) allocate_RGTable1D(nx, &Fcoll_table);
 
-    Mcoll_table.x_min = xmin;
-    Mcoll_table.x_width = (xmax - xmin) / ((double)nx - 1);
+    Fcoll_table.x_min = xmin;
+    Fcoll_table.x_width = (xmax - xmin) / ((double)nx - 1);
 
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS) private(i) \
     firstprivate(sigma_cond, lnM_cond)
@@ -745,9 +744,9 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             }
 
             Nhalo_table.y_arr[i] =
-                Nhalo_Conditional(growth_out, ymin, ymax, lnM_cond, sigma_cond, delta, 0);
-            Mcoll_table.y_arr[i] =
-                Mcoll_Conditional(growth_out, ymin, ymax, lnM_cond, sigma_cond, delta, 0);
+                nhalo_Conditional(growth_out, ymin, ymax, lnM_cond, sigma_cond, delta, 0);
+            Fcoll_table.y_arr[i] =
+                Fcoll_Conditional(growth_out, ymin, ymax, lnM_cond, sigma_cond, delta, 0);
         }
     }
     LOG_SUPER_DEBUG("Done.");
@@ -767,7 +766,7 @@ struct rf_inv_params {
 double dndm_inv_f(double lnM_min, void *params) {
     struct rf_inv_params *p = (struct rf_inv_params *)params;
     double integral =
-        Nhalo_Conditional(p->growthf, lnM_min, p->lnM_cond, p->lnM_cond, p->sigma, p->delta, 0);
+        nhalo_Conditional(p->growthf, lnM_min, p->lnM_cond, p->lnM_cond, p->sigma, p->delta, 0);
     // This ensures that we never find the root if the ratio is zero, since that will set to M_cond
     double result =
         integral == 0 ? 2 * simulation_options_global->MIN_LOGPROB : log(integral / p->rf_norm);
@@ -866,7 +865,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
             params_rf.sigma = sigma_cond;
 
             // NOTE: The total number density and collapsed fraction must be
-            norm = Nhalo_Conditional(growth_out, lnM_min, lnM_cond, lnM_cond, sigma_cond, delta, 0);
+            norm = nhalo_Conditional(growth_out, lnM_min, lnM_cond, lnM_cond, sigma_cond, delta, 0);
             // LOG_ULTRA_DEBUG("cond x: %.2e M_min %.2e M_cond %.2e d %.4f D %.2f n %d ==>
             // %.8e",x,exp(lnM_min),exp(lnM_cond),delta,growth_out,i,norm);
             params_rf.rf_norm = norm;
@@ -964,7 +963,7 @@ void initialise_J_split_table(int Nbin, double umin, double umax, double gamma1)
 void free_dNdM_tables() {
     free_RGTable2D(&Nhalo_inv_table);
     free_RGTable1D(&Nhalo_table);
-    free_RGTable1D(&Mcoll_table);
+    free_RGTable1D(&Fcoll_table);
     free_RGTable1D(&J_split_table);
     if (matter_options_global->SAMPLE_METHOD == SAMPLE_PARTITION) {
         gsl_spline_free(Sigma_inv_table);
@@ -1001,23 +1000,20 @@ void free_global_tables() {
     free_RGTable2D(&Xray_z_table_2D);
 }
 
-// NOTE: with SOURCE_MODEL==0 both EvaluateNionTs and EvaluateSFRD return Fcoll
 double EvaluateNionTs(double redshift, double log10_Mturn_ACG_ave, ScalingConstants *sc) {
     // differences in turnover are handled by table setup
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
-            // TODO: at the moment, EvaluateNionTs always uses 1D interpolation table, even though
-            // it receives log10_Mturn_ACG_ave as an input. This is because this function is only
-            // used within the scope of SpinTemperatureBox.c, and there is a known issue
-            // (https://github.com/21cmfast/21cmFAST/issues/470) that currently prevents us from
-            // applying the reionization feedback on the ACG turnover mass in that module.
-            // Therefore, log10_Mturn_ACG_ave that EvaluateNionTs receives now must be the
-            // feedback-free turnover mass, which is exactly what we use in contructing the 1D
-            // interpolation table (see comment in initialise_Nion_Ts_spline). It is important to
-            // remember to allow this function to use 2D interpolation table in the future when
-            // issue #470 is fixed!
-            return EvaluateRGTable1D(redshift, &Nion_z_table);
-        return EvaluateRGTable1D(redshift, &fcoll_z_table);
+        // TODO: at the moment, EvaluateNionTs always uses 1D interpolation table, even though
+        // it receives log10_Mturn_ACG_ave as an input. This is because this function is only
+        // used within the scope of SpinTemperatureBox.c, and there is a known issue
+        // (https://github.com/21cmfast/21cmFAST/issues/470) that currently prevents us from
+        // applying the reionization feedback on the ACG turnover mass in that module.
+        // Therefore, log10_Mturn_ACG_ave that EvaluateNionTs receives now must be the
+        // feedback-free turnover mass, which is exactly what we use in contructing the 1D
+        // interpolation table (see comment in initialise_Nion_Ts_spline). It is important to
+        // remember to allow this function to use 2D interpolation table in the future when
+        // issue #470 is fixed!
+        return EvaluateRGTable1D(redshift, &Nion_z_table);
     }
 
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
@@ -1028,10 +1024,7 @@ double EvaluateNionTs(double redshift, double log10_Mturn_ACG_ave, ScalingConsta
 
     ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
-    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
-        return Nion_General(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_z);
-
-    return Fcoll_General(redshift, lnMmin, lnMmax);
+    return Nion_General(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_z);
 }
 
 double EvaluateNionTs_MINI(double redshift, double log10_Mturn_ACG_ave, double log10_Mturn_MCG_ave,
@@ -1047,26 +1040,26 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_ACG_ave, double l
     }
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
+
     ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
+
     return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave),
                              pow(10., log10_Mturn_MCG_ave), &sc_z);
 }
 
 double EvaluateSFRD(double redshift, double log10_Mturn_ACG_ave, ScalingConstants *sc) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
-            // TODO: at the moment, EvaluateSFRD always uses 1D interpolation table, even though
-            // it receives log10_Mturn_ACG_ave as an input. This is because this function is only
-            // used within the scope of SpinTemperatureBox.c, and there is a known issue
-            // (https://github.com/21cmfast/21cmFAST/issues/470) that currently prevents us from
-            // applying the reionization feedback on the ACG turnover mass in that module.
-            // Therefore, log10_Mturn_ACG_ave that EvaluateSFRD receives now must be the
-            // feedback-free turnover mass, which is exactly what we use in contructing the 1D
-            // interpolation table (see comment in initialise_SFRD_spline). It is important to
-            // remember to allow this function to use 2D interpolation table in the future when
-            // issue #470 is fixed!
-            return EvaluateRGTable1D(redshift, &SFRD_z_table);
-        return EvaluateRGTable1D(redshift, &fcoll_z_table);
+        // TODO: at the moment, EvaluateSFRD always uses 1D interpolation table, even though
+        // it receives log10_Mturn_ACG_ave as an input. This is because this function is only
+        // used within the scope of SpinTemperatureBox.c, and there is a known issue
+        // (https://github.com/21cmfast/21cmFAST/issues/470) that currently prevents us from
+        // applying the reionization feedback on the ACG turnover mass in that module.
+        // Therefore, log10_Mturn_ACG_ave that EvaluateSFRD receives now must be the
+        // feedback-free turnover mass, which is exactly what we use in contructing the 1D
+        // interpolation table (see comment in initialise_SFRD_spline). It is important to
+        // remember to allow this function to use 2D interpolation table in the future when
+        // issue #470 is fixed!
+        return EvaluateRGTable1D(redshift, &SFRD_z_table);
     }
 
     // Currently assuming this is only called in the X-ray/spintemp calculation, this will only
@@ -1075,15 +1068,9 @@ double EvaluateSFRD(double redshift, double log10_Mturn_ACG_ave, ScalingConstant
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
 
-    // The SFRD calls the same function as N_ion but sets escape fractions to unity
-    // NOTE: since this only occurs on integration, the struct copy shouldn't be a bottleneck
-    ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
-    sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
+    ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
-    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
-        return Nion_General(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_sfrd);
-
-    return Fcoll_General(redshift, lnMmin, lnMmax);
+    return SFRD_General(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_z);
 }
 
 double EvaluateSFRD_MINI(double redshift, double log10_Mturn_ACG_ave, double log10_Mturn_MCG_ave,
@@ -1100,29 +1087,25 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_ACG_ave, double log
     double lnMmin = log(minimum_source_mass(redshift, true));
     double lnMmax = log(M_MAX_INTEGRAL);
 
-    ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
-    sc_sfrd = evolve_scaling_constants_to_redshift(redshift, &sc_sfrd, false);
+    ScalingConstants sc_z = evolve_scaling_constants_to_redshift(redshift, sc, false);
 
-    return Nion_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave),
-                             pow(10., log10_Mturn_MCG_ave), &sc_sfrd);
+    return SFRD_General_MINI(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave),
+                             pow(10., log10_Mturn_MCG_ave), &sc_z);
 }
 
 double EvaluateSFRD_Conditional(double delta, double log10Mturn_acg, double growthf, double M_min,
                                 double M_max, double M_cond, double sigma_max,
                                 ScalingConstants *sc) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK)
+        if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+            source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
             return exp(EvaluateRGTable2D_f(delta, log10Mturn_acg, &SFRD_conditional_table2D));
         return exp(EvaluateRGTable1D_f(delta, &SFRD_conditional_table1D));
     }
 
-    // Since we want to use the same integration functions as we use for Nion, we strip away the
-    // escape fraction terms in our scaling constants
-    ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
-
-    return Nion_ConditionalM(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
-                             pow(10, log10Mturn_acg), &sc_sfrd,
-                             astro_options_global->INTEGRATION_METHOD_ATOMIC);
+    return SFRD_Conditional(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
+                            pow(10, log10Mturn_acg), sc,
+                            astro_options_global->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_acg, double log10Mturn_mcg,
@@ -1138,10 +1121,9 @@ double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_acg, double
         return exp(EvaluateRGTable2D_f(delta, log10Mturn_mcg, &SFRD_conditional_table_MINI));
     }
 
-    ScalingConstants sc_sfrd = evolve_scaling_constants_sfr(sc);
-    return Nion_ConditionalM_MINI(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
-                                  pow(10, log10Mturn_acg), pow(10, log10Mturn_mcg), &sc_sfrd,
-                                  astro_options_global->INTEGRATION_METHOD_MINI);
+    return SFRD_Conditional_MINI(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
+                                 pow(10, log10Mturn_acg), pow(10, log10Mturn_mcg), sc,
+                                 astro_options_global->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateNion_Conditional(double delta, double log10Mturn_acg, double growthf, double M_min,
@@ -1149,14 +1131,15 @@ double EvaluateNion_Conditional(double delta, double log10Mturn_acg, double grow
                                 bool prev) {
     RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK)
+        if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
+            source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
             return exp(EvaluateRGTable2D_f(delta, log10Mturn_acg, table));
         return exp(EvaluateRGTable1D_f(delta, &Nion_conditional_table1D));
     }
 
-    return Nion_ConditionalM(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
-                             pow(10, log10Mturn_acg), sc,
-                             astro_options_global->INTEGRATION_METHOD_ATOMIC);
+    return Nion_Conditional(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
+                            pow(10, log10Mturn_acg), sc,
+                            astro_options_global->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_acg, double log10Mturn_mcg,
@@ -1173,9 +1156,9 @@ double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_acg, double
         return exp(EvaluateRGTable2D_f(delta, log10Mturn_mcg, table));
     }
 
-    return Nion_ConditionalM_MINI(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
-                                  pow(10, log10Mturn_acg), pow(10, log10Mturn_mcg), sc,
-                                  astro_options_global->INTEGRATION_METHOD_MINI);
+    return Nion_Conditional_MINI(growthf, log(M_min), log(M_max), log(M_cond), sigma_max, delta,
+                                 pow(10, log10Mturn_acg), pow(10, log10Mturn_mcg), sc,
+                                 astro_options_global->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateXray_Conditional(double delta, double log10Mturn_acg, double redshift,
@@ -1188,9 +1171,9 @@ double EvaluateXray_Conditional(double delta, double log10Mturn_acg, double reds
     }
 
     // TODO: I shouldn't need to pass both redshift and growthf here
-    return Xray_ConditionalM(redshift, growthf, log(M_min), log(M_max), log(M_cond), sigma_max,
-                             delta, pow(10, log10Mturn_acg), sc,
-                             astro_options_global->INTEGRATION_METHOD_ATOMIC);
+    return Xray_Conditional(redshift, growthf, log(M_min), log(M_max), log(M_cond), sigma_max,
+                            delta, pow(10, log10Mturn_acg), sc,
+                            astro_options_global->INTEGRATION_METHOD_ATOMIC);
 }
 
 double EvaluateXray_Conditional_MINI(double delta, double log10Mturn_acg, double log10Mturn_mcg,
@@ -1207,9 +1190,9 @@ double EvaluateXray_Conditional_MINI(double delta, double log10Mturn_acg, double
     }
 
     // TODO: I shouldn't need to pass both redshift and growthf here
-    return Xray_ConditionalM_MINI(redshift, growthf, log(M_min), log(M_max), log(M_cond), sigma_max,
-                                  delta, pow(10, log10Mturn_acg), pow(10, log10Mturn_mcg), sc,
-                                  astro_options_global->INTEGRATION_METHOD_MINI);
+    return Xray_Conditional_MINI(redshift, growthf, log(M_min), log(M_max), log(M_cond), sigma_max,
+                                 delta, pow(10, log10Mturn_acg), pow(10, log10Mturn_mcg), sc,
+                                 astro_options_global->INTEGRATION_METHOD_MINI);
 }
 
 double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max) {
@@ -1226,18 +1209,18 @@ double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double 
     return dfcoll_dz(redshift, sigma_min, delta, sigma_max);
 }
 
-double EvaluateNhalo(double condition, double growthf, double lnMmin, double lnMmax, double M_cond,
-                     double sigma, double delta) {
+double Evaluate_nhalo_Conditional(double condition, double growthf, double lnMmin, double lnMmax,
+                                  double M_cond, double sigma, double delta) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))
         return EvaluateRGTable1D(condition, &Nhalo_table);
-    return Nhalo_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
+    return nhalo_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
 }
 
-double EvaluateMcoll(double condition, double growthf, double lnMmin, double lnMmax, double M_cond,
-                     double sigma, double delta) {
+double EvaluateFcoll_Conditional(double condition, double growthf, double lnMmin, double lnMmax,
+                                 double M_cond, double sigma, double delta) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))
-        return EvaluateRGTable1D(condition, &Mcoll_table);
-    return Mcoll_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
+        return EvaluateRGTable1D(condition, &Fcoll_table);
+    return Fcoll_Conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
 }
 
 // extrapolation function for log-probability based tables

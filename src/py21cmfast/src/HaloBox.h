@@ -26,32 +26,12 @@ typedef struct HaloProperties {
     double metallicity;
 } HaloProperties;
 
-// TODO: apply this constant struct to the EvaluateX functions in interp_tables.c,
-//  the integral_wrappers.c functions, and other places where the tables are called
-//  (probably not hmf.c)
-typedef struct IntegralCondition {
-    double redshift;
-    double growth_factor;
-    double M_min;
-    double lnM_min;
-    double M_max;
-    double lnM_max;
-    double M_cell;
-    double lnM_cell;
-    double sigma_cell;
-    double sigma_min;
-} IntegralCondition;
-
-void set_integral_constants(IntegralCondition *consts, double redshift, double M_min, double M_max,
-                            double M_cell);
-
 int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField *perturbed_field,
                    HaloCatalog *halos, TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
                    HaloBox *grids);
 
-void get_cell_integrals(double dens, double l10_mturn_acg, double l10_mturn_mcg,
-                        ScalingConstants *consts, IntegralCondition *int_consts,
-                        HaloProperties *properties);
+void get_cell_integrals(double dens, double M_min, double M_max, double l10_mturn_acg,
+                        double l10_mturn_mcg, ScalingConstants *consts, HaloProperties *properties);
 void set_halo_properties(double halo_mass, double M_turn_acg, double M_turn_mcg,
                          ScalingConstants *consts, double *input_rng, HaloProperties *output);
 

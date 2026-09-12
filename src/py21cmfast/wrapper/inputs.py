@@ -1264,6 +1264,11 @@ class AstroOptions(InputStruct):
         Whether to apply adiabatic fluctuations to the initial temperature box, see
         Munoz 2023. If set to False, the initial temperature box is completely
         homogeneous. Default is True.
+    USE_METALLICITY: bool, optional
+        Whether to use metallicity for determining the X-ray luminosity/emissivity. If set to True,
+        the X-ray luminosity depends on the metallicity via Eq. (13) in Davies, Mesinger and Murray 2025
+        (https://arxiv.org/pdf/2504.17254), otherwise the X-ray emissivity is proportional to the star
+        formation rate density.
     USE_UPPER_STELLAR_TURNOVER: bool, optional
         Whether to use an additional powerlaw in stellar mass fraction at high halo
         mass. The pivot mass scale and power-law index are controlled by two parameters,
@@ -1324,6 +1329,7 @@ class AstroOptions(InputStruct):
     ] = choice_field(
         default="no-photoncons",
     )
+    USE_METALLICITY: bool = field(default=True, converter=bool)
     USE_UPPER_STELLAR_TURNOVER: bool = field(default=True, converter=bool)
     M_MIN_in_Mass: bool = field(default=True, converter=bool)
     HALO_SCALING_RELATIONS_MEDIAN: bool = field(default=False, converter=bool)
@@ -2105,6 +2111,19 @@ class InputParameters:
                 "uses the EPS conditional mass function normalised to the unconditional mass"
                 "function provided by the user as matter_options.HMF",
                 stacklevel=2,
+            )
+
+        if (
+            val.USE_REIONIZATION_PHOTOHEATING_FEEDBACK
+            and self.matter_options.SOURCE_MODEL == "CONST-ION-EFF"
+        ):
+            raise NotImplementedError(
+                "USE_REIONIZATION_PHOTOHEATING_FEEDBACK is not yet compatible with SOURCE_MODEL == CONST-ION-EFF"
+            )
+
+        if val.USE_METALLICITY and self.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
+            raise NotImplementedError(
+                "USE_METALLICITY is not yet compatible with SOURCE_MODEL == CONST-ION-EFF"
             )
 
     @astro_params.validator

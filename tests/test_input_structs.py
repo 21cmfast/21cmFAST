@@ -665,6 +665,34 @@ class TestInputParameters:
                 ),
             },
         ),
+        (
+            NotImplementedError,
+            "USE_REIONIZATION_PHOTOHEATING_FEEDBACK is not yet compatible with SOURCE_MODEL == CONST-ION-EFF",
+            {
+                "matter_options": MatterOptions(
+                    SOURCE_MODEL="CONST-ION-EFF",
+                ),
+                "astro_options": AstroOptions(
+                    USE_REIONIZATION_PHOTOHEATING_FEEDBACK=True,
+                    USE_UPPER_STELLAR_TURNOVER=False,
+                    USE_EXP_FILTER=False,
+                ),
+            },
+        ),
+        (
+            NotImplementedError,
+            "USE_METALLICITY is not yet compatible with SOURCE_MODEL == CONST-ION-EFF",
+            {
+                "matter_options": MatterOptions(
+                    SOURCE_MODEL="CONST-ION-EFF",
+                ),
+                "astro_options": AstroOptions(
+                    USE_METALLICITY=True,
+                    USE_UPPER_STELLAR_TURNOVER=False,
+                    USE_EXP_FILTER=False,
+                ),
+            },
+        ),
     ]
 
     WARNINGS_CASES: ClassVar = [

@@ -14,6 +14,7 @@
 #include "cosmology.h"
 #include "exceptions.h"
 #include "hmf.h"
+#include "indexing.h"
 #include "logger.h"
 #include "photoncons.h"
 #include "thermochem.h"
@@ -24,7 +25,7 @@ void print_sc_consts(ScalingConstants *c) {
               c->fstar_7, c->alpha_star_mini, c->sigma_star);
     LOG_DEBUG("Upper: a_upper %.2e pivot %.2e", c->alpha_upper, c->pivot_upper);
     LOG_DEBUG("FESC: f10 %.2e a %.2e f7 %.2e", c->fesc_10, c->alpha_esc, c->fesc_7);
-    LOG_DEBUG("SSFR: t* %.2e th %.8e sigma %.2e idx %.2e", c->t_star, c->t_h, c->sigma_sfr_lim,
+    LOG_DEBUG("SSFR: sfr_timescale %.2e sigma %.2e idx %.2e", c->sfr_timescale, c->sigma_sfr_lim,
               c->sigma_sfr_idx);
     LOG_DEBUG("Turnovers ACG homogeneous %.2e atomic cooling threshold %.2e",
               c->mturn_acg_homogeneous, c->atomic_cooling_threshold);
@@ -35,6 +36,7 @@ void print_sc_consts(ScalingConstants *c) {
 
 void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_photoncons) {
     consts->redshift = redshift;
+    consts->growth_factor = dicke(redshift);
 
     // Set on for the fixed grid case since we are missing halos above the cell mass
     consts->fix_mean =
@@ -56,13 +58,16 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->fstar_7 = astro_params_global->F_STAR7_MINI;
     consts->alpha_star_mini = astro_params_global->ALPHA_STAR_MINI;
 
-    consts->t_h = t_hubble(redshift);
-    consts->t_star = astro_params_global->t_STAR;
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        consts->sfr_timescale = t_hubble(redshift) * astro_params_global->t_STAR;
+    } else {
+        consts->sfr_timescale = dtdz(redshift);
+    }
     consts->sigma_sfr_lim = astro_params_global->SIGMA_SFR_LIM;
     consts->sigma_sfr_idx = astro_params_global->SIGMA_SFR_INDEX;
     // setting units to 1e38 erg s -1 so we can store in float
-    consts->l_x = astro_params_global->L_X * 1e-38;
-    consts->l_x_mini = astro_params_global->L_X_MINI * 1e-38;
+    consts->l_x = astro_params_global->L_X * 1e-38 * physconst.s_per_yr;
+    consts->l_x_mini = astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr;
     consts->sigma_xray = astro_params_global->SIGMA_LX;
 
     consts->alpha_esc = astro_params_global->ALPHA_ESC;
@@ -98,6 +103,24 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
             break;
     }
 
+    bool lowres_not_hires =
+        (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL) ||
+         !matter_options_global->PERTURB_ON_HIGH_RES);
+    size_huge num_pixels = lowres_not_hires ? HII_TOT_NUM_PIXELS : TOT_NUM_PIXELS;
+    consts->M_cell = RHOcrit * cosmo_params_global->OMm * VOLUME / num_pixels;
+    if (simulation_options_global->HII_DIM == 1 && simulation_options_global->BOX_LEN > 1e5) {
+        // When simulating only the global signal, the box/cell size should be infinite, so the
+        // conditional sigma is 0
+        consts->sigma_cell = 0.;
+    } else {
+        // no table since this should be called once
+        consts->sigma_cell = sigma_z0(consts->M_cell);
+    }
+    if (!source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        consts->sigma_min_sfr = sigma_z0(minimum_source_mass(redshift, true));
+        consts->sigma_min_ion = sigma_z0(minimum_source_mass(redshift, false));
+    }
+
     consts->Mlim_Fstar =
         Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star, consts->fstar_10);
     consts->Mlim_Fesc =
@@ -130,7 +153,13 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
                                                       bool use_photoncons) {
     ScalingConstants sc_z = *sc;
     sc_z.redshift = redshift;
-    sc_z.t_h = t_hubble(redshift);
+    sc_z.growth_factor = dicke(redshift);
+
+    if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        sc_z.sfr_timescale = t_hubble(redshift) * astro_params_global->t_STAR;
+    } else {
+        sc_z.sfr_timescale = dtdz(redshift);
+    }
 
     if (use_photoncons) {
         if (astro_options_global->PHOTON_CONS_TYPE == PHOTON_CONS_ALPHA)
@@ -153,6 +182,11 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
     sc_z.mturn_acg_homogeneous =
         fmax(sc_z.atomic_cooling_threshold, astro_params_global->M_TURN_STELLAR_FEEDBACK);
 
+    if (!source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+        sc_z.sigma_min_sfr = sigma_z0(minimum_source_mass(redshift, true));
+        sc_z.sigma_min_ion = sigma_z0(minimum_source_mass(redshift, false));
+    }
+
     return sc_z;
 }
 
@@ -172,7 +206,7 @@ ScalingConstants mimic_scatter_in_consts(ScalingConstants *sc) {
     //  a new HMF integrand. Explicit Monte-Carlo Integration over the property PDFS might also
     //  work.
     // TODO: Something better than this
-    ev_consts.t_star /= exp(0.5 * pow(ev_consts.sigma_sfr_lim, 2));
+    ev_consts.sfr_timescale /= exp(0.5 * pow(ev_consts.sigma_sfr_lim, 2));
 
     // By altering the normalisations we need to recalculate the mass limits
     ev_consts.Mlim_Fstar = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL,
@@ -306,9 +340,7 @@ double get_lx_on_sfr(double sfr, double metallicity, double lx_constant) {
     //  return lx_on_sfr_Lehmer(metallicity);
     //  return lx_on_sfr_Schechter(metallicity, lx_constant);
     //  return lx_on_sfr_PL_Kaur(sfr,metallicity, lx_constant);
-    // HACK: new/old model switch with upperstellar flag
-    if (astro_options_global->USE_UPPER_STELLAR_TURNOVER)
-        return lx_on_sfr_doublePL(metallicity, lx_constant);
+    if (astro_options_global->USE_METALLICITY) return lx_on_sfr_doublePL(metallicity, lx_constant);
     return lx_constant;
 }
 
@@ -413,7 +445,7 @@ void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
     // https://arxiv.org/pdf/2504.17254) Note that the mu parameter is adjusted with exp(-sigma^2
     // /2), in case we want to interpret it as the mean of the sfr distribution, this exponent is
     // absorbed in the line for sfr_sample below for computational efficiency
-    mu_sfr = stellar_mass / (consts->t_star * consts->t_h);
+    mu_sfr = stellar_mass / (consts->sfr_timescale);
 
     // adjustment to the mean for lognormal scatter
     double stoc_adjustment_term = consts->scaling_median ? 0 : sigma_sfr * sigma_sfr / 2.;
@@ -434,7 +466,7 @@ void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
     }
 
     // See comments above for how sfr_sample_mini is distributed
-    mu_sfr_mini = stellar_mass_mini / (consts->t_star * consts->t_h);
+    mu_sfr_mini = stellar_mass_mini / (consts->sfr_timescale);
     sfr_sample_mini = mu_sfr_mini * exp(sfr_rng * sigma_sfr - stoc_adjustment_term);
     *sfr_mini = sfr_sample_mini;
 }
@@ -471,14 +503,13 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double metal
     // https://arxiv.org/pdf/2504.17254) Note that the mu parameter is adjusted with exp(-sigma^2
     // /2), in case we want to interpret it as the mean of the xray distribution, this exponent is
     // absorbed in the line for xray_sample below for computational efficiency
-    mu_x = get_lx_on_sfr(sfr, metallicity, consts->l_x) * (sfr * physconst.s_per_yr);
+    mu_x = get_lx_on_sfr(sfr, metallicity, consts->l_x) * sfr;
 
     double mu_x_mini = 0.;
     if (astro_options_global->USE_MINI_HALOS) {
         // Since there *are* some SFR-dependent
         // models, this is done separately
-        mu_x_mini = get_lx_on_sfr(sfr_mini, metallicity_mini, consts->l_x_mini) *
-                    (sfr_mini * physconst.s_per_yr);
+        mu_x_mini = get_lx_on_sfr(sfr_mini, metallicity_mini, consts->l_x_mini) * sfr_mini;
     }
     mu_x += mu_x_mini;
 
