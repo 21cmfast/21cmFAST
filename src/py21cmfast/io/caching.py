@@ -298,6 +298,7 @@ class RunCache:
     HaloCatalog: dict[float, Path] | None = _dict_of_paths_field()
     XraySourceBox: dict[float, Path] | None = _dict_of_paths_field()
     inputs: InputParameters | None = attrs.field(default=None)
+    _optional_fields: ClassVar[set[str]] = {"XraySourceBox"}
 
     @classmethod
     def from_inputs(cls, inputs: InputParameters, cache: OutputCache) -> Self:
@@ -388,6 +389,25 @@ class RunCache:
 
         return cls.from_inputs(inputs, OutputCache(parent))
 
+    def get_required_fields(self) -> dict[str, dict]:
+        """Return the dict-typed cache fields that matter for completeness checks.
+
+        This excludes XraySourceBox, which is never read back as an input
+        anywhere -- it is recomputed from scratch at every redshift from the
+        accumulated HaloBox history and immediately purged (see
+        _redshift_loop_generator in drivers/coeval.py). Treating it as
+        required would force a full simulation restart (or a crash when
+        reconstructing a cached Coeval) whenever it isn't cached (e.g.
+        write.xray_source_box=False to save disk space, since it can be
+        extremely large), even though nothing downstream actually depends on
+        it existing.
+        """
+        return {
+            name: kind
+            for name, kind in attrs.asdict(self, recurse=False).items()
+            if isinstance(kind, dict) and name not in self._optional_fields
+        }
+
     def is_complete_at(
         self, z: float | None = None, index: float | None = None
     ) -> bool:
@@ -397,9 +417,7 @@ class RunCache:
         if index is not None:
             z = self.inputs.node_redshifts[index]
 
-        for kind in attrs.asdict(self, recurse=False).values():
-            if not isinstance(kind, dict):
-                continue
+        for kind in self.get_required_fields().values():
             if not kind[z].exists():
                 return False
         return True
@@ -475,11 +493,7 @@ class RunCache:
         dict[str, Box]
             A dictionary mapping box names to their corresponding Box instances.
         """
-        kinds = [
-            k
-            for k, v in attrs.asdict(self, recurse=False).items()
-            if isinstance(v, dict)
-        ]
+        kinds = self.get_required_fields().keys()
 
         out = {
             k: self.get_output_struct_at_z(k, z, index, match_z_within) for k in kinds
@@ -527,10 +541,7 @@ class RunCache:
         if not self.InitialConditions.exists():
             return False
 
-        for kind in attrs.asdict(self, recurse=False).values():
-            if not isinstance(kind, dict):
-                continue
-
+        for kind in self.get_required_fields().values():
             for fl in kind.values():
                 if not fl.exists():
                     return False

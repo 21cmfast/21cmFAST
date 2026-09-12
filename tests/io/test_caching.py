@@ -18,15 +18,20 @@ from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import outputs
 
 
-def create_full_run_cache(cachedir: Path) -> caching.RunCache:
+def create_full_run_cache(
+    cachedir: Path, template: str = "latest", save_optional: bool = True
+) -> caching.RunCache:
     inputs = InputParameters.from_template(
-        "latest",
+        template,
         random_seed=12345,
         node_redshifts=np.arange(12, 38, 3.0)[::-1],
     ).evolve_input_structs(HII_DIM=10, DIM=20, BOX_LEN=75.0, ZPRIME_STEP_FACTOR=1.3)
     cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(cachedir))
-
-    for fldname, fld in attrs.asdict(cache, recurse=False).items():
+    if save_optional:
+        all_fields = attrs.asdict(cache, recurse=False).items()
+    else:
+        all_fields = cache.get_required_fields().items()
+    for fldname, fld in all_fields:
         if isinstance(fld, dict):
             for z, fname in fld.items():
                 o = getattr(outputs, fldname).new(redshift=z, inputs=inputs)
@@ -42,12 +47,12 @@ def create_full_run_cache(cachedir: Path) -> caching.RunCache:
                     setattr(o, fld, 0.0)
 
                 h5.write_output_to_hdf5(o, fname)
-        elif fldname == "InitialConditions":
-            o = outputs.InitialConditions.new(inputs=inputs)
-            o._init_arrays()
-            for k, v in o.arrays.items():
-                setattr(o, k, v.with_value(v.value))
-            h5.write_output_to_hdf5(o, fld)
+    # manually write the ICs to disk
+    o = outputs.InitialConditions.new(inputs=inputs)
+    o._init_arrays()
+    for k, v in o.arrays.items():
+        setattr(o, k, v.with_value(v.value))
+    h5.write_output_to_hdf5(o, cache.InitialConditions)
     return cache
 
 
@@ -60,6 +65,23 @@ def full_run_cache(tmp_path_factory):
 def partial_run_cache(tmp_path_factory):
     cache = create_full_run_cache(tmp_path_factory.mktemp("partial_run_cache"))
     cache.PerturbedField[cache.inputs.node_redshifts[-1]].unlink()
+    return cache
+
+
+@pytest.fixture(scope="module")
+def no_xraysource_run_cache(tmp_path_factory):
+    """A cache with XraySourceBox missing at every redshift.
+
+    This mirrors production usage, where ``write=CacheConfig(xray_source_box=False)``
+    is used to avoid the (potentially enormous) disk footprint of XraySourceBox. Uses
+    the "latest-dhalos" template since XraySourceBox is only ever cached when
+    ``matter_options.lagrangian_source_grid`` is True.
+    """
+    cache = create_full_run_cache(
+        tmp_path_factory.mktemp("no_xraysource_run_cache"),
+        template="latest-dhalos",
+        save_optional=False,
+    )
     return cache
 
 
@@ -160,6 +182,22 @@ class TestRunCache:
         )
         assert partial_run_cache.is_complete_at(index=0)
 
+    def test_is_complete_at_ignores_missing_xray_source_box(
+        self, no_xraysource_run_cache
+    ):
+        """Regression test: XraySourceBox is recomputed from scratch at every
+        redshift from the accumulated HaloBox history and immediately purged
+        (see ``_redshift_loop_generator`` in ``drivers/coeval.py``) -- it is never
+        read back as an input anywhere (``compute_xray_source_field`` has no
+        parameter for a previous XraySourceBox, and ``Coeval`` has no field for
+        it either). So its absence on disk must not prevent a run from being
+        considered complete/resumable at a given redshift.
+        """
+        cache = no_xraysource_run_cache
+        assert not any(p.exists() for p in cache.XraySourceBox.values())
+        for idx in range(len(cache.inputs.node_redshifts)):
+            assert cache.is_complete_at(index=idx)
+
     def test_get_output_struct_at_z(self, full_run_cache):
         """Test that get_output_struct_at_z works as expected."""
         cache = full_run_cache
@@ -223,6 +261,15 @@ class TestRunCache:
         assert full_run_cache.is_complete()
 
         assert not partial_run_cache.is_complete()
+
+    def test_is_complete_ignores_missing_xray_source_box(self, no_xraysource_run_cache):
+        """Regression test: is_complete() must not require XraySourceBox either.
+
+        See test_is_complete_at_ignores_missing_xray_source_box for the rationale;
+        the same logic applies here since both methods share
+        ``_cacheable_dict_fields``.
+        """
+        assert no_xraysource_run_cache.is_complete()
 
 
 class TestOutputCache:
