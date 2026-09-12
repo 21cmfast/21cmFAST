@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from functools import cached_property, partial
 
 import attrs
+import deprecation
 import numpy as np
 from astropy import units
 from astropy.cosmology import FLRW, z_at_value
@@ -147,8 +148,15 @@ class Lightconer(ABC):
         slices in comoving distance.
         """
         warnings.warn(
-            "with_equal_cdist_slices is deprecated and will be removed in future versions. "
-            "Call between_redshifts instead to silence this warning.",
+            deprecation.DeprecatedWarning(
+                "with_equal_cdist_slices",
+                deprecated_in="4.2.0",
+                removed_in="5.0.0",
+                details=(
+                    "with_equal_cdist_slices is deprecated and will be removed in a future version. "
+                    "Call between_redshifts instead to silence this warning."
+                ),
+            ),
             stacklevel=2,
         )
         return cls.between_redshifts(

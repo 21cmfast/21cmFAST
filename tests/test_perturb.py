@@ -13,6 +13,15 @@ from py21cmfast import (
 )
 from py21cmfast.wrapper import cfuncs as cf
 
+pytestmark = [
+    pytest.mark.filterwarnings(
+        # TODO: Convert TestPerturb class-scoped fixtures from instance methods to
+        # @classmethod or function scope before pytest 10 is released to fix this properly.
+        "ignore:^Class-scoped fixture defined as instance method:pytest.PytestRemovedIn10Warning"
+    ),
+    pytest.mark.filterwarnings("ignore:^The maximum halo mass:UserWarning"),
+]
+
 
 class TestPerturb:
     """Tests regarding the perturbation algorithms."""

@@ -51,6 +51,14 @@ options_intmethod = list(OPTIONS_INTMETHOD.keys())
 #    is better left for later
 
 
+pytestmark = [
+    pytest.mark.filterwarnings(
+        "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
+    ),
+    pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning"),
+]
+
+
 # Test delta range for CMF integrals over cells
 @pytest.fixture(scope="module")
 def delta_range():

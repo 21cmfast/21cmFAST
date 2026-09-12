@@ -10,6 +10,21 @@ from py21cmfast import InputParameters
 from py21cmfast._templates import list_templates
 from py21cmfast.io import h5
 
+# Physics advisory warnings expected from the non-default parameter combinations
+# used to exercise HDF5 serialization across a range of configurations:
+# - Maximum halo mass: small test boxes trigger the halo mass upper limit warning
+# - USE_MINI_HALOS/V_CB_MODEL mismatch: tests probe edge-case serialization paths
+# - R_BUBBLE_MAX: non-default bubble radius settings trigger the size advisory
+# - Your model: certain SOURCE_MODEL/INTEGRATION_METHOD combinations trigger this
+pytestmark = [
+    pytest.mark.filterwarnings("ignore:^The maximum halo mass:UserWarning"),
+    pytest.mark.filterwarnings(
+        "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
+    ),
+    pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning"),
+    pytest.mark.filterwarnings("ignore:^Your model:UserWarning"),
+]
+
 
 class TestHDF5ToDict:
     """Tests of the hdf5_to_dict function."""

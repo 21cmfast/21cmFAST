@@ -18,6 +18,20 @@ from py21cmfast import (
 from py21cmfast.wrapper import outputs as ox
 from py21cmfast.wrapper.arrays import Array
 
+pytestmark = [
+    pytest.mark.filterwarnings(
+        "ignore:^USE_MINI_HALOS is False but V_CB_MODEL:UserWarning"
+    ),
+    pytest.mark.filterwarnings(
+        "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
+    ),
+    pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning"),
+    pytest.mark.filterwarnings(
+        "ignore:^You are setting M_TURN_STELLAR_FEEDBACK:UserWarning"
+    ),
+    pytest.mark.filterwarnings("ignore:^The maximum halo mass:UserWarning"),
+]
+
 
 @pytest.fixture
 def init(default_input_struct: InputParameters):

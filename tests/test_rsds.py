@@ -10,6 +10,16 @@ from py21cmfast.lightconers import AngularLightconer, RectilinearLightconer
 from py21cmfast.rsds import apply_rsds, include_dvdr_in_tau21, rsds_shift
 from py21cmfast.wrapper.classy_interface import run_classy
 
+pytestmark = [
+    pytest.mark.filterwarnings(
+        "ignore:Install numba for a speedup of cloud_in_cell:UserWarning"
+    ),
+    pytest.mark.filterwarnings(
+        "ignore:invalid value encountered in cast:RuntimeWarning"
+    ),
+    pytest.mark.filterwarnings("ignore:^The maximum halo mass:UserWarning"),
+]
+
 
 class TestFindRequiredLightconeLimits:
     """Tests of the find_required_lightcone_limits method."""

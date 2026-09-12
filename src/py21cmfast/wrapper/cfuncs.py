@@ -397,9 +397,9 @@ def compute_luminosity_function(
     Muvfunc = np.zeros(len(redshifts) * nbins)
     Mhfunc = np.zeros(len(redshifts) * nbins)
 
-    lfunc.shape = (len(redshifts), nbins)
-    Muvfunc.shape = (len(redshifts), nbins)
-    Mhfunc.shape = (len(redshifts), nbins)
+    lfunc = lfunc.reshape((len(redshifts), nbins))
+    Muvfunc = Muvfunc.reshape((len(redshifts), nbins))
+    Mhfunc = Mhfunc.reshape((len(redshifts), nbins))
 
     c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
     c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
@@ -409,9 +409,9 @@ def compute_luminosity_function(
     Muvfunc_MINI = np.zeros(len(redshifts) * nbins)
     Mhfunc_MINI = np.zeros(len(redshifts) * nbins)
 
-    lfunc_MINI.shape = (len(redshifts), nbins)
-    Muvfunc_MINI.shape = (len(redshifts), nbins)
-    Mhfunc_MINI.shape = (len(redshifts), nbins)
+    lfunc_MINI = lfunc_MINI.reshape((len(redshifts), nbins))
+    Muvfunc_MINI = Muvfunc_MINI.reshape((len(redshifts), nbins))
+    Mhfunc_MINI = Mhfunc_MINI.reshape((len(redshifts), nbins))
 
     c_Muvfunc_MINI = ffi.cast("double *", ffi.from_buffer(Muvfunc_MINI))
     c_Mhfunc_MINI = ffi.cast("double *", ffi.from_buffer(Mhfunc_MINI))
@@ -471,9 +471,9 @@ def compute_luminosity_function(
         Muvfunc_all = np.zeros(len(redshifts) * nbins)
         Mhfunc_all = np.zeros(len(redshifts) * nbins * 2)
 
-        lfunc_all.shape = (len(redshifts), nbins)
-        Muvfunc_all.shape = (len(redshifts), nbins)
-        Mhfunc_all.shape = (len(redshifts), nbins, 2)
+        lfunc_all = lfunc_all.reshape((len(redshifts), nbins))
+        Muvfunc_all = Muvfunc_all.reshape((len(redshifts), nbins))
+        Mhfunc_all = Mhfunc_all.reshape((len(redshifts), nbins, 2))
 
         for iz in range(len(redshifts)):
             Muvfunc_all[iz] = np.linspace(

@@ -11,6 +11,14 @@ from py21cmfast.wrapper.inputs import InputParameters, InputStruct
 _TEMPLATES = tmpl.list_templates()
 _ALL_ALIASES = list(chain.from_iterable(t["aliases"] for t in _TEMPLATES))
 
+pytestmark = [
+    pytest.mark.filterwarnings("ignore:^The maximum halo mass:UserWarning"),
+    pytest.mark.filterwarnings(
+        "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
+    ),
+    pytest.mark.filterwarnings("ignore:^Your model:UserWarning"),
+]
+
 
 class TestListTemplates:
     """Tests of the list_templates function."""

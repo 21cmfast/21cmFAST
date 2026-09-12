@@ -17,6 +17,17 @@ from py21cmfast import (
 from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import outputs
 
+# Physics advisory warnings that fire for the small-box, fast-run configurations
+# used throughout the caching test suite:
+# - Resolution too low: tests use coarse grids (small HII_DIM) for speed
+# - Maximum halo mass: small boxes truncate the halo mass function at the box scale
+# - R_BUBBLE_MAX > BOX_LEN: aggressive bubble sizes relative to the small test box
+pytestmark = [
+    pytest.mark.filterwarnings("ignore:^Resolution is likely too low:UserWarning"),
+    pytest.mark.filterwarnings("ignore:^The maximum halo mass:UserWarning"),
+    pytest.mark.filterwarnings("ignore:^Your R_BUBBLE_MAX is > BOX_LEN:UserWarning"),
+]
+
 
 def create_full_run_cache(cachedir: Path) -> caching.RunCache:
     inputs = InputParameters.from_template(
