@@ -282,20 +282,20 @@ double spectral_emissivity(double nu_norm, int flag, int Population) {
 
     switch (flag) {
         case 2:
-            // For LW calculateion. New in v1.5, see...
+            // Energy-weighted spectral integral for the LW calculation.
             for (i = 1; i < (NSPEC_MAX - 1); i++) {
                 if ((nu_norm >= nu_n[i]) && (nu_norm < nu_n[i + 1])) {
                     // We are in the correct spectral region
                     if (Population == 2) {
                         // moved (1. - F_H2_SHIELD) outside
                         result =
-                            N0_2[i] / (alpha_S_2[i] + 1) *
-                            (pow(nu_n[i + 1], alpha_S_2[i] + 1) - pow(nu_norm, alpha_S_2[i] + 1));
+                            N0_2[i] / (alpha_S_2[i] + 2) *
+                            (pow(nu_n[i + 1], alpha_S_2[i] + 2) - pow(nu_norm, alpha_S_2[i] + 2));
                         return result > 0 ? result : 1e-40;
                     } else {
                         result =
-                            N0_3[i] / (alpha_S_3[i] + 1) *
-                            (pow(nu_n[i + 1], alpha_S_3[i] + 1) - pow(nu_norm, alpha_S_3[i] + 1));
+                            N0_3[i] / (alpha_S_3[i] + 2) *
+                            (pow(nu_n[i + 1], alpha_S_3[i] + 2) - pow(nu_norm, alpha_S_3[i] + 2));
                         return result > 0 ? result : 1e-40;
                     }
                 }
