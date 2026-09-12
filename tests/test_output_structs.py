@@ -282,20 +282,20 @@ def test_optional_field_halobox(default_input_struct_lc: InputParameters):
     assert isinstance(hb.halo_sfr_mini, Array)
 
 
-def test_optional_field_xrs(default_input_struct_lc: InputParameters):
-    """Ensure that the correct RadiationFields are set based on the parameters."""
-    xr = ox.RadiationFields.new(redshift=0.0, inputs=default_input_struct_lc)
-    assert isinstance(xr.filtered_sfr, Array)
-    assert isinstance(xr.filtered_xray, Array)
-    assert xr.filtered_sfr_mini is None
+def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameters):
+    """Ensure that the correct fields of RadiationFieldsSetup are set based on the parameters."""
+    rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=default_input_struct_lc)
+    assert isinstance(rfs.filtered_sfr, Array)
+    assert isinstance(rfs.filtered_xray, Array)
+    assert rfs.filtered_sfr_mini is None
 
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
         USE_MINI_HALOS=True,
         RECOMB_MODEL="inhomogeneous",
     )
-    xr = ox.RadiationFields.new(redshift=0.0, inputs=inputs)
-    assert isinstance(xr.filtered_sfr_mini, Array)
+    rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=inputs)
+    assert isinstance(rfs.filtered_sfr_mini, Array)
 
 
 def test_optional_field_ts(default_input_struct_lc: InputParameters):

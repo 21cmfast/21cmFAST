@@ -119,4 +119,7 @@ inline double index_to_k(int idx, double len, int dim) {
     return buf * 2. * M_PI / len;
 }
 
+// Useful for indexing the frequency interpolation tables
+inline int freq_index(int x_e_ct, int R_ct, int num_R) { return x_e_ct * num_R + R_ct; }
+
 #endif

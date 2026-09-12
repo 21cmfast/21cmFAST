@@ -24,7 +24,7 @@ from typing import Any, Self
 
 import attrs
 import numpy as np
-from astropy import units as u
+from astropy import units as un
 from astropy.cosmology import z_at_value
 from bidict import bidict
 
@@ -1215,7 +1215,7 @@ class HaloBox(OutputStructZ):
             # find maximum z
             d_max_needed = (
                 self.cosmo_params.cosmo.comoving_distance(next_z)
-                + self.astro_params.R_MAX_TS * u.Mpc
+                + self.astro_params.R_MAX_TS * un.Mpc
             )
             max_z_needed = z_at_value(
                 self.cosmo_params.cosmo.comoving_distance, d_max_needed
@@ -1238,17 +1238,240 @@ class HaloBox(OutputStructZ):
 
 
 @attrs.define(slots=False, kw_only=True)
-class RadiationFields(OutputStructZ):
-    """A class containing the filtered sfr grids."""
+class RadiationFieldsSetup(OutputStructZ):
+    """A class containing the fields that are neccesary for setting up the radiation fields."""
 
     _meta = False
-    _c_compute_function = lib.UpdateRadiationFields
+    _c_compute_function = lib.SetupRadiationFields
 
+    # R-dependent arrays which are set once
+    zpp_avg = _arrayfield()
+    R_values = _arrayfield()
+    zpp_edges = _arrayfield()
+    # Arrays for the filtered emissivity fields
     filtered_sfr = _arrayfield()
     filtered_sfr_mini = _arrayfield(optional=True)
     filtered_xray = _arrayfield()
     filtered_sfr_lw = _arrayfield(optional=True)
     filtered_sfr_mini_lw = _arrayfield(optional=True)
+    # Frequency integral tables
+    freq_int_heat_tbl = _arrayfield()
+    freq_int_ion_tbl = _arrayfield()
+    freq_int_lya_tbl = _arrayfield()
+    freq_int_heat_tbl_diff = _arrayfield()
+    freq_int_ion_tbl_diff = _arrayfield()
+    freq_int_lya_tbl_diff = _arrayfield()
+    # helpers for the interpolation
+    inverse_diff = _arrayfield()
+    m_xHII_low_box = _arrayfield()
+    inverse_val_box = _arrayfield()
+    # arrays for R-dependent prefactors
+    lya_flux_continuum_prefactor = _arrayfield(optional=True)
+    lya_flux_injected_prefactor = _arrayfield(optional=True)
+    lya_flux_continuum_injected_prefactor = _arrayfield(optional=True)
+    lyw_flux_prefactor = _arrayfield(optional=True)
+    lyw_flux_prefactor_MINI = _arrayfield(optional=True)
+    lya_flux_continuum_prefactor_MINI = _arrayfield(optional=True)
+    lya_flux_injected_prefactor_MINI = _arrayfield(optional=True)
+    lya_flux_continuum_injected_prefactor_MINI = _arrayfield(optional=True)
+    # array and floats required for the X-ray optical depth calculation
+    ave_log10_MturnLW = _arrayfield(optional=True)
+    Q_HI_zp: float = attrs.field(default=1.0)
+    x_e_ave_zp: float = attrs.field(default=0.0)
+    # boolean to indicate whether there's enough light
+    NO_LIGHT: bool = attrs.field(default=True)
+    # maximum source redshift for the radiation fields calculation
+    source_z_max: float = attrs.field(default=0.0)
+    # redshifts of the input hboxes
+    hbox_redshifts: list[float] = attrs.field(factory=list)
+
+    @classmethod
+    def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
+        """Create a new RadiationFieldsSetup instance with the given inputs.
+
+        Parameters
+        ----------
+        inputs : InputParameters
+            The input parameters defining the output struct.
+        redshift : float
+            The redshift at which to compute fields.
+
+        Other Parameters
+        ----------------
+        All other parameters are passed through to the :class:`RadiationFieldsSetup`
+        constructor.
+        """
+        x_int_NXHII = 14  # defined in elec_interp.h
+        shape = (inputs.simulation_options.HII_DIM,) * 2 + (
+            int(
+                inputs.simulation_options.NON_CUBIC_FACTOR
+                * inputs.simulation_options.HII_DIM
+            ),
+        )
+
+        out = {
+            "R_values": Array((inputs.astro_params.N_STEP_TS,), dtype=np.float64),
+            "zpp_avg": Array((inputs.astro_params.N_STEP_TS,), dtype=np.float64),
+            "zpp_edges": Array((inputs.astro_params.N_STEP_TS,), dtype=np.float64),
+            "freq_int_heat_tbl": Array(
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+            ),
+            "freq_int_ion_tbl": Array(
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+            ),
+            "freq_int_lya_tbl": Array(
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+            ),
+            "freq_int_heat_tbl_diff": Array(
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+            ),
+            "freq_int_ion_tbl_diff": Array(
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+            ),
+            "freq_int_lya_tbl_diff": Array(
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+            ),
+            "inverse_diff": Array((x_int_NXHII,), dtype=np.float32),
+            "m_xHII_low_box": Array(shape, dtype=np.int32),
+            "inverse_val_box": Array(shape, dtype=np.float32),
+            "filtered_sfr": Array(shape, dtype=np.float32),
+            "filtered_xray": Array(shape, dtype=np.float32),
+        }
+
+        if inputs.astro_options.USE_MINI_HALOS:
+            out["filtered_sfr_mini"] = Array(shape, dtype=np.float32)
+            if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
+                out["filtered_sfr_lw"] = Array(shape, dtype=np.float32)
+                out["filtered_sfr_mini_lw"] = Array(shape, dtype=np.float32)
+
+        if inputs.astro_options.USE_LYA_HEATING:
+            out["lya_flux_continuum_prefactor"] = Array(
+                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+            )
+            out["lya_flux_injected_prefactor"] = Array(
+                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+            )
+        else:
+            out["lya_flux_continuum_injected_prefactor"] = Array(
+                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+            )
+
+        if inputs.astro_options.USE_MINI_HALOS:
+            out["lyw_flux_prefactor"] = Array(
+                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+            )
+            out["lyw_flux_prefactor_MINI"] = Array(
+                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+            )
+            if inputs.astro_options.USE_LYA_HEATING:
+                out["lya_flux_continuum_prefactor_MINI"] = Array(
+                    (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                )
+                out["lya_flux_injected_prefactor_MINI"] = Array(
+                    (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                )
+            else:
+                out["lya_flux_continuum_injected_prefactor_MINI"] = Array(
+                    (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                )
+
+        if inputs.astro_options.USE_MINI_HALOS:
+            out["ave_log10_MturnLW"] = Array(
+                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+            )
+
+        return cls(
+            inputs=inputs,
+            redshift=redshift,
+            **out,
+            **kw,
+        )
+
+    def setup_shells(
+        self,
+        inputs: InputParameters,
+        redshift: float,
+    ) -> Self:
+        """
+        Set up shells information for a given redshift.
+
+        Parameters
+        ----------
+        inputs : InputParameters
+            The input parameters specifying the run.
+        redshift : float
+            The redshift at which to compute the radiation fields.
+        """
+        # set minimum R at cell size
+        l_factor = (4 * np.pi / 3.0) ** (-1 / 3)
+        if inputs.simulation_options.HII_DIM == 1:
+            # If HII_DIM=1 (happens when we run_global_evolution), we take a typical cell size of 1.5Mpc,
+            # just to for setting the z'' array (note that filtering won't be done on a box with a single cell)
+            R_min = 1.5 * l_factor
+        else:
+            R_min = (
+                inputs.simulation_options.BOX_LEN
+                / inputs.simulation_options.HII_DIM
+                * l_factor
+            )
+        # now we need to find the closest halo box to the redshift of the shell
+        cosmo_ap = inputs.cosmo_params.cosmo
+        cmd_zp = cosmo_ap.comoving_distance(redshift)
+        R_steps = np.arange(0, inputs.astro_params.N_STEP_TS)
+        R_factor = (inputs.astro_params.R_MAX_TS / R_min) ** (
+            R_steps / inputs.astro_params.N_STEP_TS
+        )
+        self.set("R_values", R_min * R_factor)
+        cmd_edges = cmd_zp + self.R_values.value * un.Mpc  # comoving distance edges
+        # Get the edges of the shells
+        zmin = z_at_value(cosmo_ap.comoving_distance, cmd_edges.min()).value
+        zmax = z_at_value(cosmo_ap.comoving_distance, cmd_edges.max()).value
+        zgrid = np.logspace(np.log10(zmin), np.log10(zmax), 100)
+        dgrid = cosmo_ap.comoving_distance(zgrid)
+        self.set("zpp_edges", np.interp(cmd_edges.value, dgrid.value, zgrid))
+        # the `average` redshift of the shell is the average of the
+        # inner and outer redshifts (following the C code)
+        self.set(
+            "zpp_avg",
+            self.zpp_edges.value
+            - np.diff(np.insert(self.zpp_edges.value, 0, redshift)) / 2,
+        )
+        return self
+
+    def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
+        """Return all input arrays required to compute this object."""
+        required = []
+        if isinstance(input_box, TsBox):
+            required += ["xray_ionised_fraction"]
+        else:
+            raise ValueError(
+                f"{type(input_box)} is not an input required for RadiationFieldsSetup!"
+            )
+
+        return required
+
+    def compute(
+        self,
+        *,
+        redshift,
+        previous_spin_temp: TsBox,
+        allow_already_computed: bool = False,
+    ):
+        """Compute the function."""
+        return self._compute(
+            allow_already_computed,
+            redshift,
+            previous_spin_temp,
+        )
+
+
+@attrs.define(slots=False, kw_only=True)
+class RadiationFields(OutputStructZ):
+    """A class containing the radiation fields."""
+
+    _meta = False
+    _c_compute_function = lib.UpdateRadiationFields
+
     xray_heating_rate = _arrayfield(optional=True)
     xray_ionization_rate = _arrayfield()
     xray_lya_flux = _arrayfield()
@@ -1256,7 +1479,6 @@ class RadiationFields(OutputStructZ):
     lyw_flux = _arrayfield(optional=True)
     lya_flux_continuum = _arrayfield(optional=True)
     lya_flux_injected = _arrayfield(optional=True)
-    mean_log10_Mcrit_LW = _arrayfield(optional=True)
     Q_HI: float = attrs.field(default=1.0)
 
     @classmethod
@@ -1282,22 +1504,13 @@ class RadiationFields(OutputStructZ):
             ),
         )
 
-        # TODO: the 3D arrays below are defined as np.float64, but should be np.float32 - see https://github.com/21cmfast/21cmFAST/issues/744
+        # TODO: the arrays below are defined as np.float64, but should be np.float32 - see https://github.com/21cmfast/21cmFAST/issues/744
         out = {
-            "filtered_sfr": Array(shape, dtype=np.float32),
-            "filtered_xray": Array(shape, dtype=np.float32),
             "xray_ionization_rate": Array(shape, dtype=np.float64),
             "xray_lya_flux": Array(shape, dtype=np.float64),
         }
         if inputs.astro_options.USE_MINI_HALOS:
-            out["filtered_sfr_mini"] = Array(shape, dtype=np.float32)
-            out["mean_log10_Mcrit_LW"] = Array(
-                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
-            )
             out["lyw_flux"] = Array(shape, dtype=np.float64)
-            if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
-                out["filtered_sfr_lw"] = Array(shape, dtype=np.float32)
-                out["filtered_sfr_mini_lw"] = Array(shape, dtype=np.float32)
 
         if inputs.astro_options.USE_X_RAY_HEATING:
             out["xray_heating_rate"] = Array(shape, dtype=np.float64)
@@ -1318,22 +1531,56 @@ class RadiationFields(OutputStructZ):
     def get_required_input_arrays(self, input_box: OutputStruct) -> list[str]:
         """Return all input arrays required to compute this object."""
         required = []
-        if isinstance(input_box, InitialConditions):
-            if (
-                self.matter_options.V_CB_MODEL == "FLUCTS"
-                and self.astro_options.USE_MINI_HALOS
-            ):
-                required += ["lowres_vcb"]
-        elif isinstance(input_box, PerturbedField):
+        if isinstance(input_box, PerturbedField):
             required += ["density"]
         elif isinstance(input_box, TsBox):
             required += ["xray_ionised_fraction"]
-            if self.astro_options.USE_MINI_HALOS:
-                required += ["J_21_LW"]
         elif isinstance(input_box, HaloBox):
             required += ["halo_sfr", "halo_xray"]
             if self.astro_options.USE_MINI_HALOS:
                 required += ["halo_sfr_mini"]
+        elif isinstance(input_box, RadiationFieldsSetup):
+            required += [
+                "R_values",
+                "zpp_avg",
+                "zpp_edges",
+                "freq_int_heat_tbl",
+                "freq_int_ion_tbl",
+                "freq_int_lya_tbl",
+                "freq_int_heat_tbl_diff",
+                "freq_int_ion_tbl_diff",
+                "freq_int_lya_tbl_diff",
+                "inverse_diff",
+                "m_xHII_low_box",
+                "inverse_val_box",
+                "filtered_sfr",
+                "filtered_xray",
+            ]
+            if self.astro_options.USE_MINI_HALOS:
+                required += ["filtered_sfr_mini"]
+                if self.astro_options.LYA_MULTIPLE_SCATTERING:
+                    required += ["filtered_sfr_lw", "filtered_sfr_mini_lw"]
+
+            if self.astro_options.USE_LYA_HEATING:
+                required += [
+                    "lya_flux_continuum_prefactor",
+                    "lya_flux_injected_prefactor",
+                ]
+            else:
+                required += ["lya_flux_continuum_injected_prefactor"]
+
+            if self.astro_options.USE_MINI_HALOS:
+                required += ["lyw_flux_prefactor", "lyw_flux_prefactor_MINI"]
+                if self.astro_options.USE_LYA_HEATING:
+                    required += [
+                        "lya_flux_continuum_prefactor_MINI",
+                        "lya_flux_injected_prefactor_MINI",
+                    ]
+                else:
+                    required += ["lya_flux_continuum_injected_prefactor_MINI"]
+
+            if self.astro_options.USE_MINI_HALOS:
+                required += ["ave_log10_MturnLW"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for RadiationFields!"
@@ -1346,15 +1593,11 @@ class RadiationFields(OutputStructZ):
         *,
         redshift,
         halobox: HaloBox,
-        R_inner,
-        R_outer,
         R_ct,
         R_star,
-        mode,
-        cleanup,
         perturbed_field: PerturbedField,
         previous_spin_temp: TsBox,
-        initial_conditions: InitialConditions,
+        rad_setup: RadiationFieldsSetup,
         allow_already_computed: bool = False,
     ):
         """Compute the function."""
@@ -1362,16 +1605,11 @@ class RadiationFields(OutputStructZ):
             allow_already_computed,
             redshift,
             halobox,
-            R_inner,
-            R_outer,
             R_ct,
             R_star,
-            mode,
-            cleanup,
-            perturbed_field.redshift,
             perturbed_field,
             previous_spin_temp,
-            initial_conditions,
+            rad_setup,
         )
 
 

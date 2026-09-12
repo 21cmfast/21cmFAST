@@ -28,6 +28,7 @@ from ..wrapper.outputs import (
     IonizedBox,
     OutputStruct,
     PerturbedField,
+    RadiationFieldsSetup,
     TsBox,
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
@@ -773,6 +774,11 @@ def _redshift_loop_generator(
     this_spin_temp = None
     this_halofield = None
     this_radiation_fields = None
+    if inputs.astro_options.USE_TS_FLUCT:
+        this_rad_setup = RadiationFieldsSetup.new(redshift=-1.0, inputs=inputs)
+        # For efficiency, allocate memory once per simulation
+        this_rad_setup._init_arrays()
+        this_rad_setup.dummy = True
 
     kw = {
         **iokw,
@@ -809,15 +815,19 @@ def _redshift_loop_generator(
             )
 
             if inputs.astro_options.USE_TS_FLUCT:
-                # append the halo redshift array so we have all halo boxes [z,zmax]
+                this_rad_setup = sf.setup_radiation_fields(
+                    redshift=z,
+                    hboxes=[*hbox_arr, this_halobox],
+                    previous_spin_temp=getattr(prev_coeval, "ts_box", None),
+                    previous_rad_setup=this_rad_setup,
+                )
                 this_radiation_fields = sf.compute_radiation_fields(
                     redshift=z,
                     hboxes=[*hbox_arr, this_halobox],
                     previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                     previous_spin_temp=getattr(prev_coeval, "ts_box", None),
                     perturbed_field=this_perturbed_field,
-                    initial_conditions=initial_conditions,
-                    cleanup=(cleanup and z == all_redshifts[-1]),
+                    rad_setup=this_rad_setup,
                     write=write.radiation_fields,
                     **iokw,
                 )
@@ -891,6 +901,10 @@ def _redshift_loop_generator(
 
             # yield before the cleanup, so we can get at the fields before they are purged
             yield iz, this_coeval
+
+    # Purge the radiation fields setup once we scrolled through all redshifts
+    if inputs.astro_options.USE_TS_FLUCT:
+        this_rad_setup.purge(force=True)
 
 
 def _setup_ics_and_pfs_for_scrolling(

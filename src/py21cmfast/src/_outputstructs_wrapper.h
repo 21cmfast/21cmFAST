@@ -64,13 +64,42 @@ typedef struct HaloBox {
     double log10_Mcrit_MCG_ave;
 } HaloBox;
 
-typedef struct RadiationFields {
+typedef struct RadiationFieldsSetup {
+    // R-dependent arrays which are set once
+    double *R_values, *zpp_avg, *zpp_edges;
+
+    // Arrays for the filtered emissivity fields
     float *filtered_sfr;
     float *filtered_xray;
     float *filtered_sfr_mini;
     float *filtered_sfr_lw;
     float *filtered_sfr_mini_lw;
 
+    // frequency integral tables
+    double *freq_int_heat_tbl, *freq_int_ion_tbl, *freq_int_lya_tbl, *freq_int_heat_tbl_diff;
+    double *freq_int_ion_tbl_diff, *freq_int_lya_tbl_diff;
+
+    // helpers for the interpolation
+    float *inverse_diff;
+    float *inverse_val_box;
+    int *m_xHII_low_box;
+
+    // arrays for R-dependent prefactors
+    double *lya_flux_continuum_injected_prefactor, *lya_flux_continuum_injected_prefactor_MINI;
+    double *lyw_flux_prefactor, *lyw_flux_prefactor_MINI;
+    double *lya_flux_continuum_prefactor, *lya_flux_injected_prefactor;
+    double *lya_flux_continuum_prefactor_MINI, *lya_flux_injected_prefactor_MINI;
+
+    // array and floats required for the X-ray optical depth calculation
+    double *ave_log10_MturnLW;
+    double x_e_ave_zp;
+    double Q_HI_zp;
+
+    // boolean to indicate whether there's enough light
+    int NO_LIGHT;
+} RadiationFieldsSetup;
+
+typedef struct RadiationFields {
     // TODO: these arrays are defined as double, but should be float - see
     // https://github.com/21cmfast/21cmFAST/issues/744
     double *xray_heating_rate;
@@ -81,7 +110,6 @@ typedef struct RadiationFields {
     double *lya_flux_injected;
     double *lyw_flux;
 
-    double *mean_log10_Mcrit_LW;
     double Q_HI;
 } RadiationFields;
 

@@ -246,9 +246,10 @@ the code as in previous versions. The LW flux is given by
 
 .. math::
 
-    J_{\rm LW}(z, \mathbf{x}) = h_{\rm P}\nu_\alpha\frac{(1+z)^2}{4\pi}\sum_{n=2}\int_z^{z_{\rm max}(n)} \frac{cdz''}{H(z'')} I_\alpha(\nu') \epsilon_\alpha^{\rm eff}(z', \mathbf{x}),
+    J_{\rm LW}(z, \mathbf{x}) = h_{\rm P}\nu_\alpha(1-f_{\rm H_2}^{\rm shield})\frac{(1+z)^2}{4\pi}\sum_{n=2}\int_z^{z_{\rm max}(n)} \frac{cdz''}{H(z'')} I_\alpha(\nu') \epsilon_\alpha^{\rm eff}(z', \mathbf{x}),
 
-where :math:`\nu_\alpha` is the Lyman-alpha frequency. Several notes:
+where :math:`\nu_\alpha` is the Lyman-alpha frequency and :math:`f_{\rm H_2}^{\rm shield}` accounting for self-shielding of star-forming regions
+by the ISM and the circumgalactic medium of the host galaxy. Several notes:
 
 * Note that unlike previous radiation fields, the LW flux contains units of energy, owned by the factor of :math:`h_{\rm P}\nu_\alpha`.
 * The contribution to the LW flux came from both atomic cooling galaxies (ACGs) and MCGs, as the SFRD in both populations is modeled a bit

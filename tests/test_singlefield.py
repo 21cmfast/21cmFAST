@@ -20,6 +20,7 @@ from py21cmfast import (
     PerturbedField,
     TsBox,
 )
+from py21cmfast.drivers.single_field import setup_radiation_fields
 from py21cmfast.wrapper.arrays import Array
 
 
@@ -87,7 +88,6 @@ def spin_temp_evolution(ic: InitialConditions, default_input_struct_ts: TsBox, c
         )
 
         rf = p21c.compute_radiation_fields(
-            initial_conditions=ic,
             hboxes=[hb],
             redshift=z,
             cache=cache,
@@ -474,7 +474,7 @@ def test_global_properties(
     assert bt.global_Tb == np.mean(bt.get("brightness_temp"))
 
 
-def test_bad_input_structs(default_input_struct_ts):
+def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     """Test that we raise errors when required input structs are omitted."""
     # setting parameters for the maximum number of fields required
     test_inputs = default_input_struct_ts.evolve_input_structs(
@@ -615,6 +615,26 @@ def test_bad_input_structs(default_input_struct_ts):
             previous_ionized_box=ib_p,
         )
 
+    prev_st = spin_temp_evolution[-2]["spin_temp"]
+    hb1 = spin_temp_evolution[-1]["halo_box"]
+    hb2 = spin_temp_evolution[-2]["halo_box"]
+    hb3 = spin_temp_evolution[-3]["halo_box"]
+
+    rad_setup = setup_radiation_fields(
+        redshift=default_input_struct_ts.node_redshifts[-1],
+        previous_spin_temp=prev_st,
+        hboxes=[hb1, hb2],
+    )
+    with pytest.raises(
+        ValueError,
+        match="The redshifts of the input halo boxes do not match those of the input rad_setup!",
+    ):
+        p21c.compute_radiation_fields(
+            hboxes=[hb1, hb3],
+            redshift=default_input_struct_ts.node_redshifts[-1],
+            rad_setup=rad_setup,
+        )
+
 
 @pytest.mark.parametrize("lya_multiple_scattering", [False, True])
 @pytest.mark.parametrize("use_mini_halos", [False, True])
@@ -626,9 +646,7 @@ def test_radiation_fields_with_zero_sfr(
         USE_MINI_HALOS=use_mini_halos,
         RECOMB_MODEL="inhomogeneous",
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
-        SOURCE_MODEL="L-INTEGRAL",
     )
-    ics = p21c.InitialConditions.new(inputs=inputs)
 
     hbox1 = HaloBox.new(redshift=redshift + 1, inputs=inputs)
     hbox2 = HaloBox.new(redshift=redshift, inputs=inputs)
@@ -650,18 +668,21 @@ def test_radiation_fields_with_zero_sfr(
             hbox.log10_Mcrit_MCG_ave = 5.0
 
     radiation_fields = p21c.compute_radiation_fields(
-        initial_conditions=ics,
         hboxes=[hbox1, hbox2],
         redshift=redshift,
     )
 
-    output_fields = ["filtered_sfr", "filtered_xray"]
+    output_fields = [
+        "xray_heating_rate",
+        "xray_ionization_rate",
+        "xray_lya_flux",
+        "lya_flux_continuum",
+        "lya_flux_injected",
+    ]
     if use_mini_halos:
         output_fields += [
-            "filtered_sfr_mini",
+            "lyw_flux",
         ]
-        if lya_multiple_scattering:
-            output_fields += ["filtered_sfr_lw", "filtered_sfr_mini_lw"]
 
     for field in output_fields:
         assert np.all(getattr(radiation_fields, field).value == 0.0)
