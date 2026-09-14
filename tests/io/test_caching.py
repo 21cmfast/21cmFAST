@@ -185,9 +185,11 @@ class TestRunCache:
     def test_is_complete_at_ignores_missing_xray_source_box(
         self, no_xraysource_run_cache
     ):
-        """Regression test: XraySourceBox is recomputed from scratch at every
-        redshift from the accumulated HaloBox history and immediately purged
-        (see ``_redshift_loop_generator`` in ``drivers/coeval.py``) -- it is never
+        """Regression test: absence of XraySourceBox must not block completeness.
+
+        XraySourceBox is recomputed from scratch at every redshift from the
+        accumulated HaloBox history and immediately purged (see
+        ``_redshift_loop_generator`` in ``drivers/coeval.py``) -- it is never
         read back as an input anywhere (``compute_xray_source_field`` has no
         parameter for a previous XraySourceBox, and ``Coeval`` has no field for
         it either). So its absence on disk must not prevent a run from being
@@ -267,7 +269,7 @@ class TestRunCache:
 
         See test_is_complete_at_ignores_missing_xray_source_box for the rationale;
         the same logic applies here since both methods share
-        ``_cacheable_dict_fields``.
+        ``get_required_fields``.
         """
         assert no_xraysource_run_cache.is_complete()
 

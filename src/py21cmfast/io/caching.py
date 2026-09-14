@@ -417,10 +417,7 @@ class RunCache:
         if index is not None:
             z = self.inputs.node_redshifts[index]
 
-        for kind in self.get_required_fields().values():
-            if not kind[z].exists():
-                return False
-        return True
+        return all(kind[z].exists() for kind in self.get_required_fields().values())
 
     def get_output_struct_at_z(
         self,
