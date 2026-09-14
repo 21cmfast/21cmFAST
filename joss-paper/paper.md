@@ -176,25 +176,25 @@ notebook):
 import py21cmfast as p21c
 
 lightcone = p21c.run_lightcone(
-    redshift=6.0,              # Minimum redshift of lightcone
+    redshift=6.0,  # Minimum redshift of lightcone
     max_redshift=30.0,
     user_params={
-        "HII_DIM": 150,        # N cells along side in output cube
-        "DIM": 400,            # Original high-res cell number
-        "BOX_LEN": 300,        # Size of the simulation in Mpc
+        "HII_DIM": 150,  # N cells along side in output cube
+        "DIM": 400,  # Original high-res cell number
+        "BOX_LEN": 300,  # Size of the simulation in Mpc
     },
     flag_options={
         "USE_TS_FLUCT": True,  # Don't assume saturated spin temp
-        "INHOMO_RECO": True,   # Use inhomogeneous recombinations
+        "INHOMO_RECO": True,  # Use inhomogeneous recombinations
     },
-    lightcone_quantities=(     # Components to store as lightcones
+    lightcone_quantities=(  # Components to store as lightcones
         "brightness_temp",
         "xH_box",
-        "density"
+        "density",
     ),
-    global_quantities=(        # Components to store as mean
-        "xH_box",              # values per redshift
-        "brightness_temp"
+    global_quantities=(  # Components to store as mean
+        "xH_box",  # values per redshift
+        "brightness_temp",
     ),
 )
 

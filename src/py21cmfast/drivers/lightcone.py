@@ -300,7 +300,7 @@ class LightCone:
                             highz_buffer_pixels=highz_buffer_pixels,
                         )
 
-            self = self.trim(lc_distances.min(), lc_distances.max())
+            return self.trim(lc_distances.min(), lc_distances.max())
         return self
 
     def trim(self, mind: units.Quantity, maxd: units.Quantity) -> Self:

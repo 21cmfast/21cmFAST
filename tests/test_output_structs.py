@@ -175,7 +175,7 @@ def test_optional_field_ic(default_input_struct_lc: InputParameters):
 
     ic = ox.InitialConditions.new(
         inputs=default_input_struct_lc.evolve_input_structs(
-            USE_RELATIVE_VELOCITIES=True,
+            V_CB_MODEL="FLUCTS",
             POWER_SPECTRUM="CLASS",
         )
     )
