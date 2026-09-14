@@ -739,7 +739,7 @@ def _obtain_starting_point_for_scrolling(
             ionized_box=outputs["IonizedBox"],
             brightness_temperature=outputs["BrightnessTemp"],
             ts_box=outputs.get("TsBox", None),
-            halobox=outputs.get("Halobox", None),
+            halobox=outputs.get("HaloBox", None),
             photon_nonconservation_data=photon_nonconservation_data,
         )
     else:
@@ -766,6 +766,21 @@ def _redshift_loop_generator(
     # Iterate through redshift from top to bottom
     hbox_arr = []
 
+    # When resuming partway through the redshift scroll (start_idx > 0), the
+    # HaloBox history for the skipped (already-completed) redshifts is not
+    # otherwise available to us, but compute_xray_source_field() needs the
+    # *entire* halo history within astro_params.R_MAX_TS of each new redshift
+    # to build its filtered source shells (see hbox_arr usage below). Without
+    # reloading these from cache, the X-ray source field -- and therefore the
+    # spin temperature and brightness temperature -- computed at the first
+    # several redshifts after a resume would silently be wrong, missing
+    # contributions from the earlier, skipped HaloBoxes. We only need to read
+    # these back (not recompute them), since write.halobox must have been True
+    # for these redshifts to have registered as complete in the first place.
+    resume_cache = None
+    if iokw.get("cache") is not None:
+        resume_cache = RunCache.from_inputs(inputs, iokw["cache"])
+
     prev_coeval = init_coeval
     this_coeval = None
 
@@ -789,6 +804,13 @@ def _redshift_loop_generator(
                     f"Computing Redshift {z} ({iz + 1}/{len(all_redshifts)}) iterations."
                 )
             if iz < start_idx:
+                if (
+                    resume_cache is not None
+                    and z in inputs.node_redshifts
+                    and inputs.matter_options.lagrangian_source_grid
+                ):
+                    cached_halobox = resume_cache.get_output_struct_at_z("HaloBox", z=z)
+                    hbox_arr.append(cached_halobox)
                 continue
 
             this_perturbed_field = perturbed_field[iz]
