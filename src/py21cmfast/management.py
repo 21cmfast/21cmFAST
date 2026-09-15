@@ -36,7 +36,7 @@ def get_expected_outputs(
         del out["BrightnessTemp"]
     if not cache_config.halo_catalog and "HaloCatalog" in out:
         del out["HaloCatalog"]
-    if not cache_config.halobox:
+    if not cache_config.emissivity_fields:
         del out["EmissivityFields"]
     if not cache_config.spin_temp and "TsBox" in out:
         del out["TsBox"]

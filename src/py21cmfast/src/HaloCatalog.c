@@ -99,7 +99,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         density_field_saved =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
-        // allocate memory for the boolean in_halo box
+        // allocate memory for the boolean in_halo array
         in_halo = (char *)malloc(sizeof(char) * TOT_NUM_PIXELS);
 
         // initialize
@@ -257,7 +257,8 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
                         idx_f = grid_index_fftw_r(x, y, z, box_dim);
                         delta_m =
                             *((float *)density_field + idx_f) * growth_factor / TOT_NUM_PIXELS;
-                        // if not within a larger halo, and radii don't overlap, update in_halo box
+                        // if not within a larger halo, and radii don't overlap, update in_halo
+                        // array
                         // *****************  BEGIN OPTIMIZATION ***************** //
                         if (matter_options_global->DEXM_OPTIMIZE &&
                             (M > simulation_options_global->DEXM_OPTIMIZE_MINMASS)) {

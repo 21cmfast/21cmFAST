@@ -1,5 +1,5 @@
-#ifndef _HALOBOX_H
-#define _HALOBOX_H
+#ifndef _EMISSIVITYFIELDS_H
+#define _EMISSIVITYFIELDS_H
 
 #include "HaloCatalog.h"
 #include "InitialConditions.h"

@@ -211,12 +211,8 @@ void fill_freqint_tables(double zp, RadiationFieldsSetup *rad_setup, ScalingCons
     num_threads(simulation_options_global -> N_THREADS)
     {
 #pragma omp for
-        // In TauX we integrate Nion from zpp to zp using the LW turnover mass at zp (predending its
+        // In TauX we integrate Nion from zpp to zp using the LW turnover mass at zp (pretending its
         // at zpp)
-        //   Calculated from the average smoothed zp grid (from previous LW field) at radius R
-        // NOTE: The one difference currently between the halobox and density field options is the
-        // weighting of the average
-        //   density -> volume weighted cell average || halo -> halo weighted average
         for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
             // TODO: At the moment, inhomogeneous reionization feedback cannot be accounted in
             // SpinTemperatureBox.c,

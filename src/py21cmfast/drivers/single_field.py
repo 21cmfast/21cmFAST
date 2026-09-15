@@ -412,8 +412,8 @@ def compute_halo_grid(
 # TODO: make this more general and probably combine with the lightcone interp function
 # TODO: remove the need_c argument, this is currently required because we call this function once for just computing the history of
 # log10_Mcrit_MCG_ave - see other comment about this in need_c.
-def interp_halo_boxes(
-    halo_boxes: list[EmissivityFields],
+def interp_emissivity_fields(
+    emissivity_fields_list: list[EmissivityFields],
     interp_fields: list[str],
     redshift: float,
     need_c: bool,
@@ -421,14 +421,14 @@ def interp_halo_boxes(
     """
     Interpolate EmissivityFields history to the desired redshift.
 
-    Photon conservation & Xray sources require halo boxes at redshifts
+    Photon conservation & Xray sources require emissivity_fields at redshifts
     that are not equal to the current redshift, and may be between redshift steps.
-    So we need a function to interpolate between two halo boxes.
+    So we need a function to interpolate between two emissivity_fields.
     We assume here that z_arr is strictly INCERASING
 
     Parameters
     ----------
-    halo_boxes : list of EmissivityFields instances
+    emissivity_fields_list : list of EmissivityFields instances
         The emissivity fields history to be interpolated
     interp_fields: list[str]
         The properties of the emissivity fields to be interpolated
@@ -442,18 +442,23 @@ def interp_halo_boxes(
     :class:`~EmissivityFields` :
         An object containing the emissivity fields data
     """
-    inputs = halo_boxes[0].inputs
-    z_halos = [box.redshift for box in halo_boxes]
+    inputs = emissivity_fields_list[0].inputs
+    z_halos = [
+        emissivity_fields.redshift for emissivity_fields in emissivity_fields_list
+    ]
     if not np.all(np.diff(z_halos) > 0):
-        raise ValueError("halo_boxes must be in ascending order of redshift")
+        raise ValueError("emissivity_fields must be in ascending order of redshift")
 
     if redshift > z_halos[-1] or redshift < z_halos[0]:
         raise ValueError(f"Invalid z_target {redshift} for redshift array {z_halos}")
 
     # If we do global evolution, no need to do that
     if inputs.simulation_options.HII_DIM > 1 and need_c:
-        arr_fields = [f for f in interp_fields if f in halo_boxes[0].arrays]
-        computed = [box.ensure_arrays_computed(*arr_fields) for box in halo_boxes]
+        arr_fields = [f for f in interp_fields if f in emissivity_fields_list[0].arrays]
+        computed = [
+            emissivity_fields.ensure_arrays_computed(*arr_fields)
+            for emissivity_fields in emissivity_fields_list
+        ]
         if not all(computed):
             raise ValueError("Some of the emissivity fields required are not computed")
 
@@ -476,30 +481,30 @@ def interp_halo_boxes(
         check_output_consistency(
             dict(
                 zip(
-                    [f"box-{i}" for i in range(len(halo_boxes))],
-                    halo_boxes,
+                    [f"box-{i}" for i in range(len(emissivity_fields_list))],
+                    emissivity_fields_list,
                     strict=True,
                 )
             )
         )
-    hbox_out = EmissivityFields.new(redshift=redshift, inputs=inputs)
+    emissivity_fields_out = EmissivityFields.new(redshift=redshift, inputs=inputs)
 
     # initialise the memory
     if need_c:
-        hbox_out._init_arrays()
+        emissivity_fields_out._init_arrays()
 
-    # interpolate halo boxes in gridded SFR
-    hbox_prog = halo_boxes[idx_prog]
-    hbox_desc = halo_boxes[idx_desc]
+    # interpolate emissivity fields
+    emissivity_fields_prog = emissivity_fields_list[idx_prog]
+    emissivity_fields_desc = emissivity_fields_list[idx_desc]
 
     for field in interp_fields:
-        field_desc = hbox_desc.get(field)
-        field_prog = hbox_prog.get(field)
+        field_desc = emissivity_fields_desc.get(field)
+        field_prog = emissivity_fields_prog.get(field)
         interp_field = np.zeros_like(field_desc)
         interp_field[...] = (1 - interp_param) * field_desc + interp_param * field_prog
-        hbox_out.set(field, interp_field)
+        emissivity_fields_out.set(field, interp_field)
 
-    return hbox_out
+    return emissivity_fields_out
 
 
 # TODO: The argument of the initializer below is set to sigma=True because sigma is needed for computing the global Nion
@@ -509,7 +514,7 @@ def interp_halo_boxes(
 @init_c_state(sigma=True)
 def setup_radiation_fields(
     *,
-    hboxes: list[EmissivityFields],
+    emissivity_fields_list: list[EmissivityFields],
     redshift: float,
     previous_rad_setup: RadiationFieldsSetup | None = None,
     previous_spin_temp: TsBox | None = None,
@@ -521,7 +526,7 @@ def setup_radiation_fields(
     ----------
     redshift: float
         The redshift at which to compute the radiation fields.
-    hboxes: Sequence of :class:`~EmissivityFields` instances
+    emissivity_fields_list: Sequence of :class:`~EmissivityFields` instances
         This contains the list of EmissivityFields instances which are used to create this source field
     previous_rad_setup: :class:`~RadiationFieldsSetup` or None
         An initialized object containing the required arrays for computing the radiation fields.
@@ -538,7 +543,7 @@ def setup_radiation_fields(
     regenerate, write, cache:
         See docs of :func:`initial_conditions` for more information.
     """
-    inputs = hboxes[0].inputs
+    inputs = emissivity_fields_list[0].inputs
 
     if previous_rad_setup is None:
         rad_setup = RadiationFieldsSetup.new(redshift=redshift, inputs=inputs)
@@ -550,16 +555,23 @@ def setup_radiation_fields(
     # Make sure the arrays are initialized
     rad_setup._init_arrays()
 
-    rad_setup.hbox_redshifts = [hb.redshift for hb in hboxes]
+    rad_setup.emissivity_fields_redshifts = [
+        emissivity_fields.redshift for emissivity_fields in emissivity_fields_list
+    ]
     rad_setup.source_z_max = min(
-        max(rad_setup.hbox_redshifts), inputs.simulation_options.Z_HEAT_MAX
+        max(rad_setup.emissivity_fields_redshifts), inputs.simulation_options.Z_HEAT_MAX
     )
 
     # set up the shells for the calculation of the radiation fields
     rad_setup.setup_shells(inputs=inputs, redshift=redshift)
 
     # Let's figure out if we really need to go through the C code
-    sfr_allzero = np.all([np.all(hbox.get("halo_sfr") == 0) for hbox in hboxes])
+    sfr_allzero = np.all(
+        [
+            np.all(emissivity_fields.get("halo_sfr") == 0)
+            for emissivity_fields in emissivity_fields_list
+        ]
+    )
     lowest_shell_above_zmax = rad_setup.zpp_avg.value.min() >= rad_setup.source_z_max
     need_c = not (sfr_allzero or lowest_shell_above_zmax)
 
@@ -599,14 +611,14 @@ def setup_radiation_fields(
                         np.max([mturn_MCG, inputs.astro_params.M_TURN_STELLAR_FEEDBACK])
                     )
                 else:
-                    hbox_interp = interp_halo_boxes(
-                        halo_boxes=hboxes[::-1],
+                    emissivity_fields_interp = interp_emissivity_fields(
+                        emissivity_fields_list=emissivity_fields_list[::-1],
                         interp_fields=["log10_Mcrit_MCG_ave"],
                         redshift=rad_setup.zpp_avg.value[i],
                         need_c=False,
                     )
                     rad_setup.ave_log10_MturnLW.value[i] = (
-                        hbox_interp.log10_Mcrit_MCG_ave
+                        emissivity_fields_interp.log10_Mcrit_MCG_ave
                     )
 
         rad_setup.compute(
@@ -625,7 +637,7 @@ def setup_radiation_fields(
 @init_c_state(broadcast_inputs=True)
 def compute_radiation_fields(
     *,
-    hboxes: list[EmissivityFields],
+    emissivity_fields_list: list[EmissivityFields],
     redshift: float,
     rad_setup: RadiationFieldsSetup | None = None,
     previous_ionize_box: IonizedBox | None = None,
@@ -644,7 +656,7 @@ def compute_radiation_fields(
         The redshift at which to compute the radiation fields.
     rad_setup: :class:`~RadiationFieldsSetup` or None
         An object containing the required arrays for computing the radiation fields at this redshift.
-    hboxes: Sequence of :class:`~EmissivityFields` instances
+    emissivity_fields_list: Sequence of :class:`~EmissivityFields` instances
         This contains the list of EmissivityFields instances which are used to create this source field
     previous_ionize_box: :class:`IonizedBox` or None
         An ionized box at higher redshift. This is only used if `LYA_MULTIPLE_SCATTERING` is true.
@@ -665,16 +677,18 @@ def compute_radiation_fields(
     if rad_setup is None:
         rad_setup = setup_radiation_fields(
             redshift=redshift,
-            hboxes=hboxes,
+            emissivity_fields_list=emissivity_fields_list,
             previous_spin_temp=previous_spin_temp,
         )
         need_to_purge = True
     else:
         need_to_purge = False
-        hbox_redshifts = [hb.redshift for hb in hboxes]
-        if hbox_redshifts != rad_setup.hbox_redshifts:
+        emissivity_fields_redshifts = [
+            emissivity_fields.redshift for emissivity_fields in emissivity_fields_list
+        ]
+        if emissivity_fields_redshifts != rad_setup.emissivity_fields_redshifts:
             raise ValueError(
-                "The redshifts of the input halo boxes do not match those of the input rad_setup!"
+                "The redshifts of the input emissivity_fields do not match those of the input rad_setup!"
             )
 
     inputs = rad_setup.inputs
@@ -683,7 +697,12 @@ def compute_radiation_fields(
     radiation_fields.Q_HI = rad_setup.Q_HI_zp
 
     # Let's figure out if we really need to go through the C code
-    sfr_allzero = np.all([np.all(hbox.get("halo_sfr") == 0) for hbox in hboxes])
+    sfr_allzero = np.all(
+        [
+            np.all(emissivity_fields.get("halo_sfr") == 0)
+            for emissivity_fields in emissivity_fields_list
+        ]
+    )
     lowest_shell_above_zmax = rad_setup.zpp_avg.value.min() >= rad_setup.source_z_max
     need_c = not (sfr_allzero or lowest_shell_above_zmax or rad_setup.NO_LIGHT)
 
@@ -722,7 +741,7 @@ def compute_radiation_fields(
         if inputs.astro_options.USE_MINI_HALOS:
             interp_fields += ["halo_sfr_mini"]
 
-        # For each shell, interpolate the halo boxes and evaluate the contribution to the radiation fields
+        # For each shell, interpolate the emissivity fields and evaluate the contribution to the radiation fields
         # NOTE: the following loop is done in reverse order (i.e. we go from the largest to the smallest shell),
         # since the C code expects the smallest shell to be evaluated last.
         # If we had reveresed the order (i.e. going from the smallest to the largest shell), we might have not
@@ -733,15 +752,15 @@ def compute_radiation_fields(
             if rad_setup.zpp_avg.value[i] >= rad_setup.source_z_max:
                 logger.debug(f"ignoring Radius {i} which is above Z_HEAT_MAX")
             else:
-                hbox_interp = interp_halo_boxes(
-                    halo_boxes=hboxes[::-1],
+                emissivity_fields_interp = interp_emissivity_fields(
+                    emissivity_fields_list=emissivity_fields_list[::-1],
                     interp_fields=interp_fields,
                     redshift=rad_setup.zpp_avg.value[i],
                     need_c=True,
                 )
                 radiation_fields = radiation_fields.compute(
                     redshift=redshift,
-                    halobox=hbox_interp,
+                    emissivity_fields=emissivity_fields_interp,
                     R_ct=i,
                     R_star=R_star.to("Mpc").value,
                     perturbed_field=perturbed_field,
@@ -841,7 +860,7 @@ def compute_ionization_field(
     previous_perturbed_field: PerturbedField | None = None,
     previous_ionized_box: IonizedBox | None = None,
     spin_temp: TsBox | None = None,
-    halobox: EmissivityFields | None = None,
+    emissivity_fields: EmissivityFields | None = None,
 ) -> IonizedBox:
     r"""
     Compute an ionized box at a given redshift.
@@ -870,10 +889,9 @@ def compute_ionization_field(
         in a spin temp box at the current redshift, and failing that will try to automatically
         create one, using the previous ionized box redshift as the previous spin temperature
         redshift.
-    halobox: :class:`~EmissivityFields` or None, optional
-        If passed, this contains all the dark matter haloes obtained if using the
-        lagrangian source models. These are grids containing summed halo properties
-        such as ionizing emissivity.
+    emissivity_fields: :class:`~EmissivityFields` or None, optional
+        If passed, this contains the emissivity fields, such as n_ion and weighted star formation density rate.
+        Required only for lagrangian source models.
 
     Returns
     -------
@@ -915,8 +933,8 @@ def compute_ionization_field(
 
         if not inputs.matter_options.lagrangian_source_grid:
             # Construct an empty halo field to pass in to the function.
-            halobox = EmissivityFields.dummy()
-        elif halobox is None:
+            emissivity_fields = EmissivityFields.dummy()
+        elif emissivity_fields is None:
             raise ValueError(
                 f"EmissivityFields must be provided for SOURCE_MODEL={inputs.matter_options.SOURCE_MODEL}"
             )
@@ -933,7 +951,7 @@ def compute_ionization_field(
             prev_perturbed_field=previous_perturbed_field,
             prev_ionize_box=previous_ionized_box,
             spin_temp=spin_temp,
-            halobox=halobox,
+            emissivity_fields=emissivity_fields,
             ics=initial_conditions,
         )
     else:

@@ -79,7 +79,7 @@ def spin_temp_evolution(ic: InitialConditions, default_input_struct_ts: TsBox, c
             inputs=default_input_struct_ts,
             cache=cache,
         )
-        hb = p21c.compute_halo_grid(
+        emissivity_fields = p21c.compute_halo_grid(
             redshift=z,
             initial_conditions=ic,
             perturbed_field=pt,
@@ -88,7 +88,7 @@ def spin_temp_evolution(ic: InitialConditions, default_input_struct_ts: TsBox, c
         )
 
         rf = p21c.compute_radiation_fields(
-            hboxes=[hb],
+            emissivity_fields_list=[emissivity_fields],
             redshift=z,
             cache=cache,
         )
@@ -105,7 +105,7 @@ def spin_temp_evolution(ic: InitialConditions, default_input_struct_ts: TsBox, c
             {
                 "redshift": z,
                 "perturbed_field": pt,
-                "halo_box": hb,
+                "emissivity_fields": emissivity_fields,
                 "radiation_fields": rf,
                 "spin_temp": st,
             }
@@ -494,7 +494,7 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     ic = InitialConditions.new(inputs=test_inputs)
     ic_eulerian = InitialConditions.new(inputs=test_inputs_eulerian)
     hf = HaloCatalog.new(redshift=10.0, inputs=test_inputs, buffer_size=1)
-    hb = EmissivityFields.new(redshift=10.0, inputs=test_inputs)
+    emissivity_fields = EmissivityFields.new(redshift=10.0, inputs=test_inputs)
     pt = PerturbedField.new(redshift=10.0, inputs=test_inputs)
     pt_p = PerturbedField.new(redshift=11.0, inputs=test_inputs)
     st = TsBox.new(redshift=10.0, inputs=test_inputs)
@@ -582,7 +582,7 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
             initial_conditions=ic,
             perturbed_field=pt,
             previous_perturbed_field=pt_p,
-            halobox=hb,
+            emissivity_fields=emissivity_fields,
             spin_temp=st,
         )
     with pytest.raises(
@@ -592,7 +592,7 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
         p21c.compute_ionization_field(
             initial_conditions=ic,
             perturbed_field=pt,
-            halobox=hb,
+            emissivity_fields=emissivity_fields,
             previous_ionized_box=ib_p,
             spin_temp=st,
         )
@@ -613,26 +613,26 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
             initial_conditions=ic,
             perturbed_field=pt,
             previous_perturbed_field=pt_p,
-            halobox=hb,
+            emissivity_fields=emissivity_fields,
             previous_ionized_box=ib_p,
         )
 
     prev_st = spin_temp_evolution[-2]["spin_temp"]
-    hb1 = spin_temp_evolution[-1]["halo_box"]
-    hb2 = spin_temp_evolution[-2]["halo_box"]
-    hb3 = spin_temp_evolution[-3]["halo_box"]
+    emissivity_fields1 = spin_temp_evolution[-1]["emissivity_fields"]
+    emissivity_fields2 = spin_temp_evolution[-2]["emissivity_fields"]
+    emissivity_fields3 = spin_temp_evolution[-3]["emissivity_fields"]
 
     rad_setup = setup_radiation_fields(
         redshift=default_input_struct_ts.node_redshifts[-1],
         previous_spin_temp=prev_st,
-        hboxes=[hb1, hb2],
+        emissivity_fields_list=[emissivity_fields1, emissivity_fields2],
     )
     with pytest.raises(
         ValueError,
-        match="The redshifts of the input halo boxes do not match those of the input rad_setup!",
+        match="The redshifts of the input emissivity_fields do not match those of the input rad_setup!",
     ):
         p21c.compute_radiation_fields(
-            hboxes=[hb1, hb3],
+            emissivity_fields_list=[emissivity_fields1, emissivity_fields3],
             redshift=default_input_struct_ts.node_redshifts[-1],
             rad_setup=rad_setup,
         )
@@ -650,27 +650,27 @@ def test_radiation_fields_with_zero_sfr(
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
     )
 
-    hbox1 = EmissivityFields.new(redshift=redshift + 1, inputs=inputs)
-    hbox2 = EmissivityFields.new(redshift=redshift, inputs=inputs)
+    emissivity_fields1 = EmissivityFields.new(redshift=redshift + 1, inputs=inputs)
+    emissivity_fields2 = EmissivityFields.new(redshift=redshift, inputs=inputs)
 
     # This is needed because the input arrays must be in a computed state.
     fields = ["halo_sfr", "halo_xray"]
     if use_mini_halos:
         fields += ["halo_sfr_mini", "log10_Mcrit_MCG_ave"]
-    shape = hbox1.halo_sfr.shape
+    shape = emissivity_fields1.halo_sfr.shape
     array = (
         Array(shape=shape, dtype=np.float32)
         .initialize()
         .with_value(val=np.zeros(shape))
     )
-    for hbox in [hbox1, hbox2]:
+    for emissivity_fields in [emissivity_fields1, emissivity_fields2]:
         for name in fields:
-            setattr(hbox, name, array.computed())
+            setattr(emissivity_fields, name, array.computed())
         if use_mini_halos:
-            hbox.log10_Mcrit_MCG_ave = 5.0
+            emissivity_fields.log10_Mcrit_MCG_ave = 5.0
 
     radiation_fields = p21c.compute_radiation_fields(
-        hboxes=[hbox1, hbox2],
+        emissivity_fields_list=[emissivity_fields1, emissivity_fields2],
         redshift=redshift,
     )
 

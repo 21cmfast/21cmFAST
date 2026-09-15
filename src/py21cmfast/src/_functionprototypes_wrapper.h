@@ -22,8 +22,8 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
 
 int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
                       PerturbedField *previous_perturbed_field, IonizedBox *previous_ionize_box,
-                      TsBox *spin_temp, EmissivityFields *halos, InitialConditions *ini_boxes,
-                      IonizedBox *box);
+                      TsBox *spin_temp, EmissivityFields *emissivity_fields,
+                      InitialConditions *ini_boxes, IonizedBox *box);
 
 int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_box,
                           PerturbedField *perturb_field, BrightnessTemp *box);
@@ -31,13 +31,13 @@ int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_
 int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
                             PerturbedField *perturbed_field, HaloCatalog *halos,
                             TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
-                            EmissivityFields *grids);
+                            EmissivityFields *emissivity_fields);
 
 int SetupRadiationFields(float redshift, TsBox *previous_spin_temp,
                          RadiationFieldsSetup *rad_setup);
 
-int UpdateRadiationFields(float redshift, EmissivityFields *halobox, int R_ct, double R_star,
-                          PerturbedField *perturbed_field, TsBox *previous_spin_temp,
+int UpdateRadiationFields(float redshift, EmissivityFields *emissivity_fields, int R_ct,
+                          double R_star, PerturbedField *perturbed_field, TsBox *previous_spin_temp,
                           RadiationFieldsSetup *rad_setup, RadiationFields *radiation_fields);
 /*--------------------------*/
 

@@ -78,7 +78,7 @@ class Coeval:
         default=None,
         validator=attrs.validators.optional(attrs.validators.instance_of(TsBox)),
     )
-    halobox: EmissivityFields | None = attrs.field(
+    emissivity_fields: EmissivityFields | None = attrs.field(
         default=None,
         validator=attrs.validators.optional(
             attrs.validators.instance_of(EmissivityFields)
@@ -676,12 +676,12 @@ def generate_coeval(
         yield coeval, coeval.redshift in out_redshifts
 
         # Purge the previous coeval after we're done with it
-        # Note: we do not attempt to purge halo box from prev_coeval, since it used in compute_radiation_fields.
-        #       Halo boxes are ultimately purged in halobox.prepare_for_next_snapshot().
+        # Note: we do not attempt to purge emissivity_fields from prev_coeval, since it used in compute_radiation_fields.
+        #       emissivity_fields are ultimately purged in emissivity_fields.prepare_for_next_snapshot().
         #       Meanwhile, unnecessary fields from initial_conditions were removed via prepare_for_perturb and prepare_for_spin_temp
         if prev_coeval is not None and prev_coeval.redshift not in out_redshifts:
             prev_coeval.prepare_for_next_snapshot(
-                keepset=["initial_conditions", "halobox"], force=True
+                keepset=["initial_conditions", "emissivity_fields"], force=True
             )
 
         prev_coeval = coeval
@@ -742,7 +742,7 @@ def _obtain_starting_point_for_scrolling(
             ionized_box=outputs["IonizedBox"],
             brightness_temperature=outputs["BrightnessTemp"],
             ts_box=outputs.get("TsBox", None),
-            halobox=outputs.get("Halobox", None),
+            emissivity_fields=outputs.get("EmissivityFields", None),
             photon_nonconservation_data=photon_nonconservation_data,
         )
     else:
@@ -767,12 +767,12 @@ def _redshift_loop_generator(
         write = CacheConfig()
 
     # Iterate through redshift from top to bottom
-    hbox_arr = []
+    emissivity_fields_list = []
 
     prev_coeval = init_coeval
     this_coeval = None
 
-    this_halobox = None
+    this_emissivity_fields = None
     this_spin_temp = None
     this_halofield = None
     this_radiation_fields = None
@@ -805,27 +805,33 @@ def _redshift_loop_generator(
             if inputs.matter_options.has_discrete_halos:
                 this_halofield = halofield_list[iz]
                 this_halofield.load_all()
-            this_halobox = sf.compute_halo_grid(
+            this_emissivity_fields = sf.compute_halo_grid(
                 inputs=inputs,
                 halo_catalog=this_halofield,
                 redshift=z,
                 perturbed_field=this_perturbed_field,
                 previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                 previous_spin_temp=getattr(prev_coeval, "ts_box", None),
-                write=write.halobox,
+                write=write.emissivity_fields,
                 **kw,
             )
 
             if inputs.astro_options.USE_TS_FLUCT:
                 this_rad_setup = sf.setup_radiation_fields(
                     redshift=z,
-                    hboxes=[*hbox_arr, this_halobox],
+                    emissivity_fields_list=[
+                        *emissivity_fields_list,
+                        this_emissivity_fields,
+                    ],
                     previous_spin_temp=getattr(prev_coeval, "ts_box", None),
                     previous_rad_setup=this_rad_setup,
                 )
                 this_radiation_fields = sf.compute_radiation_fields(
                     redshift=z,
-                    hboxes=[*hbox_arr, this_halobox],
+                    emissivity_fields_list=[
+                        *emissivity_fields_list,
+                        this_emissivity_fields,
+                    ],
                     previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                     previous_spin_temp=getattr(prev_coeval, "ts_box", None),
                     perturbed_field=this_perturbed_field,
@@ -856,7 +862,7 @@ def _redshift_loop_generator(
                 perturbed_field=this_perturbed_field,
                 # perturb field *not* interpolated here.
                 previous_perturbed_field=getattr(prev_coeval, "perturbed_field", None),
-                halobox=this_halobox,
+                emissivity_fields=this_emissivity_fields,
                 spin_temp=this_spin_temp,
                 write=write.ionized_box,
                 **kw,
@@ -880,17 +886,19 @@ def _redshift_loop_generator(
                 ionized_box=this_ionized_box,
                 brightness_temperature=this_bt,
                 ts_box=this_spin_temp,
-                halobox=this_halobox,
+                emissivity_fields=this_emissivity_fields,
                 photon_nonconservation_data=photon_nonconservation_data,
             )
 
             if (
                 prev_coeval is not None
-                and write.halobox
+                and write.emissivity_fields
                 and iz + 1 < len(all_redshifts)
             ):
-                for hbox in hbox_arr:
-                    hbox.prepare_for_next_snapshot(next_z=all_redshifts[iz + 1])
+                for emissivity_fields in emissivity_fields_list:
+                    emissivity_fields.prepare_for_next_snapshot(
+                        next_z=all_redshifts[iz + 1]
+                    )
 
             if this_halofield is not None:
                 this_halofield.purge()
@@ -899,7 +907,7 @@ def _redshift_loop_generator(
                 # Only evolve on the node_redshifts, not any redshifts in-between
                 # that the user might care about.
                 prev_coeval = this_coeval
-                hbox_arr += [this_halobox]
+                emissivity_fields_list += [this_emissivity_fields]
 
             # yield before the cleanup, so we can get at the fields before they are purged
             yield iz, this_coeval

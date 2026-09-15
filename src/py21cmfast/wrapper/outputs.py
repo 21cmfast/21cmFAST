@@ -1127,7 +1127,7 @@ class EmissivityFields(OutputStructZ):
             if inputs.astro_options.USE_MINI_HALOS:
                 out["halo_sfr_mini"] = Array(shape, dtype=np.float32)
 
-        if config["EXTRA_HALOBOX_FIELDS"]:
+        if config["EXTRA_EMISSIVITY_FIELDS"]:
             out["count"] = Array(shape, dtype=np.float32)
             out["halo_mass"] = Array(shape, dtype=np.float32)
             out["halo_stars"] = Array(shape, dtype=np.float32)
@@ -1284,8 +1284,8 @@ class RadiationFieldsSetup(OutputStructZ):
     NO_LIGHT: bool = attrs.field(default=True)
     # maximum source redshift for the radiation fields calculation
     source_z_max: float = attrs.field(default=0.0)
-    # redshifts of the input hboxes
-    hbox_redshifts: list[float] = attrs.field(factory=list)
+    # redshifts of the input emissivity_fields
+    emissivity_fields_redshifts: list[float] = attrs.field(factory=list)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1416,7 +1416,7 @@ class RadiationFieldsSetup(OutputStructZ):
                 / inputs.simulation_options.HII_DIM
                 * l_factor
             )
-        # now we need to find the closest halo box to the redshift of the shell
+        # now we need to find the edges of the shells (comoving distance)
         cosmo_ap = inputs.cosmo_params.cosmo
         cmd_zp = cosmo_ap.comoving_distance(redshift)
         R_steps = np.arange(0, inputs.astro_params.N_STEP_TS)
@@ -1425,7 +1425,7 @@ class RadiationFieldsSetup(OutputStructZ):
         )
         self.set("R_values", R_min * R_factor)
         cmd_edges = cmd_zp + self.R_values.value * un.Mpc  # comoving distance edges
-        # Get the edges of the shells
+        # Get the edges of the shells (redshift)
         zmin = z_at_value(cosmo_ap.comoving_distance, cmd_edges.min()).value
         zmax = z_at_value(cosmo_ap.comoving_distance, cmd_edges.max()).value
         zgrid = np.logspace(np.log10(zmin), np.log10(zmax), 100)
@@ -1594,7 +1594,7 @@ class RadiationFields(OutputStructZ):
         self,
         *,
         redshift,
-        halobox: EmissivityFields,
+        emissivity_fields: EmissivityFields,
         R_ct,
         R_star,
         perturbed_field: PerturbedField,
@@ -1606,7 +1606,7 @@ class RadiationFields(OutputStructZ):
         return self._compute(
             allow_already_computed,
             redshift,
-            halobox,
+            emissivity_fields,
             R_ct,
             R_star,
             perturbed_field,
@@ -1903,7 +1903,7 @@ class IonizedBox(OutputStructZ):
         prev_perturbed_field: PerturbedField,
         prev_ionize_box,
         spin_temp: TsBox,
-        halobox: EmissivityFields,
+        emissivity_fields: EmissivityFields,
         ics: InitialConditions,
         allow_already_computed: bool = False,
     ):
@@ -1916,7 +1916,7 @@ class IonizedBox(OutputStructZ):
             prev_perturbed_field,
             prev_ionize_box,
             spin_temp,
-            halobox,
+            emissivity_fields,
             ics,
         )
 

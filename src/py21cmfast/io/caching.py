@@ -518,7 +518,7 @@ class RunCache:
             ionized_box=boxes["IonizedBox"],
             brightness_temperature=boxes["BrightnessTemp"],
             ts_box=boxes.get("TsBox"),
-            halobox=boxes.get("EmissivityFields"),
+            emissivity_fields=boxes.get("EmissivityFields"),
         )
 
     def is_complete(self) -> bool:
@@ -544,7 +544,7 @@ class CacheConfigUpdate(TypedDict, total=False):
     spin_temp: bool
     ionized_box: bool
     brightness_temp: bool
-    halobox: bool
+    emissivity_fields: bool
     halo_catalog: bool
     radiation_fields: bool
 
@@ -558,7 +558,7 @@ class CacheConfig:
     spin_temp: bool = attrs.field(default=True, converter=bool)
     ionized_box: bool = attrs.field(default=True, converter=bool)
     brightness_temp: bool = attrs.field(default=True, converter=bool)
-    halobox: bool = attrs.field(default=True, converter=bool)
+    emissivity_fields: bool = attrs.field(default=True, converter=bool)
     halo_catalog: bool = attrs.field(default=True, converter=bool)
     radiation_fields: bool = attrs.field(default=True, converter=bool)
 
@@ -580,7 +580,7 @@ class CacheConfig:
             spin_temp=False,
             ionized_box=False,
             brightness_temp=False,
-            halobox=False,
+            emissivity_fields=False,
             halo_catalog=False,
             radiation_fields=False,
         ).update(**kwargs)
@@ -594,7 +594,7 @@ class CacheConfig:
             spin_temp=False,
             ionized_box=False,
             brightness_temp=False,
-            halobox=False,
+            emissivity_fields=False,
             halo_catalog=True,
             radiation_fields=False,
         ).update(**kwargs)
@@ -614,7 +614,7 @@ class CacheConfig:
             spin_temp=False,
             ionized_box=False,
             brightness_temp=False,
-            halobox=True,
+            emissivity_fields=True,
             halo_catalog=True,
             radiation_fields=False,
         ).update(**kwargs)

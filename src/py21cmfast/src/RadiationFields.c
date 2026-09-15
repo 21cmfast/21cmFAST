@@ -297,8 +297,8 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     fftwf_free(dummy_box);
 }
 
-int UpdateRadiationFields(float redshift, EmissivityFields *halobox, int R_ct, double R_star,
-                          PerturbedField *perturbed_field, TsBox *previous_spin_temp,
+int UpdateRadiationFields(float redshift, EmissivityFields *emissivity_fields, int R_ct,
+                          double R_star, PerturbedField *perturbed_field, TsBox *previous_spin_temp,
                           RadiationFieldsSetup *rad_setup, RadiationFields *radiation_fields) {
     int status;
     Try {  // This Try{} wraps the whole function.
@@ -316,23 +316,25 @@ int UpdateRadiationFields(float redshift, EmissivityFields *halobox, int R_ct, d
         double R_inner = R_ct == 0 ? 0 : rad_setup->R_values[R_ct - 1];
         double R_outer = rad_setup->R_values[R_ct];
 
-        one_annular_filter(halobox->halo_sfr, rad_setup->filtered_sfr, R_inner, R_outer, R_star,
-                           filter_type, &sfr_avg, &fsfr_avg);
-        one_annular_filter(halobox->halo_xray, rad_setup->filtered_xray, R_inner, R_outer, R_star,
-                           FILTER_SPHERICAL_SHELL_STRAIGHT_LINE, &xray_avg, &fxray_avg);
+        one_annular_filter(emissivity_fields->halo_sfr, rad_setup->filtered_sfr, R_inner, R_outer,
+                           R_star, filter_type, &sfr_avg, &fsfr_avg);
+        one_annular_filter(emissivity_fields->halo_xray, rad_setup->filtered_xray, R_inner, R_outer,
+                           R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE, &xray_avg, &fxray_avg);
         if (astro_options_global->USE_MINI_HALOS) {
-            one_annular_filter(halobox->halo_sfr_mini, rad_setup->filtered_sfr_mini, R_inner,
-                               R_outer, R_star, filter_type, &sfr_avg_mini, &fsfr_avg_mini);
+            one_annular_filter(emissivity_fields->halo_sfr_mini, rad_setup->filtered_sfr_mini,
+                               R_inner, R_outer, R_star, filter_type, &sfr_avg_mini,
+                               &fsfr_avg_mini);
             // In case of multiple scattering and mini-halos, we need to filter the SFRD
             // fields again for the the LW feedback, as these photons travel in straight
             // lines
             if (astro_options_global->LYA_MULTIPLE_SCATTERING) {
-                one_annular_filter(halobox->halo_sfr, rad_setup->filtered_sfr_lw, R_inner, R_outer,
-                                   R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE, &sfr_avg,
+                one_annular_filter(emissivity_fields->halo_sfr, rad_setup->filtered_sfr_lw, R_inner,
+                                   R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE, &sfr_avg,
                                    &fsfr_avg);
-                one_annular_filter(halobox->halo_sfr_mini, rad_setup->filtered_sfr_mini_lw, R_inner,
-                                   R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE,
-                                   &sfr_avg_mini, &fsfr_avg_mini);
+                one_annular_filter(emissivity_fields->halo_sfr_mini,
+                                   rad_setup->filtered_sfr_mini_lw, R_inner, R_outer, R_star,
+                                   FILTER_SPHERICAL_SHELL_STRAIGHT_LINE, &sfr_avg_mini,
+                                   &fsfr_avg_mini);
             }
         }
 
