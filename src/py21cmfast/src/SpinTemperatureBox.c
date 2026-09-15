@@ -477,8 +477,7 @@ void calculate_spectral_factors(double zp) {
             dstarlyLW_dt_prefactor[R_ct] = lw_integrand_prefactor * sum_lyLW_val;
             dstarlyLW_dt_prefactor_MINI[R_ct] = lw_integrand_prefactor * sum_lyLW_val_MINI;
             if (astro_options_global->USE_LYA_HEATING) {
-                dstarlya_cont_dt_prefactor_MINI[R_ct] =
-                    lya_integrand_prefactor * sum_ly2_val_MINI;
+                dstarlya_cont_dt_prefactor_MINI[R_ct] = lya_integrand_prefactor * sum_ly2_val_MINI;
                 dstarlya_inj_dt_prefactor_MINI[R_ct] =
                     lya_integrand_prefactor * sum_lynto2_val_MINI;
             }
