@@ -294,7 +294,7 @@ class RunCache:
     TsBox: dict[float, Path] = _dict_of_paths_field()
     IonizedBox: dict[float, Path] = _dict_of_paths_field()
     BrightnessTemp: dict[float, Path] = _dict_of_paths_field()
-    HaloBox: dict[float, Path] | None = _dict_of_paths_field()
+    EmissivityFields: dict[float, Path] | None = _dict_of_paths_field()
     HaloCatalog: dict[float, Path] | None = _dict_of_paths_field()
     RadiationFields: dict[float, Path] | None = _dict_of_paths_field()
     inputs: InputParameters | None = attrs.field(default=None)
@@ -326,7 +326,7 @@ class RunCache:
 
         others = {
             "PerturbedField": {},
-            "HaloBox": {},
+            "EmissivityFields": {},
             "IonizedBox": {},
             "BrightnessTemp": {},
         }
@@ -518,7 +518,7 @@ class RunCache:
             ionized_box=boxes["IonizedBox"],
             brightness_temperature=boxes["BrightnessTemp"],
             ts_box=boxes.get("TsBox"),
-            halobox=boxes.get("HaloBox"),
+            halobox=boxes.get("EmissivityFields"),
         )
 
     def is_complete(self) -> bool:
@@ -604,7 +604,7 @@ class CacheConfig:
         """Generate a CacheConfig where only boxes needed from more than one step away are cached.
 
         This represents the minimum caching setup which will *never* store every redshift in memory.
-        PerturbedField and PerturbedHaloCatalogs are all calculated at the start of the run, and HaloBox
+        PerturbedField and PerturbedHaloCatalogs are all calculated at the start of the run, and EmissivityFields
         is required at multiple redshifts for RadiationFields. So this caching setup allows free
         purging of these objects without losing data.
         """

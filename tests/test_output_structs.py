@@ -205,7 +205,7 @@ def test_optional_field_perturb(default_input_struct_lc: InputParameters):
 
 
 def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParameters):
-    """Ensure that the correct HaloBox fields are set based on the parameters."""
+    """Ensure that the correct EmissivityFields fields are set based on the parameters."""
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=default_input_struct_lc, buffer_size=1
     )
@@ -239,8 +239,8 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
 
 
 def test_optional_field_halobox(default_input_struct_lc: InputParameters):
-    """Ensure that the correct HaloBox fields are set based on the parameters."""
-    hb = ox.HaloBox.new(redshift=0.0, inputs=default_input_struct_lc)
+    """Ensure that the correct EmissivityFields fields are set based on the parameters."""
+    hb = ox.EmissivityFields.new(redshift=0.0, inputs=default_input_struct_lc)
     assert hb.count is None
     assert hb.halo_mass is None
     assert hb.halo_stars is None
@@ -252,13 +252,13 @@ def test_optional_field_halobox(default_input_struct_lc: InputParameters):
     assert isinstance(hb.n_ion, Array)
 
     with config.use(EXTRA_HALOBOX_FIELDS=True):
-        hb = ox.HaloBox.new(redshift=0.0, inputs=default_input_struct_lc)
+        hb = ox.EmissivityFields.new(redshift=0.0, inputs=default_input_struct_lc)
         assert isinstance(hb.halo_mass, Array)
         assert isinstance(hb.count, Array)
         assert isinstance(hb.halo_stars, Array)
         assert hb.halo_stars_mini is None
 
-        hb = ox.HaloBox.new(
+        hb = ox.EmissivityFields.new(
             redshift=0.0,
             inputs=default_input_struct_lc.evolve_input_structs(
                 USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous", USE_MINI_HALOS=True
@@ -269,16 +269,16 @@ def test_optional_field_halobox(default_input_struct_lc: InputParameters):
     inputs = default_input_struct_lc.evolve_input_structs(
         RECOMB_MODEL="inhomogeneous", SOURCE_MODEL="L-INTEGRAL"
     )
-    hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
+    hb = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
     assert isinstance(hb.whalo_sfr, Array)
 
     inputs = inputs.evolve_input_structs(USE_TS_FLUCT=True)
-    hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
+    hb = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
     assert isinstance(hb.halo_sfr, Array)
     assert isinstance(hb.halo_xray, Array)
 
     inputs = inputs.evolve_input_structs(USE_MINI_HALOS=True)
-    hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
+    hb = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
     assert isinstance(hb.halo_sfr_mini, Array)
 
 

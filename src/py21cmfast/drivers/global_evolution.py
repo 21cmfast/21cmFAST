@@ -15,7 +15,7 @@ from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
     IonizedBox,
     PerturbedField,
     TsBox,
@@ -36,7 +36,7 @@ def compute_global_reionization_at_z(
     ----------
     inputs : :class:`~InputParameters`
         The input parameters specifying the run. Since this may be the first box
-        to use the astro params/flags, it is needed when we have not computed a TsBox or HaloBox.
+        to use the astro params/flags, it is needed when we have not computed a TsBox or EmissivityFields.
     previous_ionize_box: :class:`IonizedBox`
         An ionized box at higher redshift.
     spin_temp: :class:`TsBox` or None, optional
@@ -163,7 +163,7 @@ class GlobalEvolution:
         """Get a list of the names of the available fields in the simulation."""
         possible_outputs = [
             PerturbedField.new(inputs, redshift=0),
-            HaloBox.new(inputs, redshift=0),
+            EmissivityFields.new(inputs, redshift=0),
             IonizedBox.new(inputs, redshift=0),
             BrightnessTemp.new(inputs, redshift=0),
         ]

@@ -10,7 +10,7 @@
 #include <stdlib.h>
 
 #include "Constants.h"
-#include "HaloBox.h"
+#include "EmissivityFields.h"
 #include "InputParameters.h"
 #include "cosmology.h"
 #include "exceptions.h"
@@ -215,7 +215,7 @@ void move_grid_masses(double redshift, float *dens_pointer, int dens_dim[3], flo
 //  are on the innermost loops, any generalisation is likely to slow things down.
 void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
                         float *vel_pointers[3], float *vel_pointers_2LPT[3], int vel_dim[3],
-                        HaloBox *boxes, int out_dim[3], double M_min, double M_max,
+                        EmissivityFields *boxes, int out_dim[3], double M_min, double M_max,
                         float *log10_mturn_acg_grid, float *log10_mturn_mcg_grid,
                         ScalingConstants *consts) {
     double growth_factor, init_growth_factor, displacement_factor_2LPT,
@@ -399,7 +399,7 @@ void move_grid_galprops(double redshift, float *dens_pointer, int dens_dim[3],
 
 void move_halo_galprops(double redshift, HaloCatalog *halos, float *vel_pointers[3],
                         float *vel_pointers_2LPT[3], int vel_dim[3], float *log10_mturn_acg_grid,
-                        float *log10_mturn_mcg_grid, HaloBox *boxes, int out_dim[3],
+                        float *log10_mturn_mcg_grid, EmissivityFields *boxes, int out_dim[3],
                         ScalingConstants *consts) {
     // grid dimension constants
     double boxlen = simulation_options_global->BOX_LEN;

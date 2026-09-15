@@ -16,7 +16,7 @@ from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
     HaloCatalog,
     InitialConditions,
     IonizedBox,
@@ -303,7 +303,7 @@ def compute_halo_grid(
     perturbed_field: PerturbedField | None = None,
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
-) -> HaloBox:
+) -> EmissivityFields:
     r"""
     Compute grids of halo properties from a catalogue.
 
@@ -331,15 +331,15 @@ def compute_halo_grid(
 
     Returns
     -------
-    :class:`~HaloBox` :
-        An object containing the halo box data.
+    :class:`~EmissivityFields` :
+        An object containing the emissivity fields.
 
     Other Parameters
     ----------------
     regenerate, write, cache:
         See docs of :func:`initial_conditions` for more information.
     """
-    box = HaloBox.new(redshift=redshift, inputs=inputs)
+    box = EmissivityFields.new(redshift=redshift, inputs=inputs)
 
     if halo_catalog is None:
         if inputs.matter_options.has_discrete_halos:
@@ -413,13 +413,13 @@ def compute_halo_grid(
 # TODO: remove the need_c argument, this is currently required because we call this function once for just computing the history of
 # log10_Mcrit_MCG_ave - see other comment about this in need_c.
 def interp_halo_boxes(
-    halo_boxes: list[HaloBox],
+    halo_boxes: list[EmissivityFields],
     interp_fields: list[str],
     redshift: float,
     need_c: bool,
-) -> HaloBox:
+) -> EmissivityFields:
     """
-    Interpolate HaloBox history to the desired redshift.
+    Interpolate EmissivityFields history to the desired redshift.
 
     Photon conservation & Xray sources require halo boxes at redshifts
     that are not equal to the current redshift, and may be between redshift steps.
@@ -428,10 +428,10 @@ def interp_halo_boxes(
 
     Parameters
     ----------
-    halo_boxes : list of HaloBox instances
-        The halobox history to be interpolated
+    halo_boxes : list of EmissivityFields instances
+        The emissivity fields history to be interpolated
     interp_fields: list[str]
-        The properties of the haloboxes to be interpolated
+        The properties of the emissivity fields to be interpolated
     redshift : float
         The desired redshift of interpolation
     need_c : bool
@@ -439,8 +439,8 @@ def interp_halo_boxes(
 
     Returns
     -------
-    :class:`~HaloBox` :
-        An object containing the halo box data
+    :class:`~EmissivityFields` :
+        An object containing the emissivity fields data
     """
     inputs = halo_boxes[0].inputs
     z_halos = [box.redshift for box in halo_boxes]
@@ -455,7 +455,7 @@ def interp_halo_boxes(
         arr_fields = [f for f in interp_fields if f in halo_boxes[0].arrays]
         computed = [box.ensure_arrays_computed(*arr_fields) for box in halo_boxes]
         if not all(computed):
-            raise ValueError("Some of the HaloBox fields required are not computed")
+            raise ValueError("Some of the emissivity fields required are not computed")
 
     idx_prog = np.searchsorted(z_halos, redshift, side="left")
 
@@ -482,7 +482,7 @@ def interp_halo_boxes(
                 )
             )
         )
-    hbox_out = HaloBox.new(redshift=redshift, inputs=inputs)
+    hbox_out = EmissivityFields.new(redshift=redshift, inputs=inputs)
 
     # initialise the memory
     if need_c:
@@ -509,7 +509,7 @@ def interp_halo_boxes(
 @init_c_state(sigma=True)
 def setup_radiation_fields(
     *,
-    hboxes: list[HaloBox],
+    hboxes: list[EmissivityFields],
     redshift: float,
     previous_rad_setup: RadiationFieldsSetup | None = None,
     previous_spin_temp: TsBox | None = None,
@@ -521,8 +521,8 @@ def setup_radiation_fields(
     ----------
     redshift: float
         The redshift at which to compute the radiation fields.
-    hboxes: Sequence of :class:`~HaloBox` instances
-        This contains the list of Halobox instances which are used to create this source field
+    hboxes: Sequence of :class:`~EmissivityFields` instances
+        This contains the list of EmissivityFields instances which are used to create this source field
     previous_rad_setup: :class:`~RadiationFieldsSetup` or None
         An initialized object containing the required arrays for computing the radiation fields.
     previous_spin_temp: :class:`TsBox` or None
@@ -625,7 +625,7 @@ def setup_radiation_fields(
 @init_c_state(broadcast_inputs=True)
 def compute_radiation_fields(
     *,
-    hboxes: list[HaloBox],
+    hboxes: list[EmissivityFields],
     redshift: float,
     rad_setup: RadiationFieldsSetup | None = None,
     previous_ionize_box: IonizedBox | None = None,
@@ -644,8 +644,8 @@ def compute_radiation_fields(
         The redshift at which to compute the radiation fields.
     rad_setup: :class:`~RadiationFieldsSetup` or None
         An object containing the required arrays for computing the radiation fields at this redshift.
-    hboxes: Sequence of :class:`~HaloBox` instances
-        This contains the list of Halobox instances which are used to create this source field
+    hboxes: Sequence of :class:`~EmissivityFields` instances
+        This contains the list of EmissivityFields instances which are used to create this source field
     previous_ionize_box: :class:`IonizedBox` or None
         An ionized box at higher redshift. This is only used if `LYA_MULTIPLE_SCATTERING` is true.
     previous_spin_temp: :class:`TsBox` or None
@@ -841,7 +841,7 @@ def compute_ionization_field(
     previous_perturbed_field: PerturbedField | None = None,
     previous_ionized_box: IonizedBox | None = None,
     spin_temp: TsBox | None = None,
-    halobox: HaloBox | None = None,
+    halobox: EmissivityFields | None = None,
 ) -> IonizedBox:
     r"""
     Compute an ionized box at a given redshift.
@@ -855,7 +855,7 @@ def compute_ionization_field(
         The initial conditions.
     inputs : :class:`~InputParameters`
         The input parameters specifying the run. Since this may be the first box
-        to use the astro params/flags, it is needed when we have not computed a TsBox or HaloBox.
+        to use the astro params/flags, it is needed when we have not computed a TsBox or EmissivityFields.
     perturbed_field : :class:`~PerturbedField`
         The perturbed density field.
     previous_perturbed_field : :class:`~PerturbedField`, optional
@@ -870,7 +870,7 @@ def compute_ionization_field(
         in a spin temp box at the current redshift, and failing that will try to automatically
         create one, using the previous ionized box redshift as the previous spin temperature
         redshift.
-    halobox: :class:`~HaloBox` or None, optional
+    halobox: :class:`~EmissivityFields` or None, optional
         If passed, this contains all the dark matter haloes obtained if using the
         lagrangian source models. These are grids containing summed halo properties
         such as ionizing emissivity.
@@ -915,10 +915,10 @@ def compute_ionization_field(
 
         if not inputs.matter_options.lagrangian_source_grid:
             # Construct an empty halo field to pass in to the function.
-            halobox = HaloBox.dummy()
+            halobox = EmissivityFields.dummy()
         elif halobox is None:
             raise ValueError(
-                f"A HaloBox must be provided for SOURCE_MODEL={inputs.matter_options.SOURCE_MODEL}"
+                f"EmissivityFields must be provided for SOURCE_MODEL={inputs.matter_options.SOURCE_MODEL}"
             )
 
         # Set empty spin temp box if necessary.

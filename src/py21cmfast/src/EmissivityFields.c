@@ -1,7 +1,7 @@
-/* This file contains fucntions for calculating the HaloBox output for 21cmfast, containing the
- * gridded source properties, either from integrating the conditional mass functions in a cell or
- * from the halo sampler */
-#include "HaloBox.h"
+/* This file contains fucntions for calculating the EmissivityFields output for 21cmfast, containing
+ * the contributions to the emissivity fields, either from integrating the conditional mass
+ * functions in a cell or from the halo sampler */
+#include "EmissivityFields.h"
 
 #include <gsl/gsl_sf_gamma.h>
 #include <math.h>
@@ -175,7 +175,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     return 0;
 }
 
-HaloProperties get_halobox_averages(HaloBox *grids, PerturbedField *perturbed_field) {
+HaloProperties get_halobox_averages(EmissivityFields *grids, PerturbedField *perturbed_field) {
     double mean_count = 0.;
     double mean_mass = 0., mean_stars = 0., mean_stars_mini = 0., mean_sfr = 0., mean_sfr_mini = 0.;
     double mean_n_ion = 0., mean_xray = 0., mean_wsfr = 0.;
@@ -228,11 +228,12 @@ HaloProperties get_halobox_averages(HaloBox *grids, PerturbedField *perturbed_fi
     return averages;
 }
 
-// This takes a HaloBox struct and fixes it's mean to exactly what we expect from the UMF integrals.
+// This takes an EmissivityFields struct and fixes it's mean to exactly what we expect from the UMF
+// integrals.
 //   Generally should only be done for the fixed portion of the grids, since
 //   it will otherwise make the box inconsistent with the input catalogue
-void mean_fix_grids(double M_min, double M_max, HaloBox *grids, PerturbedField *perturbed_field,
-                    ScalingConstants *consts) {
+void mean_fix_grids(double M_min, double M_max, EmissivityFields *grids,
+                    PerturbedField *perturbed_field, ScalingConstants *consts) {
     HaloProperties averages_global;
     // NOTE: requires the mean mcrits to be set on the grids
     double M_turn_acg_global = pow(10, grids->log10_Mcrit_ACG_ave);
@@ -349,17 +350,17 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
     // For the Eulerian source models, we need to multiiply the emissivity fields by (1 + delta)
     // TODO: why?
     if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
-        // TODO: right now n_ion from HaloBox is not used at all in IonisationBox.c for the Eulerian
-        // source models, so whatever we compute here is not very relevant at the moment. This might
-        // change however in the future. When that happens, we will have to figure out whether the
-        // multiplication of n_ion by (1 + delta) is the right thing to do for the Eulerian source
-        // models, since this factor does not seem to appear in IonisationBox.c for the Eulerian
-        // source models. I wonder if it's because what we call n_ion is not a standard emissivity
-        // field, but rather a ratio: it is the number of ionizing photons that have escapted into
-        // the IGM over the number of baryons in the cell. It's possible that both the numerator and
-        // denominator are scaled by (1 + delta) on the Eulerian grid, and thus the ratio is not
-        // affected by this factor. Anyway, this should be checked.
-        // properties->n_ion *= 1. + dens;
+        // TODO: right now n_ion from EmissivityFields is not used at all in IonisationBox.c for the
+        // Eulerian source models, so whatever we compute here is not very relevant at the moment.
+        // This might change however in the future. When that happens, we will have to figure out
+        // whether the multiplication of n_ion by (1 + delta) is the right thing to do for the
+        // Eulerian source models, since this factor does not seem to appear in IonisationBox.c for
+        // the Eulerian source models. I wonder if it's because what we call n_ion is not a standard
+        // emissivity field, but rather a ratio: it is the number of ionizing photons that have
+        // escapted into the IGM over the number of baryons in the cell. It's possible that both the
+        // numerator and denominator are scaled by (1 + delta) on the Eulerian grid, and thus the
+        // ratio is not affected by this factor. Anyway, this should be checked. properties->n_ion
+        // *= 1. + dens;
         if (astro_options_global->USE_TS_FLUCT) {
             properties->halo_sfr *= 1. + dens;
             if (astro_options_global->USE_MINI_HALOS) {
@@ -387,7 +388,8 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
 // with no following advection. This outputs the UN-NORMALISED grids (before mean-adjustment)
 int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
                     PerturbedField *perturbed_field, float *log10_mturn_acg_grid,
-                    float *log10_mturn_mcg_grid, ScalingConstants *consts, HaloBox *grids) {
+                    float *log10_mturn_mcg_grid, ScalingConstants *consts,
+                    EmissivityFields *grids) {
     double lnM_min = log(M_min);
     double lnM_max = log(M_max);
     double M_cell = consts->M_cell;
@@ -525,7 +527,7 @@ int set_fixed_grids(double M_min, double M_max, InitialConditions *ini_boxes,
     return 0;
 }
 
-void halobox_debug_print_avg(HaloBox *halobox, PerturbedField *perturbed_field,
+void halobox_debug_print_avg(EmissivityFields *halobox, PerturbedField *perturbed_field,
                              ScalingConstants *consts, double M_min, double M_max) {
     if (LOG_LEVEL < DEBUG_LEVEL) return;
     HaloProperties averages_box;
@@ -632,7 +634,7 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 
 void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloCatalog *halos,
                          float *log10_mturn_acg_grid, float *log10_mturn_mcg_grid,
-                         ScalingConstants *consts, HaloBox *grids) {
+                         ScalingConstants *consts, EmissivityFields *grids) {
     float *vel_pointers[3];
     float *vel_pointers_2LPT[3];
     int vel_dim[3];
@@ -683,10 +685,10 @@ void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloCata
     }
 }
 
-// We grid a PERTURBED halofield into the necessary quantities for calculating radiative backgrounds
-int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField *perturbed_field,
-                   HaloCatalog *halos, TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
-                   HaloBox *grids) {
+int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
+                            PerturbedField *perturbed_field, HaloCatalog *halos,
+                            TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
+                            EmissivityFields *grids) {
     int status;
     Try {
         // get parameters

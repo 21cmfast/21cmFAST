@@ -194,7 +194,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
         consts->gamma_prefactor = consts->gamma_prefactor / (sc.sfr_timescale);
     else {
         // TODO: The usage of t_STAR in the mass-independent source model seems inconsistent,
-        // especially with how we compute the SFRD in HaloBox.c.
+        // especially with how we compute the SFRD in EmissivityFields.c.
         consts->gamma_prefactor =
             consts->gamma_prefactor / astro_params_global->t_STAR / t_hubble(redshift);
     }
@@ -382,7 +382,7 @@ void setup_first_z_prevbox(IonizedBox *previous_ionize_box, PerturbedField *prev
     }
 }
 
-// TODO: This functions is almost identical to get_log10_turnovers in HaloBox.c
+// TODO: This functions is almost identical to get_log10_turnovers in EmissivityFields.c
 // (the main difference is that here we work with arrays with FFT padding).
 // It would be nice to merge them into a single function
 void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialConditions *ini_boxes,
@@ -1312,7 +1312,7 @@ void set_recombination_rates(IonizedBox *box, IonizedBox *previous_ionize_box,
 
 int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
                       PerturbedField *previous_perturbed_field, IonizedBox *previous_ionize_box,
-                      TsBox *spin_temp, HaloBox *halos, InitialConditions *ini_boxes,
+                      TsBox *spin_temp, EmissivityFields *halos, InitialConditions *ini_boxes,
                       IonizedBox *box) {
     int status;
 

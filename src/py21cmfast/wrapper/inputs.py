@@ -2558,7 +2558,7 @@ def check_halomass_range(inputs: InputParameters) -> None:
     MAX_INTEGRAL_MASS = 1e16 * un.M_sun  # define macro in hmf.h
 
     # Get lowres and hires cell mass: the former (latter) is only used with (without) the sampler
-    # Also set maximum integral mass, according to the C code in ComputeHaloBox
+    # Also set maximum integral mass, according to the C code in ComputeEmissivityFields
     massdens = inputs.cosmo_params.cosmo.critical_density(0) * inputs.cosmo_params.OMm
     if has_sampled_halos:
         lowres_cell_mass = (massdens * inputs.simulation_options.cell_size**3).to(

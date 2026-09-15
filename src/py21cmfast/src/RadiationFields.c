@@ -297,7 +297,7 @@ void one_annular_filter(float *input_box, float *output_box, double R_inner, dou
     fftwf_free(dummy_box);
 }
 
-int UpdateRadiationFields(float redshift, HaloBox *halobox, int R_ct, double R_star,
+int UpdateRadiationFields(float redshift, EmissivityFields *halobox, int R_ct, double R_star,
                           PerturbedField *perturbed_field, TsBox *previous_spin_temp,
                           RadiationFieldsSetup *rad_setup, RadiationFields *radiation_fields) {
     int status;

@@ -20,8 +20,8 @@ __all__ = [
     "CacheConfig",
     "Coeval",
     "CosmoParams",
+    "EmissivityFields",
     "GlobalEvolution",
-    "HaloBox",
     "HaloCatalog",
     "InitialConditions",
     "InputParameters",
@@ -108,7 +108,7 @@ from .wrapper.inputs import (
 )
 from .wrapper.outputs import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
     HaloCatalog,
     InitialConditions,
     IonizedBox,

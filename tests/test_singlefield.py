@@ -12,7 +12,7 @@ import pytest
 import py21cmfast as p21c
 from py21cmfast import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
     HaloCatalog,
     InitialConditions,
     IonizedBox,
@@ -494,7 +494,7 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     ic = InitialConditions.new(inputs=test_inputs)
     ic_eulerian = InitialConditions.new(inputs=test_inputs_eulerian)
     hf = HaloCatalog.new(redshift=10.0, inputs=test_inputs, buffer_size=1)
-    hb = HaloBox.new(redshift=10.0, inputs=test_inputs)
+    hb = EmissivityFields.new(redshift=10.0, inputs=test_inputs)
     pt = PerturbedField.new(redshift=10.0, inputs=test_inputs)
     pt_p = PerturbedField.new(redshift=11.0, inputs=test_inputs)
     st = TsBox.new(redshift=10.0, inputs=test_inputs)
@@ -519,7 +519,7 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
             previous_spin_temp=st_p,
         )
 
-    # HaloBox
+    # EmissivityFields
     with pytest.raises(
         ValueError, match="You must provide initial_conditions for SOURCE_MODEL"
     ):
@@ -596,7 +596,9 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
             previous_ionized_box=ib_p,
             spin_temp=st,
         )
-    with pytest.raises(ValueError, match="A HaloBox must be provided for SOURCE_MODEL"):
+    with pytest.raises(
+        ValueError, match="EmissivityFields must be provided for SOURCE_MODEL"
+    ):
         p21c.compute_ionization_field(
             initial_conditions=ic,
             perturbed_field=pt,
@@ -648,8 +650,8 @@ def test_radiation_fields_with_zero_sfr(
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
     )
 
-    hbox1 = HaloBox.new(redshift=redshift + 1, inputs=inputs)
-    hbox2 = HaloBox.new(redshift=redshift, inputs=inputs)
+    hbox1 = EmissivityFields.new(redshift=redshift + 1, inputs=inputs)
+    hbox2 = EmissivityFields.new(redshift=redshift, inputs=inputs)
 
     # This is needed because the input arrays must be in a computed state.
     fields = ["halo_sfr", "halo_xray"]

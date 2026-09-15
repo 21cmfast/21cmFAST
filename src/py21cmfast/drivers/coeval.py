@@ -22,7 +22,7 @@ from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
     HaloCatalog,
     InitialConditions,
     IonizedBox,
@@ -78,9 +78,11 @@ class Coeval:
         default=None,
         validator=attrs.validators.optional(attrs.validators.instance_of(TsBox)),
     )
-    halobox: HaloBox | None = attrs.field(
+    halobox: EmissivityFields | None = attrs.field(
         default=None,
-        validator=attrs.validators.optional(attrs.validators.instance_of(HaloBox)),
+        validator=attrs.validators.optional(
+            attrs.validators.instance_of(EmissivityFields)
+        ),
     )
     photon_nonconservation_data: dict = attrs.field(factory=dict)
 

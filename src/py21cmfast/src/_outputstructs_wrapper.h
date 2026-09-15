@@ -44,7 +44,7 @@ typedef struct PerturbedHaloCatalog {
     float *sfr_mini;
 } PerturbedHaloCatalog;
 
-typedef struct HaloBox {
+typedef struct EmissivityFields {
     // Things that aren't used in radiation fields but useful outputs
     float *halo_mass;
     float *halo_stars;
@@ -62,7 +62,7 @@ typedef struct HaloBox {
     // MF integrals
     double log10_Mcrit_ACG_ave;
     double log10_Mcrit_MCG_ave;
-} HaloBox;
+} EmissivityFields;
 
 typedef struct RadiationFieldsSetup {
     // R-dependent arrays which are set once

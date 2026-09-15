@@ -1072,11 +1072,11 @@ class PerturbedHaloCatalog(OutputStructZ):
 
 
 @attrs.define(slots=False, kw_only=True)
-class HaloBox(OutputStructZ):
+class EmissivityFields(OutputStructZ):
     """A class containing all gridded halo properties."""
 
     _meta = False
-    _c_compute_function = lib.ComputeHaloBox
+    _c_compute_function = lib.ComputeEmissivityFields
 
     count = _arrayfield(optional=True)
     halo_mass = _arrayfield(optional=True)
@@ -1093,7 +1093,7 @@ class HaloBox(OutputStructZ):
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
-        """Create a new HaloBox instance with the given inputs.
+        """Create a new EmissivityFields instance with the given inputs.
 
         Parameters
         ----------
@@ -1104,7 +1104,7 @@ class HaloBox(OutputStructZ):
 
         Other Parameters
         ----------------
-        All other parameters are passed through to the :class:`HaloBox`
+        All other parameters are passed through to the :class:`EmissivityFields`
         constructor.
         """
         dim = inputs.simulation_options.HII_DIM
@@ -1182,7 +1182,9 @@ class HaloBox(OutputStructZ):
             ):
                 required += ["lowres_vcb"]
         else:
-            raise ValueError(f"{type(input_box)} is not an input required for HaloBox!")
+            raise ValueError(
+                f"{type(input_box)} is not an input required for EmissivityFields!"
+            )
 
         return required
 
@@ -1208,7 +1210,7 @@ class HaloBox(OutputStructZ):
         )
 
     def prepare_for_next_snapshot(self, next_z, force: bool = False):
-        """Prepare the HaloBox for the next snapshot."""
+        """Prepare the EmissivityFields for the next snapshot."""
         keep = []
         # We need to keep fields for interpolation only if we calculate the spin temperature
         if self.astro_options.USE_TS_FLUCT:
@@ -1535,7 +1537,7 @@ class RadiationFields(OutputStructZ):
             required += ["density"]
         elif isinstance(input_box, TsBox):
             required += ["xray_ionised_fraction"]
-        elif isinstance(input_box, HaloBox):
+        elif isinstance(input_box, EmissivityFields):
             required += ["halo_sfr", "halo_xray"]
             if self.astro_options.USE_MINI_HALOS:
                 required += ["halo_sfr_mini"]
@@ -1592,7 +1594,7 @@ class RadiationFields(OutputStructZ):
         self,
         *,
         redshift,
-        halobox: HaloBox,
+        halobox: EmissivityFields,
         R_ct,
         R_star,
         perturbed_field: PerturbedField,
@@ -1882,7 +1884,7 @@ class IonizedBox(OutputStructZ):
                     "unnormalised_nion",
                     "unnormalised_nion_mini",
                 ]
-        elif isinstance(input_box, HaloBox):
+        elif isinstance(input_box, EmissivityFields):
             if self.matter_options.lagrangian_source_grid:
                 required += ["n_ion"]
                 if self.astro_options.RECOMB_MODEL != "none":
@@ -1901,7 +1903,7 @@ class IonizedBox(OutputStructZ):
         prev_perturbed_field: PerturbedField,
         prev_ionize_box,
         spin_temp: TsBox,
-        halobox: HaloBox,
+        halobox: EmissivityFields,
         ics: InitialConditions,
         allow_already_computed: bool = False,
     ):

@@ -13,7 +13,7 @@ def get_expected_outputs(
     out = {
         "InitialConditions": ostrct.InitialConditions.new(inputs).arrays,
         "PerturbedField": ostrct.PerturbedField.new(inputs, redshift=6).arrays,
-        "HaloBox": ostrct.HaloBox.new(inputs, redshift=6).arrays,
+        "EmissivityFields": ostrct.EmissivityFields.new(inputs, redshift=6).arrays,
         "IonizedBox": ostrct.IonizedBox.new(inputs, redshift=6).arrays,
         "BrightnessTemp": ostrct.BrightnessTemp.new(inputs, redshift=6).arrays,
     }
@@ -37,7 +37,7 @@ def get_expected_outputs(
     if not cache_config.halo_catalog and "HaloCatalog" in out:
         del out["HaloCatalog"]
     if not cache_config.halobox:
-        del out["HaloBox"]
+        del out["EmissivityFields"]
     if not cache_config.spin_temp and "TsBox" in out:
         del out["TsBox"]
     if not cache_config.radiation_fields and "RadiationFields" in out:

@@ -198,9 +198,9 @@ typedef struct ConfigSettings {
    different parameters).
 
    In future we should have a parameter structure in each .c file containing ONLY parameters
-   relevant to it (look at HaloBox.c), and force the broadcast at each _compute() step (or even
-   decorate any library call) However this would require us to be very careful about initialising
-   the globals when ANY function from that file is called */
+   relevant to it (look at EmissivityFields.c), and force the broadcast at each _compute() step (or
+   even decorate any library call) However this would require us to be very careful about
+   initialising the globals when ANY function from that file is called */
 // The structs declared here defined in InputParameters.c
 extern SimulationOptions *simulation_options_global;
 extern MatterOptions *matter_options_global;

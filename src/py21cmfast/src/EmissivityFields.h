@@ -26,9 +26,10 @@ typedef struct HaloProperties {
     double metallicity;
 } HaloProperties;
 
-int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField *perturbed_field,
-                   HaloCatalog *halos, TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
-                   HaloBox *grids);
+int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
+                            PerturbedField *perturbed_field, HaloCatalog *halos,
+                            TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
+                            EmissivityFields *grids);
 
 void get_cell_integrals(double dens, double M_min, double M_max, double l10_mturn_acg,
                         double l10_mturn_mcg, ScalingConstants *consts, HaloProperties *properties);

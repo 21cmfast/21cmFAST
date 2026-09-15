@@ -207,7 +207,7 @@ class TestPerturb:
         np.testing.assert_allclose(hbox.get("halo_xray"), integral_xray, rtol=rtol)
 
     def test_hb_count_nonzero(self, inputs_low, test_pt_z):
-        """Tests that the HaloBox count field is non-zero with EXTRA_HALOBOX_FIELDS=True."""
+        """Tests that the EmissivityFields count field is non-zero with EXTRA_HALOBOX_FIELDS=True."""
         from py21cmfast import config
 
         ics = self.get_fake_ics(inputs_low, test_pt_z)

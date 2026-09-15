@@ -1,5 +1,5 @@
 /*This file contains the halo scaling relations which can be used by
-    the integrals in hmf.c or the sampled halos in HaloBox.c*/
+    the integrals in hmf.c or the sampled halos in EmissivityFields.c*/
 #include "scaling_relations.h"
 
 #include <gsl/gsl_sf_gamma.h>

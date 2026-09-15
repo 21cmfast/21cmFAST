@@ -24,7 +24,7 @@ from ..rsds import include_dvdr_in_tau21 as _apply_dvdr_in_tau21
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
     HaloCatalog,
     InitialConditions,
     IonizedBox,
@@ -89,7 +89,7 @@ class LightCone:
         """Get a list of the names of the available fields in the simulation."""
         possible_outputs = [
             PerturbedField.new(inputs, redshift=0),
-            HaloBox.new(inputs, redshift=0),
+            EmissivityFields.new(inputs, redshift=0),
             IonizedBox.new(inputs, redshift=0),
             BrightnessTemp.new(inputs, redshift=0),
         ]
@@ -384,7 +384,7 @@ def _get_all_possible_arrays(inputs: InputParameters) -> list[str]:
         InitialConditions.new(inputs),
         PerturbedField.new(inputs, redshift=0),
         TsBox.new(inputs, redshift=0),
-        HaloBox.new(inputs, redshift=0),
+        EmissivityFields.new(inputs, redshift=0),
         IonizedBox.new(inputs, redshift=0),
         BrightnessTemp.new(inputs, redshift=0),
     ]

@@ -114,7 +114,7 @@ class TestRunCache:
         cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
         print(attrs.asdict(cache).keys(), flush=True)
 
-        assert isinstance(cache.HaloBox, dict)
+        assert isinstance(cache.EmissivityFields, dict)
         assert isinstance(cache.HaloCatalog, dict)
         assert isinstance(cache.InitialConditions, Path)
         assert isinstance(cache.PerturbedField, dict)
@@ -123,7 +123,7 @@ class TestRunCache:
         assert isinstance(cache.TsBox, dict)
         assert isinstance(cache.RadiationFields, dict)
 
-        assert len(cache.HaloBox) == len(inputs.node_redshifts)
+        assert len(cache.EmissivityFields) == len(inputs.node_redshifts)
 
         inputs = InputParameters.from_template("simple", random_seed=12345)
         cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
@@ -213,7 +213,7 @@ class TestRunCache:
                 else "InitialConditions" not in boxes
             )
             assert "PerturbedField" in boxes
-            assert "HaloBox" in boxes
+            assert "EmissivityFields" in boxes
             assert "RadiationFields" in boxes
             assert "TsBox" in boxes
             assert "IonizedBox" in boxes

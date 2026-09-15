@@ -475,7 +475,7 @@ double nion_fraction_mini(double lnM, void *param_struct) {
 }
 
 // Due to the log(1+Mstar) in the metallicity, this is hard to simplify into log-space
-//   As a result this will be slower, and is currently used only for integrals in HaloBox
+//   As a result this will be slower, and is currently used only for integrals in EmissivityFields
 //   below the sampler mass.
 double xray_fraction_doublePL(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
