@@ -127,7 +127,7 @@ double transfer_function_White(double k) {
   flag_int = else to interpolate. flag_dv = 0 to output density, flag_dv = 1 to output velocity.
   similar to built-in function "double T_RECFAST(float z, int flag)"
 */
-double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
+double transfer_function_ARRAY(double k, int flag_int, int flag_dv, int CLASS_normalization) {
     static double *kclass, *Tmclass, *Tvclass_vcb;
     static int size_density, size_vcb;
 
@@ -153,9 +153,14 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
 
         LOG_SUPER_DEBUG("Generated CLASS Density Spline.");
 
-        eh_ratio_at_kmax = Tmclass[size_density - 1] / kclass[size_density - 1] /
-                           kclass[size_density - 1] /
-                           transfer_function_EH(kclass[size_density - 1]);
+        if (CLASS_normalization) {
+            eh_ratio_at_kmax = Tmclass[size_density - 1] / kclass[size_density - 1] /
+                               kclass[size_density - 1] /
+                               transfer_function_EH(kclass[size_density - 1]);
+        } else {
+            eh_ratio_at_kmax =
+                Tmclass[size_density - 1] / transfer_function_EH(kclass[size_density - 1]);
+        }
 
         if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS) {
             Tvclass_vcb = cosmo_tables_global->transfer_vcb->y_values;
@@ -184,7 +189,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
     if (k > kclass[size_density - 1]) {  // k>kmax
         if (!warning_printed) {
             LOG_WARNING(
-                "Called transfer_function_CLASS with k=%f, larger than kmax! performing linear "
+                "Called transfer_function_ARRAY with k=%f, larger than kmax! performing linear "
                 "extrapolation with Eisenstein & Hu",
                 k);
             warning_printed = true;
@@ -200,7 +205,7 @@ double transfer_function_CLASS(double k, int flag_int, int flag_dv) {
         }  // we just set it to the last value, since sometimes it wants large k for R<<cell_size,
            // which does not matter much.
         else {
-            LOG_ERROR("Invalid flag_dv %d passed to transfer_function_CLASS", flag_dv);
+            LOG_ERROR("Invalid flag_dv %d passed to transfer_function_ARRAY", flag_dv);
             Throw(ValueError);
         }
     } else {                 // Do spline
@@ -228,9 +233,12 @@ double transfer_function(double k) {
         case 4:
             return transfer_function_White(k);
         case 5:
-            return transfer_function_CLASS(k, 1, 0);
+            return transfer_function_ARRAY(k, 1, 0, 1);
+        case 6:
+            return transfer_function_ARRAY(k, 1, 0, 0);
         default:
-            LOG_ERROR("No such power spectrum defined: %i", matter_options_global->POWER_SPECTRUM);
+            LOG_ERROR("No such power spectrum defined for value: %i",
+                      matter_options_global->POWER_SPECTRUM);
             Throw(ValueError);
     }
 }
@@ -282,7 +290,7 @@ double power_in_k(double k) {
         return 0.;
     } else {
         T = transfer_function(k);
-        if (matter_options_global->POWER_SPECTRUM < POWER_SPECTRUM_CLASS) {
+        if (matter_options_global->POWER_SPECTRUM != POWER_SPECTRUM_CLASS) {
             // In non-CLASS transfer functions (EH, BBKS, etc), the convention is that the transfer
             // function approches unity as k->0. We therefore have to multiply by k^2 in order to
             // match with the CLASS notation that is used below.
@@ -311,12 +319,17 @@ double power_in_vcb(double k) {
     double p, T, primordial;
 
     // only works if using CLASS
-    if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {  // CLASS
+    if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS ||
+        matter_options_global->POWER_SPECTRUM == 6) {  // CLASS
         if (k == 0.) {
             return 0.;
         } else {
             // flag_int=1 since we have initialized before, flag_vcb=1 for velocity
-            T = transfer_function_CLASS(k, 1, 1);
+            if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
+                T = transfer_function_ARRAY(k, 1, 1, 1);
+            } else {
+                T = transfer_function_ARRAY(k, 1, 1, 0);
+            }
             primordial = primordial_curvature_power_spectrum(k);
             p = cosmo_consts.sigma_norm * primordial * T * T / pow(k, 3);
 
@@ -388,6 +401,9 @@ double sigma_z0(double M) {
 
     status = gsl_integration_qag(&F, lower_limit, upper_limit, 0, rel_tol, 1000, GSL_INTEG_GAUSS61,
                                  w, &result, &error);
+    LOG_DEBUG(
+        "sigma_z0: lower_limit=%e upper_limit=%e rel_tol=%e result=%e error=%e M=%e Radius=%e",
+        lower_limit, upper_limit, rel_tol, result, error, M, Radius);
 
     if (status != 0) {
         LOG_ERROR("gsl integration error occured!");
@@ -520,7 +536,10 @@ void init_ps() {
     if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
         // We start the interpolator if using CLASS:
         LOG_DEBUG("Setting CLASS Transfer Function inits.");
-        transfer_function_CLASS(1.0, 0, 0);
+        transfer_function_ARRAY(1.0, 0, 0, 1);
+    } else if (matter_options_global->POWER_SPECTRUM == 6) {
+        LOG_DEBUG("Setting FILE Transfer Function inits.");
+        transfer_function_ARRAY(1.0, 0, 0, 0);
     }
 
     // We now need to initialize sigma_norm, the constant that would give us the correct
@@ -560,9 +579,10 @@ void init_ps() {
 void free_ps() {
     // we free the PS interpolator if using CLASS:
     if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
-        transfer_function_CLASS(1.0, -1, 0);
+        transfer_function_ARRAY(1.0, -1, 0, 1);
+    } else if (matter_options_global->POWER_SPECTRUM == 6) {
+        transfer_function_ARRAY(1.0, -1, 0, 0);
     }
-
     return;
 }
 

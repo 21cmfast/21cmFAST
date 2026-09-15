@@ -115,12 +115,10 @@ void sample_ic_modes(fftwf_complex *box, int grid_dim[3], double box_len[3], gsl
                 // since physical space field is real, only half contains independent modes
                 for (n_z = 0; n_z <= grid_dim[2] / 2; n_z++) {
                     k_z = index_to_k(n_z, box_len[2], grid_dim[2]);  // never goes above hi_dim/2
-
                     // now get the power spectrum; remember, only the magnitude of k counts (due
                     // to issotropy) this could be used to speed-up later maybe
                     k_mag = sqrt(k_x * k_x + k_y * k_y + k_z * k_z);
                     p = power_in_k(k_mag);
-
                     // ok, now we can draw the values of the real and imaginary part
                     // of our k entry from a Gaussian distribution
                     a = gsl_ran_ugaussian(r[thread_num]);
@@ -551,7 +549,6 @@ int ComputeInitialConditions(random_huge random_seed, InitialConditions *boxes) 
     //
     //     Author: Andrei Mesinger
     //     Date: 9/29/06
-
     int status;
 
     Try {  // This Try wraps the entire function so we don't indent.
