@@ -838,14 +838,20 @@ def _redshift_loop_generator(
                 # work whenever the *downstream* TsBox for this redshift is already
                 # cached, since compute_spin_temperature() would just load the
                 # cached TsBox and throw the freshly-built XraySourceBox away
-                # unused. Skip building it in that case.
+                # unused. Skip building it in that case -- but only when we
+                # wouldn't have written it to cache anyway: if the caller has
+                # explicitly asked for XraySourceBox to be written
+                # (write.xray_source_box=True), we must still build and write
+                # it even though it won't be used downstream, otherwise we'd
+                # silently violate the requested write config.
                 ts_cached = (
                     resume_cache is not None
                     and not iokw.get("regenerate")
                     and z in resume_cache.TsBox
                     and resume_cache.TsBox[z].exists()
                 )
-                if inputs.matter_options.lagrangian_source_grid and not ts_cached:
+                skip_xraysource = ts_cached and not write.xray_source_box
+                if inputs.matter_options.lagrangian_source_grid and not skip_xraysource:
                     # append the halo redshift array so we have all halo boxes [z,zmax]
                     this_xraysource = sf.compute_xray_source_field(
                         redshift=z,
@@ -943,9 +949,36 @@ def _setup_ics_and_pfs_for_scrolling(
             **iokw,
         )
 
+    # perturb_field()/determine_halo_catalog() below each check their own cache
+    # (via single_field_func) before touching any of their inputs, so if every
+    # field this batch needs is already cached, initial_conditions' raw arrays
+    # (hires_density, velocities, etc.) are never actually read. Loading them
+    # via prepare_for_perturb()/prepare_for_spin_temp() anyway wastes an
+    # enormous amount of time and memory for nothing -- e.g. ~9 minutes and
+    # ~450GB of peak RSS at HII_DIM=1500 -- whenever we're resuming a run that
+    # has already fully completed this batch. Only skip the eager load in that
+    # specific (safe, conservative) case; fall back to the old always-load
+    # behaviour if we can't be sure, or if there's any real work to do.
+    resume_cache = None
+    if iokw.get("cache") is not None and not iokw.get("regenerate"):
+        resume_cache = RunCache.from_inputs(inputs, iokw["cache"])
+
+    def _is_z_already_cached(z: float) -> bool:
+        try:
+            return resume_cache.is_complete_at(z=z)
+        except KeyError:
+            # z isn't one of inputs.node_redshifts (e.g. a user-requested
+            # out_redshift off the node grid), so RunCache can't tell us --
+            # be conservative and assume it needs computing.
+            return False
+
+    batch_already_cached = resume_cache is not None and all(
+        _is_z_already_cached(z) for z in all_redshifts
+    )
+
     # We can go ahead and purge some of the stuff in the initial_conditions, but only if
     # it is cached -- otherwise we could be losing information.
-    if write.initial_conditions:
+    if write.initial_conditions and not batch_already_cached:
         initial_conditions.prepare_for_perturb()
     kw = {
         "initial_conditions": initial_conditions,
@@ -995,7 +1028,7 @@ def _setup_ics_and_pfs_for_scrolling(
         **kw,
     )
     # Now we can purge initial_conditions further.
-    if write.initial_conditions:
+    if write.initial_conditions and not batch_already_cached:
         initial_conditions.prepare_for_spin_temp()
 
     return (
