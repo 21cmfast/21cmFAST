@@ -368,7 +368,7 @@ def test_perturb_halos(default_input_struct_ts):
         SAMPLER_MIN_MASS=5e9,
         PERTURB_ON_HIGH_RES=True,
         RECOMB_MODEL="inhomogeneous",
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         V_CB_MODEL="FLUCTS",
         POWER_SPECTRUM="CLASS",
         USE_REIONIZATION_PHOTOHEATING_FEEDBACK=True,

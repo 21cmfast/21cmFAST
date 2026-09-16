@@ -116,7 +116,7 @@ void get_unconditional_sfrd(int n_redshift, double *redshifts, double *log10_tur
 
     for (i = 0; i < n_redshift; i++) {
         out_sfrd[i] = evaluate_sfrd_unconditional_acg(redshifts[i], log10_turnovers_acg[i], &sc);
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             out_sfrd_mini[i] = evaluate_sfrd_unconditional_mcg(redshifts[i], log10_turnovers_acg[i],
                                                                log10_turnovers_mcg[i], &sc);
         }
@@ -141,7 +141,7 @@ void get_unconditional_nion(int n_redshift, double *redshifts, double *log10_tur
     }
     for (i = 0; i < n_redshift; i++) {
         out_nion[i] = evaluate_nion_unconditional_acg(redshifts[i], log10_turnovers_acg[i], &sc);
-        if (astro_options_global->USE_MINI_HALOS)
+        if (astro_options_global->USE_MCGS)
             out_nion_mini[i] = evaluate_nion_unconditional_mcg(redshifts[i], log10_turnovers_acg[i],
                                                                log10_turnovers_mcg[i], &sc);
     }
@@ -187,7 +187,7 @@ void get_conditional_sfrd(double redshift, double R, int n_densities, double *de
     double growthf = dicke(redshift);
 
     if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
-        (astro_options_global->USE_MINI_HALOS &&
+        (astro_options_global->USE_MCGS &&
          astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
         initialise_GL(log(M_min), log(M_cond));
 
@@ -212,7 +212,7 @@ void get_conditional_sfrd(double redshift, double R, int n_densities, double *de
     for (i = 0; i < n_densities; i++) {
         out_sfrd[i] = evaluate_sfrd_conditional_acg(densities[i], log10_mturn_acg, growthf, M_min,
                                                     M_cond, M_cond, sigma_cond, &sc);
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             out_sfrd_mini[i] =
                 evaluate_sfrd_conditional_mcg(densities[i], log10_mturn_acg, log10_mturn_mcg,
                                               growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
@@ -229,7 +229,7 @@ void get_conditional_nion(double redshift, double R, int n_densities, double *de
     double growthf = dicke(redshift);
 
     if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
-        (astro_options_global->USE_MINI_HALOS &&
+        (astro_options_global->USE_MCGS &&
          astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
         initialise_GL(log(M_min), log(M_cond));
 
@@ -253,7 +253,7 @@ void get_conditional_nion(double redshift, double R, int n_densities, double *de
     for (i = 0; i < n_densities; i++)
         out_nion[i] = evaluate_nion_conditional_acg(densities[i], log10_mturn_acg, growthf, M_min,
                                                     M_cond, M_cond, sigma_cond, &sc, false);
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         for (i = 0; i < n_densities; i++)
             out_nion_mini[i] = evaluate_nion_conditional_mcg(
                 densities[i], log10_mturn_acg, log10_mturn_mcg, growthf, M_min, M_cond, M_cond,
@@ -270,7 +270,7 @@ void get_conditional_xray_emissivity(double redshift, double R, int n_densities,
     double growthf = dicke(redshift);
 
     if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
-        (astro_options_global->USE_MINI_HALOS &&
+        (astro_options_global->USE_MCGS &&
          astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
         initialise_GL(log(M_min), log(M_cond));
 
@@ -314,7 +314,7 @@ void get_conditional_xray_emissivity(double redshift, double R, int n_densities,
                                                           M_min, M_cond, M_cond, sigma_cond, &sc);
         }
         out_xray[i] = X_RAY_FACTOR * xray_integral;
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             if (astro_options_global->USE_METALLICITY) {
                 xray_integral_mini = evaluate_xray_emissivity_conditional_mcg(
                     densities[i], log10_mturn_acg, log10_mturn_mcg, redshift, growthf, M_min,

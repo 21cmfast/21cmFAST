@@ -230,7 +230,7 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
         redshift=0.0, inputs=inputs, buffer_size=1
     )
     assert isinstance(pert_halo_cat.fesc_sfr, Array)
-    inputs = inputs.evolve_input_structs(USE_MINI_HALOS=True)
+    inputs = inputs.evolve_input_structs(USE_MCGS=True)
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
@@ -265,7 +265,7 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
         emissivity_fields = ox.EmissivityFields.new(
             redshift=0.0,
             inputs=default_input_struct_lc.evolve_input_structs(
-                USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous", USE_MINI_HALOS=True
+                USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous", USE_MCGS=True
             ),
         )
         assert isinstance(emissivity_fields.halo_stars_mini, Array)
@@ -281,7 +281,7 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
     assert isinstance(emissivity_fields.halo_sfr, Array)
     assert isinstance(emissivity_fields.halo_xray, Array)
 
-    inputs = inputs.evolve_input_structs(USE_MINI_HALOS=True)
+    inputs = inputs.evolve_input_structs(USE_MCGS=True)
     emissivity_fields = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
     assert isinstance(emissivity_fields.halo_sfr_mini, Array)
 
@@ -295,7 +295,7 @@ def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameter
 
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
     )
     rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=inputs)
@@ -313,7 +313,7 @@ def test_optional_field_ts(default_input_struct_lc: InputParameters):
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
         RECOMB_MODEL="inhomogeneous",
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
     )
     ts = ox.TsBox.new(redshift=0.0, inputs=inputs)
     assert isinstance(ts.J_21_LW, Array)
@@ -334,7 +334,7 @@ def test_optional_field_ion(default_input_struct_lc: InputParameters):
 
     inputs = inputs.evolve_input_structs(
         USE_TS_FLUCT=True,
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
     )
     ion = ox.IonizedBox.new(redshift=0.0, inputs=inputs)
     assert isinstance(ion.unnormalised_nion_mini, Array)

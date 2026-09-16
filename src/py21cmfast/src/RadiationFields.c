@@ -44,7 +44,7 @@ void accumulate_radiation_shell(float redshift, RadiationFieldsSetup *rad_setup,
     xray_R_factor = pow(1 + zpp, -(astro_params_global->X_RAY_SPEC_INDEX));
 
     // minihalo factors should be separated since they may not be allocated
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         if (astro_options_global->USE_LYA_HEATING) {
             lya_flux_continuum_prefactor_mini = rad_setup->lya_flux_continuum_prefactor_MINI[R_ct];
             lya_flux_injected_prefactor_mini = rad_setup->lya_flux_injected_prefactor_MINI[R_ct];
@@ -73,13 +73,12 @@ void accumulate_radiation_shell(float redshift, RadiationFieldsSetup *rad_setup,
             sfr_term = rad_setup->filtered_sfr[box_ct] * z_edge_factor;
             // Minihalos and s->yr conversion are already included here
             xray_sfr = rad_setup->filtered_xray[box_ct] * z_edge_factor * xray_R_factor * 1e38;
-            if (astro_options_global->USE_MINI_HALOS &&
-                astro_options_global->LYA_MULTIPLE_SCATTERING) {
+            if (astro_options_global->USE_MCGS && astro_options_global->LYA_MULTIPLE_SCATTERING) {
                 sfr_term_lw = rad_setup->filtered_sfr_lw[box_ct] * z_edge_factor;
             } else {
                 sfr_term_lw = sfr_term;
             }
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 sfr_term_mini = rad_setup->filtered_sfr_mini[box_ct] * z_edge_factor;
                 if (astro_options_global->LYA_MULTIPLE_SCATTERING) {
                     sfr_term_mini_lw = rad_setup->filtered_sfr_mini_lw[box_ct] * z_edge_factor;
@@ -107,7 +106,7 @@ void accumulate_radiation_shell(float redshift, RadiationFieldsSetup *rad_setup,
             }
             radiation_fields->xray_ionization_rate[box_ct] += xray_sfr * freq_int_ion;
             radiation_fields->xray_lya_flux[box_ct] += xray_sfr * freq_int_lya;
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 radiation_fields->lyw_flux[box_ct] +=
                     sfr_term_lw * rad_setup->lyw_flux_prefactor[R_ct] +
                     sfr_term_mini_lw * rad_setup->lyw_flux_prefactor_MINI[R_ct];
@@ -193,7 +192,7 @@ void multiply_radiation_fields_by_constants(float redshift, RadiationFields *rad
             radiation_fields->xray_ionization_rate[box_ct] *= xray_prefactor * volunit_inv;
             radiation_fields->xray_lya_flux[box_ct] *=
                 xray_prefactor * volunit_inv * Nb_zp * (1 + curr_delta);
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 radiation_fields->lyw_flux[box_ct] *=
                     lya_star_prefactor * volunit_inv * physconst.h_p * 1e21;
             }
@@ -320,7 +319,7 @@ int UpdateRadiationFields(float redshift, EmissivityFields *emissivity_fields, i
                            R_star, filter_type, &sfr_avg, &fsfr_avg);
         one_annular_filter(emissivity_fields->halo_xray, rad_setup->filtered_xray, R_inner, R_outer,
                            R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE, &xray_avg, &fxray_avg);
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             one_annular_filter(emissivity_fields->halo_sfr_mini, rad_setup->filtered_sfr_mini,
                                R_inner, R_outer, R_star, filter_type, &sfr_avg_mini,
                                &fsfr_avg_mini);
@@ -341,8 +340,8 @@ int UpdateRadiationFields(float redshift, EmissivityFields *emissivity_fields, i
         LOG_SUPER_DEBUG("R = [%8.3f - %8.3f] | mean filtered sfr  = %10.3e unfiltered %10.3e",
                         R_inner, R_outer, fsfr_avg, sfr_avg);
         LOG_ULTRA_DEBUG("mean filtered xray = %10.3e unfiltered %10.3e", fxray_avg, xray_avg);
-        if (astro_options_global->USE_MINI_HALOS) {
-            LOG_SUPER_DEBUG("MINI: filtered sfr %10.3e unfiltered %10.3e", fsfr_avg_mini,
+        if (astro_options_global->USE_MCGS) {
+            LOG_SUPER_DEBUG("MCGS: filtered sfr %10.3e unfiltered %10.3e", fsfr_avg_mini,
                             sfr_avg_mini);
         }
 

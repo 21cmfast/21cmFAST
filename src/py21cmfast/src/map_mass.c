@@ -274,7 +274,7 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
         double l10_mturn_acg =
             log10(consts->mturn_acg_homogeneous);  // used if we don't apply inhomogeneous
                                                    // reionization feedback on ACGS
-        double l10_mturn_mcg = 0.;  // dummy value for the USE_MINI_HALOS = false branch
+        double l10_mturn_mcg = 0.;                 // dummy value for the USE_MCGS = false branch
         HaloProperties properties;
 #pragma omp for
         for (i = 0; i < dens_dim[0]; i++) {
@@ -307,7 +307,7 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
                     if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
                         l10_mturn_acg = log10_mturn_acg_grid[dens_index];
                     }
-                    if (astro_options_global->USE_MINI_HALOS) {
+                    if (astro_options_global->USE_MCGS) {
                         l10_mturn_mcg = log10_mturn_mcg_grid[dens_index];
                     }
 
@@ -329,7 +329,7 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
                     if (astro_options_global->USE_TS_FLUCT) {
                         do_cic_interpolation(emissivity_fields->halo_sfr, pos, out_dim,
                                              properties.halo_sfr * vol_ratio_out);
-                        if (astro_options_global->USE_MINI_HALOS) {
+                        if (astro_options_global->USE_MCGS) {
                             do_cic_interpolation(emissivity_fields->halo_sfr_mini, pos, out_dim,
                                                  properties.sfr_mini * vol_ratio_out);
                         }
@@ -353,7 +353,7 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
                                              properties.halo_mass * vol_ratio_out);
                         do_cic_interpolation(emissivity_fields->halo_stars, pos, out_dim,
                                              properties.stellar_mass * vol_ratio_out);
-                        if (astro_options_global->USE_MINI_HALOS) {
+                        if (astro_options_global->USE_MCGS) {
                             do_cic_interpolation(emissivity_fields->halo_stars_mini, pos, out_dim,
                                                  properties.stellar_mass_mini * vol_ratio_out);
                         }
@@ -369,7 +369,7 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
         // take advantage of it
         if (astro_options_global->USE_TS_FLUCT && !astro_options_global->USE_METALLICITY) {
             emissivity_fields->halo_xray[i] = consts->l_x * emissivity_fields->halo_sfr[i];
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 emissivity_fields->halo_xray[i] +=
                     consts->l_x_mini * emissivity_fields->halo_sfr_mini[i];
             }
@@ -434,7 +434,7 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
         HaloProperties properties;
         double M_turn_acg = consts->mturn_acg_homogeneous;  // used if we don't apply inhomogeneous
                                                             // reionization feedback on ACGS
-        double M_turn_mcg = 0.;  // dummy value for the USE_MINI_HALOS = false branch
+        double M_turn_mcg = 0.;  // dummy value for the USE_MCGS = false branch
         double halo_rng[3];
         double hmass;
 #pragma omp for
@@ -468,7 +468,7 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
             if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
                 M_turn_acg = pow(10, cic_read_float(log10_mturn_acg_grid, pos, out_dim));
             }
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 M_turn_mcg = pow(10, cic_read_float(log10_mturn_mcg_grid, pos, out_dim));
             }
             halo_rng[0] = halos->star_rng[i];
@@ -483,7 +483,7 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
                                      properties.halo_sfr);
                 do_cic_interpolation(emissivity_fields->halo_xray, pos, out_dim,
                                      properties.halo_xray);
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     do_cic_interpolation(emissivity_fields->halo_sfr_mini, pos, out_dim,
                                          properties.sfr_mini);
                 }
@@ -499,7 +499,7 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
                                      properties.halo_mass);
                 do_cic_interpolation(emissivity_fields->halo_stars, pos, out_dim,
                                      properties.stellar_mass);
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     do_cic_interpolation(emissivity_fields->halo_stars_mini, pos, out_dim,
                                          properties.stellar_mass_mini);
                 }
@@ -524,7 +524,7 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
             if (astro_options_global->USE_TS_FLUCT) {
                 emissivity_fields->halo_sfr[i_cell] *= cell_vol_inv;
                 emissivity_fields->halo_xray[i_cell] *= cell_vol_inv;
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     emissivity_fields->halo_sfr_mini[i_cell] *= cell_vol_inv;
                 }
             }
@@ -535,7 +535,7 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
             if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
                 emissivity_fields->halo_mass[i_cell] *= cell_vol_inv;
                 emissivity_fields->halo_stars[i_cell] *= cell_vol_inv;
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     emissivity_fields->halo_stars_mini[i_cell] *= cell_vol_inv;
                 }
             }

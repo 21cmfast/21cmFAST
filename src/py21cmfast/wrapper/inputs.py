@@ -673,7 +673,7 @@ class MatterOptions(InputStruct):
         * PEEBLES: Peebles 1980
         * WHITE: White 1985
         * CLASS: Runs the CLASS code to compute the power spectrum. This is the most precise, but also the slowest (can take ~30 seconds
-          at most and can be reduced if USE_MINI_HALOS=False or K_MAX_FOR_CLASS is set to a low value).
+          at most and can be reduced if USE_MCGS=False or K_MAX_FOR_CLASS is set to a low value).
     PERTURB_ON_HIGH_RES
         Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
         resolution grid.
@@ -1190,8 +1190,11 @@ class AstroOptions(InputStruct):
 
     Parameters
     ----------
-    USE_MINI_HALOS : bool, optional
-        Set to True if using mini-halos parameterization.
+    USE_MINI_HALOS: bool, optional
+        Set to True if including molecular cooling galaxies in the simulation
+        (which reside in mini-halos). This is a deprecated flag, see USE_MCGS.
+    USE_MCGS : bool, optional
+        Set to True if including molecular cooling galaxies in the simulation.
         If True, USE_TS_FLUCT must be True and RECOMB_MODEL must be not "none".
     USE_X_RAY_HEATING : bool, optional
         Whether to include X-ray heating (useful for debugging).
@@ -1309,7 +1312,10 @@ class AstroOptions(InputStruct):
           power-law for sigma(M) based on EPS
     """
 
-    USE_MINI_HALOS: bool = field(default=False, converter=bool)
+    _USE_MINI_HALOS: bool | None = field(
+        default=None, converter=attrs.converters.optional(bool)
+    )
+    USE_MCGS: bool = field(converter=bool)
     USE_X_RAY_HEATING: bool = field(default=True, converter=bool)
     USE_CMB_HEATING: bool = field(default=True, converter=bool)
     USE_LYA_HEATING: bool = field(default=True, converter=bool)
@@ -1342,6 +1348,17 @@ class AstroOptions(InputStruct):
     INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
 
     @cached_property
+    def USE_MINI_HALOS(self) -> bool:
+        """Whether to use molecular cooling galaxies (which reside in mini-halos) in the simulation.
+
+        This is a deprecated property, and will be removed in v5. Please use USE_MCGS instead.
+        """
+        if self._USE_MINI_HALOS is None:
+            return self.USE_MCGS
+        else:
+            return self._USE_MINI_HALOS
+
+    @cached_property
     def FIX_VCB_AVG(self) -> bool:
         """Whether to fix the amplitude of the relative velocity between (cold) dark matter and baryons on a constant mean value from linear perturbation theory.
 
@@ -1363,7 +1380,27 @@ class AstroOptions(InputStruct):
 
     @USE_REIONIZATION_PHOTOHEATING_FEEDBACK.default
     def _default_use_reionization_photoheating_feedback(self):
-        return self.USE_MINI_HALOS
+        return self.USE_MCGS
+
+    @USE_MCGS.default
+    def _default_use_mcgs(self):
+        if self._USE_MINI_HALOS is None:
+            return False
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "USE_MINI_HALOS",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "USE_MINI_HALOS is deprecated and will be removed in a future version. "
+                    "Please use USE_MCGS directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._USE_MINI_HALOS
 
     @RECOMB_MODEL.default
     def _default_recomb_model(self):
@@ -1385,6 +1422,28 @@ class AstroOptions(InputStruct):
 
         return "inhomogeneous" if self._INHOMO_RECO else "none"
 
+    @USE_MCGS.validator
+    def _use_mcgs_vld(self, att, val):
+        """
+        Raise an error USE_MCGS is True with incompatible flags.
+
+        This happens when RECOMB_MODEL='none' or USE_TS_FLUCT is False.
+        """
+        if val and self.RECOMB_MODEL == "none":
+            raise ValueError(
+                "You have set USE_MCGS to True but RECOMB_MODEL is 'none'! "
+            )
+        if val and not self.USE_TS_FLUCT:
+            raise ValueError(
+                "You have set USE_MCGS to True but USE_TS_FLUCT is False! "
+            )
+
+        if self._USE_MINI_HALOS is not None and val != self._USE_MINI_HALOS:
+            raise ValueError(
+                f"USE_MCGS is set to {val} but USE_MINI_HALOS is {self._USE_MINI_HALOS}! "
+                f"Either set USE_MINI_HALOS to {val} or change USE_MCGS to {self._USE_MINI_HALOS}."
+            )
+
     @RECOMB_MODEL.validator
     def _recomb_model_vld(self, att, val):
         if self._INHOMO_RECO is True and val == "none":
@@ -1402,28 +1461,12 @@ class AstroOptions(InputStruct):
                 "CELL_RECOMB cannot be False when RECOMB_MODEL is 'homogeneous'!"
             )
 
-    @USE_MINI_HALOS.validator
-    def _USE_MINI_HALOS_vald(self, att, val):
-        """
-        Raise an error USE_MINI_HALOS is True with incompatible flags.
-
-        This happens when RECOMB_MODEL='none' or USE_TS_FLUCT is False.
-        """
-        if val and self.RECOMB_MODEL == "none":
-            raise ValueError(
-                "You have set USE_MINI_HALOS to True but RECOMB_MODEL is 'none'! "
-            )
-        if val and not self.USE_TS_FLUCT:
-            raise ValueError(
-                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False! "
-            )
-
     @PHOTON_CONS_TYPE.validator
     def _PHOTON_CONS_TYPE_vld(self, att, val):
-        """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MINI_HALOS is True."""
-        if self.USE_MINI_HALOS and val == "z-photoncons":
+        """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MCGS is True."""
+        if self.USE_MCGS and val == "z-photoncons":
             raise ValueError(
-                "USE_MINI_HALOS is not compatible with the redshift-based"
+                "USE_MCGS is not compatible with the redshift-based"
                 " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
             )
 
@@ -1461,7 +1504,7 @@ class AstroParams(InputStruct):
         Given in log10 units.
     F_STAR7_MINI : float, optional
         The fraction of galactic gas in stars for 10^7 solar mass minihaloes. Only used
-        in the "minihalo" parameterization, i.e. when `USE_MINI_HALOS` is set to True
+        in the "minihalo" parameterization, i.e. when `USE_MCGS` is set to True
         (in :class:`AstroOptions`).. See Eq. 8 of Qin+2020.
         If the MCG scaling relations are not provided explicitly, we extend the ACG
         ones by default. Given in log10 units.
@@ -1489,7 +1532,7 @@ class AstroParams(InputStruct):
     F_ESC7_MINI: float, optional
         The "escape fraction for minihalos", i.e. the fraction of ionizing photons escaping
         into the IGM, for 10^7 solar mass minihaloes. Only used in the "minihalo"
-        parameterization, i.e. when `USE_MINI_HALOS` is set to True (in
+        parameterization, i.e. when `USE_MCGS` is set to True (in
         :class:`AstroOptions`). See Eq. 17 of Qin+2020. If the MCG
         scaling relations are not provided explicitly, we extend the ACG ones by default.
         Given in log10 units.
@@ -1920,7 +1963,7 @@ class InputParameters:
             if self.simulation_options.K_MAX_FOR_CLASS is not None:
                 k_max = self.simulation_options.K_MAX_FOR_CLASS / un.Mpc
             else:
-                if self.astro_options.USE_MINI_HALOS:
+                if self.astro_options.USE_MCGS:
                     M_min = 1e5 * un.M_sun
                 else:
                     M_min = 1e9 * un.M_sun
@@ -2025,19 +2068,19 @@ class InputParameters:
     def _astro_options_validator(self, att, val):
         if self.matter_options is None:
             return
-        if val.USE_MINI_HALOS:
+        if val.USE_MCGS:
             if self.matter_options.V_CB_MODEL == "NONE":
                 warnings.warn(
-                    "USE_MINI_HALOS needs a non-trivial V_CB_MODEL to get the right evolution!",
+                    "USE_MCGS needs a non-trivial V_CB_MODEL to get the right evolution!",
                     stacklevel=2,
                 )
             if self.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
                 raise ValueError(
-                    "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True"
+                    "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MCGS=True"
                 )
         elif self.matter_options.V_CB_MODEL != "NONE":
             warnings.warn(
-                "USE_MINI_HALOS is False but V_CB_MODEL != 'NONE'. Note that the relative velocity between (cold) dark matter and baryons"
+                "USE_MCGS is False but V_CB_MODEL != 'NONE'. Note that the relative velocity between (cold) dark matter and baryons"
                 " is only relevant when mini-halos are present.",
                 stacklevel=2,
             )
@@ -2141,9 +2184,9 @@ class InputParameters:
                 stacklevel=2,
             )
 
-        if val.M_TURN_STELLAR_FEEDBACK > 8 and self.astro_options.USE_MINI_HALOS:
+        if val.M_TURN_STELLAR_FEEDBACK > 8 and self.astro_options.USE_MCGS:
             warnings.warn(
-                "You are setting M_TURN_STELLAR_FEEDBACK > 8 when USE_MINI_HALOS=True. "
+                "You are setting M_TURN_STELLAR_FEEDBACK > 8 when USE_MCGS=True. "
                 "The star formation in mini-halos with a mass smaller than M_TURN_STELLAR_FEEDBACK "
                 "is highly suppressed. Make sure you know what you are doing!",
                 stacklevel=2,
@@ -2344,7 +2387,7 @@ class InputParameters:
         return (
             self.astro_options.USE_TS_FLUCT
             or self.astro_options.RECOMB_MODEL != "none"
-            or self.astro_options.USE_MINI_HALOS
+            or self.astro_options.USE_MCGS
         )
 
     def with_logspaced_redshifts(
@@ -2547,7 +2590,7 @@ def check_halomass_range(inputs: InputParameters) -> None:
     min_sampler = inputs.simulation_options.SAMPLER_MIN_MASS * un.M_sun
 
     # Simplified behaviour of lib.minimum_source_mass() for source models with discrete halos
-    if inputs.astro_options.USE_MINI_HALOS:
+    if inputs.astro_options.USE_MCGS:
         min_integral_mass = 1e5 * un.M_sun
     else:
         min_integral_mass = (

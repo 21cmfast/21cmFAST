@@ -65,7 +65,7 @@ void set_halo_properties(double halo_mass, double M_turn_acg, double M_turn_mcg,
 
     // no rng for escape fraction yet
     fesc = fmin(consts->fesc_10 * pow(halo_mass / 1e10, consts->alpha_esc), 1);
-    if (astro_options_global->USE_MINI_HALOS)
+    if (astro_options_global->USE_MCGS)
         fesc_mini = fmin(consts->fesc_7 * pow(halo_mass / 1e7, consts->alpha_esc), 1);
 
     n_ion_sample = (stellar_mass * consts->pop2_ion * fesc +
@@ -96,7 +96,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     // Compute n_ion
     averages_out->n_ion =
         nion_unconditional_acg(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         averages_out->n_ion += nion_unconditional_mcg(consts->redshift, lnMmin, lnMmax, M_turn_acg,
                                                       M_turn_mcg, consts);
     }
@@ -106,7 +106,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     if (astro_options_global->USE_TS_FLUCT || config_settings.EXTRA_EMISSIVITY_FIELDS) {
         averages_out->halo_sfr =
             sfrd_unconditional_acg(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             averages_out->sfr_mini = sfrd_unconditional_mcg(consts->redshift, lnMmin, lnMmax,
                                                             M_turn_acg, M_turn_mcg, consts);
         }
@@ -117,7 +117,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
         if (astro_options_global->USE_METALLICITY) {
             averages_out->halo_xray = xray_emissivity_unconditional_acg(consts->redshift, lnMmin,
                                                                         lnMmax, M_turn_acg, consts);
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 averages_out->halo_xray += xray_emissivity_unconditional_mcg(
                     consts->redshift, lnMmin, lnMmax, M_turn_acg, M_turn_mcg, consts);
             }
@@ -125,7 +125,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
             // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
             // take advantage of it
             averages_out->halo_xray = consts->l_x * averages_out->halo_sfr;
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 averages_out->halo_xray += consts->l_x_mini * averages_out->sfr_mini;
             }
         }
@@ -147,7 +147,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
             averages_out->stellar_mass = averages_out->n_ion * RHOcrit * cosmo_params_global->OMb *
                                          consts->fstar_10 / astro_params_global->HII_EFF_FACTOR;
         }
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             averages_out->stellar_mass_mini = averages_out->sfr_mini * consts->sfr_timescale;
         }
     }
@@ -199,7 +199,7 @@ HaloProperties get_emissivity_fields_averages(EmissivityFields *emissivity_field
             if (astro_options_global->USE_TS_FLUCT) {
                 mean_sfr += emissivity_fields->halo_sfr[i] / factor;
                 mean_xray += emissivity_fields->halo_xray[i] / factor;
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     mean_sfr_mini += emissivity_fields->halo_sfr_mini[i] / factor;
                 }
             }
@@ -211,7 +211,7 @@ HaloProperties get_emissivity_fields_averages(EmissivityFields *emissivity_field
                 mean_count += emissivity_fields->count[i] / factor;
                 mean_mass += emissivity_fields->halo_mass[i] / factor;
                 mean_stars += emissivity_fields->halo_stars[i] / factor;
-                if (astro_options_global->USE_MINI_HALOS)
+                if (astro_options_global->USE_MCGS)
                     mean_stars_mini += emissivity_fields->halo_stars_mini[i] / factor;
             }
         }
@@ -253,7 +253,7 @@ void mean_fix_emissivities(double M_min, double M_max, EmissivityFields *emissiv
                 averages_global.halo_sfr / averages_emissivity_fields.halo_sfr;
             emissivity_fields->halo_xray[idx] *=
                 averages_global.halo_xray / averages_emissivity_fields.halo_xray;
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 emissivity_fields->halo_sfr_mini[idx] *=
                     averages_global.sfr_mini / averages_emissivity_fields.sfr_mini;
             }
@@ -271,7 +271,7 @@ void mean_fix_emissivities(double M_min, double M_max, EmissivityFields *emissiv
                 averages_global.halo_mass / averages_emissivity_fields.halo_mass;
             emissivity_fields->halo_stars[idx] *=
                 averages_global.stellar_mass / averages_emissivity_fields.stellar_mass;
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 emissivity_fields->halo_stars_mini[idx] *=
                     averages_global.stellar_mass_mini /
                     averages_emissivity_fields.stellar_mass_mini;
@@ -301,7 +301,7 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
     // Compute n_ion
     properties->n_ion = evaluate_nion_conditional_acg(dens, l10_mturn_acg, growth_z, M_min, M_max,
                                                       M_cell, sigma_cell, consts, false);
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         properties->n_ion +=
             evaluate_nion_conditional_mcg(dens, l10_mturn_acg, l10_mturn_mcg, growth_z, M_min,
                                           M_max, M_cell, sigma_cell, consts, false);
@@ -312,7 +312,7 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
     if (astro_options_global->USE_TS_FLUCT || config_settings.EXTRA_EMISSIVITY_FIELDS) {
         properties->halo_sfr = evaluate_sfrd_conditional_acg(dens, l10_mturn_acg, growth_z, M_min,
                                                              M_max, M_cell, sigma_cell, consts);
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             properties->sfr_mini =
                 evaluate_sfrd_conditional_mcg(dens, l10_mturn_acg, l10_mturn_mcg, growth_z, M_min,
                                               M_max, M_cell, sigma_cell, consts);
@@ -324,7 +324,7 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
         properties->halo_xray = evaluate_xray_emissivity_conditional_acg(
             dens, l10_mturn_acg, consts->redshift, growth_z, M_min, M_max, M_cell, sigma_cell,
             consts);
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             properties->halo_xray += evaluate_xray_emissivity_conditional_mcg(
                 dens, l10_mturn_acg, l10_mturn_mcg, consts->redshift, growth_z, M_min, M_max,
                 M_cell, sigma_cell, consts);
@@ -351,7 +351,7 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
             properties->stellar_mass = properties->n_ion * RHOcrit * cosmo_params_global->OMb *
                                        consts->fstar_10 / astro_params_global->HII_EFF_FACTOR;
         }
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             properties->stellar_mass_mini = properties->sfr_mini * consts->sfr_timescale;
         }
     }
@@ -372,7 +372,7 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
         // *= 1. + dens;
         if (astro_options_global->USE_TS_FLUCT) {
             properties->halo_sfr *= 1. + dens;
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 properties->sfr_mini *= 1. + dens;
             }
             if (astro_options_global->USE_METALLICITY) {
@@ -383,7 +383,7 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
             properties->count *= 1. + dens;
             properties->halo_mass *= 1. + dens;
             properties->stellar_mass *= 1. + dens;
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 properties->stellar_mass_mini *= 1. + dens;
             }
         }
@@ -485,7 +485,7 @@ int add_integral_contribution(double M_min, double M_max, InitialConditions *ini
     // These tables are coarser than needed, an initial loop for Mturn to find limits may help
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
-            (astro_options_global->USE_MINI_HALOS &&
+            (astro_options_global->USE_MCGS &&
              astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE)) {
             initialise_GL(lnM_min, lnM_max);
         }
@@ -519,15 +519,15 @@ int add_integral_contribution(double M_min, double M_max, InitialConditions *ini
     if (astro_options_global->USE_TS_FLUCT) {
         LOG_ULTRA_DEBUG("SF: %.2e", emissivity_fields->halo_sfr[0]);
         LOG_ULTRA_DEBUG("X-ray %.2e", emissivity_fields->halo_xray[0]);
-        if (astro_options_global->USE_MINI_HALOS) {
-            LOG_ULTRA_DEBUG("MINI SF %.2e", emissivity_fields->halo_sfr_mini[0]);
+        if (astro_options_global->USE_MCGS) {
+            LOG_ULTRA_DEBUG("MCG SF %.2e", emissivity_fields->halo_sfr_mini[0]);
         }
     }
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         LOG_ULTRA_DEBUG("log10_Mturn_acg %.2e log10_Mturn_mcg %.2e", log10_mturn_acg_grid[0],
                         log10_mturn_mcg_grid[0]);
         if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-            LOG_ULTRA_DEBUG("MINI SM %.2e", emissivity_fields->halo_stars_mini[0]);
+            LOG_ULTRA_DEBUG("MCG SM %.2e", emissivity_fields->halo_stars_mini[0]);
         }
     }
     free_conditional_tables();
@@ -565,8 +565,8 @@ void emissivity_fields_debug_print_avg(EmissivityFields *emissivity_fields,
                   averages_box.halo_sfr);
         LOG_DEBUG("X-ray emissivity average: Expected: %11.3e, from box: %11.3e",
                   averages_global.halo_xray, averages_box.halo_xray);
-        if (astro_options_global->USE_MINI_HALOS) {
-            LOG_DEBUG("SFRD mini average: Expected: %11.3e, from box: %11.3e",
+        if (astro_options_global->USE_MCGS) {
+            LOG_DEBUG("SFRD MCG average: Expected: %11.3e, from box: %11.3e",
                       averages_global.sfr_mini, averages_box.sfr_mini);
         }
     }
@@ -583,7 +583,7 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
     // If we either use mini-halos or reionization feedback, we need to compute the local
     // fluctuating turnover mass at every cell. The mean of the log10 of these turnover mass
     // fields is then computed from averaging over the box
-    if (astro_options_global->USE_MINI_HALOS ||
+    if (astro_options_global->USE_MCGS ||
         astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
         {
@@ -596,11 +596,11 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
 #pragma omp for reduction(+ : log10_mturn_acg_avg, log10_mturn_mcg_avg)
             for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
                 if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS &&
-                    astro_options_global->USE_MINI_HALOS) {
+                    astro_options_global->USE_MCGS) {
                     curr_vcb = ini_boxes->lowres_vcb[i];
                 }
                 if (consts->redshift < simulation_options_global->Z_HEAT_MAX) {
-                    if (astro_options_global->USE_MINI_HALOS) {
+                    if (astro_options_global->USE_MCGS) {
                         J21_val = previous_spin_temp->J_21_LW[i];
                     }
                     if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
@@ -616,7 +616,7 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
                     log10_mturn_acg_grid[i] = log10(M_turn_acg);
                     log10_mturn_acg_avg += log10(M_turn_acg);
                 }
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     log10_mturn_mcg_grid[i] = log10(M_turn_mcg);
                     log10_mturn_mcg_avg += log10(M_turn_mcg);
                 }
@@ -636,11 +636,11 @@ void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp
         averages[0] = log10(consts->mturn_acg_homogeneous);
     }
 
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         log10_mturn_mcg_avg /= HII_TOT_NUM_PIXELS;
         averages[1] = log10_mturn_mcg_avg;
     } else {
-        averages[1] = 0.;  // dummy value for the USE_MINI_HALOS = false branch
+        averages[1] = 0.;  // dummy value for the USE_MCGS = false branch
     }
 }
 
@@ -685,15 +685,15 @@ void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloCata
     if (astro_options_global->USE_TS_FLUCT) {
         LOG_ULTRA_DEBUG("SF: %.2e", emissivity_fields->halo_sfr[0]);
         LOG_ULTRA_DEBUG("X-ray %.2e", emissivity_fields->halo_xray[0]);
-        if (astro_options_global->USE_MINI_HALOS) {
-            LOG_ULTRA_DEBUG("MINI SF %.2e", emissivity_fields->halo_sfr_mini[0]);
+        if (astro_options_global->USE_MCGS) {
+            LOG_ULTRA_DEBUG("MCG SF %.2e", emissivity_fields->halo_sfr_mini[0]);
         }
     }
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         LOG_ULTRA_DEBUG("log10_Mturn_acg %.2e log10_Mturn_mcg %.2e", log10_mturn_acg_grid[0],
                         log10_mturn_mcg_grid[0]);
         if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-            LOG_ULTRA_DEBUG("MINI SM %.2e", emissivity_fields->halo_stars_mini[0]);
+            LOG_ULTRA_DEBUG("MCG SM %.2e", emissivity_fields->halo_stars_mini[0]);
         }
     }
 }
@@ -723,7 +723,7 @@ int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
             if (astro_options_global->USE_TS_FLUCT) {
                 emissivity_fields->halo_sfr[idx] = 0.0;
                 emissivity_fields->halo_xray[idx] = 0.0;
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     emissivity_fields->halo_sfr_mini[idx] = 0.0;
                 }
             }
@@ -735,7 +735,7 @@ int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
                 emissivity_fields->halo_mass[idx] = 0.0;
                 emissivity_fields->halo_stars[idx] = 0.0;
                 emissivity_fields->count[idx] = 0.0;
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     emissivity_fields->halo_stars_mini[idx] = 0.0;
                 }
             }
@@ -755,7 +755,7 @@ int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
         if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
             log10_mturn_acg_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
         }
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             log10_mturn_mcg_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
         }
         double log10_mturn_averages[2];
@@ -790,7 +790,7 @@ int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
         if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
             free(log10_mturn_acg_grid);
         }
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             free(log10_mturn_mcg_grid);
         }
         // NOTE: the density-grid based calculations (SOURCE_MODEL='E-INTEGRAL')
@@ -835,7 +835,7 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
             float M_turn_acg =
                 consts.mturn_acg_homogeneous;  // used if we don't apply inhomogeneous
                                                // reionization feedback on ACGS
-            float M_turn_mcg = 0.;             // dummy value for the USE_MINI_HALOS = false branch
+            float M_turn_mcg = 0.;             // dummy value for the USE_MCGS = false branch
 
             double in_props[3], halo_pos[3];
             HaloProperties out_props;
@@ -869,10 +869,10 @@ int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float 
                 // set values before reionisation feedback
                 // NOTE: I could easily apply reionization feedback without minihalos but this was
                 // not done previously
-                if (astro_options_global->USE_MINI_HALOS ||
+                if (astro_options_global->USE_MCGS ||
                     astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
                     if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS &&
-                        astro_options_global->USE_MINI_HALOS) {
+                        astro_options_global->USE_MCGS) {
                         curr_vcb = vcb_grid[i_cell];
                     }
                     if (redshift < simulation_options_global->Z_HEAT_MAX) {
@@ -937,7 +937,7 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
     if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
         log10_mturn_acg_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         log10_mturn_mcg_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
     }
     double mturn_averages[2];
@@ -954,7 +954,7 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
         index_huge i_halo;
         double m;
 
-        double M_turn_mcg = 0.;  // dummy value for the USE_MINI_HALOS = false branch
+        double M_turn_mcg = 0.;  // dummy value for the USE_MCGS = false branch
         double M_turn_acg = consts.mturn_acg_homogeneous;  // used if we don't apply inhomogeneous
                                                            // reionization feedback on ACGS
 
@@ -984,7 +984,7 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
                 M_turn_acg =
                     pow(10, cic_read_float_wrapper(log10_mturn_acg_grid, halo_pos, lo_dim));
             }
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 M_turn_mcg =
                     pow(10, cic_read_float_wrapper(log10_mturn_mcg_grid, halo_pos, lo_dim));
             }
@@ -1005,7 +1005,7 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
             halo_catalog_out->sfr[i_halo] = out_props.halo_sfr;
             halo_catalog_out->ion_emissivity[i_halo] = out_props.n_ion;
 
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 halo_catalog_out->stellar_mini[i_halo] = out_props.stellar_mass_mini;
                 halo_catalog_out->sfr_mini[i_halo] = out_props.sfr_mini;
             }
@@ -1031,7 +1031,7 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
     if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
         free(log10_mturn_acg_grid);
     }
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         free(log10_mturn_mcg_grid);
     }
     return 0;

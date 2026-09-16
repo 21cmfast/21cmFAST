@@ -73,7 +73,7 @@ def z_range():
 def default_input_struct_mini(default_input_struct_lc):
     """A default input struct with mini halos turned on."""
     return default_input_struct_lc.evolve_input_structs(
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
@@ -380,7 +380,7 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution_mini, plt):
     global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -450,7 +450,7 @@ def test_Nion_z_tables(name, z_range, default_global_evolution_mini, plt):
     global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -552,7 +552,7 @@ def test_Nion_conditional_tables(
     global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
-        USE_MINI_HALOS=mini_flag,
+        USE_MCGS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -684,7 +684,7 @@ def test_Xray_conditional_tables(
     global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
-        USE_MINI_HALOS=mini_flag,
+        USE_MCGS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -777,7 +777,7 @@ def test_SFRD_conditional_table(
     global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
-        USE_MINI_HALOS=mini_flag,
+        USE_MCGS=mini_flag,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -893,7 +893,7 @@ def test_conditional_integral_methods(
     global_evolution = default_global_evolution_mini
     inputs = get_all_options_struct(
         redshift,
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts

@@ -91,7 +91,7 @@ OPTIONS_TESTRUNS = {
     "mini": [
         18,
         {
-            "USE_MINI_HALOS": True,
+            "USE_MCGS": True,
             "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "USE_TS_FLUCT": True,
@@ -108,7 +108,7 @@ OPTIONS_TESTRUNS = {
     "mini_gamma_approx": [
         18,
         {
-            "USE_MINI_HALOS": True,
+            "USE_MCGS": True,
             "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "USE_TS_FLUCT": True,
@@ -177,7 +177,7 @@ OPTIONS_TESTRUNS = {
         18,
         {
             "SOURCE_MODEL": "CHMF-SAMPLER",
-            "USE_MINI_HALOS": True,
+            "USE_MCGS": True,
             "USE_TS_FLUCT": True,
             "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
@@ -264,7 +264,7 @@ OPTIONS_TESTRUNS = {
             "LYA_MULTIPLE_SCATTERING": True,
             "SOURCE_MODEL": "L-INTEGRAL",
             "USE_TS_FLUCT": True,
-            "USE_MINI_HALOS": True,
+            "USE_MCGS": True,
             "RECOMB_MODEL": "inhomogeneous",
             "N_THREADS": 4,
             "V_CB_MODEL": "FLUCTS",
@@ -390,7 +390,7 @@ def get_lc_fields(inputs):
                 "kinetic_temp_neutral",
             }
         ]
-    if not inputs.astro_options.USE_MINI_HALOS:
+    if not inputs.astro_options.USE_MCGS:
         quantities.remove("J_21_LW")
     if inputs.astro_options.RECOMB_MODEL == "none":
         quantities.remove("cumulative_recombinations")

@@ -265,7 +265,7 @@ def perturb_halo_catalog(
     if previous_spin_temp is None:
         if (
             redshift >= inputs.simulation_options.Z_HEAT_MAX
-            or not inputs.astro_options.USE_MINI_HALOS
+            or not inputs.astro_options.USE_MCGS
         ):
             # Dummy spin temp is OK since we're above Z_HEAT_MAX
             previous_spin_temp = TsBox.dummy()
@@ -275,7 +275,7 @@ def perturb_halo_catalog(
     if previous_ionize_box is None:
         if (
             redshift >= inputs.simulation_options.Z_HEAT_MAX
-            or not inputs.astro_options.USE_MINI_HALOS
+            or not inputs.astro_options.USE_MCGS
         ):
             # Dummy ionize box is OK since we're above Z_HEAT_MAX
             previous_ionize_box = IonizedBox.dummy()
@@ -316,7 +316,7 @@ def compute_emissivity_fields(
     ----------
     initial_conditions : :class:`~InitialConditions`, optional
         The initial conditions of the run. Becomes relevant only for Lagrangian source models,
-        or alternatively, if the user uses a Eulerian source model with USE_MINI_HALOS==True
+        or alternatively, if the user uses a Eulerian source model with USE_MCGS==True
         and V_CB_MODEL = "FLUCTS".
     inputs : :class:`~InputParameters`, optional
         The input parameters specifying the run.
@@ -326,9 +326,9 @@ def compute_emissivity_fields(
     perturbed_field: :class:`~PerturbedField`, optional
         The perturbed field at the current redshift. Becomes relevant only for Eulerian source models.
     previous_spin_temp : :class:`TsBox`, optional
-        The previous spin temperature box. Used for feedback when USE_MINI_HALOS==True
+        The previous spin temperature box. Used for feedback when USE_MCGS==True
     previous_ionize_box: :class:`IonizedBox` or None
-        An at the last timestep. Used for feedback when USE_MINI_HALOS==True
+        An at the last timestep. Used for feedback when USE_MCGS==True
 
     Returns
     -------
@@ -357,12 +357,12 @@ def compute_emissivity_fields(
             )
         elif (
             inputs.matter_options.SOURCE_MODEL == "E-INTEGRAL"
-            and inputs.astro_options.USE_MINI_HALOS
+            and inputs.astro_options.USE_MCGS
             and inputs.matter_options.V_CB_MODEL == "FLUCTS"
         ):
             raise ValueError(
                 "You must provide initial_conditions for SOURCE_MODEL = E- INTEGRAL, "
-                "USE_MINI_HALOS = True and V_CB_MODEL = FLUCTS"
+                "USE_MCGS = True and V_CB_MODEL = FLUCTS"
             )
         else:
             initial_conditions = InitialConditions.dummy()
@@ -378,11 +378,11 @@ def compute_emissivity_fields(
     # NOTE: due to the order, we use the previous spin temp here, like spin_temperature,
     #       but UNLIKE ionize_box, which uses the current box
     # TODO: think about the inconsistency here
-    # NOTE: if USE_MINI_HALOS is TRUE, so is USE_TS_FLUCT and RECOMB_MODEL != "none"
+    # NOTE: if USE_MCGS is TRUE, so is USE_TS_FLUCT and RECOMB_MODEL != "none"
     if previous_spin_temp is None:
         if (
             redshift >= inputs.simulation_options.Z_HEAT_MAX
-            or not inputs.astro_options.USE_MINI_HALOS
+            or not inputs.astro_options.USE_MCGS
         ):
             # Dummy spin temp is OK since we're above Z_HEAT_MAX
             previous_spin_temp = TsBox.dummy()
@@ -392,7 +392,7 @@ def compute_emissivity_fields(
     if previous_ionize_box is None:
         if (
             redshift >= inputs.simulation_options.Z_HEAT_MAX
-            or not inputs.astro_options.USE_MINI_HALOS
+            or not inputs.astro_options.USE_MCGS
         ):
             # Dummy ionize box is OK since we're above Z_HEAT_MAX
             previous_ionize_box = IonizedBox.dummy()
@@ -596,7 +596,7 @@ def setup_radiation_fields(
 
     if need_c:
         # TODO: the whole code below is only required if we use mini-halos. It could be removed though, see comment below
-        if inputs.astro_options.USE_MINI_HALOS:
+        if inputs.astro_options.USE_MCGS:
             # Get log10_Mcrit_MCG_ave for each shell
             # TODO: The reason why this field is evaluated separately is because it is already required in SetupRadiationFields() in the C code,
             # as it sets rad_setup->ave_log10_MturnLW. This array is needed (specifically, in global_reion_properties) for two purposese:
@@ -776,7 +776,7 @@ def compute_radiation_fields(
             R_star = 0.0 * un.Mpc
 
         interp_fields = ["halo_sfr", "halo_xray"]
-        if inputs.astro_options.USE_MINI_HALOS:
+        if inputs.astro_options.USE_MCGS:
             interp_fields += ["halo_sfr_mini"]
 
         # For each shell, interpolate the emissivity fields and evaluate the contribution to the radiation fields
@@ -910,7 +910,7 @@ def compute_ionization_field(
     perturbed_field : :class:`~PerturbedField`
         The perturbed density field.
     previous_perturbed_field : :class:`~PerturbedField`, optional
-        An perturbed field at higher redshift. This is only used if USE_MINI_HALOS is included.
+        An perturbed field at higher redshift. This is only used if USE_MCGS is included.
     previous_ionize_box: :class:`IonizedBox` or None
         An ionized box at higher redshift. This is only used if `RECOMB_MODEL != "none"` and/or `USE_TS_FLUCT`
         is true. If either of these are true, and this is not given, then it will be assumed that

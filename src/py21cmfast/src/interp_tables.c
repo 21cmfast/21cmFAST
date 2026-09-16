@@ -112,13 +112,13 @@ void initialize_sfrd_unconditional_tables(int Nbin, float zmin, float zmax, Scal
     if (!SFRD_z_table.allocated) {
         allocate_RGTable1D(Nbin, &SFRD_z_table);
     }
-    if (astro_options_global->USE_MINI_HALOS && !SFRD_z_table_MINI.allocated) {
+    if (astro_options_global->USE_MCGS && !SFRD_z_table_MINI.allocated) {
         allocate_RGTable2D(Nbin, NMTURN, &SFRD_z_table_MINI);
     }
 
     SFRD_z_table.x_min = zmin;
     SFRD_z_table.x_width = (zmax - zmin) / ((double)Nbin - 1.);
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         SFRD_z_table_MINI.x_min = zmin;
         SFRD_z_table_MINI.x_width = (zmax - zmin) / ((double)Nbin - 1.);
         SFRD_z_table_MINI.y_min = LOG10_MTURN_MCG_MIN;
@@ -155,7 +155,7 @@ void initialize_sfrd_unconditional_tables(int Nbin, float zmin, float zmax, Scal
             // reionization feedback dominates, then the ACG turnover mass is higher than the atomic
             // cooling threshold, in which case the MCG contribution is negligible (see comment in
             // EvaluateSFRD_MINI)
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 for (j = 0; j < NMTURN; j++) {
                     mturn_mcg = pow(10, SFRD_z_table_MINI.y_min + j * SFRD_z_table_MINI.y_width);
                     SFRD_z_table_MINI.z_arr[i][j] = sfrd_unconditional_mcg(
@@ -182,12 +182,12 @@ void initialize_nion_unconditional_tables(int Nbin, float zmin, float zmax, Scal
     if (!Nion_z_table.allocated) {
         allocate_RGTable1D(Nbin, &Nion_z_table);
     }
-    if (astro_options_global->USE_MINI_HALOS && !Nion_z_table_MINI.allocated) {
+    if (astro_options_global->USE_MCGS && !Nion_z_table_MINI.allocated) {
         allocate_RGTable2D(Nbin, NMTURN, &Nion_z_table_MINI);
     }
     Nion_z_table.x_min = zmin;
     Nion_z_table.x_width = (zmax - zmin) / ((double)Nbin - 1.);
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         Nion_z_table_MINI.x_min = zmin;
         Nion_z_table_MINI.x_width = (zmax - zmin) / ((double)Nbin - 1.);
         Nion_z_table_MINI.y_min = LOG10_MTURN_MCG_MIN;
@@ -226,7 +226,7 @@ void initialize_nion_unconditional_tables(int Nbin, float zmin, float zmax, Scal
             // reionization feedback dominates, then the ACG turnover mass is higher than the atomic
             // cooling threshold, in which case the MCG contribution is negligible (see comment in
             // EvaluateNionTs_MINI)
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 for (j = 0; j < NMTURN; j++) {
                     mturn_mcg = pow(10, Nion_z_table_MINI.y_min + j * Nion_z_table_MINI.y_width);
                     Nion_z_table_MINI.z_arr[i][j] = nion_unconditional_mcg(
@@ -294,9 +294,8 @@ void initialize_fcoll_unconditional_table(double zmin, double zmax, bool x_ray) 
         else {
             if (astro_options_global->INTEGRATION_METHOD_ATOMIC ==
                     INTEGRATION_METHOD_GAUSS_LEGENDRE ||
-                (astro_options_global->USE_MINI_HALOS &&
-                 astro_options_global->INTEGRATION_METHOD_MINI ==
-                     INTEGRATION_METHOD_GAUSS_LEGENDRE))
+                (astro_options_global->USE_MCGS && astro_options_global->INTEGRATION_METHOD_MINI ==
+                                                       INTEGRATION_METHOD_GAUSS_LEGENDRE))
                 initialise_GL(lnMmin, lnMmax);
             fcoll_z_table.y_arr[i] = fcoll_unconditional(z_val, lnMmin, lnMmax);
         }
@@ -356,7 +355,7 @@ void initialize_nion_conditional_tables(double z, double min_density, double max
 
     // The MCG table is always 2D (delta,mturn) even without reionization feedback,
     // because of the inhomogeneous LW and v_cb feedbacks
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         if (prev) {
             table_mcg_2d = &Nion_conditional_table_MINI_prev;
         } else {
@@ -414,7 +413,7 @@ void initialize_nion_conditional_tables(double z, double min_density, double max
                 }
             }
 
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 for (j = 0; j < NMTURN; j++) {
                     // NOTE: we use below homogeneous (feedback-free) ACG turnover mass, because if
                     // the reionization feedback dominates, then the ACG turnover mass is higher
@@ -482,7 +481,7 @@ void initialize_sfrd_conditional_tables(double z, double min_density, double max
 
     // The MCG table is always 2D (delta,mturn) even without reionization feedback,
     // because of the inhomogeneous LW and v_cb feedbacks
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         if (!SFRD_conditional_table_MINI.allocated) {
             allocate_RGTable2D_f(NDELTA, NMTURN, &SFRD_conditional_table_MINI);
         }
@@ -539,7 +538,7 @@ void initialize_sfrd_conditional_tables(double z, double min_density, double max
                 }
             }
 
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 for (j = 0; j < NMTURN; j++) {
                     // NOTE: we use below homogeneous (feedback-free) ACG turnover mass, because if
                     // the reionization feedback dominates, then the ACG turnover mass is higher
@@ -609,7 +608,7 @@ void initialize_xray_emissivity_conditional_tables(double redshift, double min_d
 
     // The MCG table is always 2D (delta,mturn) even without reionization feedback,
     // because of the inhomogeneous LW and v_cb feedbacks
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         if (!Xray_conditional_table_MINI.allocated) {
             allocate_RGTable2D_f(NDELTA, NMTURN, &Xray_conditional_table_MINI);
         }
@@ -668,7 +667,7 @@ void initialize_xray_emissivity_conditional_tables(double redshift, double min_d
                 }
             }
 
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 for (j = 0; j < NMTURN; j++) {
                     // NOTE: we use below homogeneous (feedback-free) ACG turnover mass, because if
                     // the reionization feedback dominates,  then the ACG turnover mass is higher

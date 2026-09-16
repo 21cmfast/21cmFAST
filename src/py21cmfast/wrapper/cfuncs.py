@@ -223,7 +223,7 @@ def compute_mturns(
         The turnover mass for atomic cooling halos at the given redshifts.
     M_turn_mcg : array-like or None
         The turnover mass for molecular cooling halos at the given redshifts.
-        Will be None if `USE_MINI_HALOS` is False.
+        Will be None if `USE_MCGS` is False.
 
     Raises
     ------
@@ -258,7 +258,7 @@ def compute_mturns(
         redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion
     )
 
-    if not inputs.astro_options.USE_MINI_HALOS:
+    if not inputs.astro_options.USE_MCGS:
         M_turn_mcg = None
 
     if M_turn_acg.ndim == 0:  # scalar input case
@@ -352,7 +352,7 @@ def compute_luminosity_function(
         If None, the function will run a global evolution to estimate the global turnover masses,
         otherwise they will be extracted from the given global evolution.
     component : str, {'both', 'acg', 'mcg}
-        The component of the LF to be calculated. Forced to be 'acg' if USE_MINI_HALOS is False.
+        The component of the LF to be calculated. Forced to be 'acg' if USE_MCGS is False.
 
     Returns
     -------
@@ -375,9 +375,9 @@ def compute_luminosity_function(
             "or leave unspecified and they will be estimated automatically."
         )
 
-    if not astro_options.USE_MINI_HALOS and component != "acg":
+    if not astro_options.USE_MCGS and component != "acg":
         warnings.warn(
-            "USE_MINI_HALOS is False, so only ACG LFs are computed.",
+            "USE_MCGS is False, so only ACG LFs are computed.",
             stacklevel=2,
         )
         component = "acg"
@@ -765,7 +765,7 @@ def evaluate_SFRD_z(
         The global star formation rate density at the given redshifts for ACGs.
     sfrd_mini : np.ndarray or None
         The global star formation rate density at the given redshifts for MCGs.
-        Will be None if `USE_MINI_HALOS` is False.
+        Will be None if `USE_MCGS` is False.
     """
     if log10mturns is not None:
         raise TypeError(
@@ -779,7 +779,7 @@ def evaluate_SFRD_z(
         redshifts=redshifts,
         lightcone=lightcone,
         global_evolution=global_evolution,
-        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
+        component="both" if inputs.astro_options.USE_MCGS else "acg",
     )
 
     redshifts = np.asarray(redshifts).astype("f8")
@@ -796,7 +796,7 @@ def evaluate_SFRD_z(
         ffi.cast("double *", ffi.from_buffer(sfrd)),
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )
-    if not inputs.astro_options.USE_MINI_HALOS:
+    if not inputs.astro_options.USE_MCGS:
         sfrd_mini = None
 
     return sfrd, sfrd_mini
@@ -835,7 +835,7 @@ def evaluate_Nion_z(
         The global number of ionising photons per baryon at the given redshifts for ACGs.
     nion_mini : np.ndarray or None
         The global number of ionising photons per baryon at the given redshifts for MCGs.
-        Will be None if `USE_MINI_HALOS` is False.
+        Will be None if `USE_MCGS` is False.
     """
     if log10mturns is not None:
         raise TypeError(
@@ -849,7 +849,7 @@ def evaluate_Nion_z(
         redshifts=redshifts,
         lightcone=lightcone,
         global_evolution=global_evolution,
-        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
+        component="both" if inputs.astro_options.USE_MCGS else "acg",
     )
 
     redshifts = np.asarray(redshifts).astype("f8")
@@ -867,7 +867,7 @@ def evaluate_Nion_z(
         ffi.cast("double *", ffi.from_buffer(nion_mini)),
     )
 
-    if not inputs.astro_options.USE_MINI_HALOS:
+    if not inputs.astro_options.USE_MCGS:
         nion_mini = None
 
     return nion, nion_mini
@@ -912,7 +912,7 @@ def evaluate_SFRD_cond(
         The conditional star formation rate density at the given redshift and radius for ACGs.
     sfrd_mini : np.ndarray or None
         The conditional star formation rate density at the given redshift and radius for MCGs.
-        Will be None if `USE_MINI_HALOS` is False.
+        Will be None if `USE_MCGS` is False.
 
     Notes
     -----
@@ -934,7 +934,7 @@ def evaluate_SFRD_cond(
         redshifts=redshift,
         lightcone=lightcone,
         global_evolution=global_evolution,
-        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
+        component="both" if inputs.astro_options.USE_MCGS else "acg",
     )
 
     densities = densities.astype("f8")
@@ -952,7 +952,7 @@ def evaluate_SFRD_cond(
         ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
     )
 
-    if not inputs.astro_options.USE_MINI_HALOS:
+    if not inputs.astro_options.USE_MCGS:
         sfrd_mini = None
 
     return sfrd, sfrd_mini
@@ -998,7 +998,7 @@ def evaluate_Nion_cond(
         The conditional number of ionising photons per baryon at the given redshift and radius for ACGs.
     nion_mini : np.ndarray or None
         The conditional number of ionising photons per baryon at the given redshift and radius for MCGs.
-        Will be None if `USE_MINI_HALOS` is False.
+        Will be None if `USE_MCGS` is False.
 
     Notes
     -----
@@ -1020,7 +1020,7 @@ def evaluate_Nion_cond(
         redshifts=redshift,
         lightcone=lightcone,
         global_evolution=global_evolution,
-        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
+        component="both" if inputs.astro_options.USE_MCGS else "acg",
     )
 
     densities = densities.astype("f8")
@@ -1038,7 +1038,7 @@ def evaluate_Nion_cond(
         ffi.cast("double *", ffi.from_buffer(nion_mini)),
     )
 
-    if not inputs.astro_options.USE_MINI_HALOS:
+    if not inputs.astro_options.USE_MCGS:
         nion_mini = None
 
     return nion, nion_mini
@@ -1103,7 +1103,7 @@ def evaluate_Xray_cond(
         redshifts=redshift,
         lightcone=lightcone,
         global_evolution=global_evolution,
-        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
+        component="both" if inputs.astro_options.USE_MCGS else "acg",
     )
 
     densities = densities.astype("f8")

@@ -31,7 +31,7 @@ YUNG24_PHYSICAL_PARAMS = {
 def default_input_struct_lc_mini(default_input_struct_lc):
     """A default input struct with mini halos turned on."""
     return default_input_struct_lc.evolve_input_structs(
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
@@ -733,7 +733,7 @@ def test_compute_mturns_model(
     inputs = default_input_struct_ts.evolve_input_structs(
         RECOMB_MODEL="inhomogeneous",
         M_TURN_STELLAR_FEEDBACK=log10_m_turn_stellar_feedback,
-        USE_MINI_HALOS=use_mini_halos,
+        USE_MCGS=use_mini_halos,
         USE_REIONIZATION_PHOTOHEATING_FEEDBACK=use_reionization_photoheating_feedback,
     )
     # Compute the turnover masses from the C code, these are the values under test
@@ -787,7 +787,7 @@ def test_compute_mturns_model(
 def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
     inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
         K_MAX_FOR_CLASS=1.0,
         V_CB_MODEL=v_cb_model,

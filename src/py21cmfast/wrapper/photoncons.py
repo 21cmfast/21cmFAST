@@ -305,7 +305,7 @@ def calibrate_photon_cons(
     inputs_calibration = inputs.evolve_input_structs(
         USE_TS_FLUCT=False,
         RECOMB_MODEL="none",
-        USE_MINI_HALOS=False,
+        USE_MCGS=False,
         SOURCE_MODEL=source_model_calibration[inputs.matter_options.SOURCE_MODEL],
         PHOTON_CONS_TYPE="no-photoncons",
         R_BUBBLE_MAX=(
@@ -367,7 +367,7 @@ def calibrate_photon_cons(
             z -= 0.5
 
         ib = ib2
-        if inputs.astro_options.USE_MINI_HALOS:
+        if inputs.astro_options.USE_MCGS:
             prev_perturb = this_perturb
 
         fast_node_redshifts.append(z)

@@ -1526,18 +1526,18 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC) {
     return (0.0);
 }
 // set the minimum source mass for the integrals, If we have an exponential cutoff we go below the
-// chosen mass by a factor of 50 NOTE: previously, with USE_MINI_HALOS, the sigma table was
+// chosen mass by a factor of 50 NOTE: previously, with USE_MCGS, the sigma table was
 // initialised with M_MIN_INTEGRAL/50, but then all integrals perofmed
 //       from M_MIN_INTEGRAL
 double minimum_source_mass(double redshift, bool xray) {
     double Mmin, min_factor, mu_factor, t_vir_min;
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL) &&
-        !astro_options_global->USE_MINI_HALOS)
+        !astro_options_global->USE_MCGS)
         min_factor = 50.;  // small lower bound to cover far below the turnover
     else
         min_factor = 1.;  // sharp cutoff
 
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         Mmin = M_MIN_INTEGRAL;  // overrides the rest of the options
     } else if (astro_options_global->M_MIN_in_Mass) {
         // NOTE: previously this divided Mturn by 50 in spin temperature, but not in the ionised box

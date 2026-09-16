@@ -19,6 +19,7 @@ import numpy as np
 import pytest
 
 from py21cmfast import (
+    AstroOptions,
     BrightnessTemp,
     Coeval,
     EmissivityFields,
@@ -123,7 +124,7 @@ def test_extra_halobox_fields_deprecated_warning(default_input_struct_lc):
             inputs=default_input_struct_lc.evolve_input_structs(
                 USE_TS_FLUCT=True,
                 RECOMB_MODEL="inhomogeneous",
-                USE_MINI_HALOS=True,
+                USE_MCGS=True,
                 V_CB_MODEL="AVG-DEBUG",
                 M_TURN_STELLAR_FEEDBACK=5.0,
             ),
@@ -154,7 +155,7 @@ def test_extra_halobox_fields_is_removed(default_input_struct_lc):
             inputs=default_input_struct_lc.evolve_input_structs(
                 USE_TS_FLUCT=True,
                 RECOMB_MODEL="inhomogeneous",
-                USE_MINI_HALOS=True,
+                USE_MCGS=True,
                 V_CB_MODEL="AVG-DEBUG",
                 M_TURN_STELLAR_FEEDBACK=5.0,
             ),
@@ -358,3 +359,38 @@ def test_compute_halo_grid_is_removed(
         cache=cache,
     )
     assert isinstance(ef, EmissivityFields)
+
+
+def test_use_mini_halos_deprecated_warning():
+    """Test that using USE_MINI_HALOS=True shows deprecation warning."""
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="USE_MINI_HALOS is deprecated"
+    ):
+        astro_params = AstroOptions(
+            USE_MINI_HALOS=True,
+            USE_TS_FLUCT=True,
+            RECOMB_MODEL="inhomogeneous",
+        )
+    assert astro_params.USE_MCGS == astro_params.USE_MINI_HALOS
+
+
+@deprecation.fail_if_not_removed
+def test_use_mini_halos_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete USE_MINI_HALOS."""
+    AstroOptions(
+        USE_MINI_HALOS=True,
+        USE_TS_FLUCT=True,
+        RECOMB_MODEL="inhomogeneous",
+    )
+
+
+@pytest.mark.parametrize("use_mcgs", [True, False])
+def test_bad_deprecated_inputs(use_mcgs):
+    """Test that bad deprecated inputs raise ValueError."""
+    with pytest.raises(ValueError, match="USE_MCGS is set to"):
+        AstroOptions(
+            USE_MINI_HALOS=not use_mcgs,
+            USE_MCGS=use_mcgs,
+            USE_TS_FLUCT=True,
+            RECOMB_MODEL="inhomogeneous",
+        )

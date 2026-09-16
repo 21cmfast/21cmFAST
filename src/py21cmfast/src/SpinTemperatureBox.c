@@ -252,7 +252,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
 
     output.x_e = x_e;
     output.Tk = Tk;
-    output.J_21_LW = astro_options_global->USE_MINI_HALOS ? rad->lyw_flux : 0.;
+    output.J_21_LW = astro_options_global->USE_MCGS ? rad->lyw_flux : 0.;
 
     if (astro_options_global->USE_LYA_HEATING) {
         J_alpha_tot = rad->lya_flux_continuum + rad->lya_flux_injected + rad->xray_lya_flux;
@@ -376,7 +376,7 @@ int ComputeTsBox(float redshift, float prev_redshift, PerturbedField *perturbed_
                 local_rad.xray_ionization_rate = radiation_fields->xray_ionization_rate[box_ct];
                 local_rad.xray_lya_flux = radiation_fields->xray_lya_flux[box_ct];
                 local_rad.delta = curr_delta;
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     local_rad.lyw_flux = radiation_fields->lyw_flux[box_ct];
                 }
                 if (astro_options_global->USE_LYA_HEATING) {
@@ -395,7 +395,7 @@ int ComputeTsBox(float redshift, float prev_redshift, PerturbedField *perturbed_
                 this_spin_temp->spin_temperature[box_ct] = ts_cell.Ts;
                 this_spin_temp->kinetic_temp_neutral[box_ct] = ts_cell.Tk;
                 this_spin_temp->xray_ionised_fraction[box_ct] = ts_cell.x_e;
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     this_spin_temp->J_21_LW[box_ct] = ts_cell.J_21_LW;
                 }
 
@@ -421,7 +421,7 @@ int ComputeTsBox(float redshift, float prev_redshift, PerturbedField *perturbed_
                         LOG_SUPER_DEBUG("Cell0: lya_flux_continuum_injected: %.3e",
                                         local_rad.lya_flux_continuum_injected);
                     }
-                    if (astro_options_global->USE_MINI_HALOS) {
+                    if (astro_options_global->USE_MCGS) {
                         LOG_SUPER_DEBUG("lyw_flux %.3e", local_rad.lyw_flux);
                     }
                     LOG_SUPER_DEBUG("Ts %.5e Tk %.5e x_e %.5e J_21_LW %.5e", ts_cell.Ts, ts_cell.Tk,
@@ -433,7 +433,7 @@ int ComputeTsBox(float redshift, float prev_redshift, PerturbedField *perturbed_
                 if (astro_options_global->USE_X_RAY_HEATING) {
                     xheat_ave += local_rad.xray_heating_rate;
                 }
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     J_LW_ave += ts_cell.J_21_LW;
                 }
                 if (astro_options_global->USE_LYA_HEATING) {
@@ -466,7 +466,7 @@ int ComputeTsBox(float redshift, float prev_redshift, PerturbedField *perturbed_
             xheat_ave /= (double)HII_TOT_NUM_PIXELS;
             LOG_DEBUG("xheat = %.2e", xheat_ave);
         }
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             J_LW_ave /= (double)HII_TOT_NUM_PIXELS;
             LOG_DEBUG("J_LW %.2e", J_LW_ave / 1e21);
         }

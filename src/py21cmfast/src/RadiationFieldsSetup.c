@@ -88,7 +88,7 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
         nuprime = nu_n(2) * (1. + zpp) / (1. + zp);
         if (zpp < zmax(zp, 2)) {
             sum_ly2_val = frecycle(2) * spectral_emissivity(nuprime, 0, 2);
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 sum_ly2_val_MINI = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
 
                 if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
@@ -109,7 +109,7 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
 
             nuprime = nu_n(n_ct) * (1 + zpp) / (1.0 + zp);
             sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 sum_lynto2_val_MINI += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 
                 if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
@@ -148,7 +148,7 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
             sum_lyn_val = weight * sum_lyn_prev;
             sum_ly2_val = weight * sum_ly2_prev;
             sum_lynto2_val = weight * sum_lynto2_prev;
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 sum_lyn_val_MINI = weight * sum_lyn_prev_MINI;
                 sum_ly2_val_MINI = weight * sum_ly2_prev_MINI;
                 sum_lynto2_val_MINI = weight * sum_lynto2_prev_MINI;
@@ -168,7 +168,7 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
                             rad_setup->R_values[R_ct], zpp_integrand,
                             rad_setup->lya_flux_continuum_injected_prefactor[R_ct]);
         }
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             rad_setup->lyw_flux_prefactor[R_ct] = zpp_integrand * sum_lyLW_val;
             rad_setup->lyw_flux_prefactor_MINI[R_ct] = zpp_integrand * sum_lyLW_val_MINI;
             LOG_ULTRA_DEBUG("LW: %.2e LWmini: %.2e", rad_setup->lyw_flux_prefactor[R_ct],
@@ -219,7 +219,7 @@ void fill_freqint_tables(double zp, RadiationFieldsSetup *rad_setup, ScalingCons
             //      see https://github.com/21cmfast/21cmFAST/issues/470. Thus, we use the
             //      homogeneous (feedback-free) ACG turnover mass. It is important to remember to
             //      fix this when issue #470 is fixed!
-            if (astro_options_global->USE_MINI_HALOS) {
+            if (astro_options_global->USE_MCGS) {
                 lower_int_limit =
                     fmax(nu_tau_one_MINI(zp, rad_setup->zpp_avg[R_ct], rad_setup->x_e_ave_zp,
                                          log10(sc->mturn_acg_homogeneous),
@@ -317,7 +317,7 @@ int global_reion_properties(double zp, RadiationFieldsSetup *rad_setup) {
     //      (feedback-free) ACG turnover mass. It is important to remember to fix this when issue
     //      #470 is fixed!
     sum_nion = evaluate_nion_unconditional_acg(zp, log10(sc.mturn_acg_homogeneous), &sc);
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         sum_nion_mini = evaluate_nion_unconditional_mcg(zp, log10(sc.mturn_acg_homogeneous),
                                                         rad_setup->ave_log10_MturnLW[0], &sc);
     }

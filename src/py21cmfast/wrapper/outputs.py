@@ -985,7 +985,7 @@ class PerturbedHaloCatalog(OutputStructZ):
             out["xray_emissivity"] = Array((buffer_size,), dtype=np.float32)
         if inputs.astro_options.RECOMB_MODEL != "none":
             out["fesc_sfr"] = Array((buffer_size,), dtype=np.float32)
-        if inputs.astro_options.USE_MINI_HALOS:
+        if inputs.astro_options.USE_MCGS:
             out["stellar_mini"] = Array((buffer_size,), dtype=np.float32)
             out["sfr_mini"] = Array((buffer_size,), dtype=np.float32)
 
@@ -1013,7 +1013,7 @@ class PerturbedHaloCatalog(OutputStructZ):
                 required += ["lowres_vcb"]
 
         elif isinstance(input_box, TsBox):
-            if self.astro_options.USE_MINI_HALOS:
+            if self.astro_options.USE_MCGS:
                 required += ["J_21_LW"]
         elif isinstance(input_box, IonizedBox):
             required += ["ionisation_rate_G12", "z_reion"]
@@ -1125,14 +1125,14 @@ class EmissivityFields(OutputStructZ):
         if inputs.astro_options.USE_TS_FLUCT:
             out["halo_xray"] = Array(shape, dtype=np.float32)
             out["halo_sfr"] = Array(shape, dtype=np.float32)
-            if inputs.astro_options.USE_MINI_HALOS:
+            if inputs.astro_options.USE_MCGS:
                 out["halo_sfr_mini"] = Array(shape, dtype=np.float32)
 
         if config["EXTRA_EMISSIVITY_FIELDS"]:
             out["count"] = Array(shape, dtype=np.float32)
             out["halo_mass"] = Array(shape, dtype=np.float32)
             out["halo_stars"] = Array(shape, dtype=np.float32)
-            if inputs.astro_options.USE_MINI_HALOS:
+            if inputs.astro_options.USE_MCGS:
                 out["halo_stars_mini"] = Array(shape, dtype=np.float32)
 
         return cls(
@@ -1155,7 +1155,7 @@ class EmissivityFields(OutputStructZ):
                     "xray_rng",
                 ]
         elif isinstance(input_box, TsBox):
-            if self.astro_options.USE_MINI_HALOS:
+            if self.astro_options.USE_MCGS:
                 required += ["J_21_LW"]
         elif isinstance(input_box, IonizedBox):
             required += ["ionisation_rate_G12", "z_reion"]
@@ -1179,7 +1179,7 @@ class EmissivityFields(OutputStructZ):
 
             if (
                 self.matter_options.V_CB_MODEL == "FLUCTS"
-                and self.astro_options.USE_MINI_HALOS
+                and self.astro_options.USE_MCGS
             ):
                 required += ["lowres_vcb"]
         else:
@@ -1235,7 +1235,7 @@ class EmissivityFields(OutputStructZ):
             # If we need the box, only keep the interpolated fields
             if self.redshift <= last_z_above:
                 keep += ["halo_sfr", "halo_xray"]
-                if self.astro_options.USE_MINI_HALOS:
+                if self.astro_options.USE_MCGS:
                     keep += ["halo_sfr_mini"]
         self.prepare(keep=keep, force=force)
 
@@ -1371,7 +1371,7 @@ class RadiationFieldsSetup(OutputStructZ):
             "filtered_xray": Array(shape, dtype=np.float32),
         }
 
-        if inputs.astro_options.USE_MINI_HALOS:
+        if inputs.astro_options.USE_MCGS:
             out["filtered_sfr_mini"] = Array(shape, dtype=np.float32)
             if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
                 out["filtered_sfr_lw"] = Array(shape, dtype=np.float32)
@@ -1389,7 +1389,7 @@ class RadiationFieldsSetup(OutputStructZ):
                 (inputs.astro_params.N_STEP_TS,), dtype=np.float64
             )
 
-        if inputs.astro_options.USE_MINI_HALOS:
+        if inputs.astro_options.USE_MCGS:
             out["lyw_flux_prefactor"] = Array(
                 (inputs.astro_params.N_STEP_TS,), dtype=np.float64
             )
@@ -1408,7 +1408,7 @@ class RadiationFieldsSetup(OutputStructZ):
                     (inputs.astro_params.N_STEP_TS,), dtype=np.float64
                 )
 
-        if inputs.astro_options.USE_MINI_HALOS:
+        if inputs.astro_options.USE_MCGS:
             out["ave_log10_MturnLW"] = Array(
                 (inputs.astro_params.N_STEP_TS,), dtype=np.float64
             )
@@ -1542,7 +1542,7 @@ class RadiationFields(OutputStructZ):
             "xray_ionization_rate": Array(shape, dtype=np.float64),
             "xray_lya_flux": Array(shape, dtype=np.float64),
         }
-        if inputs.astro_options.USE_MINI_HALOS:
+        if inputs.astro_options.USE_MCGS:
             out["lyw_flux"] = Array(shape, dtype=np.float64)
 
         if inputs.astro_options.USE_X_RAY_HEATING:
@@ -1570,7 +1570,7 @@ class RadiationFields(OutputStructZ):
             required += ["xray_ionised_fraction"]
         elif isinstance(input_box, EmissivityFields):
             required += ["halo_sfr", "halo_xray"]
-            if self.astro_options.USE_MINI_HALOS:
+            if self.astro_options.USE_MCGS:
                 required += ["halo_sfr_mini"]
         elif isinstance(input_box, RadiationFieldsSetup):
             required += [
@@ -1589,7 +1589,7 @@ class RadiationFields(OutputStructZ):
                 "filtered_sfr",
                 "filtered_xray",
             ]
-            if self.astro_options.USE_MINI_HALOS:
+            if self.astro_options.USE_MCGS:
                 required += ["filtered_sfr_mini"]
                 if self.astro_options.LYA_MULTIPLE_SCATTERING:
                     required += ["filtered_sfr_lw", "filtered_sfr_mini_lw"]
@@ -1602,7 +1602,7 @@ class RadiationFields(OutputStructZ):
             else:
                 required += ["lya_flux_continuum_injected_prefactor"]
 
-            if self.astro_options.USE_MINI_HALOS:
+            if self.astro_options.USE_MCGS:
                 required += ["lyw_flux_prefactor", "lyw_flux_prefactor_MINI"]
                 if self.astro_options.USE_LYA_HEATING:
                     required += [
@@ -1612,7 +1612,7 @@ class RadiationFields(OutputStructZ):
                 else:
                     required += ["lya_flux_continuum_injected_prefactor_MINI"]
 
-            if self.astro_options.USE_MINI_HALOS:
+            if self.astro_options.USE_MCGS:
                 required += ["ave_log10_MturnLW"]
         else:
             raise ValueError(
@@ -1686,7 +1686,7 @@ class TsBox(OutputStructZ):
             "xray_ionised_fraction": Array(shape, dtype=np.float32),
             "kinetic_temp_neutral": Array(shape, dtype=np.float32),
         }
-        if inputs.astro_options.USE_MINI_HALOS:
+        if inputs.astro_options.USE_MCGS:
             out["J_21_LW"] = Array(shape, dtype=np.float32)
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
@@ -1727,7 +1727,7 @@ class TsBox(OutputStructZ):
         if isinstance(input_box, InitialConditions):
             if (
                 self.matter_options.V_CB_MODEL == "FLUCTS"
-                and self.astro_options.USE_MINI_HALOS
+                and self.astro_options.USE_MCGS
             ):
                 required += ["lowres_vcb"]
         elif isinstance(input_box, PerturbedField):
@@ -1738,7 +1738,7 @@ class TsBox(OutputStructZ):
                 "xray_ionised_fraction",
                 "spin_temperature",
             ]
-            if self.astro_options.USE_MINI_HALOS:
+            if self.astro_options.USE_MCGS:
                 required += ["J_21_LW"]
         elif isinstance(input_box, RadiationFields):
             required += [
@@ -1747,7 +1747,7 @@ class TsBox(OutputStructZ):
             ]
             if self.astro_options.USE_X_RAY_HEATING:
                 required += ["xray_heating_rate"]
-            if self.astro_options.USE_MINI_HALOS:
+            if self.astro_options.USE_MCGS:
                 required += ["lyw_flux"]
             if self.astro_options.USE_LYA_HEATING:
                 required += ["lya_flux_continuum", "lya_flux_injected"]
@@ -1816,7 +1816,7 @@ class IonizedBox(OutputStructZ):
         constructor.
         """
         if (
-            inputs.astro_options.USE_MINI_HALOS
+            inputs.astro_options.USE_MCGS
             and not inputs.matter_options.lagrangian_source_grid
             and inputs.simulation_options.HII_DIM > 1
         ):
@@ -1868,7 +1868,7 @@ class IonizedBox(OutputStructZ):
         if not inputs.matter_options.lagrangian_source_grid:
             out["unnormalised_nion"] = Array(filter_shape, dtype=np.float32)
 
-            if inputs.astro_options.USE_MINI_HALOS:
+            if inputs.astro_options.USE_MCGS:
                 out["unnormalised_nion_mini"] = Array(filter_shape, dtype=np.float32)
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
@@ -1889,14 +1889,14 @@ class IonizedBox(OutputStructZ):
         if isinstance(input_box, InitialConditions):
             if (
                 self.matter_options.V_CB_MODEL == "FLUCTS"
-                and self.astro_options.USE_MINI_HALOS
+                and self.astro_options.USE_MCGS
             ):
                 required += ["lowres_vcb"]
         elif isinstance(input_box, PerturbedField):
             required += ["density"]
         elif isinstance(input_box, TsBox):
             required += ["kinetic_temp_neutral", "xray_ionised_fraction"]
-            if self.astro_options.USE_MINI_HALOS:
+            if self.astro_options.USE_MCGS:
                 required += ["J_21_LW"]
         elif isinstance(input_box, IonizedBox):
             required += ["z_reion", "ionisation_rate_G12"]
@@ -1905,7 +1905,7 @@ class IonizedBox(OutputStructZ):
                     "cumulative_recombinations",
                 ]
             if (
-                self.astro_options.USE_MINI_HALOS
+                self.astro_options.USE_MCGS
                 and not self.matter_options.lagrangian_source_grid
             ):
                 required += [

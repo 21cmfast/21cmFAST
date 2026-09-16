@@ -478,7 +478,7 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     """Test that we raise errors when required input structs are omitted."""
     # setting parameters for the maximum number of fields required
     test_inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         SOURCE_MODEL="CHMF-SAMPLER",
         RECOMB_MODEL="inhomogeneous",
     ).clone(node_redshifts=(35.0, 11.0, 10.0))
@@ -653,7 +653,7 @@ def test_radiation_fields_with_zero_sfr(
 ):
     """Test compute_radiation_fields with zero sfr boxes."""
     inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=use_mini_halos,
+        USE_MCGS=use_mini_halos,
         RECOMB_MODEL="inhomogeneous",
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
     )

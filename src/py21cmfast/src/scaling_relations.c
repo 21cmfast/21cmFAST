@@ -126,7 +126,7 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->Mlim_Fesc =
         Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_esc, consts->fesc_10);
 
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         consts->Mlim_Fstar_mini =
             Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, consts->alpha_star_mini,
                                  consts->fstar_7 * pow(1e3, consts->alpha_star_mini));
@@ -171,7 +171,7 @@ ScalingConstants evolve_scaling_constants_to_redshift(double redshift, ScalingCo
         sc_z.Mlim_Fesc =
             Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, sc_z.alpha_esc, sc_z.fesc_10);
 
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             sc_z.Mlim_Fesc_mini =
                 Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, sc_z.alpha_esc,
                                      sc_z.fesc_7 * pow(1e3, sc_z.alpha_esc));
@@ -212,7 +212,7 @@ ScalingConstants mimic_scatter_in_consts(ScalingConstants *sc) {
     ev_consts.Mlim_Fstar = Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL,
                                                 ev_consts.alpha_star, ev_consts.fstar_10);
 
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         ev_consts.Mlim_Fstar_mini =
             Mass_limit_bisection(M_MIN_INTEGRAL, M_MAX_INTEGRAL, ev_consts.alpha_star_mini,
                                  ev_consts.fstar_7 * pow(1e3, ev_consts.alpha_star_mini));
@@ -399,7 +399,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     star_mass_sample = f_sample * halo_mass * baryon_ratio;
     *star_acg = star_mass_sample;
 
-    if (!astro_options_global->USE_MINI_HALOS) {
+    if (!astro_options_global->USE_MCGS) {
         *star_mcg = 0.;
         return;
     }
@@ -460,7 +460,7 @@ void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
     sfr_sample = mu_sfr * exp(sfr_rng * sigma_sfr - stoc_adjustment_term);
     *sfr = sfr_sample;
 
-    if (!astro_options_global->USE_MINI_HALOS) {
+    if (!astro_options_global->USE_MCGS) {
         *sfr_mini = 0.;
         return;
     }
@@ -506,7 +506,7 @@ void get_halo_xray(double sfr, double sfr_mini, double metallicity, double metal
     mu_x = get_lx_on_sfr(sfr, metallicity, consts->l_x) * sfr;
 
     double mu_x_mini = 0.;
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         // Since there *are* some SFR-dependent
         // models, this is done separately
         mu_x_mini = get_lx_on_sfr(sfr_mini, metallicity_mini, consts->l_x_mini) * sfr_mini;
