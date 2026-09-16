@@ -831,7 +831,21 @@ def _redshift_loop_generator(
                 )
 
             if inputs.astro_options.USE_TS_FLUCT:
-                if inputs.matter_options.lagrangian_source_grid:
+                # XraySourceBox is never itself cached to disk by default (it's
+                # enormous -- see write.xray_source_box and RunCache.get_required_fields),
+                # so compute_xray_source_field() is always a cache miss and always
+                # re-does its full (expensive) shell-filtering loop. That's wasted
+                # work whenever the *downstream* TsBox for this redshift is already
+                # cached, since compute_spin_temperature() would just load the
+                # cached TsBox and throw the freshly-built XraySourceBox away
+                # unused. Skip building it in that case.
+                ts_cached = (
+                    resume_cache is not None
+                    and not iokw.get("regenerate")
+                    and z in resume_cache.TsBox
+                    and resume_cache.TsBox[z].exists()
+                )
+                if inputs.matter_options.lagrangian_source_grid and not ts_cached:
                     # append the halo redshift array so we have all halo boxes [z,zmax]
                     this_xraysource = sf.compute_xray_source_field(
                         redshift=z,
@@ -840,6 +854,8 @@ def _redshift_loop_generator(
                         write=write.xray_source_box,
                         **kw,
                     )
+                else:
+                    this_xraysource = None
 
                 this_spin_temp = sf.compute_spin_temperature(
                     inputs=inputs,
@@ -851,7 +867,7 @@ def _redshift_loop_generator(
                     cleanup=(cleanup and z == all_redshifts[-1]),
                 )
                 # Purge XraySourceBox because it's enormous
-                if inputs.matter_options.lagrangian_source_grid:
+                if this_xraysource is not None:
                     this_xraysource.purge(force=True)
 
             this_ionized_box = sf.compute_ionization_field(
