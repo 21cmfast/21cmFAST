@@ -94,30 +94,32 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     double lnMmin = log(M_min);
 
     // Compute n_ion
-    averages_out->n_ion = Nion_General(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
+    averages_out->n_ion =
+        nion_unconditional_acg(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
     if (astro_options_global->USE_MINI_HALOS) {
-        averages_out->n_ion +=
-            Nion_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_acg, M_turn_mcg, consts);
+        averages_out->n_ion += nion_unconditional_mcg(consts->redshift, lnMmin, lnMmax, M_turn_acg,
+                                                      M_turn_mcg, consts);
     }
 
     // The SFRD is required for either spin temperature calculations or for extra fields
     // (stellar density)
     if (astro_options_global->USE_TS_FLUCT || config_settings.EXTRA_EMISSIVITY_FIELDS) {
-        averages_out->halo_sfr = SFRD_General(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
+        averages_out->halo_sfr =
+            sfrd_unconditional_acg(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
         if (astro_options_global->USE_MINI_HALOS) {
-            averages_out->sfr_mini =
-                SFRD_General_MINI(consts->redshift, lnMmin, lnMmax, M_turn_acg, M_turn_mcg, consts);
+            averages_out->sfr_mini = sfrd_unconditional_mcg(consts->redshift, lnMmin, lnMmax,
+                                                            M_turn_acg, M_turn_mcg, consts);
         }
     }
 
     // X-ray emissivity is required only for the spin temperature calculation
     if (astro_options_global->USE_TS_FLUCT) {
         if (astro_options_global->USE_METALLICITY) {
-            averages_out->halo_xray =
-                Xray_General(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
+            averages_out->halo_xray = xray_emissivity_unconditional_acg(consts->redshift, lnMmin,
+                                                                        lnMmax, M_turn_acg, consts);
             if (astro_options_global->USE_MINI_HALOS) {
-                averages_out->halo_xray += Xray_General_MINI(consts->redshift, lnMmin, lnMmax,
-                                                             M_turn_acg, M_turn_mcg, consts);
+                averages_out->halo_xray += xray_emissivity_unconditional_mcg(
+                    consts->redshift, lnMmin, lnMmax, M_turn_acg, M_turn_mcg, consts);
             }
         } else {
             // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
@@ -132,9 +134,9 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
     // If the user is interested in extra fields, we also compute them
     if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
         averages_out->count =
-            nhalo_General(consts->redshift, lnMmin, lnMmax) * VOLUME / HII_TOT_NUM_PIXELS;
-        averages_out->halo_mass =
-            Fcoll_General(consts->redshift, lnMmin, lnMmax) * RHOcrit * cosmo_params_global->OMm;
+            nhalo_unconditional(consts->redshift, lnMmin, lnMmax) * VOLUME / HII_TOT_NUM_PIXELS;
+        averages_out->halo_mass = fcoll_unconditional(consts->redshift, lnMmin, lnMmax) * RHOcrit *
+                                  cosmo_params_global->OMm;
         if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
             // For the mass-dependent source model, the SFRD is the stellar mass density in all
             // halos divided by the SFR timescale

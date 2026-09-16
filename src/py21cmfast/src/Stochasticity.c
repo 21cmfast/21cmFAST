@@ -53,7 +53,7 @@ double expected_nhalo(double redshift) {
     double M_max = RHOcrit * cosmo_params_global->OMm * VOLUME / HII_TOT_NUM_PIXELS;
     double result;
 
-    result = nhalo_General(redshift, log(M_min), log(M_max)) * VOLUME;
+    result = nhalo_unconditional(redshift, log(M_min), log(M_max)) * VOLUME;
     LOG_DEBUG("Expected %.2e Halos in the box from masses %.2e to %.2e at z=%.2f", result, M_min,
               M_max, redshift);
 

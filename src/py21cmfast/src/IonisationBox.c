@@ -466,9 +466,9 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
                     double mturn_acg, double mturn_mcg, double *f_limit_acg, double *f_limit_mcg) {
     double f_coll_curr = 0., f_coll_prev = 0., f_coll_curr_mini = 0., f_coll_prev_mini = 0.;
     ScalingConstants *sc_ptr = &(c->scale_consts);
-    f_coll_curr = Nion_General(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
-    *f_limit_acg = Nion_General(simulation_options_global->Z_HEAT_MAX, c->lnMmin, c->lnMmax_gl,
-                                mturn_acg, sc_ptr);
+    f_coll_curr = nion_unconditional_acg(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
+    *f_limit_acg = nion_unconditional_acg(simulation_options_global->Z_HEAT_MAX, c->lnMmin,
+                                          c->lnMmax_gl, mturn_acg, sc_ptr);
 
     if (astro_options_global->USE_MINI_HALOS) {
         if (prev_box->mean_f_coll < 1e-4) {
@@ -476,22 +476,22 @@ void set_mean_fcoll(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox 
             // current value
             curr_box->mean_f_coll = f_coll_curr;
         } else {
-            f_coll_prev =
-                Nion_General(c->prev_redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
+            f_coll_prev = nion_unconditional_acg(c->prev_redshift, c->lnMmin, c->lnMmax_gl,
+                                                 mturn_acg, sc_ptr);
             curr_box->mean_f_coll = prev_box->mean_f_coll + f_coll_curr - f_coll_prev;
         }
-        f_coll_curr_mini =
-            Nion_General_MINI(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, mturn_mcg, sc_ptr);
+        f_coll_curr_mini = nion_unconditional_mcg(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg,
+                                                  mturn_mcg, sc_ptr);
         if (prev_box->mean_f_coll_MINI < 1e-4) {
             curr_box->mean_f_coll_MINI = f_coll_curr_mini;
         } else {
-            f_coll_prev_mini = Nion_General_MINI(c->prev_redshift, c->lnMmin, c->lnMmax_gl,
-                                                 mturn_acg, mturn_mcg, sc_ptr);
+            f_coll_prev_mini = nion_unconditional_mcg(c->prev_redshift, c->lnMmin, c->lnMmax_gl,
+                                                      mturn_acg, mturn_mcg, sc_ptr);
             curr_box->mean_f_coll_MINI =
                 prev_box->mean_f_coll_MINI + f_coll_curr_mini - f_coll_prev_mini;
         }
-        *f_limit_mcg = Nion_General_MINI(simulation_options_global->Z_HEAT_MAX, c->lnMmin,
-                                         c->lnMmax_gl, mturn_acg, mturn_mcg, sc_ptr);
+        *f_limit_mcg = nion_unconditional_mcg(simulation_options_global->Z_HEAT_MAX, c->lnMmin,
+                                              c->lnMmax_gl, mturn_acg, mturn_mcg, sc_ptr);
     } else {
         curr_box->mean_f_coll = f_coll_curr;
         curr_box->mean_f_coll_MINI = 0.;

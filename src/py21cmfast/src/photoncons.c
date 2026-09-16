@@ -167,10 +167,10 @@ int InitialisePhotonCons() {
                 if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
                     // TODO: the passed ACG turnover mass that we give below has to be updated to
                     // be more consistent with what's done in the rest of the code
-                    Nion0 = Nion_General(z0, lnMmin, lnMmax,
-                                         astro_params_global->M_TURN_STELLAR_FEEDBACK, &sc_0);
-                    Nion1 = Nion_General(z1, lnMmin, lnMmax,
-                                         astro_params_global->M_TURN_STELLAR_FEEDBACK, &sc_1);
+                    Nion0 = nion_unconditional_acg(
+                        z0, lnMmin, lnMmax, astro_params_global->M_TURN_STELLAR_FEEDBACK, &sc_0);
+                    Nion1 = nion_unconditional_acg(
+                        z1, lnMmin, lnMmax, astro_params_global->M_TURN_STELLAR_FEEDBACK, &sc_1);
                 } else {
                     // set the minimum source mass
                     if (astro_params_global->ION_Tvir_MIN < 9.99999e3) {  // neutral IGM
@@ -181,8 +181,8 @@ int InitialisePhotonCons() {
                         M_MIN_z1 = (float)TtoM(z1, astro_params_global->ION_Tvir_MIN, 0.6);
                     }
 
-                    Nion0 = ION_EFF_FACTOR * Fcoll_General(z0, log(M_MIN_z0), lnMmax);
-                    Nion1 = ION_EFF_FACTOR * Fcoll_General(z1, log(M_MIN_z1), lnMmax);
+                    Nion0 = ION_EFF_FACTOR * fcoll_unconditional(z0, log(M_MIN_z0), lnMmax);
+                    Nion1 = ION_EFF_FACTOR * fcoll_unconditional(z1, log(M_MIN_z1), lnMmax);
                 }
 
                 // With scale factor a, the above equation is written as dQ/da = n_{ion}/da -
