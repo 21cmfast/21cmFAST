@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Self, get_args
 
 import attrs
+import deprecation
 import h5py
 import numpy as np
 from rich import progress as prg
@@ -201,6 +202,23 @@ class Coeval:
     def random_seed(self):
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
+
+    @property
+    def halobox(self) -> EmissivityFields | None:
+        """A deprecated property that returns the EmissivityFields object as a HaloBox."""
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "HaloBox",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "HaloBox has been renamed to EmissivityFields. "
+                    "Please use EmissivityFields instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        return self.emissivity_fields
 
     def prepare_for_next_snapshot(
         self,

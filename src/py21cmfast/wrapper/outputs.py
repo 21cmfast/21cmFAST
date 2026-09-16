@@ -23,6 +23,7 @@ from functools import cached_property
 from typing import Any, Self
 
 import attrs
+import deprecation
 import numpy as np
 from astropy import units as un
 from astropy.cosmology import z_at_value
@@ -1237,6 +1238,36 @@ class EmissivityFields(OutputStructZ):
                 if self.astro_options.USE_MINI_HALOS:
                     keep += ["halo_sfr_mini"]
         self.prepare(keep=keep, force=force)
+
+
+@attrs.define(slots=False, kw_only=True)
+class HaloBox(EmissivityFields):
+    """Deprecated alias for :class:`EmissivityFields`.
+
+    .. deprecated:: 4.3.0
+        ``HaloBox`` was renamed to :class:`EmissivityFields`. This alias will be
+        removed in v5.0.0.
+    """
+
+    _meta = True  # don't register as a separate output-struct kind
+
+    def __attrs_post_init__(self):
+        """Post-init.
+
+        Warns about deprecation of HaloBox.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "HaloBox",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "HaloBox has been renamed to EmissivityFields. "
+                    "Please use EmissivityFields instead."
+                ),
+            ),
+            stacklevel=2,
+        )
 
 
 @attrs.define(slots=False, kw_only=True)

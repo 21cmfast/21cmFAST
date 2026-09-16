@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import contextlib
+import warnings
 from pathlib import Path
 from typing import ClassVar
+
+import deprecation
 
 from . import yaml
 from ._data import _DATA_PATH
@@ -30,7 +33,15 @@ class Config(dict):
     }
     _defaults["wisdoms_path"] = Path(_defaults["direc"]) / "wisdoms"
 
+    _deprecated_keys: ClassVar = {
+        "EXTRA_HALOBOX_FIELDS": "EXTRA_EMISSIVITY_FIELDS",
+    }
+
     def __init__(self, *args, **kwargs):
+        if args:
+            args = (self._translate_deprecated(dict(args[0])), *args[1:])
+        kwargs = self._translate_deprecated(kwargs)
+
         super().__init__(*args, **kwargs)
         # keep the config settings from the C library here
         self._c_config_settings = StructInstanceWrapper(lib.config_settings, ffi)
@@ -54,6 +65,7 @@ class Config(dict):
 
     def __setitem__(self, key, value):
         """Set an item in the config. Also updating the backend if it exists there."""
+        key = self._resolve_deprecated_key(key)
         super().__setitem__(key, value)
         if key in self._c_config_settings:
             self._pass_to_backend(key, value)
@@ -71,6 +83,7 @@ class Config(dict):
     @contextlib.contextmanager
     def use(self, **kwargs):
         """Context manager for using certain configuration options for a set time."""
+        kwargs = self._translate_deprecated(kwargs)
         backup = self.copy()
         for k, v in kwargs.items():
             self[k] = Path(v).expanduser().absolute() if k == "direc" else v
@@ -102,6 +115,28 @@ class Config(dict):
             return cls(cfg, file_name=file_name)
         else:
             return cls(write=True)
+
+    @classmethod
+    def _resolve_deprecated_key(cls, key):
+        """Translate a deprecated config key to its current name, warning once."""
+        new_key = cls._deprecated_keys.get(key)
+        if new_key is None:
+            return key
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                key,
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=f"'{key}' has been renamed to '{new_key}'. Please use '{new_key}' instead.",
+            ),
+            stacklevel=3,
+        )
+        return new_key
+
+    @classmethod
+    def _translate_deprecated(cls, d: dict) -> dict:
+        """Translate any deprecated keys in a dict of config options."""
+        return {cls._resolve_deprecated_key(k): v for k, v in d.items()}
 
 
 # On import, load the default config

@@ -7,11 +7,13 @@ filename for a given set of parameters).
 
 import logging
 import re
+import warnings
 from hashlib import md5
 from pathlib import Path
 from typing import ClassVar, Self, TypedDict, Unpack
 
 import attrs
+import deprecation
 import numpy as np
 
 from .._cfg import config
@@ -428,6 +430,17 @@ class RunCache:
         """
         if not isinstance(kind, str):
             kind = kind.__name__
+        if kind == "HaloBox":
+            warnings.warn(
+                deprecation.DeprecatedWarning(
+                    "HaloBox",
+                    deprecated_in="4.3.0",
+                    removed_in="5.0.0",
+                    details="'HaloBox' has been renamed to 'EmissivityFields'. Please use 'EmissivityFields' instead.",
+                ),
+                stacklevel=2,
+            )
+            kind = "EmissivityFields"
         if kind not in attrs.fields_dict(self.__class__):
             raise ValueError(f"Unknown output kind: {kind}")
         if index is not None:
@@ -535,6 +548,23 @@ class RunCache:
                     return False
         return True
 
+    @property
+    def HaloBox(self) -> dict[float, Path] | None:
+        """A deprecated property that returns the EmissivityFields dictionary as HaloBox."""
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "HaloBox",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "HaloBox has been renamed to EmissivityFields. "
+                    "Please use EmissivityFields instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        return self.EmissivityFields
+
 
 class CacheConfigUpdate(TypedDict, total=False):
     """A TypedDict for updating CacheConfig objects."""
@@ -564,6 +594,17 @@ class CacheConfig:
 
     def update(self, **kwargs: Unpack[CacheConfigUpdate]) -> Self:
         """Return a new CacheConfig with the given fields updated."""
+        if "halobox" in kwargs:
+            warnings.warn(
+                deprecation.DeprecatedWarning(
+                    "halobox",
+                    deprecated_in="4.3.0",
+                    removed_in="5.0.0",
+                    details="'halobox' has been renamed to 'emissivity_fields'. Please use 'emissivity_fields' instead.",
+                ),
+                stacklevel=2,
+            )
+            kwargs["emissivity_fields"] = kwargs.pop("halobox")
         return attrs.evolve(self, **kwargs)
 
     @classmethod
@@ -618,3 +659,20 @@ class CacheConfig:
             halo_catalog=True,
             radiation_fields=False,
         ).update(**kwargs)
+
+    @property
+    def halobox(self) -> bool:
+        """A deprecated property that returns the emissivity_fields boolean as halobox."""
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "halobox",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "halobox has been renamed to emissivity_fields. "
+                    "Please use emissivity_fields instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        return self.emissivity_fields

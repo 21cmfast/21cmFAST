@@ -22,6 +22,7 @@ __all__ = [
     "CosmoParams",
     "EmissivityFields",
     "GlobalEvolution",
+    "HaloBox",  # Remove this in v5
     "HaloCatalog",
     "InitialConditions",
     "InputParameters",
@@ -109,6 +110,7 @@ from .wrapper.inputs import (
 from .wrapper.outputs import (
     BrightnessTemp,
     EmissivityFields,
+    HaloBox,  # Remove this in v5
     HaloCatalog,
     InitialConditions,
     IonizedBox,

@@ -573,6 +573,14 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
             halo_catalog=hf,
         )
 
+    # RadiationFields
+    with pytest.raises(ValueError, match="emissivity_fields_list must be provided"):
+        p21c.compute_radiation_fields(
+            redshift=10.0,
+            previous_ionize_box=ib_p,
+            previous_spin_temp=st_p,
+        )
+
     # IonizedBox
     with pytest.raises(
         ValueError,

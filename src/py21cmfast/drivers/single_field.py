@@ -8,6 +8,7 @@ example initial conditions, perturbed fields and ionization fields.
 import logging
 import warnings
 
+import deprecation
 import numpy as np
 from astropy import constants
 from astropy import units as un
@@ -637,12 +638,13 @@ def setup_radiation_fields(
 @init_c_state(broadcast_inputs=True)
 def compute_radiation_fields(
     *,
-    emissivity_fields_list: list[EmissivityFields],
+    emissivity_fields_list: list[EmissivityFields] | None = None,
     redshift: float,
     rad_setup: RadiationFieldsSetup | None = None,
     previous_ionize_box: IonizedBox | None = None,
     perturbed_field: PerturbedField | None = None,
     previous_spin_temp: TsBox | None = None,
+    hboxes: list[EmissivityFields] | None = None,
 ) -> RadiationFields:
     r"""
     Compute the radiation fields, given the past emissivity fields.
@@ -658,6 +660,8 @@ def compute_radiation_fields(
         An object containing the required arrays for computing the radiation fields at this redshift.
     emissivity_fields_list: Sequence of :class:`~EmissivityFields` instances
         This contains the list of EmissivityFields instances which are used to create this source field
+    hboxes: list of :class:`~EmissivityFields` instances or None
+        Deprecated. This argument has been renamed to `emissivity_fields_list`. Please use `emissivity_fields_list` instead.
     previous_ionize_box: :class:`IonizedBox` or None
         An ionized box at higher redshift. This is only used if `LYA_MULTIPLE_SCATTERING` is true.
     previous_spin_temp: :class:`TsBox` or None
@@ -673,6 +677,22 @@ def compute_radiation_fields(
     regenerate, write, cache:
         See docs of :func:`initial_conditions` for more information.
     """
+    if hboxes is not None:
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "hboxes",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="'hboxes' has been renamed to 'emissivity_fields_list'. Please use 'emissivity_fields_list' instead.",
+            ),
+            stacklevel=2,
+        )
+        if emissivity_fields_list is None:
+            emissivity_fields_list = hboxes
+
+    if emissivity_fields_list is None:
+        raise ValueError("emissivity_fields_list must be provided")
+
     # Setup the radiation fields
     if rad_setup is None:
         rad_setup = setup_radiation_fields(
@@ -861,6 +881,7 @@ def compute_ionization_field(
     previous_ionized_box: IonizedBox | None = None,
     spin_temp: TsBox | None = None,
     emissivity_fields: EmissivityFields | None = None,
+    halobox: EmissivityFields | None = None,  # deprecated
 ) -> IonizedBox:
     r"""
     Compute an ionized box at a given redshift.
@@ -892,6 +913,8 @@ def compute_ionization_field(
     emissivity_fields: :class:`~EmissivityFields` or None, optional
         If passed, this contains the emissivity fields, such as n_ion and weighted star formation density rate.
         Required only for lagrangian source models.
+    halobox: :class:`~EmissivityFields` or None, optional
+        Deprecated. This argument has been renamed to `emissivity_fields`. Please use `emissivity_fields` instead.
 
     Returns
     -------
@@ -906,6 +929,19 @@ def compute_ionization_field(
     flag options) are used, no evolution needs to be done. If the redshift is beyond
     Z_HEAT_MAX, previous fields are not required either.
     """
+    if halobox is not None:
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "halobox",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="'halobox' has been renamed to 'emissivity_fields'. Please use 'emissivity_fields' instead.",
+            ),
+            stacklevel=2,
+        )
+        if emissivity_fields is None:
+            emissivity_fields = halobox
+
     redshift = perturbed_field.redshift
 
     if redshift >= inputs.simulation_options.Z_HEAT_MAX:
