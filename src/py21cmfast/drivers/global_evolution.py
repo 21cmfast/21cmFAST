@@ -399,7 +399,6 @@ def run_global_evolution(
         perturbed_field=perturbed_fields,
         halofield_list=halofield_list,
         write=CacheConfig.off(),
-        cleanup=True,
         progressbar=progressbar,
         photon_nonconservation_data=photon_nonconservation_data,
         init_coeval=prev_coeval,

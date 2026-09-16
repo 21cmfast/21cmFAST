@@ -16,9 +16,9 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
                                 IonizedBox *prev_ion, HaloCatalog *halos,
                                 PerturbedHaloCatalog *halos_perturbed);
 
-int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
-                 PerturbedField *perturbed_field, RadiationFields *radiation_fields,
-                 TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp);
+int ComputeTsBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
+                 RadiationFields *radiation_fields, TsBox *previous_spin_temp,
+                 InitialConditions *ini_boxes, TsBox *this_spin_temp);
 
 int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
                       PerturbedField *previous_perturbed_field, IonizedBox *previous_ionize_box,

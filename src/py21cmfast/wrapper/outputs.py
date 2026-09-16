@@ -1761,7 +1761,6 @@ class TsBox(OutputStructZ):
     def compute(
         self,
         *,
-        cleanup: bool,
         perturbed_field: PerturbedField,
         radiation_fields: RadiationFields,
         prev_spin_temp: TsBox,
@@ -1773,8 +1772,6 @@ class TsBox(OutputStructZ):
             allow_already_computed,
             self.redshift,
             prev_spin_temp.redshift,
-            perturbed_field.redshift,
-            cleanup,
             perturbed_field,
             radiation_fields,
             prev_spin_temp,

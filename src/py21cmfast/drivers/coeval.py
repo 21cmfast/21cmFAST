@@ -547,7 +547,6 @@ def generate_coeval(
     write: CacheConfig | bool = True,
     cache: OutputCache | None = None,
     initial_conditions: InitialConditions | None = None,
-    cleanup: bool = True,
     progressbar: bool = False,
 ):
     r"""
@@ -596,12 +595,6 @@ def generate_coeval(
         If given, use these intial conditions as a basis for computing the other
         fields, instead of re-computing the ICs. If this is defined, the ``inputs`` do
         not need to be defined (but can be, in order to overwrite the ``node_redshifts``).
-    cleanup : bool, optional
-        A flag to specify whether the C routine cleans up its memory before returning.
-        Typically, if `spin_temperature` is called directly, you will want this to be
-        true, as if the next box to be calculated has different shape, errors will occur
-        if memory is not cleaned. Note that internally, this is set to False until the
-        last iteration.
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
 
@@ -685,7 +678,6 @@ def generate_coeval(
         perturbed_field=perturbed_field,
         halofield_list=halofield_list,
         write=write,
-        cleanup=cleanup,
         progressbar=progressbar,
         iokw=iokw,
         init_coeval=coeval,
@@ -775,7 +767,6 @@ def _redshift_loop_generator(
     halofield_list: list[HaloCatalog],
     write: CacheConfig,
     iokw: dict,
-    cleanup: bool,
     progressbar: bool,
     photon_nonconservation_data: dict,
     start_idx: int = 0,
@@ -865,7 +856,6 @@ def _redshift_loop_generator(
                     radiation_fields=this_radiation_fields,
                     write=write.spin_temp,
                     **kw,
-                    cleanup=(cleanup and z == all_redshifts[-1]),
                 )
                 # Purge RadiationFields because it's enormous
                 # TODO: now that RadiationFields (formerly known as XraySourceBox) does not contain 4D arrays anymore,

@@ -23,23 +23,17 @@ static int debug_printed;
 
 // construct a Ts table above Z_HEAT_MAX, this can happen if we are computing the first box or if we
 // request a redshift above Z_HEAT_MAX
-void init_first_Ts(TsBox *box, float *dens, float z, float zp) {
+void init_first_Ts(TsBox *box, float *dens, float z) {
     index_huge box_ct;
-    // zp is the requested redshift, z is the perturbed field redshift
-    float growth_factor_zp;
-    float inverse_growth_factor_z;
     double xe, TK, cT_ad;
 
-    xe = xion_RECFAST(zp, 0);
-    TK = T_RECFAST(zp, 0);
+    xe = xion_RECFAST(z, 0);
+    TK = T_RECFAST(z, 0);
     if (astro_options_global->USE_ADIABATIC_FLUCTUATIONS) {
-        cT_ad = cT_approx(zp);
+        cT_ad = cT_approx(z);
     } else {
         cT_ad = 0.;
     }
-
-    growth_factor_zp = dicke(zp);
-    inverse_growth_factor_z = 1 / dicke(z);
 
 #pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
     {
@@ -47,7 +41,7 @@ void init_first_Ts(TsBox *box, float *dens, float z, float zp) {
         float curr_xalpha;
 #pragma omp for
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
-            gdens = dens[box_ct] * inverse_growth_factor_z * growth_factor_zp;
+            gdens = dens[box_ct];
             box->kinetic_temp_neutral[box_ct] = TK * (1.0 + cT_ad * gdens);
             box->xray_ionised_fraction[box_ct] = xe;
             // compute the spin temperature
@@ -324,14 +318,13 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     return output;
 }
 
-int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
-                 PerturbedField *perturbed_field, RadiationFields *radiation_fields,
-                 TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp) {
+int ComputeTsBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
+                 RadiationFields *radiation_fields, TsBox *previous_spin_temp,
+                 InitialConditions *ini_boxes, TsBox *this_spin_temp) {
     int status;
     Try {  // This Try{} wraps the whole function.
         LOG_DEBUG("Spintemp input values:");
-        LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift,
-                  prev_redshift, perturbed_field_redshift);
+        LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
         writeSimulationOptions(simulation_options_global);
         writeCosmoParams(cosmo_params_global);
@@ -342,8 +335,7 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
 
         if (redshift >= simulation_options_global->Z_HEAT_MAX) {
             LOG_DEBUG("redshift greater than Z_HEAT_MAX");
-            init_first_Ts(this_spin_temp, perturbed_field->density, perturbed_field_redshift,
-                          redshift);
+            init_first_Ts(this_spin_temp, perturbed_field->density, redshift);
             return (0);
         }
 
@@ -354,16 +346,11 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
         set_zp_consts(redshift, &zp_consts);
 
         index_huge box_ct;
-        double growth_factor_z, growth_factor_zp;
-        double inverse_growth_factor_z;
         double dzp;
         double J_alpha_ave, xheat_ave, xion_ave, Ts_ave, Tk_ave, x_e_ave;
         J_alpha_ave = xheat_ave = xion_ave = Ts_ave = Tk_ave = x_e_ave = 0;
         double J_LW_ave = 0., lya_flux_continuum_ave = 0, lya_flux_injected_ave = 0;
 
-        growth_factor_z = dicke(perturbed_field_redshift);
-        inverse_growth_factor_z = 1. / growth_factor_z;
-        growth_factor_zp = dicke(redshift);
         dzp = redshift - prev_redshift;
 
 #pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
@@ -374,8 +361,7 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
 #pragma omp for reduction(+ : J_alpha_ave, xheat_ave, xion_ave, Ts_ave, Tk_ave, x_e_ave, \
                               lya_flux_continuum_ave, lya_flux_injected_ave)
             for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
-                curr_delta =
-                    perturbed_field->density[box_ct] * growth_factor_zp * inverse_growth_factor_z;
+                curr_delta = perturbed_field->density[box_ct];
                 // NOTE: this corrected for aliasing before, but sometimes there are still some
                 // delta==-1 cells
                 //   which breaks the adiabatic part

@@ -831,7 +831,6 @@ def compute_spin_temperature(
     inputs: InputParameters | None = None,
     radiation_fields: RadiationFields,
     previous_spin_temp: TsBox | None = None,
-    cleanup: bool = False,
 ) -> TsBox:
     r"""
     Compute spin temperature boxes at a given redshift.
@@ -845,13 +844,8 @@ def compute_spin_temperature(
     inputs : :class:`~InputParameters`
         The input parameters specifying the run. Since this will be the first box
         to use the astro params/flags when SOURCE_MODEL='E-INTEGRAL' and USE_TS_FLUCT=True.
-    perturbed_field : :class:`~PerturbedField`, optional
-        If given, this field will be used, otherwise it will be generated. To be generated,
-        either `initial_conditions` and `redshift` must be given, or `simulation_options`, `cosmo_params` and
-        `redshift`. By default, this will be generated at the same redshift as the spin temperature
-        box. The redshift of perturb field is allowed to be different than `redshift`. If so, it
-        will be interpolated to the correct redshift, which can provide a speedup compared to
-        actually computing it at the desired redshift.
+    perturbed_field : :class:`~PerturbedField`
+        The perturbed density field.
     radiation_fields : :class:`RadiationFields`
         This input specifies radiation fields, i.e. X-ray heating rate, photoionization rate, and Lyman-alpha flux.
     previous_spin_temp : :class:`TsBox` or None
@@ -880,7 +874,6 @@ def compute_spin_temperature(
 
     # Run the C Code
     return box.compute(
-        cleanup=cleanup,
         perturbed_field=perturbed_field,
         radiation_fields=radiation_fields,
         prev_spin_temp=previous_spin_temp,

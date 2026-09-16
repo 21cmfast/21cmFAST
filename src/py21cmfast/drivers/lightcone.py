@@ -473,7 +473,6 @@ def _run_lightcone_from_perturbed_fields(
     apply_rsds: bool,
     n_rsd_subcells: int,
     halofield_list: list[HaloCatalog],
-    cleanup: bool = True,
     write: CacheConfig = _cache,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
@@ -533,7 +532,6 @@ def _run_lightcone_from_perturbed_fields(
         perturbed_field=perturbed_fields,
         halofield_list=halofield_list,
         write=write,
-        cleanup=cleanup,
         progressbar=progressbar,
         photon_nonconservation_data=photon_nonconservation_data,
         start_idx=lightcone._last_completed_node + 1,
@@ -614,7 +612,6 @@ def generate_lightcone(
     include_dvdr_in_tau21: bool = True,
     apply_rsds: bool = False,
     n_rsd_subcells: int = 4,
-    cleanup: bool = True,
     write: CacheConfig = _cache,
     cache: OutputCache | None = _ocache,
     regenerate: bool = True,
@@ -646,12 +643,6 @@ def generate_lightcone(
     n_rsd_subcells : int, optional
         The number of subcells into which each cell is divided when redshift space distortions are applied.
         Becomes relevant only if apply_rsds is True. Default is False.
-    cleanup : bool, optional
-        A flag to specify whether the C routine cleans up its memory before returning.
-        Typically, if `spin_temperature` is called directly, you will want this to be
-        true, as if the next box to be calculate has different shape, errors will occur
-        if memory is not cleaned. Note that internally, this is set to False until the
-        last iteration.
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
     lightcone_filename
@@ -716,7 +707,6 @@ def generate_lightcone(
         apply_rsds=apply_rsds,
         n_rsd_subcells=n_rsd_subcells,
         write=write,
-        cleanup=cleanup,
         progressbar=progressbar,
         lightcone_filename=lightcone_filename,
         **iokw,
