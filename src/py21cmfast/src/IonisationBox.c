@@ -733,7 +733,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
         prev_max_density += 0.001;
 
         // current redshift tables (automatically handles minihalo case)
-        initialise_Nion_Conditional_spline(consts->redshift, min_density, max_density,
+        initialize_nion_conditional_tables(consts->redshift, min_density, max_density,
                                            consts->M_min, rspec.M_max_R, rspec.M_max_R, sc_ptr,
                                            false);
 
@@ -741,7 +741,7 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
         if (need_prev && astro_options_global->USE_MINI_HALOS) {
             // NOTE: we intentionally use the lower turnovers at this redshift, but should we be
             // doing the same for the upper turnover?
-            initialise_Nion_Conditional_spline(consts->prev_redshift, prev_min_density,
+            initialize_nion_conditional_tables(consts->prev_redshift, prev_min_density,
                                                prev_max_density, consts->M_min, rspec.M_max_R,
                                                rspec.M_max_R, sc_ptr, true);
         }
@@ -827,7 +827,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                             log10_mturn_mcg =
                                 *((float *)fg_struct->log10_mturn_mcg_grid_filtered + index_f);
 
-                            Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(
+                            Splined_Fcoll_MINI = evaluate_nion_conditional_mcg(
                                 curr_dens, log10_mturn_acg, log10_mturn_mcg, consts->growth_factor,
                                 consts->M_min, rspec->M_max_R, rspec->M_max_R, rspec->sigma_maxmass,
                                 sc_ptr, false);
@@ -836,11 +836,11 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                                     previous_ionize_box->mean_f_coll >
                                 1e-4) {
                                 prev_dens = *((float *)fg_struct->prev_deltax_filtered + index_f);
-                                prev_Splined_Fcoll = EvaluateNion_Conditional(
+                                prev_Splined_Fcoll = evaluate_nion_conditional_acg(
                                     prev_dens, log10_mturn_acg, consts->prev_growth_factor,
                                     consts->M_min, rspec->M_max_R, rspec->M_max_R,
                                     rspec->sigma_maxmass, sc_ptr, true);
-                                prev_Splined_Fcoll_MINI = EvaluateNion_Conditional_MINI(
+                                prev_Splined_Fcoll_MINI = evaluate_nion_conditional_mcg(
                                     prev_dens, log10_mturn_acg, log10_mturn_mcg,
                                     consts->prev_growth_factor, consts->M_min, rspec->M_max_R,
                                     rspec->M_max_R, rspec->sigma_maxmass, sc_ptr, true);
@@ -849,7 +849,7 @@ void calculate_fcoll_grid(IonizedBox *box, IonizedBox *previous_ionize_box,
                                 prev_Splined_Fcoll_MINI = 0.;
                             }
                         }
-                        Splined_Fcoll = EvaluateNion_Conditional(
+                        Splined_Fcoll = evaluate_nion_conditional_acg(
                             curr_dens, log10_mturn_acg, consts->growth_factor, consts->M_min,
                             rspec->M_max_R, rspec->M_max_R, rspec->sigma_maxmass, sc_ptr, false);
                     }

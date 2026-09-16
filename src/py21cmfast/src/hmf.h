@@ -66,7 +66,7 @@ double conditional_hmf(double growthf, double lnM, double delta_cond, double sig
 /* erfc-based HMF integrals (!SOURCE_MODEL==0 and EPS) */
 double fcoll_unconditional_eps(double z, double M);
 double fcoll_conditional_eps(float growthf, float del_bias, float sig_small, float sig_large);
-float dfcoll_dz_unconditional_eps(float z, float sigma_min, float del_bias, float sig_bias);
+float dfcoll_dz_conditional_eps(float z, float sigma_min, float del_bias, float sig_bias);
 double dfcoll_dz_unconditional(float z, double lnMmin, double lnMmax);
 double splined_erfc(double x);
 

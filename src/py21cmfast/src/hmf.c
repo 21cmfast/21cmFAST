@@ -153,8 +153,8 @@ double sheth_delc_fixed(double del, double sig) {
 
 double effective_spectral_index(double lnM) {
     double sigma, dsigmasqdm, dlnsdlnm;
-    sigma = EvaluateSigma(lnM);
-    dsigmasqdm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmasqdm = evaluate_dsigma_square_dm(lnM);
     dlnsdlnm = -exp(lnM) * dsigmasqdm / (2. * sigma * sigma);
 
     return -3. * (2. * dlnsdlnm + 1.);
@@ -191,9 +191,9 @@ double dNdlnM_Delos(double growthf, double lnM) {
     const double index_nu = 0.582;
     const double exp_factor = -0.469;
 
-    sigma = EvaluateSigma(lnM);
+    sigma = evaluate_sigma(lnM);
     sigma_inv = 1 / sigma;
-    dsigmadm = EvaluatedSigmasqdm(lnM) * (0.5 * sigma_inv);  // d(s^2)/dm z0 to dsdm
+    dsigmadm = evaluate_dsigma_square_dm(lnM) * (0.5 * sigma_inv);  // d(s^2)/dm z0 to dsdm
 
     nu = physconst.delta_c_delos * sigma_inv / growthf;
 
@@ -212,9 +212,9 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
     const double index_nu = 0.582;
     const double exp_factor = -0.469;
 
-    sigma = EvaluateSigma(lnM);
+    sigma = evaluate_sigma(lnM);
     if (sigma < sigma_cond) return 0.;
-    dsigmadm = EvaluatedSigmasqdm(lnM) * 0.5;  // d(s^2)/dm to s*dsdm
+    dsigmadm = evaluate_dsigma_square_dm(lnM) * 0.5;  // d(s^2)/dm to s*dsdm
     sigdiff_inv = sigma == sigma_cond ? 1e6 : 1 / (sigma * sigma - sigma_cond * sigma_cond);
 
     nu = (physconst.delta_c_delos - delta_cond) * sqrt(sigdiff_inv) / growthf;
@@ -268,8 +268,8 @@ double st_taylor_factor(double sig, double sig_cond, double growthf, double *zer
 double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double sigma_cond) {
     double sigma1, dsigmasqdm, Barrier, factor, sigdiff_inv, result;
     double delta_0 = delta_cond / growthf;
-    sigma1 = EvaluateSigma(lnM);
-    dsigmasqdm = EvaluatedSigmasqdm(lnM);
+    sigma1 = evaluate_sigma(lnM);
+    dsigmasqdm = evaluate_dsigma_square_dm(lnM);
     if (sigma1 < sigma_cond) return 0.;
 
     factor = st_taylor_factor(sigma1, sigma_cond, growthf, &Barrier) - delta_0;
@@ -298,8 +298,8 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
  */
 double dNdlnM_st(double growthf, double lnM) {
     double sigma, dsigmadm, nuhat;
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
@@ -315,8 +315,8 @@ double dNdlnM_st(double growthf, double lnM) {
 double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, double sigma_cond) {
     double sigma1, dsigmasqdm, sigdiff_inv, del;
 
-    sigma1 = EvaluateSigma(lnM);
-    dsigmasqdm = EvaluatedSigmasqdm(lnM);
+    sigma1 = evaluate_sigma(lnM);
+    dsigmasqdm = evaluate_dsigma_square_dm(lnM);
 
     // limit setting
     if (sigma1 < sigma_cond) return 0.;
@@ -343,8 +343,8 @@ double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, doubl
 double dNdlnM_PS(double growthf, double lnM) {
     double sigma, dsigmadm;
 
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
@@ -368,8 +368,8 @@ double dNdlnM_PS(double growthf, double lnM) {
 double dNdlnM_WatsonFOF(double growthf, double lnM) {
     double sigma, dsigmadm, f_sigma;
 
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
@@ -395,8 +395,8 @@ double dNdlnM_WatsonFOF(double growthf, double lnM) {
 double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM) {
     double sigma, dsigmadm, A_z, alpha_z, beta_z, Omega_m_z, f_sigma;
 
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
@@ -418,8 +418,8 @@ double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM) {
 double dNdlnM_Reed07(double growthf, double lnM) {
     double sigma, sigma_z, dsigmadm, neff, nu, lnsigma, G_1, G_2, f_sigma, a_prefac;
 
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
     sigma_z = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma_z));
     neff = effective_spectral_index(lnM);
@@ -440,8 +440,8 @@ double dNdlnM_Reed07(double growthf, double lnM) {
 double dNdlnM_Yung24(double z, double growthf, double lnM) {
     double sigma, sigma_z, dsigmadm, A_z, a_z, b_z, c_z, f_sigma;
 
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
     sigma_z = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma_z));
 
@@ -805,7 +805,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 
     // it is possible for the lower turnover (LW crit or reion feedback)
     //    to be higher than the upper limit (atomic limit) or the condition
-    if (lnM_lo_limit >= lnM_hi_limit || EvaluateSigma(lnM_lo_limit) <= sigma_c) {
+    if (lnM_lo_limit >= lnM_hi_limit || evaluate_sigma(lnM_lo_limit) <= sigma_c) {
         return 0.;
     }
 
@@ -832,10 +832,10 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     // not a simple gamma function.
     //  note especially which nu subtracts the condition sigma and not, see Appendix B of Munoz+22
     //  (2110.13919)
-    double sigma_pivot1 = EvaluateSigma(lnMp1);
-    double sigma_pivot2 = EvaluateSigma(lnMp2);
-    double sigma_lo_limit = EvaluateSigma(lnM_lo_limit);
-    double sigma_hi_limit = EvaluateSigma(lnM_hi_limit);
+    double sigma_pivot1 = evaluate_sigma(lnMp1);
+    double sigma_pivot2 = evaluate_sigma(lnMp2);
+    double sigma_lo_limit = evaluate_sigma(lnM_lo_limit);
+    double sigma_hi_limit = evaluate_sigma(lnM_hi_limit);
 
     // These nu use the CMF delta (subtracted the condition delta), but not the condition sigma
     double nu_pivot1_umf = delta_arg / (sigma_pivot1 * sigma_pivot1);
@@ -1329,8 +1329,7 @@ double sfrd_conditional_acg(double growthf, double lnM1, double lnM2, double lnM
         sfrd_integral = nion_conditional_acg_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
                                                       mturn_acg, &sc_sfrd, method);
     } else {
-        sfrd_integral =
-            dfcoll_dz_unconditional_eps(sc->redshift, sc->sigma_min_sfr, delta2, sigma2);
+        sfrd_integral = dfcoll_dz_conditional_eps(sc->redshift, sc->sigma_min_sfr, delta2, sigma2);
     }
     return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->sfr_timescale;
 }
@@ -1447,11 +1446,11 @@ double sigmaparam_FgtrM_bias(float z, float sigsmallR, float del_bias, float sig
 }
 
 double FgtrM_bias(double z, double M, double del_bias, double sig_bias) {
-    return sigmaparam_FgtrM_bias(z, EvaluateSigma(log(M)), del_bias, sig_bias);
+    return sigmaparam_FgtrM_bias(z, evaluate_sigma(log(M)), del_bias, sig_bias);
 }
 
 //  Redshift derivative of the conditional collapsed fraction (assuming EPS)
-float dfcoll_dz_unconditional_eps(float z, float sigma_min, float del_bias, float sig_bias) {
+float dfcoll_dz_conditional_eps(float z, float sigma_min, float del_bias, float sig_bias) {
     double dz, z1, z2;
     double fc1, fc2, ans;
 

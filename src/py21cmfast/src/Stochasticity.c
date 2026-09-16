@@ -64,7 +64,7 @@ double sample_dndM_inverse(double condition, struct HaloSamplingConstants *hs_co
                            gsl_rng *rng) {
     double p_in, result;
     p_in = gsl_rng_uniform(rng);
-    result = EvaluateNhaloInv(condition, p_in);
+    result = evaluate_nhalo_inverse(condition, p_in);
 
     // convert ratio --> M
     result = fmin(1, fmax(0, result));  // clip in case of strange behaviour
@@ -93,10 +93,10 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
 
     if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES) &&
         matter_options_global->SAMPLE_METHOD == SAMPLE_PARTITION) {
-        InitialiseSigmaInverseTable();
+        initialize_sigma_inverse_table();
     }
 
-    const_struct->sigma_min = EvaluateSigma(const_struct->lnM_min);
+    const_struct->sigma_min = evaluate_sigma(const_struct->lnM_min);
 
     if (redshift_desc > 0) {
         const_struct->growth_in = dicke(redshift_desc);
@@ -117,34 +117,34 @@ void stoc_set_consts_z(struct HaloSamplingConstants *const_struct, double redshi
             const_struct->corr_xray = 0;
 
         const_struct->from_catalog = 1;
-        initialise_dNdM_tables(log(simulation_options_global->SAMPLER_MIN_MASS),
+        initialize_dndm_tables(log(simulation_options_global->SAMPLER_MIN_MASS),
                                const_struct->lnM_max_tb, const_struct->lnM_min,
                                const_struct->lnM_max_tb, const_struct->growth_out,
                                const_struct->growth_in, true);
         if (matter_options_global->SAMPLE_METHOD == SAMPLE_MASS_LIMITED ||
             matter_options_global->SAMPLE_METHOD == SAMPLE_NUMBER_LIMITED) {
-            initialise_dNdM_inverse_table(log(simulation_options_global->SAMPLER_MIN_MASS),
+            initialize_dndm_inverse_table(log(simulation_options_global->SAMPLER_MIN_MASS),
                                           const_struct->lnM_max_tb, const_struct->lnM_min,
                                           const_struct->growth_out, const_struct->growth_in, true);
         }
         if (matter_options_global->SAMPLE_METHOD == SAMPLE_BINARY_SPLIT) {
-            initialise_J_split_table(200, 1e-4, 20., 0.2);
+            initialize_j_split_table(200, 1e-4, 20., 0.2);
         }
     } else {
         double M_cond = RHOcrit * cosmo_params_global->OMm * VOLUME / HII_TOT_NUM_PIXELS;
         const_struct->M_cond = M_cond;
         const_struct->lnM_cond = log(M_cond);
-        const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond);
+        const_struct->sigma_cond = evaluate_sigma(const_struct->lnM_cond);
         // for the table limits
         double delta_crit = get_delta_crit(matter_options_global->HMF, const_struct->sigma_cond,
                                            const_struct->growth_out);
         const_struct->from_catalog = 0;
         // TODO: determine the minimum density in the field and pass it in (<-1 is fine for
         // Lagrangian)
-        initialise_dNdM_tables(DELTA_MIN, MAX_DELTAC_FRAC * delta_crit, const_struct->lnM_min,
+        initialize_dndm_tables(DELTA_MIN, MAX_DELTAC_FRAC * delta_crit, const_struct->lnM_min,
                                const_struct->lnM_max_tb, const_struct->growth_out,
                                const_struct->lnM_cond, false);
-        initialise_dNdM_inverse_table(DELTA_MIN, MAX_DELTAC_FRAC * delta_crit,
+        initialize_dndm_inverse_table(DELTA_MIN, MAX_DELTAC_FRAC * delta_crit,
                                       const_struct->lnM_min, const_struct->growth_out,
                                       const_struct->lnM_cond, false);
     }
@@ -162,7 +162,7 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
     if (const_struct->from_catalog) {
         const_struct->M_cond = cond_val;
         const_struct->lnM_cond = log(cond_val);
-        const_struct->sigma_cond = EvaluateSigma(const_struct->lnM_cond);
+        const_struct->sigma_cond = evaluate_sigma(const_struct->lnM_cond);
         // mean stellar mass of this halo mass, used for stellar z correlations
         const_struct->cond_val = const_struct->lnM_cond;
         // condition delta is the previous delta crit
@@ -193,14 +193,14 @@ void stoc_set_consts_cond(struct HaloSamplingConstants *const_struct, double con
         const_struct->expected_M = 0;
         const_struct->expected_N = 0;
     } else {
-        n_exp = Evaluate_nhalo_Conditional(const_struct->cond_val, const_struct->growth_out,
+        n_exp = evaluate_nhalo_conditional(const_struct->cond_val, const_struct->growth_out,
                                            const_struct->lnM_min, const_struct->lnM_max_tb,
                                            const_struct->M_cond, const_struct->sigma_cond,
                                            const_struct->delta);
-        fcoll_exp = EvaluateFcoll_Conditional(const_struct->cond_val, const_struct->growth_out,
-                                              const_struct->lnM_min, const_struct->lnM_max_tb,
-                                              const_struct->M_cond, const_struct->sigma_cond,
-                                              const_struct->delta);
+        fcoll_exp = evaluate_fcoll_conditional(const_struct->cond_val, const_struct->growth_out,
+                                               const_struct->lnM_min, const_struct->lnM_max_tb,
+                                               const_struct->M_cond, const_struct->sigma_cond,
+                                               const_struct->delta);
         const_struct->expected_N =
             n_exp * const_struct->M_cond / (RHOcrit * cosmo_params_global->OMm);
         const_struct->expected_M = fcoll_exp * const_struct->M_cond;
@@ -458,7 +458,7 @@ int stoc_partition_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *r
 
     double nu_min;
     while (M_remaining > simulation_options_global->SAMPLER_MIN_MASS) {
-        sigma_r = EvaluateSigma(lnM_remaining);
+        sigma_r = evaluate_sigma(lnM_remaining);
 
         delta_current = (get_delta_crit(matter_options_global->HMF, sigma_r, growthf) - d_cond) /
                         (M_remaining / M_cond);
@@ -474,7 +474,7 @@ int stoc_partition_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *r
         } while (partition_rejection(sigma_sample, sigma_min, sigma_r, delta_current / growthf,
                                      growthf, rng));
 
-        M_sample = EvaluateSigmaInverse(sigma_sample);
+        M_sample = evaluate_sigma_inverse(sigma_sample);
         M_sample = exp(M_sample);
 
         M_out[n_halo_sampled++] = M_sample;
@@ -489,7 +489,7 @@ int stoc_partition_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *r
 double ComputeFraction_split(double sigma_start, double sigmasq_start, double sigmasq_res,
                              double G1, double dd, double gamma1) {
     double u_res = sigma_start * pow(sigmasq_res - sigmasq_start, -.5);
-    return sqrt(2. / M_PI) * EvaluateJ(u_res, gamma1) * G1 / sigma_start * dd;
+    return sqrt(2. / M_PI) * evaluate_j_split(u_res, gamma1) * G1 / sigma_start * dd;
 }
 
 // binary splitting with small internal steps based on Parkinson+08, Bensen+16, Qiu+20 (Darkforest)
@@ -534,7 +534,7 @@ int stoc_split_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, 
     int idx = 0;
     int n_points = 1;
 
-    sigma_res = EvaluateSigma(lnm_res);
+    sigma_res = evaluate_sigma(lnm_res);
     sigmasq_res = sigma_res * sigma_res;
     while (idx < n_points) {
         // define the starting condition
@@ -547,9 +547,9 @@ int stoc_split_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, 
         // Compute useful quantites
         m_half = 0.5 * m_start;
         lnm_half = log(m_half);
-        sigma_start = EvaluateSigma(lnm_start);
+        sigma_start = evaluate_sigma(lnm_start);
         sigmasq_start = sigma_start * sigma_start;
-        sigma_half = EvaluateSigma(lnm_half);
+        sigma_half = evaluate_sigma(lnm_half);
         sigmasq_half = sigma_half * sigma_half;
 
         G1 = G0 * pow(d_start / sigma_start, gamma2);
@@ -566,7 +566,7 @@ int stoc_split_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, 
             }
             F = ComputeFraction_split(sigma_start, sigmasq_start, sigmasq_res, G1, dd, gamma1);
         } else {
-            alpha_half = EvaluatedSigmasqdm(lnm_half);                          // d(sigma^2)/dm
+            alpha_half = evaluate_dsigma_square_dm(lnm_half);                   // d(sigma^2)/dm
             alpha_half = -m_half / (2 * sigma_half * sigma_half) * alpha_half;  //-d(lnsigma)/d(lnm)
             // Compute B and beta
             V_res = sigmasq_res * pow(sigmasq_res - sigmasq_start, -1.5);
@@ -603,8 +603,8 @@ int stoc_split_sample(struct HaloSamplingConstants *hs_constants, gsl_rng *rng, 
             if (gsl_rng_uniform(rng) < N_upper) {
                 q = pow(pow(q_res, eta) + pow_diff * gsl_rng_uniform(rng), 1. / eta);
                 m_q = q * m_start;
-                sigma_q = EvaluateSigma(log(m_q));
-                alpha_q = EvaluatedSigmasqdm(log(m_q));              // d(sigma^2)/dm
+                sigma_q = evaluate_sigma(log(m_q));
+                alpha_q = evaluate_dsigma_square_dm(log(m_q));       // d(sigma^2)/dm
                 alpha_q = -m_q / (2 * sigma_q * sigma_q) * alpha_q;  //-d(lnsigma)/d(lnm)
                 sigmasq_q = sigma_q * sigma_q;
 
@@ -1157,7 +1157,7 @@ int stochastic_halofield(random_huge seed, float redshift_desc, float redshift, 
                   halos->xray_rng[1], halos->xray_rng[2]);
     }
 
-    free_dNdM_tables();
+    free_dndm_tables();
 
     free_rng_threads(rng_stoc);
     LOG_DEBUG("Done.");
@@ -1270,14 +1270,14 @@ int single_test_sample(random_huge seed, int n_condition, float *conditions, flo
 
         // get expected values from the saved mass range
         if (hs_constants->from_catalog) {
-            initialise_dNdM_tables(
+            initialize_dndm_tables(
                 log(simulation_options_global->SAMPLER_MIN_MASS), hs_constants->lnM_max_tb,
                 log(simulation_options_global->SAMPLER_MIN_MASS), hs_constants->lnM_max_tb,
                 hs_constants->growth_out, hs_constants->growth_in, true);
         } else {
             double delta_crit = get_delta_crit(matter_options_global->HMF, hs_constants->sigma_cond,
                                                hs_constants->growth_out);
-            initialise_dNdM_tables(DELTA_MIN, MAX_DELTAC_FRAC * delta_crit,
+            initialize_dndm_tables(DELTA_MIN, MAX_DELTAC_FRAC * delta_crit,
                                    log(simulation_options_global->SAMPLER_MIN_MASS),
                                    hs_constants->lnM_max_tb, hs_constants->growth_out,
                                    hs_constants->lnM_cond, false);
@@ -1297,7 +1297,7 @@ int single_test_sample(random_huge seed, int n_condition, float *conditions, flo
             }
         }
 
-        free_dNdM_tables();
+        free_dndm_tables();
 
         free_rng_threads(rng_stoc);
     }  // end of try

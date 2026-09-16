@@ -102,7 +102,7 @@ static RGTable1D_f dSigmasqdm_InterpTable = {
 // NOTE: this table is initialised for up to N_redshift x N_Mturn, but only called N_filter times to
 // assign ST_over_PS in Spintemp.
 //   It may be better to just do the integrals at each R
-void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *sc) {
+void initialize_sfrd_unconditional_tables(int Nbin, float zmin, float zmax, ScalingConstants *sc) {
     int i, j;
     double Mmax = M_MAX_INTEGRAL;
     double lnMmax = log(Mmax);
@@ -172,7 +172,7 @@ void initialise_SFRD_spline(int Nbin, float zmin, float zmax, ScalingConstants *
 
 // Unlike the SFRD spline, this one is used more due to the nu_tau_one() rootfind
 // although still ignores reionisation feedback
-void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstants *sc) {
+void initialize_nion_unconditional_tables(int Nbin, float zmin, float zmax, ScalingConstants *sc) {
     int i, j;
     double Mmax = M_MAX_INTEGRAL;
     double lnMmax = log(Mmax);
@@ -241,8 +241,8 @@ void initialise_Nion_Ts_spline(int Nbin, float zmin, float zmax, ScalingConstant
     }
 }
 
-void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, double growth_zpp,
-                                  double smin_zpp, double smax_zpp) {
+void initialize_fcoll_conditional_tables(double min_dens, double max_dens, double zpp,
+                                         double growth_zpp, double smin_zpp, double smax_zpp) {
     int i;
     double dens;
 
@@ -265,11 +265,11 @@ void initialise_FgtrM_delta_table(double min_dens, double max_dens, double zpp, 
         fcoll_conditional_table.y_arr[i] =
             fcoll_conditional_eps(growth_zpp, dens, smin_zpp, smax_zpp);
         dfcoll_conditional_table.y_arr[i] =
-            dfcoll_dz_unconditional_eps(zpp, smin_zpp, dens, smax_zpp);
+            dfcoll_dz_conditional_eps(zpp, smin_zpp, dens, smax_zpp);
     }
 }
 
-void init_FcollTable(double zmin, double zmax, bool x_ray) {
+void initialize_fcoll_unconditional_table(double zmin, double zmax, bool x_ray) {
     int i;
     double z_val, M_min, lnMmin, lnMmax;
 
@@ -305,7 +305,7 @@ void init_FcollTable(double zmin, double zmax, bool x_ray) {
 
 // NOTE: it would be slightly less accurate but maybe faster to tabulate in linear delta, linear
 // Fcoll rather than linear-log, check the profiles
-void initialise_Nion_Conditional_spline(double z, double min_density, double max_density,
+void initialize_nion_conditional_tables(double z, double min_density, double max_density,
                                         double Mmin, double Mmax, double Mcond,
                                         ScalingConstants *sc, bool prev) {
     int i, j;
@@ -321,7 +321,7 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
     double lnMmin = log(Mmin);
     double lnMmax = log(Mmax);
     // sigma is always the condition, whereas lnMmax is just the integral limit
-    double sigma2 = EvaluateSigma(lnM_condition);
+    double sigma2 = evaluate_sigma(lnM_condition);
 
     // The ACG table could become 2D (delta,mturn) if we apply the inhomogeneous reionization
     // feedback on the ACG turnover mass, otherwise it is 1D (delta) while mturn is set
@@ -436,9 +436,9 @@ void initialise_Nion_Conditional_spline(double z, double min_density, double max
     }
 }
 
-void initialise_SFRD_Conditional_table(double z, double min_density, double max_density,
-                                       double Mmin, double Mmax, double Mcond,
-                                       ScalingConstants *sc) {
+void initialize_sfrd_conditional_tables(double z, double min_density, double max_density,
+                                        double Mmin, double Mmax, double Mcond,
+                                        ScalingConstants *sc) {
     int i, j;
     double overdense_table[NDELTA];
     double mturns_acg[NMTURN], mturns_mcg[NMTURN];
@@ -451,7 +451,7 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
     double lnMmin = log(Mmin);
     double lnMmax = log(Mmax);
     // sigma is always the condition, whereas lnMmax is just the integral limit
-    double sigma2 = EvaluateSigma(lnM_condition);
+    double sigma2 = evaluate_sigma(lnM_condition);
 
     // The ACG table could become 2D (delta,mturn) if we apply the inhomogeneous reionization
     // feedback on the ACG turnover mass, otherwise it is 1D (delta) while mturn is set
@@ -564,9 +564,9 @@ void initialise_SFRD_Conditional_table(double z, double min_density, double max_
     }
 }
 
-void initialise_Xray_Conditional_table(double redshift, double min_density, double max_density,
-                                       double Mmin, double Mmax, double Mcond,
-                                       ScalingConstants *sc) {
+void initialize_xray_emissivity_conditional_tables(double redshift, double min_density,
+                                                   double max_density, double Mmin, double Mmax,
+                                                   double Mcond, ScalingConstants *sc) {
     int i, j;
     double overdense_table[NDELTA];
     double mturns_acg[NMTURN], mturns_mcg[NMTURN];
@@ -579,7 +579,7 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
     double lnMmin = log(Mmin);
     double lnMmax = log(Mmax);
     // sigma is always the condition, whereas lnMmax is just the integral limit
-    double sigma2 = EvaluateSigma(lnM_condition);
+    double sigma2 = evaluate_sigma(lnM_condition);
 
     // The ACG table could become 2D (delta,mturn) if we apply the inhomogeneous reionization
     // feedback on the ACG turnover mass, otherwise it is 1D (delta) while mturn is set
@@ -693,7 +693,7 @@ void initialise_Xray_Conditional_table(double redshift, double min_density, doub
     }
 }
 
-void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, double growth_out,
+void initialize_dndm_tables(double xmin, double xmax, double ymin, double ymax, double growth_out,
                             double param, bool from_catalog) {
     int nx;
     double lnM_cond = 0.;
@@ -704,7 +704,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
 
     if (!from_catalog) {
         lnM_cond = param;
-        sigma_cond = EvaluateSigma(lnM_cond);
+        sigma_cond = evaluate_sigma(lnM_cond);
     }
 
     nx = simulation_options_global->N_COND_INTERP;
@@ -737,7 +737,7 @@ void initialise_dNdM_tables(double xmin, double xmax, double ymin, double ymax, 
             // set the condition
             if (from_catalog) {
                 lnM_cond = x;
-                sigma_cond = EvaluateSigma(lnM_cond);
+                sigma_cond = evaluate_sigma(lnM_cond);
                 // barrier at descendant mass
                 delta = get_delta_crit(matter_options_global->HMF, sigma_cond, param) / param *
                         growth_out;
@@ -780,7 +780,7 @@ double dndm_inv_f(double lnM_min, void *params) {
 // NOTE: Assumes you give it ymin as the minimum lower-integral limit, and ymax as the maximum
 //  `param` is either the constant log condition mass for the grid case (!from_catalog) OR the
 //  descendant growth factor with from_catalog
-void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, double growth_out,
+void initialize_dndm_inverse_table(double xmin, double xmax, double lnM_min, double growth_out,
                                    double param, bool from_catalog) {
     LOG_SUPER_DEBUG("Initialising dNdM Tables from [%.2e,%.2e] (Intg. Min. %.2e)", xmin, xmax,
                     lnM_min);
@@ -797,7 +797,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
     double min_lp = simulation_options_global->MIN_LOGPROB;
     if (!from_catalog) {
         lnM_cond = param;
-        sigma_cond = EvaluateSigma(lnM_cond);
+        sigma_cond = evaluate_sigma(lnM_cond);
     }
 
     int i, k;
@@ -846,7 +846,7 @@ void initialise_dNdM_inverse_table(double xmin, double xmax, double lnM_min, dou
             // set the condition
             if (from_catalog) {
                 lnM_cond = x;
-                sigma_cond = EvaluateSigma(lnM_cond);
+                sigma_cond = evaluate_sigma(lnM_cond);
                 // Barrier at descendant mass scaled to progenitor redshift
                 delta = get_delta_crit(matter_options_global->HMF, sigma_cond, param) / param *
                         growth_out;
@@ -949,7 +949,7 @@ double integrate_J(double u_res, double gamma1) {
     return result;
 }
 
-void initialise_J_split_table(int Nbin, double umin, double umax, double gamma1) {
+void initialize_j_split_table(int Nbin, double umin, double umax, double gamma1) {
     int i;
     if (!J_split_table.allocated) allocate_RGTable1D(Nbin, &J_split_table);
 
@@ -962,7 +962,7 @@ void initialise_J_split_table(int Nbin, double umin, double umax, double gamma1)
     }
 }
 
-void free_dNdM_tables() {
+void free_dndm_tables() {
     free_RGTable2D(&Nhalo_inv_table);
     free_RGTable1D(&Nhalo_table);
     free_RGTable1D(&Fcoll_table);
@@ -992,7 +992,7 @@ void free_conditional_tables() {
     free_RGTable2D_f(&Xray_conditional_table_MINI);
 }
 
-void free_global_tables() {
+void free_unconditional_tables() {
     free_RGTable1D(&SFRD_z_table);
     free_RGTable2D(&SFRD_z_table_MINI);
     free_RGTable1D(&Nion_z_table);
@@ -1002,7 +1002,8 @@ void free_global_tables() {
     free_RGTable2D(&Xray_z_table_2D);
 }
 
-double EvaluateNionTs(double redshift, double log10_Mturn_ACG_ave, ScalingConstants *sc) {
+double evaluate_nion_unconditional_acg(double redshift, double log10_Mturn_ACG_ave,
+                                       ScalingConstants *sc) {
     // differences in turnover are handled by table setup
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         // TODO: at the moment, EvaluateNionTs always uses 1D interpolation table, even though
@@ -1029,8 +1030,8 @@ double EvaluateNionTs(double redshift, double log10_Mturn_ACG_ave, ScalingConsta
     return nion_unconditional_acg(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_z);
 }
 
-double EvaluateNionTs_MINI(double redshift, double log10_Mturn_ACG_ave, double log10_Mturn_MCG_ave,
-                           ScalingConstants *sc) {
+double evaluate_nion_unconditional_mcg(double redshift, double log10_Mturn_ACG_ave,
+                                       double log10_Mturn_MCG_ave, ScalingConstants *sc) {
     // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
     // (the multiplication by 1.001 is to avoid floating point issues)
     if (pow(10., log10_Mturn_ACG_ave) > sc->atomic_cooling_threshold * 1.001) {
@@ -1049,7 +1050,8 @@ double EvaluateNionTs_MINI(double redshift, double log10_Mturn_ACG_ave, double l
                                   pow(10., log10_Mturn_MCG_ave), &sc_z);
 }
 
-double EvaluateSFRD(double redshift, double log10_Mturn_ACG_ave, ScalingConstants *sc) {
+double evaluate_sfrd_unconditional_acg(double redshift, double log10_Mturn_ACG_ave,
+                                       ScalingConstants *sc) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         // TODO: at the moment, EvaluateSFRD always uses 1D interpolation table, even though
         // it receives log10_Mturn_ACG_ave as an input. This is because this function is only
@@ -1058,9 +1060,9 @@ double EvaluateSFRD(double redshift, double log10_Mturn_ACG_ave, ScalingConstant
         // applying the reionization feedback on the ACG turnover mass in that module.
         // Therefore, log10_Mturn_ACG_ave that EvaluateSFRD receives now must be the
         // feedback-free turnover mass, which is exactly what we use in contructing the 1D
-        // interpolation table (see comment in initialise_SFRD_spline). It is important to
-        // remember to allow this function to use 2D interpolation table in the future when
-        // issue #470 is fixed!
+        // interpolation table (see comment in initialize_sfrd_unconditional_tables). It is
+        // important to remember to allow this function to use 2D interpolation table in the future
+        // when issue #470 is fixed!
         return EvaluateRGTable1D(redshift, &SFRD_z_table);
     }
 
@@ -1075,8 +1077,8 @@ double EvaluateSFRD(double redshift, double log10_Mturn_ACG_ave, ScalingConstant
     return sfrd_unconditional_acg(redshift, lnMmin, lnMmax, pow(10., log10_Mturn_ACG_ave), &sc_z);
 }
 
-double EvaluateSFRD_MINI(double redshift, double log10_Mturn_ACG_ave, double log10_Mturn_MCG_ave,
-                         ScalingConstants *sc) {
+double evaluate_sfrd_unconditional_mcg(double redshift, double log10_Mturn_ACG_ave,
+                                       double log10_Mturn_MCG_ave, ScalingConstants *sc) {
     // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
     // (the multiplication by 1.001 is to avoid floating point issues)
     if (pow(10., log10_Mturn_ACG_ave) > sc->atomic_cooling_threshold * 1.001) {
@@ -1095,9 +1097,9 @@ double EvaluateSFRD_MINI(double redshift, double log10_Mturn_ACG_ave, double log
                                   pow(10., log10_Mturn_MCG_ave), &sc_z);
 }
 
-double EvaluateSFRD_Conditional(double delta, double log10Mturn_acg, double growthf, double M_min,
-                                double M_max, double M_cond, double sigma_max,
-                                ScalingConstants *sc) {
+double evaluate_sfrd_conditional_acg(double delta, double log10Mturn_acg, double growthf,
+                                     double M_min, double M_max, double M_cond, double sigma_max,
+                                     ScalingConstants *sc) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
             source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))
@@ -1110,7 +1112,7 @@ double EvaluateSFRD_Conditional(double delta, double log10Mturn_acg, double grow
                                 astro_options_global->INTEGRATION_METHOD_ATOMIC);
 }
 
-double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_acg, double log10Mturn_mcg,
+double evaluate_sfrd_conditional_mcg(double delta, double log10Mturn_acg, double log10Mturn_mcg,
                                      double growthf, double M_min, double M_max, double M_cond,
                                      double sigma_max, ScalingConstants *sc) {
     // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
@@ -1128,9 +1130,9 @@ double EvaluateSFRD_Conditional_MINI(double delta, double log10Mturn_acg, double
                                 astro_options_global->INTEGRATION_METHOD_MINI);
 }
 
-double EvaluateNion_Conditional(double delta, double log10Mturn_acg, double growthf, double M_min,
-                                double M_max, double M_cond, double sigma_max, ScalingConstants *sc,
-                                bool prev) {
+double evaluate_nion_conditional_acg(double delta, double log10Mturn_acg, double growthf,
+                                     double M_min, double M_max, double M_cond, double sigma_max,
+                                     ScalingConstants *sc, bool prev) {
     RGTable2D_f *table = prev ? &Nion_conditional_table_prev : &Nion_conditional_table2D;
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK &&
@@ -1144,7 +1146,7 @@ double EvaluateNion_Conditional(double delta, double log10Mturn_acg, double grow
                                 astro_options_global->INTEGRATION_METHOD_ATOMIC);
 }
 
-double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_acg, double log10Mturn_mcg,
+double evaluate_nion_conditional_mcg(double delta, double log10Mturn_acg, double log10Mturn_mcg,
                                      double growthf, double M_min, double M_max, double M_cond,
                                      double sigma_max, ScalingConstants *sc, bool prev) {
     // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
@@ -1163,9 +1165,10 @@ double EvaluateNion_Conditional_MINI(double delta, double log10Mturn_acg, double
                                 astro_options_global->INTEGRATION_METHOD_MINI);
 }
 
-double EvaluateXray_Conditional(double delta, double log10Mturn_acg, double redshift,
-                                double growthf, double M_min, double M_max, double M_cond,
-                                double sigma_max, ScalingConstants *sc) {
+double evaluate_xray_emissivity_conditional_acg(double delta, double log10Mturn_acg,
+                                                double redshift, double growthf, double M_min,
+                                                double M_max, double M_cond, double sigma_max,
+                                                ScalingConstants *sc) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK)
             return exp(EvaluateRGTable2D_f(delta, log10Mturn_acg, &Xray_conditional_table_2D));
@@ -1178,9 +1181,11 @@ double EvaluateXray_Conditional(double delta, double log10Mturn_acg, double reds
                                            astro_options_global->INTEGRATION_METHOD_ATOMIC);
 }
 
-double EvaluateXray_Conditional_MINI(double delta, double log10Mturn_acg, double log10Mturn_mcg,
-                                     double redshift, double growthf, double M_min, double M_max,
-                                     double M_cond, double sigma_max, ScalingConstants *sc) {
+double evaluate_xray_emissivity_conditional_mcg(double delta, double log10Mturn_acg,
+                                                double log10Mturn_mcg, double redshift,
+                                                double growthf, double M_min, double M_max,
+                                                double M_cond, double sigma_max,
+                                                ScalingConstants *sc) {
     // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
     // (the multiplication by 1.001 is to avoid floating point issues)
     if (pow(10., log10Mturn_acg) > sc->atomic_cooling_threshold * 1.001) {
@@ -1198,29 +1203,31 @@ double EvaluateXray_Conditional_MINI(double delta, double log10Mturn_acg, double
                                            astro_options_global->INTEGRATION_METHOD_MINI);
 }
 
-double EvaluateFcoll_delta(double delta, double growthf, double sigma_min, double sigma_max) {
+double evaluate_fcoll_conditional_eps(double delta, double growthf, double sigma_min,
+                                      double sigma_max) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         return EvaluateRGTable1D_f(delta, &fcoll_conditional_table);
     }
 
     return fcoll_conditional_eps(growthf, delta, sigma_min, sigma_max);
 }
-double EvaluatedFcolldz(double delta, double redshift, double sigma_min, double sigma_max) {
+double evaluate_dfcoll_dz_conditional_eps(double delta, double redshift, double sigma_min,
+                                          double sigma_max) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         return EvaluateRGTable1D_f(delta, &dfcoll_conditional_table);
     }
-    return dfcoll_dz_unconditional_eps(redshift, sigma_min, delta, sigma_max);
+    return dfcoll_dz_conditional_eps(redshift, sigma_min, delta, sigma_max);
 }
 
-double Evaluate_nhalo_Conditional(double condition, double growthf, double lnMmin, double lnMmax,
+double evaluate_nhalo_conditional(double condition, double growthf, double lnMmin, double lnMmax,
                                   double M_cond, double sigma, double delta) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))
         return EvaluateRGTable1D(condition, &Nhalo_table);
     return nhalo_conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
 }
 
-double EvaluateFcoll_Conditional(double condition, double growthf, double lnMmin, double lnMmax,
-                                 double M_cond, double sigma, double delta) {
+double evaluate_fcoll_conditional(double condition, double growthf, double lnMmin, double lnMmax,
+                                  double M_cond, double sigma, double delta) {
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES))
         return EvaluateRGTable1D(condition, &Fcoll_table);
     return fcoll_conditional(growthf, lnMmin, lnMmax, log(M_cond), sigma, delta, 0);
@@ -1251,7 +1258,7 @@ double extrapolate_dNdM_inverse(double condition, double lnp) {
 }
 
 // This one is always a table
-double EvaluateNhaloInv(double condition, double prob) {
+double evaluate_nhalo_inverse(double condition, double prob) {
     double lnp = log(prob);
     if (prob == 0 || lnp < simulation_options_global->MIN_LOGPROB)
         lnp = simulation_options_global->MIN_LOGPROB;
@@ -1260,7 +1267,7 @@ double EvaluateNhaloInv(double condition, double prob) {
     return EvaluateRGTable2D(condition, lnp, &Nhalo_inv_table);
 }
 
-double EvaluateJ(double u_res, double gamma1) {
+double evaluate_j_split(double u_res, double gamma1) {
     if (fabs(gamma1) < FRACT_FLOAT_ERR) return u_res;
     // small u approximation
     if (u_res < J_split_table.x_min) return pow(u_res, 1. - gamma1) / (1. - gamma1);
@@ -1272,7 +1279,7 @@ double EvaluateJ(double u_res, double gamma1) {
     return EvaluateRGTable1D(u_res, &J_split_table);
 }
 
-void InitialiseSigmaInverseTable() {
+void initialize_sigma_inverse_table() {
     if (!Sigma_InterpTable.allocated) {
         LOG_ERROR("Must construct the sigma table before the inverse table");
         Throw(TableGenerationError);
@@ -1293,7 +1300,7 @@ void InitialiseSigmaInverseTable() {
     gsl_spline_init(Sigma_inv_table, xa, ya, n_bin);
 }
 
-double EvaluateSigmaInverse(double sigma) {
+double evaluate_sigma_inverse(double sigma) {
     if (!(uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES))) {
         LOG_ERROR("Cannot currently do sigma inverse without USE_INTERPOLATION_TABLES");
         Throw(ValueError);
@@ -1301,7 +1308,7 @@ double EvaluateSigmaInverse(double sigma) {
     return gsl_spline_eval(Sigma_inv_table, sigma, Sigma_inv_table_acc);
 }
 
-void initialiseSigmaMInterpTable(float M_min, float M_max) {
+void initialize_sigma_tables(float M_min, float M_max) {
     int i;
 
     if (!Sigma_InterpTable.allocated) allocate_RGTable1D_f(N_MASS_INTERP, &Sigma_InterpTable);
@@ -1327,18 +1334,18 @@ void initialiseSigmaMInterpTable(float M_min, float M_max) {
     for (i = 0; i < N_MASS_INTERP; i++) {
         if (isfinite(Sigma_InterpTable.y_arr[i]) == 0 ||
             isfinite(dSigmasqdm_InterpTable.y_arr[i]) == 0) {
-            LOG_ERROR("Detected either an infinite or NaN value in initialiseSigmaMInterpTable");
+            LOG_ERROR("Detected either an infinite or NaN value in initialize_sigma_tables");
             Throw(TableGenerationError);
         }
     }
 }
 
-void freeSigmaMInterpTable() {
+void free_sigma_tables() {
     free_RGTable1D_f(&Sigma_InterpTable);
     free_RGTable1D_f(&dSigmasqdm_InterpTable);
 }
 
-double EvaluateSigma(double lnM) {
+double evaluate_sigma(double lnM) {
     // using log units to make the fast option faster and the slow option slower
     if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
         return EvaluateRGTable1D_f(lnM, &Sigma_InterpTable);
@@ -1346,7 +1353,7 @@ double EvaluateSigma(double lnM) {
     return sigma_z0(exp(lnM));
 }
 
-double EvaluatedSigmasqdm(double lnM) {
+double evaluate_dsigma_square_dm(double lnM) {
     // this may be slow, figure out why the dsigmadm table is in log10
     if (uses_interpolation_tables(matter_options_global->USE_INTERPOLATION_TABLES)) {
         return -pow(10., EvaluateRGTable1D_f(lnM, &dSigmasqdm_InterpTable));

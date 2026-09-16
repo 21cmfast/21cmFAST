@@ -299,35 +299,35 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
     // halo_mass --> total mass
 
     // Compute n_ion
-    properties->n_ion = EvaluateNion_Conditional(dens, l10_mturn_acg, growth_z, M_min, M_max,
-                                                 M_cell, sigma_cell, consts, false);
+    properties->n_ion = evaluate_nion_conditional_acg(dens, l10_mturn_acg, growth_z, M_min, M_max,
+                                                      M_cell, sigma_cell, consts, false);
     if (astro_options_global->USE_MINI_HALOS) {
         properties->n_ion +=
-            EvaluateNion_Conditional_MINI(dens, l10_mturn_acg, l10_mturn_mcg, growth_z, M_min,
+            evaluate_nion_conditional_mcg(dens, l10_mturn_acg, l10_mturn_mcg, growth_z, M_min,
                                           M_max, M_cell, sigma_cell, consts, false);
     }
 
     // The SFRD is required for either the spin temperature calculations or for extra fields
     // (stellar density)
     if (astro_options_global->USE_TS_FLUCT || config_settings.EXTRA_EMISSIVITY_FIELDS) {
-        properties->halo_sfr = EvaluateSFRD_Conditional(dens, l10_mturn_acg, growth_z, M_min, M_max,
-                                                        M_cell, sigma_cell, consts);
+        properties->halo_sfr = evaluate_sfrd_conditional_acg(dens, l10_mturn_acg, growth_z, M_min,
+                                                             M_max, M_cell, sigma_cell, consts);
         if (astro_options_global->USE_MINI_HALOS) {
             properties->sfr_mini =
-                EvaluateSFRD_Conditional_MINI(dens, l10_mturn_acg, l10_mturn_mcg, growth_z, M_min,
+                evaluate_sfrd_conditional_mcg(dens, l10_mturn_acg, l10_mturn_mcg, growth_z, M_min,
                                               M_max, M_cell, sigma_cell, consts);
         }
     }
 
     // X-ray emissivity is required only for the spin temperature calculation
     if (astro_options_global->USE_TS_FLUCT && astro_options_global->USE_METALLICITY) {
-        properties->halo_xray =
-            EvaluateXray_Conditional(dens, l10_mturn_acg, consts->redshift, growth_z, M_min, M_max,
-                                     M_cell, sigma_cell, consts);
+        properties->halo_xray = evaluate_xray_emissivity_conditional_acg(
+            dens, l10_mturn_acg, consts->redshift, growth_z, M_min, M_max, M_cell, sigma_cell,
+            consts);
         if (astro_options_global->USE_MINI_HALOS) {
-            properties->halo_xray +=
-                EvaluateXray_Conditional_MINI(dens, l10_mturn_acg, l10_mturn_mcg, consts->redshift,
-                                              growth_z, M_min, M_max, M_cell, sigma_cell, consts);
+            properties->halo_xray += evaluate_xray_emissivity_conditional_mcg(
+                dens, l10_mturn_acg, l10_mturn_mcg, consts->redshift, growth_z, M_min, M_max,
+                M_cell, sigma_cell, consts);
         }
     }
     // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
@@ -335,11 +335,11 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
 
     // If the user is interested in extra fields, we also compute them
     if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-        properties->count = Evaluate_nhalo_Conditional(dens, growth_z, log(M_min), log(M_max),
+        properties->count = evaluate_nhalo_conditional(dens, growth_z, log(M_min), log(M_max),
                                                        M_cell, sigma_cell, dens) *
                             M_cell / (RHOcrit * cosmo_params_global->OMm);
-        properties->halo_mass = EvaluateFcoll_Conditional(dens, growth_z, log(M_min), log(M_max),
-                                                          M_cell, sigma_cell, dens) *
+        properties->halo_mass = evaluate_fcoll_conditional(dens, growth_z, log(M_min), log(M_max),
+                                                           M_cell, sigma_cell, dens) *
                                 RHOcrit * cosmo_params_global->OMm;
         if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
             // For the mass-dependent source model, the SFRD is the stellar mass density in all
@@ -492,18 +492,18 @@ int add_integral_contribution(double M_min, double M_max, InitialConditions *ini
 
         if (astro_options_global->USE_TS_FLUCT) {
             if (astro_options_global->USE_METALLICITY) {
-                initialise_Xray_Conditional_table(ev_consts->redshift, min_density, max_density,
-                                                  M_min, M_max, M_cell, ev_consts);
+                initialize_xray_emissivity_conditional_tables(
+                    ev_consts->redshift, min_density, max_density, M_min, M_max, M_cell, ev_consts);
             }
-            initialise_SFRD_Conditional_table(ev_consts->redshift, min_density, max_density, M_min,
-                                              M_max, M_cell, ev_consts);
+            initialize_sfrd_conditional_tables(ev_consts->redshift, min_density, max_density, M_min,
+                                               M_max, M_cell, ev_consts);
         }
 
-        initialise_Nion_Conditional_spline(ev_consts->redshift, min_density, max_density, M_min,
+        initialize_nion_conditional_tables(ev_consts->redshift, min_density, max_density, M_min,
                                            M_max, M_cell, ev_consts, false);
 
         if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-            initialise_dNdM_tables(min_density, max_density, lnM_min, lnM_max,
+            initialize_dndm_tables(min_density, max_density, lnM_min, lnM_max,
                                    ev_consts->growth_factor, log(M_cell), false);
         }
     }

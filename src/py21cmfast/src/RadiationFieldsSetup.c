@@ -304,7 +304,8 @@ int global_reion_properties(double zp, RadiationFieldsSetup *rad_setup) {
         //   ~100 redshifts. The benefit of interpolating here would only matter if we keep the same
         //   table over subsequent snapshots, which we don't seem to do. The Nion table is used in
         //   nu_tau_one a lot but I think there's a better way to do that
-        initialise_Nion_Ts_spline(zpp_interp_points_SFR, determine_zpp_min, determine_zpp_max, &sc);
+        initialize_nion_unconditional_tables(zpp_interp_points_SFR, determine_zpp_min,
+                                             determine_zpp_max, &sc);
     }
 
     // For consistency between halo and non-halo based, the NO_LIGHT and filling_factor_zp
@@ -315,10 +316,10 @@ int global_reion_properties(double zp, RadiationFieldsSetup *rad_setup) {
     //      see https://github.com/21cmfast/21cmFAST/issues/470. Thus, we use the homogeneous
     //      (feedback-free) ACG turnover mass. It is important to remember to fix this when issue
     //      #470 is fixed!
-    sum_nion = EvaluateNionTs(zp, log10(sc.mturn_acg_homogeneous), &sc);
+    sum_nion = evaluate_nion_unconditional_acg(zp, log10(sc.mturn_acg_homogeneous), &sc);
     if (astro_options_global->USE_MINI_HALOS) {
-        sum_nion_mini = EvaluateNionTs_MINI(zp, log10(sc.mturn_acg_homogeneous),
-                                            rad_setup->ave_log10_MturnLW[0], &sc);
+        sum_nion_mini = evaluate_nion_unconditional_mcg(zp, log10(sc.mturn_acg_homogeneous),
+                                                        rad_setup->ave_log10_MturnLW[0], &sc);
     }
 
     LOG_DEBUG("nion zp = %.3e (%.3e MINI)", sum_nion, sum_nion_mini);
@@ -330,7 +331,7 @@ int global_reion_properties(double zp, RadiationFieldsSetup *rad_setup) {
     fill_freqint_tables(zp, rad_setup, &sc);
 
     // free the global tables if we used them
-    free_global_tables();
+    free_unconditional_tables();
 
     return sum_nion + sum_nion_mini > 1e-15 ? 0 : 1;  // NO_LIGHT returned
 }

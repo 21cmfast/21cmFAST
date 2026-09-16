@@ -917,8 +917,9 @@ double tauX_integrand_MINI(double zhat, void *params) {
         fcoll = 0.;
         fcoll_MINI = 0.;
     } else {
-        fcoll = EvaluateNionTs(zhat, log10_Mturn_acg, p->scale_consts);
-        fcoll_MINI = EvaluateNionTs_MINI(zhat, log10_Mturn_acg, log10_Mturn_mcg, p->scale_consts);
+        fcoll = evaluate_nion_unconditional_acg(zhat, log10_Mturn_acg, p->scale_consts);
+        fcoll_MINI = evaluate_nion_unconditional_mcg(zhat, log10_Mturn_acg, log10_Mturn_mcg,
+                                                     p->scale_consts);
     }
 
     // simplification to use the <x_e> value at zp and not
@@ -955,7 +956,7 @@ double tauX_integrand(double zhat, void *params) {
         p->x_e_ave < simulation_options_global->MIN_XE_FOR_FCOLL_IN_TAUX) {
         fcoll = 0.;
     } else {
-        fcoll = EvaluateNionTs(zhat, log10_Mturn_acg, p->scale_consts);
+        fcoll = evaluate_nion_unconditional_acg(zhat, log10_Mturn_acg, p->scale_consts);
     }
 
     // simplification to use the <x_e> value at zp and not

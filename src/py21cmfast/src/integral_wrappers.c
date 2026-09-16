@@ -18,8 +18,8 @@
 void get_sigma(int n_masses, double *mass_values, double *sigma_out, double *dsigmasqdm_out) {
     int i;
     for (i = 0; i < n_masses; i++) {
-        sigma_out[i] = EvaluateSigma(log(mass_values[i]));
-        dsigmasqdm_out[i] = EvaluatedSigmasqdm(log(mass_values[i]));
+        sigma_out[i] = evaluate_sigma(log(mass_values[i]));
+        dsigmasqdm_out[i] = evaluate_dsigma_square_dm(log(mass_values[i]));
     }
 }
 
@@ -91,7 +91,7 @@ void get_halomass_at_probability(double redshift, double z_prev, int n_condition
         if (out_of_bounds)
             out_mass[i] = -1;  // mark invalid
         else
-            out_mass[i] = EvaluateNhaloInv(hs_const_struct.cond_val, probabilities[i]) *
+            out_mass[i] = evaluate_nhalo_inverse(hs_const_struct.cond_val, probabilities[i]) *
                           hs_const_struct.M_cond;
     }
 }
@@ -111,14 +111,14 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
     }
 
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        initialise_SFRD_spline(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
+        initialize_sfrd_unconditional_tables(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
     }
 
     for (i = 0; i < n_redshift; i++) {
-        out_sfrd[i] = EvaluateSFRD(redshifts[i], log10_turnovers_acg[i], &sc);
+        out_sfrd[i] = evaluate_sfrd_unconditional_acg(redshifts[i], log10_turnovers_acg[i], &sc);
         if (astro_options_global->USE_MINI_HALOS) {
-            out_sfrd_mini[i] = EvaluateSFRD_MINI(redshifts[i], log10_turnovers_acg[i],
-                                                 log10_turnovers_mcg[i], &sc);
+            out_sfrd_mini[i] = evaluate_sfrd_unconditional_mcg(redshifts[i], log10_turnovers_acg[i],
+                                                               log10_turnovers_mcg[i], &sc);
         }
     }
 }
@@ -137,21 +137,21 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
     }
 
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        initialise_Nion_Ts_spline(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
+        initialize_nion_unconditional_tables(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
     }
     for (i = 0; i < n_redshift; i++) {
-        out_nion[i] = EvaluateNionTs(redshifts[i], log10_turnovers_acg[i], &sc);
+        out_nion[i] = evaluate_nion_unconditional_acg(redshifts[i], log10_turnovers_acg[i], &sc);
         if (astro_options_global->USE_MINI_HALOS)
-            out_nion_mini[i] = EvaluateNionTs_MINI(redshifts[i], log10_turnovers_acg[i],
-                                                   log10_turnovers_mcg[i], &sc);
+            out_nion_mini[i] = evaluate_nion_unconditional_mcg(redshifts[i], log10_turnovers_acg[i],
+                                                               log10_turnovers_mcg[i], &sc);
     }
 }
 
 void get_conditional_FgtrM(double redshift, double R, int n_densities, double *densities,
                            double *out_fcoll, double *out_dfcoll) {
     double M_min = minimum_source_mass(redshift, true);
-    double sigma_min = EvaluateSigma(log(M_min));
-    double sigma_cond = EvaluateSigma(log(RtoM(R)));
+    double sigma_min = evaluate_sigma(log(M_min));
+    double sigma_cond = evaluate_sigma(log(RtoM(R)));
     double growthf = dicke(redshift);
 
     LOG_DEBUG("db F R = %.3e M = %.3e s = %.3e", R, RtoM(R), sigma_cond);
@@ -166,14 +166,15 @@ void get_conditional_FgtrM(double redshift, double R, int n_densities, double *d
         if (dens > max_dens) max_dens = dens;
     }
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        initialise_FgtrM_delta_table(min_dens, max_dens + 0.01, redshift, growthf, sigma_min,
-                                     sigma_cond);
+        initialize_fcoll_conditional_tables(min_dens, max_dens + 0.01, redshift, growthf, sigma_min,
+                                            sigma_cond);
     }
     LOG_DEBUG("Done tables");
 
     for (i = 0; i < n_densities; i++) {
-        out_fcoll[i] = EvaluateFcoll_delta(densities[i], growthf, sigma_min, sigma_cond);
-        out_dfcoll[i] = EvaluatedFcolldz(densities[i], redshift, sigma_min, sigma_cond);
+        out_fcoll[i] = evaluate_fcoll_conditional_eps(densities[i], growthf, sigma_min, sigma_cond);
+        out_dfcoll[i] =
+            evaluate_dfcoll_dz_conditional_eps(densities[i], redshift, sigma_min, sigma_cond);
     }
 }
 
@@ -182,7 +183,7 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
                           double *out_sfrd_mini) {
     double M_min = minimum_source_mass(redshift, true);
     double M_cond = RtoM(R);
-    double sigma_cond = EvaluateSigma(log(M_cond));
+    double sigma_cond = evaluate_sigma(log(M_cond));
     double growthf = dicke(redshift);
 
     if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
@@ -205,14 +206,15 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
     }
 
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        initialise_SFRD_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc);
+        initialize_sfrd_conditional_tables(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
+                                           &sc);
     }
     for (i = 0; i < n_densities; i++) {
-        out_sfrd[i] = EvaluateSFRD_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
-                                               M_cond, M_cond, sigma_cond, &sc);
+        out_sfrd[i] = evaluate_sfrd_conditional_acg(densities[i], log10_mturn_acg, growthf, M_min,
+                                                    M_cond, M_cond, sigma_cond, &sc);
         if (astro_options_global->USE_MINI_HALOS) {
             out_sfrd_mini[i] =
-                EvaluateSFRD_Conditional_MINI(densities[i], log10_mturn_acg, log10_mturn_mcg,
+                evaluate_sfrd_conditional_mcg(densities[i], log10_mturn_acg, log10_mturn_mcg,
                                               growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
         }
     }
@@ -223,7 +225,7 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
                           double *out_nion_mini) {
     double M_min = minimum_source_mass(redshift, true);
     double M_cond = RtoM(R);
-    double sigma_cond = EvaluateSigma(log(M_cond));
+    double sigma_cond = evaluate_sigma(log(M_cond));
     double growthf = dicke(redshift);
 
     if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
@@ -245,15 +247,15 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     }
 
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        initialise_Nion_Conditional_spline(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc,
+        initialize_nion_conditional_tables(redshift, min_dens, max_dens, M_min, M_cond, M_cond, &sc,
                                            false);
     }
     for (i = 0; i < n_densities; i++)
-        out_nion[i] = EvaluateNion_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
-                                               M_cond, M_cond, sigma_cond, &sc, false);
+        out_nion[i] = evaluate_nion_conditional_acg(densities[i], log10_mturn_acg, growthf, M_min,
+                                                    M_cond, M_cond, sigma_cond, &sc, false);
     if (astro_options_global->USE_MINI_HALOS) {
         for (i = 0; i < n_densities; i++)
-            out_nion_mini[i] = EvaluateNion_Conditional_MINI(
+            out_nion_mini[i] = evaluate_nion_conditional_mcg(
                 densities[i], log10_mturn_acg, log10_mturn_mcg, growthf, M_min, M_cond, M_cond,
                 sigma_cond, &sc, false);
     }
@@ -263,7 +265,7 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
                           double log10_mturn_acg, double log10_mturn_mcg, double *out_xray) {
     double M_min = minimum_source_mass(redshift, true);
     double M_cond = RtoM(R);
-    double sigma_cond = EvaluateSigma(log(M_cond));
+    double sigma_cond = evaluate_sigma(log(M_cond));
     double growthf = dicke(redshift);
 
     if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
@@ -294,31 +296,31 @@ void get_conditional_Xray(double redshift, double R, int n_densities, double *de
 
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         if (astro_options_global->USE_METALLICITY) {
-            initialise_Xray_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
-                                              &sc);
+            initialize_xray_emissivity_conditional_tables(redshift, min_dens, max_dens, M_min,
+                                                          M_cond, M_cond, &sc);
         } else {
-            initialise_SFRD_Conditional_table(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
-                                              &sc);
+            initialize_sfrd_conditional_tables(redshift, min_dens, max_dens, M_min, M_cond, M_cond,
+                                               &sc);
         }
     }
     for (i = 0; i < n_densities; i++) {
         if (astro_options_global->USE_METALLICITY) {
-            xray_integral =
-                EvaluateXray_Conditional(densities[i], log10_mturn_acg, redshift, growthf, M_min,
-                                         M_cond, M_cond, sigma_cond, &sc);
+            xray_integral = evaluate_xray_emissivity_conditional_acg(
+                densities[i], log10_mturn_acg, redshift, growthf, M_min, M_cond, M_cond, sigma_cond,
+                &sc);
         } else {
-            xray_integral = EvaluateSFRD_Conditional(densities[i], log10_mturn_acg, growthf, M_min,
-                                                     M_cond, M_cond, sigma_cond, &sc);
+            xray_integral = evaluate_sfrd_conditional_acg(densities[i], log10_mturn_acg, growthf,
+                                                          M_min, M_cond, M_cond, sigma_cond, &sc);
         }
         out_xray[i] = X_RAY_FACTOR * xray_integral;
         if (astro_options_global->USE_MINI_HALOS) {
             if (astro_options_global->USE_METALLICITY) {
-                xray_integral_mini = EvaluateXray_Conditional_MINI(
+                xray_integral_mini = evaluate_xray_emissivity_conditional_mcg(
                     densities[i], log10_mturn_acg, log10_mturn_mcg, redshift, growthf, M_min,
                     M_cond, M_cond, sigma_cond, &sc);
             } else {
                 xray_integral_mini =
-                    EvaluateSFRD_Conditional_MINI(densities[i], log10_mturn_acg, log10_mturn_mcg,
+                    evaluate_sfrd_conditional_mcg(densities[i], log10_mturn_acg, log10_mturn_mcg,
                                                   growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
             }
             out_xray[i] += X_RAY_FACTOR_MINI * xray_integral_mini;
