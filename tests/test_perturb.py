@@ -8,7 +8,7 @@ import pytest
 
 from py21cmfast import (
     InitialConditions,
-    compute_halo_grid,
+    compute_emissivity_fields,
     perturb_field,
 )
 from py21cmfast.wrapper import cfuncs as cf
@@ -158,7 +158,7 @@ class TestPerturb:
         """Tests the halo property perturbation."""
         inputs = request.getfixturevalue(inputs)
         ics = self.get_fake_ics(inputs, test_pt_z)
-        emissivity_fields = compute_halo_grid(
+        emissivity_fields = compute_emissivity_fields(
             redshift=test_pt_z,
             initial_conditions=ics,
             inputs=inputs,
@@ -218,7 +218,7 @@ class TestPerturb:
 
         ics = self.get_fake_ics(inputs_low, test_pt_z)
         with config.use(EXTRA_EMISSIVITY_FIELDS=True):
-            emissivity_fields = compute_halo_grid(
+            emissivity_fields = compute_emissivity_fields(
                 redshift=test_pt_z,
                 initial_conditions=ics,
                 inputs=inputs_low,

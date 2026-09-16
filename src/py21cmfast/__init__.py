@@ -39,6 +39,7 @@ __all__ = [
     "TsBox",
     "__version__",
     "brightness_temperature",
+    "compute_emissivity_fields",
     "compute_halo_grid",
     "compute_initial_conditions",
     "compute_ionization_field",
@@ -81,6 +82,7 @@ from .drivers.global_evolution import GlobalEvolution, run_global_evolution
 from .drivers.lightcone import LightCone, generate_lightcone, run_lightcone
 from .drivers.single_field import (
     brightness_temperature,
+    compute_emissivity_fields,
     compute_halo_grid,
     compute_initial_conditions,
     compute_ionization_field,

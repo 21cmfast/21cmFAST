@@ -27,6 +27,7 @@ from py21cmfast import (
     InputParameters,
     IonizedBox,
     PerturbedField,
+    compute_emissivity_fields,
     compute_halo_grid,
     compute_ionization_field,
     compute_radiation_fields,
@@ -38,17 +39,27 @@ from py21cmfast.wrapper.arrays import Array
 
 
 @pytest.fixture(scope="module")
-def computed_emissivity_fields(ic, default_input_struct_lc, cache):
-    """A real, computed EmissivityFields + its perturbed field, for testing the driver functions."""
-    redshift = default_input_struct_lc.node_redshifts[0]
-    pt = perturb_field(
-        redshift=redshift,
+def redshift_test(default_input_struct_lc):
+    """The first redshift in the default input struct."""
+    return default_input_struct_lc.node_redshifts[0]
+
+
+@pytest.fixture(scope="module")
+def pt(ic, redshift_test, default_input_struct_lc, cache):
+    """A real, computed PerturbedField for testing the driver functions."""
+    return perturb_field(
+        redshift=redshift_test,
         initial_conditions=ic,
         inputs=default_input_struct_lc,
         cache=cache,
     )
-    ef = compute_halo_grid(
-        redshift=redshift,
+
+
+@pytest.fixture(scope="module")
+def computed_emissivity_fields(ic, pt, redshift_test, default_input_struct_lc, cache):
+    """A real, computed EmissivityFields + its perturbed field, for testing the driver functions."""
+    ef = compute_emissivity_fields(
+        redshift=redshift_test,
         initial_conditions=ic,
         perturbed_field=pt,
         inputs=default_input_struct_lc,
@@ -317,3 +328,33 @@ def test_get_output_struct_at_z_with_halobox_is_removed(tmp_path: Path):
     cache, z = _make_run_cache_with_emissivity_fields(tmp_path)
     output = cache.get_output_struct_at_z(kind="HaloBox", z=z)
     assert isinstance(output, EmissivityFields)
+
+
+def test_compute_halo_grid_deprecated_warning(
+    ic, pt, redshift_test, default_input_struct_lc, cache
+):
+    """Test that compute_halo_grid is deprecated."""
+    with pytest.warns(deprecation.DeprecatedWarning):
+        ef = compute_halo_grid(
+            redshift=redshift_test,
+            initial_conditions=ic,
+            perturbed_field=pt,
+            inputs=default_input_struct_lc,
+            cache=cache,
+        )
+    assert isinstance(ef, EmissivityFields)
+
+
+@deprecation.fail_if_not_removed
+def test_compute_halo_grid_is_removed(
+    ic, pt, redshift_test, default_input_struct_lc, cache
+):
+    """Fails when removed_in version is reached, reminding you to delete compute_halo_grid."""
+    ef = compute_halo_grid(
+        redshift=redshift_test,
+        initial_conditions=ic,
+        perturbed_field=pt,
+        inputs=default_input_struct_lc,
+        cache=cache,
+    )
+    assert isinstance(ef, EmissivityFields)

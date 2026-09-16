@@ -79,7 +79,7 @@ def spin_temp_evolution(ic: InitialConditions, default_input_struct_ts: TsBox, c
             inputs=default_input_struct_ts,
             cache=cache,
         )
-        emissivity_fields = p21c.compute_halo_grid(
+        emissivity_fields = p21c.compute_emissivity_fields(
             redshift=z,
             initial_conditions=ic,
             perturbed_field=pt,
@@ -523,14 +523,14 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     with pytest.raises(
         ValueError, match="You must provide initial_conditions for SOURCE_MODEL"
     ):
-        p21c.compute_halo_grid(
+        p21c.compute_emissivity_fields(
             redshift=10.0, initial_conditions=None, inputs=test_inputs, halo_catalog=hf
         )
 
     with pytest.raises(
         ValueError, match="You must provide initial_conditions for SOURCE_MODEL"
     ):
-        p21c.compute_halo_grid(
+        p21c.compute_emissivity_fields(
             redshift=10.0,
             initial_conditions=None,
             inputs=test_inputs_eulerian,
@@ -539,7 +539,7 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     with pytest.raises(
         ValueError, match="You must provide perturbed_field for SOURCE_MODEL"
     ):
-        p21c.compute_halo_grid(
+        p21c.compute_emissivity_fields(
             redshift=10.0,
             initial_conditions=ic_eulerian,
             perturbed_field=None,
@@ -549,7 +549,7 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     with pytest.raises(
         ValueError, match="You must provide halo_catalog for SOURCE_MODEL"
     ):
-        p21c.compute_halo_grid(
+        p21c.compute_emissivity_fields(
             redshift=10.0,
             initial_conditions=ic,
             previous_ionize_box=ib_p,
@@ -558,7 +558,7 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     with pytest.raises(
         ValueError, match="Below Z_HEAT_MAX you must specify the previous_spin_temp"
     ):
-        p21c.compute_halo_grid(
+        p21c.compute_emissivity_fields(
             redshift=10.0,
             initial_conditions=ic,
             halo_catalog=hf,
@@ -567,7 +567,7 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     with pytest.raises(
         ValueError, match="Below Z_HEAT_MAX you must specify the previous_spin_temp"
     ):
-        p21c.compute_halo_grid(
+        p21c.compute_emissivity_fields(
             redshift=10.0,
             initial_conditions=ic,
             halo_catalog=hf,

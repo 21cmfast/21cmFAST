@@ -219,7 +219,7 @@ list is provided below in the order which they are called in ``run_lightcone``:
 * :func:`~py21cmfast.drivers.single_field.perturb_field`
 * :func:`~py21cmfast.drivers.single_field.determine_halo_catalog`
 * :func:`~py21cmfast.drivers.single_field.perturb_halo_catalog`
-* :func:`~py21cmfast.drivers.single_field.compute_halo_grid`
+* :func:`~py21cmfast.drivers.single_field.compute_emissivity_fields`
 * :func:`~py21cmfast.drivers.single_field.compute_radiation_fields`
 * :func:`~py21cmfast.drivers.single_field.compute_spin_temperature`
 * :func:`~py21cmfast.drivers.single_field.compute_ionization_field`

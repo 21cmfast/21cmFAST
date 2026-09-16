@@ -823,7 +823,7 @@ def _redshift_loop_generator(
             if inputs.matter_options.has_discrete_halos:
                 this_halofield = halofield_list[iz]
                 this_halofield.load_all()
-            this_emissivity_fields = sf.compute_halo_grid(
+            this_emissivity_fields = sf.compute_emissivity_fields(
                 inputs=inputs,
                 halo_catalog=this_halofield,
                 redshift=z,

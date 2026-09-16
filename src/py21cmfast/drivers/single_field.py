@@ -295,7 +295,7 @@ def perturb_halo_catalog(
 
 @single_field_func
 @init_c_state(sigma=True)
-def compute_halo_grid(
+def compute_emissivity_fields(
     *,
     redshift: float,
     initial_conditions: InitialConditions | None = None,
@@ -408,6 +408,24 @@ def compute_halo_grid(
         previous_ionize_box=previous_ionize_box,
         previous_spin_temp=previous_spin_temp,
     )
+
+
+def compute_halo_grid(**kwargs) -> EmissivityFields:
+    """Compute the emissivity fields.
+
+    This is a deprecated function. Use `compute_emissivity_fields` instead.
+    """
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "compute_halo_grid",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details="'compute_halo_grid' has been renamed to 'compute_emissivity_fields'. Please use 'compute_emissivity_fields' instead.",
+        ),
+        stacklevel=2,
+    )
+
+    return compute_emissivity_fields(**kwargs)
 
 
 # TODO: make this more general and probably combine with the lightcone interp function
