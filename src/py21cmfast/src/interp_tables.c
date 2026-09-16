@@ -241,8 +241,8 @@ void initialize_nion_unconditional_tables(int Nbin, float zmin, float zmax, Scal
     }
 }
 
-void initialize_fcoll_conditional_tables(double min_dens, double max_dens, double zpp,
-                                         double growth_zpp, double smin_zpp, double smax_zpp) {
+void initialize_fcoll_conditional_eps_tables(double min_dens, double max_dens, double zpp,
+                                             double growth_zpp, double smin_zpp, double smax_zpp) {
     int i;
     double dens;
 

@@ -20,8 +20,8 @@ double evaluate_nion_unconditional_mcg(double redshift, double log10_Mturn_ACG_a
                                        double log10_Mturn_MCG_ave, ScalingConstants *sc);
 
 void initialize_fcoll_unconditional_table(double zmin, double zmax, bool x_ray);
-void initialize_fcoll_conditional_tables(double min_dens, double max_dens, double zpp,
-                                         double growth_zpp, double smin_zpp, double smax_zpp);
+void initialize_fcoll_conditional_eps_tables(double min_dens, double max_dens, double zpp,
+                                             double growth_zpp, double smin_zpp, double smax_zpp);
 double evaluate_fcoll_conditional_eps(double delta, double growthf, double sigma_min,
                                       double sigma_max);
 double evaluate_dfcoll_dz_conditional_eps(double delta, double redshift, double sigma_min,

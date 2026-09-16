@@ -96,8 +96,8 @@ void get_halomass_at_probability(double redshift, double z_prev, int n_condition
     }
 }
 
-void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnovers_acg,
-                       double *log10_turnovers_mcg, double *out_sfrd, double *out_sfrd_mini) {
+void get_unconditional_sfrd(int n_redshift, double *redshifts, double *log10_turnovers_acg,
+                            double *log10_turnovers_mcg, double *out_sfrd, double *out_sfrd_mini) {
     ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
@@ -123,8 +123,8 @@ void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnover
     }
 }
 
-void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnovers_acg,
-                       double *log10_turnovers_mcg, double *out_nion, double *out_nion_mini) {
+void get_unconditional_nion(int n_redshift, double *redshifts, double *log10_turnovers_acg,
+                            double *log10_turnovers_mcg, double *out_nion, double *out_nion_mini) {
     ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
@@ -147,8 +147,8 @@ void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnover
     }
 }
 
-void get_conditional_FgtrM(double redshift, double R, int n_densities, double *densities,
-                           double *out_fcoll, double *out_dfcoll) {
+void get_conditional_fcoll_eps(double redshift, double R, int n_densities, double *densities,
+                               double *out_fcoll, double *out_dfcoll) {
     double M_min = minimum_source_mass(redshift, true);
     double sigma_min = evaluate_sigma(log(M_min));
     double sigma_cond = evaluate_sigma(log(RtoM(R)));
@@ -166,8 +166,8 @@ void get_conditional_FgtrM(double redshift, double R, int n_densities, double *d
         if (dens > max_dens) max_dens = dens;
     }
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        initialize_fcoll_conditional_tables(min_dens, max_dens + 0.01, redshift, growthf, sigma_min,
-                                            sigma_cond);
+        initialize_fcoll_conditional_eps_tables(min_dens, max_dens + 0.01, redshift, growthf,
+                                                sigma_min, sigma_cond);
     }
     LOG_DEBUG("Done tables");
 
@@ -178,7 +178,7 @@ void get_conditional_FgtrM(double redshift, double R, int n_densities, double *d
     }
 }
 
-void get_conditional_SFRD(double redshift, double R, int n_densities, double *densities,
+void get_conditional_sfrd(double redshift, double R, int n_densities, double *densities,
                           double log10_mturn_acg, double log10_mturn_mcg, double *out_sfrd,
                           double *out_sfrd_mini) {
     double M_min = minimum_source_mass(redshift, true);
@@ -220,7 +220,7 @@ void get_conditional_SFRD(double redshift, double R, int n_densities, double *de
     }
 }
 
-void get_conditional_Nion(double redshift, double R, int n_densities, double *densities,
+void get_conditional_nion(double redshift, double R, int n_densities, double *densities,
                           double log10_mturn_acg, double log10_mturn_mcg, double *out_nion,
                           double *out_nion_mini) {
     double M_min = minimum_source_mass(redshift, true);
@@ -261,8 +261,9 @@ void get_conditional_Nion(double redshift, double R, int n_densities, double *de
     }
 }
 
-void get_conditional_Xray(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturn_acg, double log10_mturn_mcg, double *out_xray) {
+void get_conditional_xray_emissivity(double redshift, double R, int n_densities, double *densities,
+                                     double log10_mturn_acg, double log10_mturn_mcg,
+                                     double *out_xray) {
     double M_min = minimum_source_mass(redshift, true);
     double M_cond = RtoM(R);
     double sigma_cond = evaluate_sigma(log(M_cond));

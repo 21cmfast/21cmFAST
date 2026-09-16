@@ -721,7 +721,7 @@ def evaluate_FgtrM_cond(
     fcoll = np.zeros_like(densities)
     dfcoll = np.zeros_like(densities)
 
-    lib.get_conditional_FgtrM(
+    lib.get_conditional_fcoll_eps(
         redshift,
         R,
         densities.size,
@@ -788,7 +788,7 @@ def evaluate_SFRD_z(
     sfrd = np.zeros_like(redshifts)
     sfrd_mini = np.zeros_like(redshifts)
 
-    lib.get_global_SFRD_z(
+    lib.get_unconditional_sfrd(
         redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
         ffi.cast("double *", ffi.from_buffer(log10mturns_acg)),
@@ -858,7 +858,7 @@ def evaluate_Nion_z(
     nion = np.zeros_like(redshifts)
     nion_mini = np.zeros_like(redshifts)
 
-    lib.get_global_Nion_z(
+    lib.get_unconditional_nion(
         redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
         ffi.cast("double *", ffi.from_buffer(log10mturns_acg)),
@@ -941,7 +941,7 @@ def evaluate_SFRD_cond(
     sfrd = np.zeros_like(densities)
     sfrd_mini = np.zeros_like(densities)
 
-    lib.get_conditional_SFRD(
+    lib.get_conditional_sfrd(
         redshift,
         radius,
         densities.size,
@@ -1027,7 +1027,7 @@ def evaluate_Nion_cond(
     nion = np.zeros_like(densities)
     nion_mini = np.zeros_like(densities)
 
-    lib.get_conditional_Nion(
+    lib.get_conditional_nion(
         redshift,
         radius,
         densities.size,
@@ -1109,7 +1109,7 @@ def evaluate_Xray_cond(
     densities = densities.astype("f8")
     xray_emissivity = np.zeros_like(densities)
 
-    lib.get_conditional_Xray(
+    lib.get_conditional_xray_emissivity(
         redshift,
         radius,
         densities.size,
