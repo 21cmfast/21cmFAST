@@ -414,7 +414,7 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
         int x, y, z;
         double Mcrit_RE, Mcrit_LW;
         double curr_Mt, curr_Mt_MINI;
-        double curr_vcb = consts->scale_consts.vcb_norel;
+        double curr_vcb = consts->scale_consts.vcb_const;
         index_huge index, index_f;
 #pragma omp for reduction(+ : ave_log10_Mturnover, ave_log10_Mturnover_MINI)
         for (x = 0; x < box_dim[0]; x++) {
@@ -426,8 +426,7 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
                                                      prev_ionbox->ionisation_rate_G12[index],
                                                      prev_ionbox->z_reion[index]);
 
-                    if (matter_options_global->USE_RELATIVE_VELOCITIES &&
-                        !astro_options_global->FIX_VCB_AVG)
+                    if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS)
                         curr_vcb = ini_boxes->lowres_vcb[index];
 
                     Mcrit_LW = lyman_werner_threshold(consts->redshift, spin_temp->J_21_LW[index],

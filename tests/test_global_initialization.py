@@ -92,6 +92,7 @@ def test_direct_initializations(_run):
     # Now let's change the inputs to ones that will allow the initialization of all tables, and check that it works as expected
     _GlobalInitManagerSingleton.inputs = _GlobalInitManagerSingleton.inputs.with_logspaced_redshifts().evolve_input_structs(
         POWER_SPECTRUM="CLASS",
+        V_CB_MODEL="FLUCTS",
         K_MAX_FOR_CLASS=1.0,
         USE_INTERPOLATION_TABLES="sigma-interpolation",
         RECOMB_MODEL="inhomogeneous",

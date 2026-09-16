@@ -109,8 +109,9 @@ def compute_mturns(
     -------
     M_turn_a : array-like
         The turnover mass for atomic cooling halos at the given redshifts.
-    M_turn_m : array-like
+    M_turn_m : array-like or None
         The turnover mass for molecular cooling halos at the given redshifts.
+        Will be None if `USE_MINI_HALOS` is False.
 
     Raises
     ------
@@ -143,8 +144,12 @@ def compute_mturns(
     vfunc = np.vectorize(_scalar_call, otypes=[np.float64, np.float64])
     M_turn_a, M_turn_m = vfunc(redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion)
 
+    if not inputs.astro_options.USE_MINI_HALOS:
+        M_turn_m = None
+
     if M_turn_a.ndim == 0:  # scalar input case
-        return float(M_turn_a), float(M_turn_m)
+        M_turn_m_float = None if M_turn_m is None else float(M_turn_m)
+        return float(M_turn_a), M_turn_m_float
     return M_turn_a, M_turn_m
 
 
@@ -285,25 +290,17 @@ def compute_luminosity_function(
         redshifts, inputs.node_redshifts[::-1], mturnovers_mini_global[::-1]
     )
 
-    lfunc = np.zeros(len(redshifts) * nbins)
-    Muvfunc = np.zeros(len(redshifts) * nbins)
-    Mhfunc = np.zeros(len(redshifts) * nbins)
-
-    lfunc.shape = (len(redshifts), nbins)
-    Muvfunc.shape = (len(redshifts), nbins)
-    Mhfunc.shape = (len(redshifts), nbins)
+    lfunc = np.zeros((len(redshifts), nbins))
+    Muvfunc = np.zeros((len(redshifts), nbins))
+    Mhfunc = np.zeros((len(redshifts), nbins))
 
     c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
     c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
     c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
 
-    lfunc_MINI = np.zeros(len(redshifts) * nbins)
-    Muvfunc_MINI = np.zeros(len(redshifts) * nbins)
-    Mhfunc_MINI = np.zeros(len(redshifts) * nbins)
-
-    lfunc_MINI.shape = (len(redshifts), nbins)
-    Muvfunc_MINI.shape = (len(redshifts), nbins)
-    Mhfunc_MINI.shape = (len(redshifts), nbins)
+    lfunc_MINI = np.zeros((len(redshifts), nbins))
+    Muvfunc_MINI = np.zeros((len(redshifts), nbins))
+    Mhfunc_MINI = np.zeros((len(redshifts), nbins))
 
     c_Muvfunc_MINI = ffi.cast("double *", ffi.from_buffer(Muvfunc_MINI))
     c_Mhfunc_MINI = ffi.cast("double *", ffi.from_buffer(Mhfunc_MINI))
@@ -426,11 +423,11 @@ def get_vcb_power_values(
     k_values: Sequence[float],
 ):
     """Evaluate the vcb power spectrum (at kinematic decoupling) at a certain scale from the 21cmFAST backend."""
-    if inputs.matter_options.USE_RELATIVE_VELOCITIES:
+    if inputs.matter_options.V_CB_MODEL == "FLUCTS":
         return np.vectorize(lib.power_in_vcb)(k_values)
     else:
         raise ValueError(
-            "inputs.matter_options.USE_RELATIVE_VELOCITIES must be True in order to compute the v_cb power spectrum."
+            "inputs.matter_options.V_CB_MODEL must be 'FLUCTS' in order to compute the v_cb power spectrum."
         )
 
 
