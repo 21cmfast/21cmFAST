@@ -66,8 +66,8 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->sigma_sfr_lim = astro_params_global->SIGMA_SFR_LIM;
     consts->sigma_sfr_idx = astro_params_global->SIGMA_SFR_INDEX;
     // setting units to 1e38 erg s -1 so we can store in float
-    consts->l_x = astro_params_global->L_X * 1e-38 * physconst.s_per_yr;
-    consts->l_x_mini = astro_params_global->L_X_MINI * 1e-38 * physconst.s_per_yr;
+    consts->l_x = astro_params_global->LX_OVER_SFR_ACG * 1e-38 * physconst.s_per_yr;
+    consts->l_x_mini = astro_params_global->LX_OVER_SFR_MCG * 1e-38 * physconst.s_per_yr;
     consts->sigma_xray = astro_params_global->SIGMA_LX;
 
     consts->alpha_esc = astro_params_global->ALPHA_ESC;
@@ -310,7 +310,7 @@ double lx_on_sfr_doublePL(double metallicity, double lx_constant) {
 double lx_on_sfr_PL_Kaur(double sfr, double metallicity, double lx_constant) {
     // Hardcoded for now (except the lx normalisation and the scatter): 3 extra fit parameters in
     // the equation taking values from Kaur+22, constant factors controlled by
-    // astro_params_global->L_X
+    // astro_params_global->LX_OVER_SFR_ACG
     double sfr_index = 0.03;
     double z_index = -0.64;
     double cross_index = 0.0;
@@ -326,7 +326,7 @@ double lx_on_sfr_PL_Kaur(double sfr, double metallicity, double lx_constant) {
 double lx_on_sfr_Schechter(double metallicity, double lx_constant) {
     // Hardcoded for now (except the lx normalisation and the scatter): 3 extra fit parameters in
     // the equation taking values from Kaur+22, constant factors controlled by
-    // astro_params_global->L_X
+    // astro_params_global->LX_OVER_SFR_ACG
     double z_turn = 8e-3 / 0.02;  // convert to solar
     double logz_index = 0.3;
     double l10z = log10(metallicity / z_turn);

@@ -163,7 +163,7 @@ def test_halo_prop_sampling(default_input_struct_ts, plt):
         F_STAR10_ACG=-1,
         ALPHA_STAR_ACG=0.0,
         t_STAR=0.1,
-        L_X=40.0,
+        LX_OVER_SFR_ACG=40.0,
     )
     out_dict = cf.convert_halo_properties(
         redshift=redshift,
@@ -216,7 +216,7 @@ def test_halo_prop_sampling(default_input_struct_ts, plt):
     sim_SSFR = halo_sfr_out / halo_stars_out
 
     exp_LX = (
-        ap_c["L_X"]
+        ap_c["LX_OVER_SFR_ACG"]
         * np.exp(halo_rng_in * ap_c["SIGMA_LX"] - ap_c["SIGMA_LX"] ** 2 / 2)
         * 1e-38
     )

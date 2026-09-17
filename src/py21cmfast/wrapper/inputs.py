@@ -1665,12 +1665,18 @@ class AstroParams(InputStruct):
         Minimum virial temperature of star-forming haloes (Sec 2.1.3 of Greig+2015).
         Given in log10 units.
     L_X : float, optional
-        The specific X-ray luminosity per unit star formation escaping host galaxies.
+        The specific X-ray luminosity per unit star formation escaping host galaxies,
+        for ACGs. This is a deprecated parameter, please use LX_OVER_SFR_ACG instead.
+    LX_OVER_SFR_ACG : float, optional
+        The specific X-ray luminosity per unit star formation escaping host galaxies, for ACGs.
         Cf. Eq. 6 of Greig+2018. Given in log10 units. For the double power-law used in
         the Halo Model. This gives the low-z limit.
     L_X_MINI: float, optional
         The specific X-ray luminosity per unit star formation escaping host galaxies for
-        minihalos. Cf. Eq. 23 of Qin+2020. Given in log10 units. For the double
+        MCGs. This is a deprecated parameter, please use LX_OVER_SFR_MCG instead.
+    LX_OVER_SFR_MCG: float, optional
+        The specific X-ray luminosity per unit star formation escaping host galaxies for
+        MCGs. Cf. Eq. 23 of Qin+2020. Given in log10 units. For the double
         power-law used in the Halo Model. This gives the low-z limit. If the MCG
         scaling relations are not provided explicitly, we extend the ACG ones by default.
     NU_X_THRESH : float, optional
@@ -1806,13 +1812,23 @@ class AstroParams(InputStruct):
         validator=validators.gt(0),
         transformer=logtransformer,
     )
-    L_X: float = field(
-        default=40.5,
+
+    _L_X: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        transformer=logtransformer,
+    )
+    LX_OVER_SFR_ACG: float = field(
         converter=float,
         validator=validators.gt(0),
         transformer=logtransformer,
     )
-    L_X_MINI: float = field(
+    _L_X_MINI: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        transformer=logtransformer,
+    )
+    LX_OVER_SFR_MCG: float = field(
         converter=float, validator=validators.gt(0), transformer=logtransformer
     )
     NU_X_THRESH: float = field(
@@ -1873,10 +1889,6 @@ class AstroParams(InputStruct):
     NU_X_MAX: float = field(
         default=10000.0, converter=float, validator=validators.gt(0)
     )
-
-    @L_X_MINI.default
-    def _L_X_MINI_default(self):
-        return self.L_X
 
     @X_RAY_Tvir_MIN.default
     def _X_RAY_Tvir_MIN_default(self):
@@ -2014,6 +2026,30 @@ class AstroParams(InputStruct):
             return self.ALPHA_STAR_MCG
         else:
             return self._ALPHA_STAR_MINI
+
+    @cached_property
+    def L_X(self) -> float:
+        """
+        The specific X-ray luminosity per unit star formation escaping host galaxies for ACGs.
+
+        This is a deprecated property, and will be removed in v5. Please use LX_OVER_SFR_ACG instead.
+        """
+        if self._L_X is None:
+            return self.LX_OVER_SFR_ACG
+        else:
+            return self._L_X
+
+    @cached_property
+    def L_X_MINI(self) -> float:
+        """
+        The specific X-ray luminosity per unit star formation escaping host galaxies for minihaloes.
+
+        This is a deprecated property, and will be removed in v5. Please use LX_OVER_SFR_MCG instead.
+        """
+        if self._L_X_MINI is None:
+            return self.LX_OVER_SFR_MCG
+        else:
+            return self._L_X_MINI
 
     @M_TURN_STELLAR_FEEDBACK.default
     def _default_m_turn_stellar_feedback(self):
@@ -2158,6 +2194,46 @@ class AstroParams(InputStruct):
 
         return self._ALPHA_STAR_MINI
 
+    @LX_OVER_SFR_ACG.default
+    def _lx_over_sfr_acg_default(self):
+        if self._L_X is None:
+            return 40.5
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "L_X",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "L_X is deprecated and will be removed in a future version. "
+                    "Please use LX_OVER_SFR_ACG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._L_X
+
+    @LX_OVER_SFR_MCG.default
+    def _lx_over_sfr_mcg_default(self):
+        if self._L_X_MINI is None:
+            return self.LX_OVER_SFR_ACG
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "L_X_MINI",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "L_X_MINI is deprecated and will be removed in a future version. "
+                    "Please use LX_OVER_SFR_MCG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._L_X_MINI
+
     @F_STAR10_ACG.validator
     def _f_star10_acg_vld(self, att, val):
         if self._F_STAR10 is not None and val != self._F_STAR10:
@@ -2204,6 +2280,22 @@ class AstroParams(InputStruct):
             raise ValueError(
                 f"ALPHA_STAR_MCG is set to {val} but ALPHA_STAR_MINI is {self._ALPHA_STAR_MINI}! "
                 f"Either set ALPHA_STAR_MINI to {val} or change ALPHA_STAR_MCG to {self._ALPHA_STAR_MINI}."
+            )
+
+    @LX_OVER_SFR_ACG.validator
+    def _lx_over_sfr_acg_vld(self, att, val):
+        if self._L_X is not None and val != self._L_X:
+            raise ValueError(
+                f"LX_OVER_SFR_ACG is set to {val} but L_X is {self._L_X}! "
+                f"Either set L_X to {val} or change LX_OVER_SFR_ACG to {self._L_X}."
+            )
+
+    @LX_OVER_SFR_MCG.validator
+    def _lx_over_sfr_mcg_vld(self, att, val):
+        if self._L_X_MINI is not None and val != self._L_X_MINI:
+            raise ValueError(
+                f"LX_OVER_SFR_MCG is set to {val} but L_X_MINI is {self._L_X_MINI}! "
+                f"Either set L_X_MINI to {val} or change LX_OVER_SFR_MCG to {self._L_X_MINI}."
             )
 
 

@@ -386,7 +386,7 @@ def test_hash_for_different_inputs(default_input_struct, inp_type):
         "simulation_options": {"BOX_LEN": 300},
         "matter_options": {"SOURCE_MODEL": "L-INTEGRAL"},
         "cosmo_params": {"hlittle": 0.7},
-        "astro_params": {"L_X": 38.0},
+        "astro_params": {"LX_OVER_SFR_ACG": 38.0},
         "astro_options": {"USE_CMB_HEATING": False},
     }
     hash_default = caching.OutputCache()._get_hashes(default_input_struct)

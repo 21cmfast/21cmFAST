@@ -499,6 +499,32 @@ def test_alpha_star_mini_is_removed():
     AstroParams(ALPHA_STAR_MINI=0.5)
 
 
+def test_l_x_deprecated_warning():
+    """Test that using L_X shows deprecation warning."""
+    with pytest.warns(deprecation.DeprecatedWarning, match="L_X is deprecated"):
+        astro_params = AstroParams(L_X=40.0)
+    assert astro_params.LX_OVER_SFR_ACG == astro_params.L_X
+
+
+@deprecation.fail_if_not_removed
+def test_l_x_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete L_X."""
+    AstroParams(L_X=40.0)
+
+
+def test_l_x_mini_deprecated_warning():
+    """Test that using L_X_MINI shows deprecation warning."""
+    with pytest.warns(deprecation.DeprecatedWarning, match="L_X_MINI is deprecated"):
+        astro_params = AstroParams(L_X_MINI=40.5)
+    assert astro_params.LX_OVER_SFR_MCG == astro_params.L_X_MINI
+
+
+@deprecation.fail_if_not_removed
+def test_l_x_mini_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete L_X_MINI."""
+    AstroParams(L_X_MINI=40.5)
+
+
 def test_bad_deprecated_inputs():
     """Test that bad deprecated inputs raise ValueError."""
     with pytest.raises(ValueError, match="USE_MCGS is set to"):
@@ -538,6 +564,12 @@ def test_bad_deprecated_inputs():
 
     with pytest.raises(ValueError, match="ALPHA_STAR_MCG is set to"):
         AstroParams(ALPHA_STAR_MINI=0.5, ALPHA_STAR_MCG=0.6)
+
+    with pytest.raises(ValueError, match="LX_OVER_SFR_ACG is set to"):
+        AstroParams(L_X=40.5, LX_OVER_SFR_ACG=41.0)
+
+    with pytest.raises(ValueError, match="LX_OVER_SFR_MCG is set to"):
+        AstroParams(L_X_MINI=40.5, LX_OVER_SFR_MCG=41.0)
 
     with (
         pytest.warns(

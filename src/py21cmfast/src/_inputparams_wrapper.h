@@ -104,8 +104,8 @@ typedef struct AstroParams {
     double SIGMA_SFR_LIM;
 
     // L_X/SFR
-    double L_X;
-    double L_X_MINI;
+    double LX_OVER_SFR_ACG;
+    double LX_OVER_SFR_MCG;
     double SIGMA_LX;
 
     // Escape Fraction

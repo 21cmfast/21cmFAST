@@ -126,14 +126,14 @@ void writeAstroParams(AstroParams *p) {
         "       F_ESC10_ACG=%8.3f\n"
         "       ALPHA_ESC=%8.3f\n"
         "       t_STAR=%8.3f\n"
-        "       L_X=%10.3e\n"
+        "       LX_OVER_SFR_ACG=%10.3e\n"
         "       NU_X_THRESH=%8.3f\n"
         "       X_RAY_SPEC_INDEX=%8.3f,\n"
         "       UPPER_STELLAR_TURNOVER_MASS=%10.3e\n"
         "       UPPER_STELLAR_TURNOVER_INDEX=%8.3e\n",
         p->M_TURN_STELLAR_FEEDBACK, p->R_BUBBLE_MAX, p->F_STAR10_ACG, p->ALPHA_STAR_ACG,
-        p->F_ESC10_ACG, p->ALPHA_ESC, p->t_STAR, p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX,
-        p->UPPER_STELLAR_TURNOVER_MASS, p->UPPER_STELLAR_TURNOVER_INDEX);
+        p->F_ESC10_ACG, p->ALPHA_ESC, p->t_STAR, p->LX_OVER_SFR_ACG, p->NU_X_THRESH,
+        p->X_RAY_SPEC_INDEX, p->UPPER_STELLAR_TURNOVER_MASS, p->UPPER_STELLAR_TURNOVER_INDEX);
     LOG_INFO(
         "\n        HaloCatalog AstroParams:\n"
         "       SIGMA_STAR=%8.3f\n"
@@ -145,15 +145,15 @@ void writeAstroParams(AstroParams *p) {
         "\n        MiniHalo AstroParams:\n"
         "       ALPHA_STAR_MCG=%8.3f\n"
         "       F_ESC7_MCG=%8.3f\n"
-        "       L_X_MINI=%10.3e\n"
+        "       LX_OVER_SFR_MCG=%10.3e\n"
         "       F_STAR7_MCG=%8.3f\n"
         "       F_H2_SHIELD=%8.3f\n"
         "       A_LW=%8.3f\n"
         "       BETA_LW=%8.3f\n"
         "       A_VCB=%8.3f\n"
         "       BETA_VCB=%8.3f\n",
-        p->ALPHA_STAR_MCG, p->F_ESC7_MCG, p->L_X_MINI, p->F_STAR7_MCG, p->F_H2_SHIELD, p->A_LW,
-        p->BETA_LW, p->A_VCB, p->BETA_VCB);
+        p->ALPHA_STAR_MCG, p->F_ESC7_MCG, p->LX_OVER_SFR_MCG, p->F_STAR7_MCG, p->F_H2_SHIELD,
+        p->A_LW, p->BETA_LW, p->A_VCB, p->BETA_VCB);
     LOG_INFO(
         "\n     Const-z  AstroParams:\n"
         "       HII_EFF_FACTOR=%10.3e\n"
