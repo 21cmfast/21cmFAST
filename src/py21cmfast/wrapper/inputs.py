@@ -1608,9 +1608,15 @@ class AstroParams(InputStruct):
         If the MCG scaling relations are not provided explicitly, we extend the ACG
         ones by default. Given in log10 units.
     ALPHA_STAR : float, optional
-        Power-law index of fraction of galactic gas in stars as a function of halo mass.
-        See Sec 2.1 of Park+2018.
+        Power-law index of fraction of galactic gas in stars as a function of halo mass,
+        for ACGs. This is a deprecated parameter, please use ALPHA_STAR_ACG instead.
+    ALPHA_STAR_ACG : float, optional
+        Power-law index of fraction of galactic gas in stars as a function of halo mass,
+        for ACGs. See Sec 2.1 of Park+2018.
     ALPHA_STAR_MINI : float, optional
+        Power-law index of fraction of galactic gas in stars as a function of halo mass,
+        for MCGs. This is a deprecated parameter, please use ALPHA_STAR_MCG instead.
+    ALPHA_STAR_MCG : float, optional
         Power-law index of fraction of galactic gas in stars as a function of halo mass,
         for MCGs. See Sec 2 of Muñoz+21 (2110.13919). If the MCG scaling relations are
         not provided explicitly, we extend the ACG ones by default.
@@ -1745,17 +1751,21 @@ class AstroParams(InputStruct):
     F_STAR10_ACG: float = field(
         converter=float, validator=between(-3.0, 0.0), transformer=logtransformer
     )
-    ALPHA_STAR: float = field(
-        default=0.5,
-        converter=float,
+    _ALPHA_STAR: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
     )
+    ALPHA_STAR_ACG: float = field(converter=float)
     _F_STAR7_MINI: float | None = field(
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
     )
     F_STAR7_MCG: float = field(converter=float, transformer=logtransformer)
-    ALPHA_STAR_MINI: float = field(converter=float)
+    _ALPHA_STAR_MINI: None | float = field(
+        default=None, converter=attrs.converters.optional(float)
+    )
+    ALPHA_STAR_MCG: float = field(converter=float)
     _F_ESC10: float | None = field(
         default=None,
         converter=attrs.converters.optional(float),
@@ -1863,10 +1873,6 @@ class AstroParams(InputStruct):
     NU_X_MAX: float = field(
         default=10000.0, converter=float, validator=validators.gt(0)
     )
-
-    @ALPHA_STAR_MINI.default
-    def _ALPHA_STAR_MINI_default(self):
-        return self.ALPHA_STAR
 
     @L_X_MINI.default
     def _L_X_MINI_default(self):
@@ -1985,6 +1991,30 @@ class AstroParams(InputStruct):
         else:
             return self._F_ESC7_MINI
 
+    @cached_property
+    def ALPHA_STAR(self) -> float:
+        """
+        Power-law index of fraction of galactic gas in stars as a function of halo mass, for ACGs.
+
+        This is a deprecated property, and will be removed in v5. Please use ALPHA_STAR_ACG instead.
+        """
+        if self._ALPHA_STAR is None:
+            return self.ALPHA_STAR_ACG
+        else:
+            return self._ALPHA_STAR
+
+    @cached_property
+    def ALPHA_STAR_MINI(self) -> float:
+        """
+        Power-law index of fraction of galactic gas in stars as a function of halo mass, for minihaloes.
+
+        This is a deprecated property, and will be removed in v5. Please use ALPHA_STAR_MCG instead.
+        """
+        if self._ALPHA_STAR_MINI is None:
+            return self.ALPHA_STAR_MCG
+        else:
+            return self._ALPHA_STAR_MINI
+
     @M_TURN_STELLAR_FEEDBACK.default
     def _default_m_turn_stellar_feedback(self):
         if self._M_TURN is None:
@@ -2030,7 +2060,7 @@ class AstroParams(InputStruct):
         if self._F_STAR7_MINI is None:
             # set the default of the MCGs scalings to continue the same PL
             return (
-                self.F_STAR10_ACG - 3 * self.ALPHA_STAR
+                self.F_STAR10_ACG - 3 * self.ALPHA_STAR_ACG
             )  # -3*alpha since 1e7/1e10 = 1e-3
 
         warnings.warn(
@@ -2088,6 +2118,46 @@ class AstroParams(InputStruct):
 
         return self._F_ESC7_MINI
 
+    @ALPHA_STAR_ACG.default
+    def _alpha_star_acg_default(self):
+        if self._ALPHA_STAR is None:
+            return 0.5
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "ALPHA_STAR",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "ALPHA_STAR is deprecated and will be removed in a future version. "
+                    "Please use ALPHA_STAR_ACG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._ALPHA_STAR
+
+    @ALPHA_STAR_MCG.default
+    def _alpha_star_mcg_default(self):
+        if self._ALPHA_STAR_MINI is None:
+            return self.ALPHA_STAR_ACG
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "ALPHA_STAR_MINI",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "ALPHA_STAR_MINI is deprecated and will be removed in a future version. "
+                    "Please use ALPHA_STAR_MCG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._ALPHA_STAR_MINI
+
     @F_STAR10_ACG.validator
     def _f_star10_acg_vld(self, att, val):
         if self._F_STAR10 is not None and val != self._F_STAR10:
@@ -2118,6 +2188,22 @@ class AstroParams(InputStruct):
             raise ValueError(
                 f"F_ESC7_MCG is set to {val} but F_ESC7_MINI is {self._F_ESC7_MINI}! "
                 f"Either set F_ESC7_MINI to {val} or change F_ESC7_MCG to {self._F_ESC7_MINI}."
+            )
+
+    @ALPHA_STAR_ACG.validator
+    def _alpha_star_acg_vld(self, att, val):
+        if self._ALPHA_STAR is not None and val != self._ALPHA_STAR:
+            raise ValueError(
+                f"ALPHA_STAR_ACG is set to {val} but ALPHA_STAR is {self._ALPHA_STAR}! "
+                f"Either set ALPHA_STAR to {val} or change ALPHA_STAR_ACG to {self._ALPHA_STAR}."
+            )
+
+    @ALPHA_STAR_MCG.validator
+    def _alpha_star_mcg_vld(self, att, val):
+        if self._ALPHA_STAR_MINI is not None and val != self._ALPHA_STAR_MINI:
+            raise ValueError(
+                f"ALPHA_STAR_MCG is set to {val} but ALPHA_STAR_MINI is {self._ALPHA_STAR_MINI}! "
+                f"Either set ALPHA_STAR_MINI to {val} or change ALPHA_STAR_MCG to {self._ALPHA_STAR_MINI}."
             )
 
 

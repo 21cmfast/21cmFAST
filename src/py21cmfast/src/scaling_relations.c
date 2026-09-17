@@ -47,7 +47,7 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->scaling_median = astro_options_global->HALO_SCALING_RELATIONS_MEDIAN;
 
     consts->fstar_10 = astro_params_global->F_STAR10_ACG;
-    consts->alpha_star = astro_params_global->ALPHA_STAR;
+    consts->alpha_star = astro_params_global->ALPHA_STAR_ACG;
     consts->sigma_star = astro_params_global->SIGMA_STAR;
 
     consts->alpha_upper = astro_params_global->UPPER_STELLAR_TURNOVER_INDEX;
@@ -56,7 +56,7 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
                                 pow(consts->pivot_upper / 1e10, consts->alpha_upper);
 
     consts->fstar_7 = astro_params_global->F_STAR7_MCG;
-    consts->alpha_star_mini = astro_params_global->ALPHA_STAR_MINI;
+    consts->alpha_star_mini = astro_params_global->ALPHA_STAR_MCG;
 
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         consts->sfr_timescale = t_hubble(redshift) * astro_params_global->t_STAR;
@@ -377,7 +377,7 @@ void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, 
     //       exp(-sigma^2 /2), in case we want to interpret it as the mean of the f_star
     //       distribution, this exponent is also absorbed in the line for f_sample below, for
     //       computational efficiency
-    // We don't want an upturn even with a negative ALPHA_STAR
+    // We don't want an upturn even with a negative ALPHA_STAR_ACG
     if (astro_options_global->USE_UPPER_STELLAR_TURNOVER && (f_a > fu_a)) {
         mu_fstar = f_10 * scaling_double_PL(halo_mass, f_a, consts->upper_pivot_ratio, fu_a, fu_p);
     } else {

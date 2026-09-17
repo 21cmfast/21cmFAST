@@ -161,7 +161,7 @@ def test_halo_prop_sampling(default_input_struct_ts, plt):
         USE_UPPER_STELLAR_TURNOVER=False,
         M_TURN_STELLAR_FEEDBACK=5.0,  # This is a low value and would cause the ACG turnover mass to be the atomic cooling threshold
         F_STAR10_ACG=-1,
-        ALPHA_STAR=0.0,
+        ALPHA_STAR_ACG=0.0,
         t_STAR=0.1,
         L_X=40.0,
     )
@@ -184,7 +184,7 @@ def test_halo_prop_sampling(default_input_struct_ts, plt):
 
     exp_SHMR = (
         ap_c["F_STAR10_ACG"]
-        * ((halo_masses / 1e10) ** ap_c["ALPHA_STAR"])
+        * ((halo_masses / 1e10) ** ap_c["ALPHA_STAR_ACG"])
         * np.exp(
             -(
                 max(

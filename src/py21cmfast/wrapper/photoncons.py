@@ -408,9 +408,9 @@ def alpha_func(Q, a_const, a_slope):
 
 
 # (jdavies): this will be a very hacky way to make a (d_alphastar vs z) array
-# for a photoncons done by ALPHA_STAR instead of redshift
+# for a photoncons done by ALPHA_STAR_ACG instead of redshift
 # This will work by taking the calibration simulation, plotting a RANGE of analytic
-# Q vs z curves for different ALPHA_STAR, and then finding the aloha star which has the inverse ratio
+# Q vs z curves for different ALPHA_STAR_ACG, and then finding the aloha star which has the inverse ratio
 # with the reference analytic as the calibration
 # TODO: don't rely on the photoncons functions since they do a bunch of other stuff in C
 def photoncons_alpha(inputs, **kwargs):

@@ -7,9 +7,9 @@
 // clumping factor of C_{HII}=3 and the IGM temperature of T_0 = 2e4 K, following Section 2.1 of
 // Kuhlen & Faucher-Gigue`re (2012) MNRAS, 423, 862 and references therein. 1) initialise
 // interpolation table
-// -> initialise_Q_value_spline(NoRec, M_TURN_STELLAR_FEEDBACK, ALPHA_STAR, ALPHA_ESC, F_STAR10_ACG,
-// F_ESC10_ACG) NoRec = 0: Compute dQ/dt with the recombination time. NoRec = 1: Ignore
-// recombination. 2) find Q value at a given z -> Q_at_z(z, &(Q)) or find z at a given Q ->
+// -> initialise_Q_value_spline(NoRec, M_TURN_STELLAR_FEEDBACK, ALPHA_STAR_ACG, ALPHA_ESC,
+// F_STAR10_ACG, F_ESC10_ACG) NoRec = 0: Compute dQ/dt with the recombination time. NoRec = 1:
+// Ignore recombination. 2) find Q value at a given z -> Q_at_z(z, &(Q)) or find z at a given Q ->
 // z_at_Q(Q, &(z)). 3) free memory allocation -> free_Q_value()
 
 #include "photoncons.h"

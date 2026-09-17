@@ -91,8 +91,8 @@ typedef struct AstroParams {
 
     // SHMR
     float F_STAR10_ACG;
-    float ALPHA_STAR;
-    float ALPHA_STAR_MINI;
+    float ALPHA_STAR_ACG;
+    float ALPHA_STAR_MCG;
     float SIGMA_STAR;
     double UPPER_STELLAR_TURNOVER_MASS;
     double UPPER_STELLAR_TURNOVER_INDEX;

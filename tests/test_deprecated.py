@@ -471,6 +471,34 @@ def test_f_esc7_mini_is_removed():
     AstroParams(F_ESC7_MINI=-3.5)
 
 
+def test_alpha_star_deprecated_warning():
+    """Test that using ALPHA_STAR shows deprecation warning."""
+    with pytest.warns(deprecation.DeprecatedWarning, match="ALPHA_STAR is deprecated"):
+        astro_params = AstroParams(ALPHA_STAR=0.5)
+    assert astro_params.ALPHA_STAR_ACG == astro_params.ALPHA_STAR
+
+
+@deprecation.fail_if_not_removed
+def test_alpha_star_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete ALPHA_STAR."""
+    AstroParams(ALPHA_STAR=0.5)
+
+
+def test_alpha_star_mini_deprecated_warning():
+    """Test that using ALPHA_STAR_MINI shows deprecation warning."""
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="ALPHA_STAR_MINI is deprecated"
+    ):
+        astro_params = AstroParams(ALPHA_STAR_MINI=0.5)
+    assert astro_params.ALPHA_STAR_MCG == astro_params.ALPHA_STAR_MINI
+
+
+@deprecation.fail_if_not_removed
+def test_alpha_star_mini_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete ALPHA_STAR_MINI."""
+    AstroParams(ALPHA_STAR_MINI=0.5)
+
+
 def test_bad_deprecated_inputs():
     """Test that bad deprecated inputs raise ValueError."""
     with pytest.raises(ValueError, match="USE_MCGS is set to"):
@@ -504,6 +532,12 @@ def test_bad_deprecated_inputs():
 
     with pytest.raises(ValueError, match="F_ESC7_MCG is set to"):
         AstroParams(F_ESC7_MINI=-3.5, F_ESC7_MCG=-3.0)
+
+    with pytest.raises(ValueError, match="ALPHA_STAR_ACG is set to"):
+        AstroParams(ALPHA_STAR=0.5, ALPHA_STAR_ACG=0.6)
+
+    with pytest.raises(ValueError, match="ALPHA_STAR_MCG is set to"):
+        AstroParams(ALPHA_STAR_MINI=0.5, ALPHA_STAR_MCG=0.6)
 
     with (
         pytest.warns(
