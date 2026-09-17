@@ -307,7 +307,7 @@ class TestOutputCache:
     ):
         """Test that changing parameters affects IonizedBox but not ICs or PerturbedField."""
         input_change = default_input_struct.evolve_input_structs(
-            F_ESC10=-1.5,
+            F_ESC10_ACG=-1.5,
         )
 
         ic2 = InitialConditions.new(inputs=input_change)

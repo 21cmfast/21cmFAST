@@ -72,7 +72,7 @@ class MassDepZetaError(ParameterError):
     """An exception when determining the bisection for stellar mass/escape fraction."""
 
     default_message = """There is an issue with the choice of parameters under MASS_DEPENDENT_ZETA. Could be an issue with
-                any of the chosen F_STAR10_ACG, ALPHA_STAR, F_ESC10 or ALPHA_ESC."""
+                any of the chosen F_STAR10_ACG, ALPHA_STAR, F_ESC10_ACG or ALPHA_ESC."""
 
 
 class MemoryAllocError(FatalCError):

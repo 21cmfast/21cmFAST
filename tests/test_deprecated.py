@@ -424,6 +424,12 @@ def test_f_star10_deprecated_warning():
     assert astro_params.F_STAR10_ACG == astro_params.F_STAR10
 
 
+@deprecation.fail_if_not_removed
+def test_f_star10_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete F_STAR10."""
+    AstroParams(F_STAR10=-1.5)
+
+
 def test_f_star7_mini_deprecated_warning():
     """Test that using F_STAR7_MINI shows deprecation warning."""
     with pytest.warns(
@@ -434,15 +440,35 @@ def test_f_star7_mini_deprecated_warning():
 
 
 @deprecation.fail_if_not_removed
-def test_f_star10_is_removed():
-    """Fails when removed_in version is reached, reminding you to delete F_STAR10."""
-    AstroParams(F_STAR10=-1.5)
-
-
-@deprecation.fail_if_not_removed
 def test_f_star7_mini_is_removed():
     """Fails when removed_in version is reached, reminding you to delete F_STAR7_MINI."""
     AstroParams(F_STAR7_MINI=-3.5)
+
+
+def test_f_esc10_deprecated_warning():
+    """Test that using F_ESC10 shows deprecation warning."""
+    with pytest.warns(deprecation.DeprecatedWarning, match="F_ESC10 is deprecated"):
+        astro_params = AstroParams(F_ESC10=-1.5)
+    assert astro_params.F_ESC10_ACG == astro_params.F_ESC10
+
+
+@deprecation.fail_if_not_removed
+def test_f_esc10_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete F_ESC10."""
+    AstroParams(F_ESC10=-1.5)
+
+
+def test_f_esc7_mini_deprecated_warning():
+    """Test that using F_ESC7_MINI shows deprecation warning."""
+    with pytest.warns(deprecation.DeprecatedWarning, match="F_ESC7_MINI is deprecated"):
+        astro_params = AstroParams(F_ESC7_MINI=-3.5)
+    assert astro_params.F_ESC7_MCG == astro_params.F_ESC7_MINI
+
+
+@deprecation.fail_if_not_removed
+def test_f_esc7_mini_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete F_ESC7_MINI."""
+    AstroParams(F_ESC7_MINI=-3.5)
 
 
 def test_bad_deprecated_inputs():
@@ -472,6 +498,12 @@ def test_bad_deprecated_inputs():
 
     with pytest.raises(ValueError, match="F_STAR7_MCG is set to"):
         AstroParams(F_STAR7_MINI=-3.5, F_STAR7_MCG=-3.0)
+
+    with pytest.raises(ValueError, match="F_ESC10_ACG is set to"):
+        AstroParams(F_ESC10=-1.5, F_ESC10_ACG=-1.0)
+
+    with pytest.raises(ValueError, match="F_ESC7_MCG is set to"):
+        AstroParams(F_ESC7_MINI=-3.5, F_ESC7_MCG=-3.0)
 
     with (
         pytest.warns(

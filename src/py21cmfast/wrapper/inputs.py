@@ -1623,14 +1623,19 @@ class AstroParams(InputStruct):
     SIGMA_SFR_INDEX : float, optional
         index of the power-law between SFMS scatter and stellar mass below 1e10 solar.
     F_ESC10 : float, optional
-        The "escape fraction", i.e. the fraction of ionizing photons escaping into the
-        IGM, for 10^10 solar mass haloes. Only used if ``MASS_DEPENDENT_ZETA`` is True
+        The "escape fraction" for ACGS, i.e. the fraction of ionizing photons escaping into the
+        IGM, for 10^10 solar mass haloes. This is a deprecated parameter, please use F_ESC10_ACG instead.
+    F_ESC10_ACG : float, optional
+        The "escape fraction" for ACGS, i.e. the fraction of ionizing photons escaping into the
+        IGM, for 10^10 solar mass haloes. Only used if ``SOURCE_MODEL`` is not "CONST-ION-EFF"
         in :class:`AstroOptions`. This is used along with `F_STAR10_ACG` to determine
         ``HII_EFF_FACTOR`` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
-    F_ESC7_MINI: float, optional
-        The "escape fraction for minihalos", i.e. the fraction of ionizing photons escaping
-        into the IGM, for 10^7 solar mass minihaloes. Only used in the "minihalo"
+    F_ESC7_MINI : float, optional
+        The "escape fraction" for minihaloes. This is a deprecated parameter, please use F_ESC7_MCG instead.
+    F_ESC7_MCG: float, optional
+        The "escape fraction" for MCGs, i.e. the fraction of ionizing photons escaping
+        into the IGM, for 10^7 solar mass minihaloes. Only used in the MCGs
         parameterization, i.e. when `USE_MCGS` is set to True (in
         :class:`AstroOptions`). See Eq. 17 of Qin+2020. If the MCG
         scaling relations are not provided explicitly, we extend the ACG ones by default.
@@ -1751,20 +1756,23 @@ class AstroParams(InputStruct):
     )
     F_STAR7_MCG: float = field(converter=float, transformer=logtransformer)
     ALPHA_STAR_MINI: float = field(converter=float)
-    F_ESC10: float = field(
-        default=-1.0,
-        converter=float,
+    _F_ESC10: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
         transformer=logtransformer,
     )
+    F_ESC10_ACG: float = field(converter=float, transformer=logtransformer)
+
     ALPHA_ESC: float = field(
         default=-0.5,
         converter=float,
     )
-    F_ESC7_MINI: float = field(
-        default=-2.0,
-        converter=float,
+    _F_ESC7_MINI: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
         transformer=logtransformer,
     )
+    F_ESC7_MCG: float = field(converter=float, transformer=logtransformer)
     _M_TURN: float | None = field(
         default=None,
         converter=attrs.converters.optional(float),
@@ -1953,6 +1961,30 @@ class AstroParams(InputStruct):
         else:
             return self._F_STAR7_MINI
 
+    @cached_property
+    def F_ESC10(self) -> float:
+        """
+        The fraction of ionizing photons escaping into the IGM at a reference mass of 10^10 solar masses.
+
+        This is a deprecated property, and will be removed in v5. Please use F_ESC10_ACG instead.
+        """
+        if self._F_ESC10 is None:
+            return self.F_ESC10_ACG
+        else:
+            return self._F_ESC10
+
+    @cached_property
+    def F_ESC7_MINI(self) -> float:
+        """
+        The fraction of ionizing photons escaping into the IGM at a reference mass of 10^7 solar masses.
+
+        This is a deprecated property, and will be removed in v5. Please use F_ESC7_MCG instead.
+        """
+        if self._F_ESC7_MINI is None:
+            return self.F_ESC7_MCG
+        else:
+            return self._F_ESC7_MINI
+
     @M_TURN_STELLAR_FEEDBACK.default
     def _default_m_turn_stellar_feedback(self):
         if self._M_TURN is None:
@@ -2016,6 +2048,46 @@ class AstroParams(InputStruct):
 
         return self._F_STAR7_MINI
 
+    @F_ESC10_ACG.default
+    def _f_esc10_acg_default(self):
+        if self._F_ESC10 is None:
+            return -1.0
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "F_ESC10",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "F_ESC10 is deprecated and will be removed in a future version. "
+                    "Please use F_ESC10_ACG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._F_ESC10
+
+    @F_ESC7_MCG.default
+    def _f_esc7_mcg_default(self):
+        if self._F_ESC7_MINI is None:
+            return -2.0
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "F_ESC7_MINI",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "F_ESC7_MINI is deprecated and will be removed in a future version. "
+                    "Please use F_ESC7_MCG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._F_ESC7_MINI
+
     @F_STAR10_ACG.validator
     def _f_star10_acg_vld(self, att, val):
         if self._F_STAR10 is not None and val != self._F_STAR10:
@@ -2030,6 +2102,22 @@ class AstroParams(InputStruct):
             raise ValueError(
                 f"F_STAR7_MCG is set to {val} but F_STAR7_MINI is {self._F_STAR7_MINI}! "
                 f"Either set F_STAR7_MINI to {val} or change F_STAR7_MCG to {self._F_STAR7_MINI}."
+            )
+
+    @F_ESC10_ACG.validator
+    def _f_esc10_acg_vld(self, att, val):
+        if self._F_ESC10 is not None and val != self._F_ESC10:
+            raise ValueError(
+                f"F_ESC10_ACG is set to {val} but F_ESC10 is {self._F_ESC10}! "
+                f"Either set F_ESC10 to {val} or change F_ESC10_ACG to {self._F_ESC10}."
+            )
+
+    @F_ESC7_MCG.validator
+    def _f_esc7_mcg_vld(self, att, val):
+        if self._F_ESC7_MINI is not None and val != self._F_ESC7_MINI:
+            raise ValueError(
+                f"F_ESC7_MCG is set to {val} but F_ESC7_MINI is {self._F_ESC7_MINI}! "
+                f"Either set F_ESC7_MINI to {val} or change F_ESC7_MCG to {self._F_ESC7_MINI}."
             )
 
 

@@ -8,10 +8,9 @@
 // Kuhlen & Faucher-Gigue`re (2012) MNRAS, 423, 862 and references therein. 1) initialise
 // interpolation table
 // -> initialise_Q_value_spline(NoRec, M_TURN_STELLAR_FEEDBACK, ALPHA_STAR, ALPHA_ESC, F_STAR10_ACG,
-// F_ESC10) NoRec = 0: Compute dQ/dt with the recombination time. NoRec = 1: Ignore recombination.
-// 2) find Q value at a given z -> Q_at_z(z, &(Q))
-// or find z at a given Q -> z_at_Q(Q, &(z)).
-// 3) free memory allocation -> free_Q_value()
+// F_ESC10_ACG) NoRec = 0: Compute dQ/dt with the recombination time. NoRec = 1: Ignore
+// recombination. 2) find Q value at a given z -> Q_at_z(z, &(Q)) or find z at a given Q ->
+// z_at_Q(Q, &(z)). 3) free memory allocation -> free_Q_value()
 
 #include "photoncons.h"
 
@@ -116,7 +115,7 @@ int InitialisePhotonCons() {
         // set the minimum source mass
         if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
             ION_EFF_FACTOR = astro_params_global->POP2_ION * astro_params_global->F_STAR10_ACG *
-                             astro_params_global->F_ESC10;
+                             astro_params_global->F_ESC10_ACG;
             M_MIN = astro_params_global->M_TURN_STELLAR_FEEDBACK / 50.;
             lnMmin = log(M_MIN);
         } else {
