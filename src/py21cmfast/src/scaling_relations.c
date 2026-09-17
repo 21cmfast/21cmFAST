@@ -344,8 +344,8 @@ double get_lx_on_sfr(double sfr, double metallicity, double lx_constant) {
     return lx_constant;
 }
 
-void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
-                          ScalingConstants *consts, double *star_acg, double *star_mcg) {
+void get_halo_stellar_mass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
+                           ScalingConstants *consts, double *star_acg, double *star_mcg) {
     // low-mass ACG power-law parameters
     double f_10 = consts->fstar_10;
     double f_a = consts->alpha_star;
@@ -494,8 +494,9 @@ void get_halo_metallicity(double sfr, double stellar, double redshift, double *z
     *z_out = z_sample;
 }
 
-void get_halo_xray(double sfr, double sfr_mini, double metallicity, double metallicity_mini,
-                   double xray_rng, ScalingConstants *consts, double *xray_out) {
+void get_halo_xray_luminosity(double sfr, double sfr_mini, double metallicity,
+                              double metallicity_mini, double xray_rng, ScalingConstants *consts,
+                              double *xray_out) {
     double sigma_xray = consts->sigma_xray;
     double mu_x, xray_sample;
 

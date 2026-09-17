@@ -275,7 +275,7 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
             log10(consts->mturn_acg_homogeneous);  // used if we don't apply inhomogeneous
                                                    // reionization feedback on ACGS
         double l10_mturn_mcg = 0.;                 // dummy value for the USE_MCGS = false branch
-        HaloProperties properties;
+        IntegralProperties properties;
 #pragma omp for
         for (i = 0; i < dens_dim[0]; i++) {
             for (j = 0; j < dens_dim[1]; j++) {
@@ -314,13 +314,6 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
                     get_cell_integrals(curr_dens, M_min, M_max, l10_mturn_acg, l10_mturn_mcg,
                                        consts, &properties);
 
-                    // using the properties struct:
-                    // halo_sfr --> no F_esc integral ACG
-                    // sfr_mini --> no F_esc integral MCG
-                    // n_ion --> F_esc integral ACG
-                    // fescweighted_sfr --> F_esc integral MCG
-                    // halo_xray --> Xray integral
-
                     // Compute n_ion
                     do_cic_interpolation(emissivity_fields->n_ion, pos, out_dim,
                                          properties.n_ion * vol_ratio_out);
@@ -328,10 +321,10 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
                     // Compute SFRD (only required for spin temperature calculations)
                     if (astro_options_global->USE_TS_FLUCT) {
                         do_cic_interpolation(emissivity_fields->halo_sfr, pos, out_dim,
-                                             properties.halo_sfr * vol_ratio_out);
+                                             properties.sfrd_acg * vol_ratio_out);
                         if (astro_options_global->USE_MCGS) {
                             do_cic_interpolation(emissivity_fields->halo_sfr_mini, pos, out_dim,
-                                                 properties.sfr_mini * vol_ratio_out);
+                                                 properties.sfrd_mcg * vol_ratio_out);
                         }
                     }
 
@@ -342,20 +335,21 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
                     if (astro_options_global->USE_TS_FLUCT &&
                         astro_options_global->USE_METALLICITY) {
                         do_cic_interpolation(emissivity_fields->halo_xray, pos, out_dim,
-                                             properties.halo_xray * vol_ratio_out);
+                                             properties.xray_emissivity * vol_ratio_out);
                     }
 
                     // If the user is interested in extra fields, we also compute them
                     if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
                         do_cic_interpolation(emissivity_fields->count, pos, out_dim,
-                                             properties.count);
+                                             properties.halo_number);
                         do_cic_interpolation(emissivity_fields->halo_mass_density, pos, out_dim,
-                                             properties.halo_mass * vol_ratio_out);
+                                             properties.halo_mass_density * vol_ratio_out);
                         do_cic_interpolation(emissivity_fields->halo_stars, pos, out_dim,
-                                             properties.stellar_mass * vol_ratio_out);
+                                             properties.stellar_mass_density_acg * vol_ratio_out);
                         if (astro_options_global->USE_MCGS) {
-                            do_cic_interpolation(emissivity_fields->halo_stars_mini, pos, out_dim,
-                                                 properties.stellar_mass_mini * vol_ratio_out);
+                            do_cic_interpolation(
+                                emissivity_fields->halo_stars_mini, pos, out_dim,
+                                properties.stellar_mass_density_mcg * vol_ratio_out);
                         }
                     }
                 }
@@ -479,29 +473,28 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
             set_halo_properties(hmass, M_turn_acg, M_turn_mcg, consts, halo_rng, &properties);
             do_cic_interpolation(emissivity_fields->n_ion, pos, out_dim, properties.n_ion);
             if (astro_options_global->USE_TS_FLUCT) {
-                do_cic_interpolation(emissivity_fields->halo_sfr, pos, out_dim,
-                                     properties.halo_sfr);
+                do_cic_interpolation(emissivity_fields->halo_sfr, pos, out_dim, properties.sfr_acg);
                 do_cic_interpolation(emissivity_fields->halo_xray, pos, out_dim,
-                                     properties.halo_xray);
+                                     properties.xray_luminosity);
                 if (astro_options_global->USE_MCGS) {
                     do_cic_interpolation(emissivity_fields->halo_sfr_mini, pos, out_dim,
-                                         properties.sfr_mini);
+                                         properties.sfr_mcg);
                 }
             }
             if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
                 uses_recombination(astro_options_global->RECOMB_MODEL)) {
                 do_cic_interpolation(emissivity_fields->whalo_sfr, pos, out_dim,
-                                     properties.fescweighted_sfr);
+                                     properties.fesc_weighted_sfr);
             }
             if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
                 do_cic_interpolation(emissivity_fields->count, pos, out_dim, 1.0);
                 do_cic_interpolation(emissivity_fields->halo_mass_density, pos, out_dim,
                                      properties.halo_mass);
                 do_cic_interpolation(emissivity_fields->halo_stars, pos, out_dim,
-                                     properties.stellar_mass);
+                                     properties.stellar_mass_acg);
                 if (astro_options_global->USE_MCGS) {
                     do_cic_interpolation(emissivity_fields->halo_stars_mini, pos, out_dim,
-                                         properties.stellar_mass_mini);
+                                         properties.stellar_mass_mcg);
                 }
             }
 
@@ -510,14 +503,16 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
                 LOG_ULTRA_DEBUG(
                     "First 10 Halos: HM: %.2e SM: %.2e (%.2e) SF: %.2e (%.2e) X: %.2e NI: %.2e WS: "
                     "%.2e Z : %.2e ct : %llu",
-                    hmass, properties.stellar_mass, properties.stellar_mass_mini,
-                    properties.halo_sfr, properties.sfr_mini, properties.halo_xray,
-                    properties.n_ion, properties.fescweighted_sfr, properties.metallicity, i);
+                    hmass, properties.stellar_mass_acg, properties.stellar_mass_mcg,
+                    properties.sfr_acg, properties.sfr_mcg, properties.xray_luminosity,
+                    properties.n_ion, properties.fesc_weighted_sfr, properties.metallicity, i);
                 LOG_ULTRA_DEBUG("Mturn_acg %.2e Mturn_mcg %.2e RNG %.3f %.3f %.3f", M_turn_acg,
                                 M_turn_mcg, halo_rng[0], halo_rng[1], halo_rng[2]);
             }
 #endif
         }
+        // We need to normalize by the cell volume, since the output emissivity fields are
+        // density-like
 #pragma omp for
         for (index_huge i_cell = 0; i_cell < HII_TOT_NUM_PIXELS; i_cell++) {
             emissivity_fields->n_ion[i_cell] *= cell_vol_inv;
