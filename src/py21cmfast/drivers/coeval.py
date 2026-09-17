@@ -949,16 +949,8 @@ def _setup_ics_and_pfs_for_scrolling(
             **iokw,
         )
 
-    # perturb_field()/determine_halo_catalog() below each check their own cache
-    # (via single_field_func) before touching any of their inputs, so if every
-    # field this batch needs is already cached, initial_conditions' raw arrays
-    # (hires_density, velocities, etc.) are never actually read. Loading them
-    # via prepare_for_perturb()/prepare_for_spin_temp() anyway wastes an
-    # enormous amount of time and memory for nothing -- e.g. ~9 minutes and
-    # ~450GB of peak RSS at HII_DIM=1500 -- whenever we're resuming a run that
-    # has already fully completed this batch. Only skip the eager load in that
-    # specific (safe, conservative) case; fall back to the old always-load
-    # behaviour if we can't be sure, or if there's any real work to do.
+    # Only enter the loop if there is something to calculate.
+    # If the cache is already complete, we can skip the loop entirely and just read the cached boxes.
     resume_cache = None
     if iokw.get("cache") is not None and not iokw.get("regenerate"):
         resume_cache = RunCache.from_inputs(inputs, iokw["cache"])
@@ -1003,30 +995,51 @@ def _setup_ics_and_pfs_for_scrolling(
             f"to a value lower than z = {np.amin(all_redshifts)}."
         )
 
-    # Get all the perturb boxes early. We need to get the perturb at every
-    # redshift.
-    perturbed_field = []
+    # If every field this batch needs is already cached, perturb_field() and
+    # determine_halo_catalog() would just do a cache lookup for every z anyway
+    # -- so skip entering those loops at all and read the cached boxes
+    # directly instead.
+    if batch_already_cached:
+        perturbed_field = [
+            resume_cache.get_output_struct_at_z("PerturbedField", z=z)
+            for z in all_redshifts
+        ]
+        halofield_list = (
+            [
+                resume_cache.get_output_struct_at_z("HaloCatalog", z=z)
+                for z in all_redshifts
+            ]
+            if inputs.matter_options.has_discrete_halos
+            else []
+        )
+    else:
+        # Get all the perturb boxes early. We need to get the perturb at every
+        # redshift.
+        perturbed_field = []
 
-    with _progressbar(disable=not progressbar) as _progbar:
-        for z in _progbar.track(all_redshifts, description="Perturbing Matter Fields"):
-            p = sf.perturb_field(
-                redshift=z,
-                inputs=inputs,
-                write=write.perturbed_field,
-                **kw,
-            )
+        with _progressbar(disable=not progressbar) as _progbar:
+            for z in _progbar.track(
+                all_redshifts, description="Perturbing Matter Fields"
+            ):
+                p = sf.perturb_field(
+                    redshift=z,
+                    inputs=inputs,
+                    write=write.perturbed_field,
+                    **kw,
+                )
 
-            if inputs.matter_options.MINIMIZE_MEMORY and write.perturbed_field:
-                p.purge()
-            perturbed_field.append(p)
+                if inputs.matter_options.MINIMIZE_MEMORY and write.perturbed_field:
+                    p.purge()
+                perturbed_field.append(p)
 
-    halofield_list = evolve_halos(
-        inputs=inputs,
-        all_redshifts=all_redshifts,
-        write=write,
-        progressbar=progressbar,
-        **kw,
-    )
+        halofield_list = evolve_halos(
+            inputs=inputs,
+            all_redshifts=all_redshifts,
+            write=write,
+            progressbar=progressbar,
+            **kw,
+        )
+
     # Now we can purge initial_conditions further.
     if write.initial_conditions and not batch_already_cached:
         initial_conditions.prepare_for_spin_temp()
