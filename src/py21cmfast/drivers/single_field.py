@@ -615,6 +615,16 @@ def compute_xray_source_field(
                     box.filtered_sfr_lw.value[i] = 0
                     box.filtered_sfr_mini_lw.value[i] = 0
             logger.debug(f"ignoring Radius {i} due to no stars")
+            # hbox_interp is a fresh, throwaway interpolated HaloBox built only
+            # for this one shell -- it's never cached to disk and nothing else
+            # references it, so it must be purged explicitly here. Otherwise
+            # its full-resolution arrays (halo_sfr/halo_xray/halo_sfr_mini,
+            # ~HII_DIM^3 each) pile up for every one of the N_STEP_TS (default
+            # 40) shells in this loop before the next gc.collect() (which only
+            # runs once per *fully completed* coeval in run_N_coevals.py, not
+            # per shell), causing tens-of-GB-per-shell growth and eventual OOM
+            # on a single spin-temperature computation.
+            hbox_interp.purge(force=True)
             continue
 
         box = box.compute(
@@ -625,6 +635,9 @@ def compute_xray_source_field(
             R_star=R_star.to("Mpc").value,
             allow_already_computed=True,
         )
+        # See comment above: hbox_interp is disposable and must not be allowed
+        # to accumulate across shells.
+        hbox_interp.purge(force=True)
 
     # Sometimes we don't compute at all
     # (if the first zpp > z_max or there are no halos at max R)
