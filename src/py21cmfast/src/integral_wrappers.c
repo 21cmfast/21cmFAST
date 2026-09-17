@@ -186,9 +186,9 @@ void get_conditional_sfrd(double redshift, double R, int n_densities, double *de
     double sigma_cond = evaluate_sigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
+    if (astro_options_global->INTEGRATION_METHOD_ACGS == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
         (astro_options_global->USE_MCGS &&
-         astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
+         astro_options_global->INTEGRATION_METHOD_MCGS == INTEGRATION_METHOD_GAUSS_LEGENDRE))
         initialise_GL(log(M_min), log(M_cond));
 
     ScalingConstants sc;
@@ -228,9 +228,9 @@ void get_conditional_nion(double redshift, double R, int n_densities, double *de
     double sigma_cond = evaluate_sigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
+    if (astro_options_global->INTEGRATION_METHOD_ACGS == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
         (astro_options_global->USE_MCGS &&
-         astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
+         astro_options_global->INTEGRATION_METHOD_MCGS == INTEGRATION_METHOD_GAUSS_LEGENDRE))
         initialise_GL(log(M_min), log(M_cond));
 
     ScalingConstants sc;
@@ -269,9 +269,9 @@ void get_conditional_xray_emissivity(double redshift, double R, int n_densities,
     double sigma_cond = evaluate_sigma(log(M_cond));
     double growthf = dicke(redshift);
 
-    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
+    if (astro_options_global->INTEGRATION_METHOD_ACGS == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
         (astro_options_global->USE_MCGS &&
-         astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
+         astro_options_global->INTEGRATION_METHOD_MCGS == INTEGRATION_METHOD_GAUSS_LEGENDRE))
         initialise_GL(log(M_min), log(M_cond));
 
     ScalingConstants sc;

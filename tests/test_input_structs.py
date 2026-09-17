@@ -247,12 +247,12 @@ class TestAstroOptions:
                 {"HEAT_FILTER": 1},
             ),
             (
-                {"INTEGRATION_METHOD_ATOMIC": "GSL-QAG"},
-                {"INTEGRATION_METHOD_ATOMIC": 0},
+                {"INTEGRATION_METHOD_ACGS": "GSL-QAG"},
+                {"INTEGRATION_METHOD_ACGS": 0},
             ),
             (
-                {"INTEGRATION_METHOD_MINI": "GAMMA-APPROX"},
-                {"INTEGRATION_METHOD_MINI": 2},
+                {"INTEGRATION_METHOD_MCGS": "GAMMA-APPROX"},
+                {"INTEGRATION_METHOD_MCGS": 2},
             ),
         ],
     )

@@ -558,8 +558,8 @@ def test_Nion_conditional_tables(
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
         USE_REIONIZATION_PHOTOHEATING_FEEDBACK=use_reionization_photoheating_feedback,
-        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_ACGS=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MCGS=OPTIONS_INTMETHOD[intmethod],
         node_redshifts=global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
@@ -690,8 +690,8 @@ def test_Xray_conditional_tables(
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
         USE_REIONIZATION_PHOTOHEATING_FEEDBACK=use_reionization_photoheating_feedback,
-        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_ACGS=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MCGS=OPTIONS_INTMETHOD[intmethod],
         node_redshifts=global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
@@ -783,8 +783,8 @@ def test_SFRD_conditional_table(
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
         USE_REIONIZATION_PHOTOHEATING_FEEDBACK=use_reionization_photoheating_feedback,
-        INTEGRATION_METHOD_ATOMIC=OPTIONS_INTMETHOD[intmethod],
-        INTEGRATION_METHOD_MINI=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_ACGS=OPTIONS_INTMETHOD[intmethod],
+        INTEGRATION_METHOD_MCGS=OPTIONS_INTMETHOD[intmethod],
         node_redshifts=global_evolution.node_redshifts,
         **kwargs,
     )["inputs"]
@@ -910,8 +910,8 @@ def test_conditional_integral_methods(
             continue
 
         inputs = inputs.evolve_input_structs(
-            INTEGRATION_METHOD_ATOMIC=method,
-            INTEGRATION_METHOD_MINI=method,
+            INTEGRATION_METHOD_ACGS=method,
+            INTEGRATION_METHOD_MCGS=method,
         )
 
         if "sfr" in integrand:

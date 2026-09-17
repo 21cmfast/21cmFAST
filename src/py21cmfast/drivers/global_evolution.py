@@ -351,8 +351,8 @@ def run_global_evolution(
         "SOURCE_MODEL": source_model,
         "PERTURB_ALGORITHM": "LINEAR",  # no need to do 2LPT
         "USE_INTERPOLATION_TABLES": "sigma-interpolation",  # only need sigma interpolation tables (hmf integrals are evaluated once per snapshot, without interpolation)
-        "INTEGRATION_METHOD_ATOMIC": "GSL-QAG",  # due to above, we ought to use gsl, and not gauss-legendre (BUG?)
-        "INTEGRATION_METHOD_MINI": "GSL-QAG",
+        "INTEGRATION_METHOD_ACGS": "GSL-QAG",  # due to above, we ought to use gsl, and not gauss-legendre (BUG?)
+        "INTEGRATION_METHOD_MCGS": "GSL-QAG",
         "USE_UPPER_STELLAR_TURNOVER": False,  # no upper stellar turnover without discrete halos
         "USE_EXP_FILTER": False,  # we don't run reionization module, so we can leave this parameter on False for all source models
         "KEEP_3D_VELOCITIES": False,  # we don't need any velocities

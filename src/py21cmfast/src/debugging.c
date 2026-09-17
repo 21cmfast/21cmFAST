@@ -180,13 +180,13 @@ void writeAstroOptions(AstroOptions *p) {
         "       HII_FILTER=%2d\n"
         "       HEAT_FILTER=%2d\n"
         "       IONISE_ENTIRE_SPHERE=%1d\n"
-        "       INTEGRATION_METHOD_ATOMIC=%2d\n"
-        "       INTEGRATION_METHOD_MINI=%2d\n",
+        "       INTEGRATION_METHOD_ACGS=%2d\n"
+        "       INTEGRATION_METHOD_MCGS=%2d\n",
         p->USE_MCGS, p->RECOMB_MODEL, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER,
         p->USE_CMB_HEATING, p->USE_LYA_HEATING, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
         p->USE_METALLICITY, p->USE_UPPER_STELLAR_TURNOVER, p->HALO_SCALING_RELATIONS_MEDIAN,
-        p->HII_FILTER, p->HEAT_FILTER, p->IONISE_ENTIRE_SPHERE, p->INTEGRATION_METHOD_ATOMIC,
-        p->INTEGRATION_METHOD_MINI);
+        p->HII_FILTER, p->HEAT_FILTER, p->IONISE_ENTIRE_SPHERE, p->INTEGRATION_METHOD_ACGS,
+        p->INTEGRATION_METHOD_MCGS);
 }
 
 // Wrapper function to select appropriate indexing function based on layout

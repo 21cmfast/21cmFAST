@@ -1290,9 +1290,8 @@ class AstroOptions(InputStruct):
     IONISE_ENTIRE_SPHERE: bool, optional
         If True, ionises the entire sphere on the filter scale when an ionised region is
         found in the excursion set.
-    INTEGRATION_METHOD_ATOMIC: str, optional
-        The integration method to use for conditional MF integrals of atomic halos in
-        the grids:
+    INTEGRATION_METHOD_ACGS: str, optional
+        The integration method to use for conditional MF integrals of atomic cooling galaxies:
 
         * 'GSL-QAG': GSL QAG adaptive integration,
         * 'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the
@@ -1301,15 +1300,20 @@ class AstroOptions(InputStruct):
           power-law for sigma(M) based on EPS
 
         .. note:: Global integrals will use GSL QAG adaptive integration
-    INTEGRATION_METHOD_MINI: str, optional
-        The integration method to use for conditional MF integrals of minihalos in the
-        grids:
+    INTEGRATION_METHOD_MCGS: str, optional
+        The integration method to use for conditional MF integrals for molecular cooling galaxies:
 
         * 'GSL-QAG': GSL QAG adaptive integration,
         * 'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the
           interpolation tables,
         * 'GAMMA-APPROX': Approximate integration, assuming sharp cutoffs and a triple
           power-law for sigma(M) based on EPS
+    INTEGRATION_METHOD_ATOMIC: str, optional
+        The integration method to use for conditional MF integrals for atomic cooling galaxies.
+        This is a deprecated parameter, please use INTEGRATION_METHOD_ACGS instead.
+    INTEGRATION_METHOD_MINI: str, optional
+        The integration method to use for conditional MF integrals for molecular cooling galaxies.
+        This is a deprecated parameter, please use INTEGRATION_METHOD_MCGS instead.
     """
 
     _USE_MINI_HALOS: bool | None = field(
@@ -1344,8 +1348,14 @@ class AstroOptions(InputStruct):
     IONISE_ENTIRE_SPHERE: bool = field(default=False, converter=bool)
     RECOMB_MODEL: Literal["none", "homogeneous", "inhomogeneous"] = choice_field()
     USE_REIONIZATION_PHOTOHEATING_FEEDBACK: bool = field(converter=bool)
-    INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
-    INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
+    _INTEGRATION_METHOD_ATOMIC: IntegralMethods | None = field(
+        default=None, converter=attrs.converters.optional(str)
+    )
+    _INTEGRATION_METHOD_MINI: IntegralMethods | None = field(
+        default=None, converter=attrs.converters.optional(str)
+    )
+    INTEGRATION_METHOD_ACGS: IntegralMethods = choice_field()
+    INTEGRATION_METHOD_MCGS: IntegralMethods = choice_field()
 
     @cached_property
     def USE_MINI_HALOS(self) -> bool:
@@ -1377,6 +1387,28 @@ class AstroOptions(InputStruct):
             return self.RECOMB_MODEL != "none"
         else:
             return self._INHOMO_RECO
+
+    @cached_property
+    def INTEGRATION_METHOD_ATOMIC(self) -> IntegralMethods:
+        """The integration method to use for conditional MF integrals for atomic cooling galaxies.
+
+        This is a deprecated property, and will be removed in v5. Please use INTEGRATION_METHOD_ACGS instead.
+        """
+        if self._INTEGRATION_METHOD_ATOMIC is None:
+            return self.INTEGRATION_METHOD_ACGS
+        else:
+            return self._INTEGRATION_METHOD_ATOMIC
+
+    @cached_property
+    def INTEGRATION_METHOD_MINI(self) -> IntegralMethods:
+        """The integration method to use for conditional MF integrals for molecular cooling galaxies.
+
+        This is a deprecated property, and will be removed in v5. Please use INTEGRATION_METHOD_MCGS instead.
+        """
+        if self._INTEGRATION_METHOD_MINI is None:
+            return self.INTEGRATION_METHOD_MCGS
+        else:
+            return self._INTEGRATION_METHOD_MINI
 
     @USE_REIONIZATION_PHOTOHEATING_FEEDBACK.default
     def _default_use_reionization_photoheating_feedback(self):
@@ -1421,6 +1453,44 @@ class AstroOptions(InputStruct):
         )
 
         return "inhomogeneous" if self._INHOMO_RECO else "none"
+
+    @INTEGRATION_METHOD_ACGS.default
+    def _default_integration_method_acgs(self):
+        if self._INTEGRATION_METHOD_ATOMIC is None:
+            return "GAUSS-LEGENDRE"
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "INTEGRATION_METHOD_ATOMIC",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "INTEGRATION_METHOD_ATOMIC is deprecated and will be removed in a future version. "
+                    "Please use INTEGRATION_METHOD_ACGS directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        return self._INTEGRATION_METHOD_ATOMIC
+
+    @INTEGRATION_METHOD_MCGS.default
+    def _default_integration_method_mcgs(self):
+        if self._INTEGRATION_METHOD_MINI is None:
+            return "GAUSS-LEGENDRE"
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "INTEGRATION_METHOD_MINI",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "INTEGRATION_METHOD_MINI is deprecated and will be removed in a future version. "
+                    "Please use INTEGRATION_METHOD_MCGS directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        return self._INTEGRATION_METHOD_MINI
 
     @USE_MCGS.validator
     def _use_mcgs_vld(self, att, val):
@@ -1480,6 +1550,30 @@ class AstroOptions(InputStruct):
 
         if val and not self.CELL_RECOMB:
             raise ValueError("USE_EXP_FILTER is True but CELL_RECOMB is False")
+
+    @INTEGRATION_METHOD_ACGS.validator
+    def _integration_method_acgs_vld(self, att, val):
+        """Raise an error if INTEGRATION_METHOD_ACGS is set to a different value than INTEGRATION_METHOD_ATOMIC."""
+        if (
+            self._INTEGRATION_METHOD_ATOMIC is not None
+            and val != self._INTEGRATION_METHOD_ATOMIC
+        ):
+            raise ValueError(
+                f"INTEGRATION_METHOD_ACGS is set to {val} but INTEGRATION_METHOD_ATOMIC is {self._INTEGRATION_METHOD_ATOMIC}! "
+                f"Either set INTEGRATION_METHOD_ATOMIC to {val} or change INTEGRATION_METHOD_ACGS to {self._INTEGRATION_METHOD_ATOMIC}."
+            )
+
+    @INTEGRATION_METHOD_MCGS.validator
+    def _integration_method_mcgs_vld(self, att, val):
+        """Raise an error if INTEGRATION_METHOD_MCGS is set to a different value than INTEGRATION_METHOD_MINI."""
+        if (
+            self._INTEGRATION_METHOD_MINI is not None
+            and val != self._INTEGRATION_METHOD_MINI
+        ):
+            raise ValueError(
+                f"INTEGRATION_METHOD_MCGS is set to {val} but INTEGRATION_METHOD_MINI is {self._INTEGRATION_METHOD_MINI}! "
+                f"Either set INTEGRATION_METHOD_MINI to {val} or change INTEGRATION_METHOD_MCGS to {self._INTEGRATION_METHOD_MINI}."
+            )
 
 
 @attrs.define(frozen=True, kw_only=True)
@@ -2145,8 +2239,8 @@ class InputParameters:
                 stacklevel=2,
             )
         elif (
-            val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
-            or val.INTEGRATION_METHOD_MINI == "GAMMA-APPROX"
+            val.INTEGRATION_METHOD_ACGS == "GAMMA-APPROX"
+            or val.INTEGRATION_METHOD_MCGS == "GAMMA-APPROX"
             or self.matter_options.SOURCE_MODEL == "CONST-ION-EFF"
         ) and self.matter_options.HMF != "PS":
             warnings.warn(

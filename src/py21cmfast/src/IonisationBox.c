@@ -722,9 +722,9 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
 
     LOG_SUPER_DEBUG("Tb limits d (%.2e,%.2e), m (%.2e,%.2e)", min_density, max_density,
                     consts->M_min, rspec.M_max_R);
-    if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
+    if (astro_options_global->INTEGRATION_METHOD_ACGS == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
         (astro_options_global->USE_MCGS &&
-         astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
+         astro_options_global->INTEGRATION_METHOD_MCGS == INTEGRATION_METHOD_GAUSS_LEGENDRE))
         initialise_GL(consts->lnMmin, rspec.ln_M_max_R);
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
         // Buffers to avoid both zero bin widths and max cell segfault in 2D interptables
@@ -1417,9 +1417,9 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         // lets check if we are going to bother with computing the inhmogeneous field at all...
         global_xH = 0.0;
 
-        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
+        if (astro_options_global->INTEGRATION_METHOD_ACGS == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
             (astro_options_global->USE_MCGS &&
-             astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE))
+             astro_options_global->INTEGRATION_METHOD_MCGS == INTEGRATION_METHOD_GAUSS_LEGENDRE))
             initialise_GL(ionbox_constants.lnMmin, ionbox_constants.lnMmax_gl);
 
         double f_limit_acg;

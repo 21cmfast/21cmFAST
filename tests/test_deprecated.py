@@ -384,13 +384,73 @@ def test_use_mini_halos_is_removed():
     )
 
 
-@pytest.mark.parametrize("use_mcgs", [True, False])
-def test_bad_deprecated_inputs(use_mcgs):
+def test_integration_method_atomic_deprecated_warning():
+    """Test that using INTEGRATION_METHOD_ATOMIC shows deprecation warning."""
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="INTEGRATION_METHOD_ATOMIC is deprecated"
+    ):
+        astro_params = AstroOptions(INTEGRATION_METHOD_ATOMIC="GAUSS-LEGENDRE")
+    assert (
+        astro_params.INTEGRATION_METHOD_ACGS == astro_params._INTEGRATION_METHOD_ATOMIC
+    )
+
+
+def test_integration_method_mini_deprecated_warning():
+    """Test that using INTEGRATION_METHOD_MINI shows deprecation warning."""
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="INTEGRATION_METHOD_MINI is deprecated"
+    ):
+        astro_params = AstroOptions(INTEGRATION_METHOD_MINI="GAUSS-LEGENDRE")
+    assert astro_params.INTEGRATION_METHOD_MCGS == astro_params._INTEGRATION_METHOD_MINI
+
+
+@deprecation.fail_if_not_removed
+def test_integration_method_atomic_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete INTEGRATION_METHOD_ATOMIC."""
+    AstroOptions(INTEGRATION_METHOD_ATOMIC="GAUSS-LEGENDRE")
+
+
+@deprecation.fail_if_not_removed
+def test_integration_method_mini_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete INTEGRATION_METHOD_MINI."""
+    AstroOptions(INTEGRATION_METHOD_MINI="GAUSS-LEGENDRE")
+
+
+def test_bad_deprecated_inputs():
     """Test that bad deprecated inputs raise ValueError."""
     with pytest.raises(ValueError, match="USE_MCGS is set to"):
         AstroOptions(
-            USE_MINI_HALOS=not use_mcgs,
-            USE_MCGS=use_mcgs,
+            USE_MINI_HALOS=False,
+            USE_MCGS=True,
             USE_TS_FLUCT=True,
             RECOMB_MODEL="inhomogeneous",
         )
+
+    with pytest.raises(ValueError, match="INTEGRATION_METHOD_ACGS is set to"):
+        AstroOptions(
+            INTEGRATION_METHOD_ATOMIC="GAUSS-LEGENDRE",
+            INTEGRATION_METHOD_ACGS="GSL-QAG",
+        )
+
+    with pytest.raises(ValueError, match="INTEGRATION_METHOD_MCGS is set to"):
+        AstroOptions(
+            INTEGRATION_METHOD_MINI="GAUSS-LEGENDRE",
+            INTEGRATION_METHOD_MCGS="GSL-QAG",
+        )
+
+    with (
+        pytest.warns(
+            deprecation.DeprecatedWarning,
+            match="INTEGRATION_METHOD_ATOMIC is deprecated",
+        ),
+        pytest.raises(ValueError, match="INTEGRATION_METHOD_ACGS must be one of"),
+    ):
+        AstroOptions(INTEGRATION_METHOD_ATOMIC="INVALID")
+
+    with (
+        pytest.warns(
+            deprecation.DeprecatedWarning, match="INTEGRATION_METHOD_MINI is deprecated"
+        ),
+        pytest.raises(ValueError, match="INTEGRATION_METHOD_MCGS must be one of"),
+    ):
+        AstroOptions(INTEGRATION_METHOD_MINI="INVALID")

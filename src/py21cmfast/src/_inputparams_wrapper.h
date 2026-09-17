@@ -165,8 +165,8 @@ typedef struct AstroOptions {
     filter_t HII_FILTER;
     filter_t HEAT_FILTER;
     recombination_model_t RECOMB_MODEL;
-    integration_method_t INTEGRATION_METHOD_ATOMIC;
-    integration_method_t INTEGRATION_METHOD_MINI;
+    integration_method_t INTEGRATION_METHOD_ACGS;
+    integration_method_t INTEGRATION_METHOD_MCGS;
 } AstroOptions;
 
 typedef struct Table1D {

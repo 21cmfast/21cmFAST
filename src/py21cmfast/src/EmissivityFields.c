@@ -484,9 +484,9 @@ int add_integral_contribution(double M_min, double M_max, InitialConditions *ini
     LOG_DEBUG("Mean emissivity fields || M = [%.2e %.2e] | Mcell = %.2e", M_min, M_max, M_cell);
     // These tables are coarser than needed, an initial loop for Mturn to find limits may help
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
-        if (astro_options_global->INTEGRATION_METHOD_ATOMIC == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
+        if (astro_options_global->INTEGRATION_METHOD_ACGS == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
             (astro_options_global->USE_MCGS &&
-             astro_options_global->INTEGRATION_METHOD_MINI == INTEGRATION_METHOD_GAUSS_LEGENDRE)) {
+             astro_options_global->INTEGRATION_METHOD_MCGS == INTEGRATION_METHOD_GAUSS_LEGENDRE)) {
             initialise_GL(lnM_min, lnM_max);
         }
 
