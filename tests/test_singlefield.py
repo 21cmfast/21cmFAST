@@ -262,7 +262,7 @@ def test_parameter_override(
     assert pf.inputs != ic.inputs
     assert pf != perturbed_field
 
-    inputs_changeastro = inputs_changenodes.evolve_input_structs(F_STAR10=-3.0)
+    inputs_changeastro = inputs_changenodes.evolve_input_structs(F_STAR10_ACG=-3.0)
 
     ib = p21c.compute_ionization_field(
         initial_conditions=ic,

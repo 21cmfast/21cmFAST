@@ -90,13 +90,13 @@ typedef struct AstroParams {
     float HII_EFF_FACTOR;
 
     // SHMR
-    float F_STAR10;
+    float F_STAR10_ACG;
     float ALPHA_STAR;
     float ALPHA_STAR_MINI;
     float SIGMA_STAR;
     double UPPER_STELLAR_TURNOVER_MASS;
     double UPPER_STELLAR_TURNOVER_INDEX;
-    float F_STAR7_MINI;
+    float F_STAR7_MCG;
 
     // SFMS
     float t_STAR;

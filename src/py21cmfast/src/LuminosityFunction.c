@@ -107,10 +107,10 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, double *z_LF
                 Mhalo_i = exp(lnMhalo_param[i]);
 
                 if (component == 1)
-                    Fstar = astro_params_global->F_STAR10 *
+                    Fstar = astro_params_global->F_STAR10_ACG *
                             pow(Mhalo_i / 1e10, astro_params_global->ALPHA_STAR);
                 else
-                    Fstar = astro_params_global->F_STAR7_MINI *
+                    Fstar = astro_params_global->F_STAR7_MCG *
                             pow(Mhalo_i / 1e7, astro_params_global->ALPHA_STAR_MINI);
                 if (Fstar > 1.) Fstar = 1;
 
@@ -119,11 +119,11 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, double *z_LF
                         if ((1. - Fstar) < FRACT_FLOAT_ERR) i_unity = i;
                     } else if (astro_params_global->ALPHA_STAR < 0. && i < nbins - 1) {
                         if (component == 1)
-                            Fstar_temp = astro_params_global->F_STAR10 *
+                            Fstar_temp = astro_params_global->F_STAR10_ACG *
                                          pow(exp(lnMhalo_min + dlnMhalo * (double)(i + 1)) / 1e10,
                                              astro_params_global->ALPHA_STAR);
                         else
-                            Fstar_temp = astro_params_global->F_STAR7_MINI *
+                            Fstar_temp = astro_params_global->F_STAR7_MCG *
                                          pow(exp(lnMhalo_min + dlnMhalo * (double)(i + 1)) / 1e7,
                                              astro_params_global->ALPHA_STAR_MINI);
                         if (Fstar_temp < 1. && (1. - Fstar) < FRACT_FLOAT_ERR) i_unity = i;

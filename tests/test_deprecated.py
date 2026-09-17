@@ -20,6 +20,7 @@ import pytest
 
 from py21cmfast import (
     AstroOptions,
+    AstroParams,
     BrightnessTemp,
     Coeval,
     EmissivityFields,
@@ -395,6 +396,12 @@ def test_integration_method_atomic_deprecated_warning():
     )
 
 
+@deprecation.fail_if_not_removed
+def test_integration_method_atomic_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete INTEGRATION_METHOD_ATOMIC."""
+    AstroOptions(INTEGRATION_METHOD_ATOMIC="GAUSS-LEGENDRE")
+
+
 def test_integration_method_mini_deprecated_warning():
     """Test that using INTEGRATION_METHOD_MINI shows deprecation warning."""
     with pytest.warns(
@@ -405,15 +412,37 @@ def test_integration_method_mini_deprecated_warning():
 
 
 @deprecation.fail_if_not_removed
-def test_integration_method_atomic_is_removed():
-    """Fails when removed_in version is reached, reminding you to delete INTEGRATION_METHOD_ATOMIC."""
-    AstroOptions(INTEGRATION_METHOD_ATOMIC="GAUSS-LEGENDRE")
-
-
-@deprecation.fail_if_not_removed
 def test_integration_method_mini_is_removed():
     """Fails when removed_in version is reached, reminding you to delete INTEGRATION_METHOD_MINI."""
     AstroOptions(INTEGRATION_METHOD_MINI="GAUSS-LEGENDRE")
+
+
+def test_f_star10_deprecated_warning():
+    """Test that using F_STAR10 shows deprecation warning."""
+    with pytest.warns(deprecation.DeprecatedWarning, match="F_STAR10 is deprecated"):
+        astro_params = AstroParams(F_STAR10=-1.5)
+    assert astro_params.F_STAR10_ACG == astro_params.F_STAR10
+
+
+def test_f_star7_mini_deprecated_warning():
+    """Test that using F_STAR7_MINI shows deprecation warning."""
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="F_STAR7_MINI is deprecated"
+    ):
+        astro_params = AstroParams(F_STAR7_MINI=-3.5)
+    assert astro_params.F_STAR7_MCG == astro_params.F_STAR7_MINI
+
+
+@deprecation.fail_if_not_removed
+def test_f_star10_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete F_STAR10."""
+    AstroParams(F_STAR10=-1.5)
+
+
+@deprecation.fail_if_not_removed
+def test_f_star7_mini_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete F_STAR7_MINI."""
+    AstroParams(F_STAR7_MINI=-3.5)
 
 
 def test_bad_deprecated_inputs():
@@ -437,6 +466,12 @@ def test_bad_deprecated_inputs():
             INTEGRATION_METHOD_MINI="GAUSS-LEGENDRE",
             INTEGRATION_METHOD_MCGS="GSL-QAG",
         )
+
+    with pytest.raises(ValueError, match="F_STAR10_ACG is set to"):
+        AstroParams(F_STAR10=-1.5, F_STAR10_ACG=-1.0)
+
+    with pytest.raises(ValueError, match="F_STAR7_MCG is set to"):
+        AstroParams(F_STAR7_MINI=-3.5, F_STAR7_MCG=-3.0)
 
     with (
         pytest.warns(

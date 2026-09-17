@@ -46,7 +46,7 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     // whether to fix *integrated* (not sampled) galaxy properties to the expected mean
     consts->scaling_median = astro_options_global->HALO_SCALING_RELATIONS_MEDIAN;
 
-    consts->fstar_10 = astro_params_global->F_STAR10;
+    consts->fstar_10 = astro_params_global->F_STAR10_ACG;
     consts->alpha_star = astro_params_global->ALPHA_STAR;
     consts->sigma_star = astro_params_global->SIGMA_STAR;
 
@@ -55,7 +55,7 @@ void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_p
     consts->upper_pivot_ratio = pow(consts->pivot_upper / 1e10, consts->alpha_star) +
                                 pow(consts->pivot_upper / 1e10, consts->alpha_upper);
 
-    consts->fstar_7 = astro_params_global->F_STAR7_MINI;
+    consts->fstar_7 = astro_params_global->F_STAR7_MCG;
     consts->alpha_star_mini = astro_params_global->ALPHA_STAR_MINI;
 
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
