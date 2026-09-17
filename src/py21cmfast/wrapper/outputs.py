@@ -1079,35 +1079,18 @@ class EmissivityFields(OutputStructZ):
     _meta = False
     _c_compute_function = lib.ComputeEmissivityFields
 
-    count = _arrayfield(optional=True)
+    halo_number = _arrayfield(optional=True)
     halo_mass_density = _arrayfield(optional=True)
-    halo_stars = _arrayfield(optional=True)
-    halo_stars_mini = _arrayfield(optional=True)
-    halo_sfr = _arrayfield(optional=True)
-    halo_sfr_mini = _arrayfield(optional=True)
-    halo_xray = _arrayfield(optional=True)
+    stellar_mass_density_acg = _arrayfield(optional=True)
+    stellar_mass_density_mcg = _arrayfield(optional=True)
+    sfrd_acg = _arrayfield(optional=True)
+    sfrd_mcg = _arrayfield(optional=True)
+    xray_emissivity = _arrayfield(optional=True)
     n_ion = _arrayfield()
-    whalo_sfr = _arrayfield(optional=True)
+    fesc_weighted_sfrd = _arrayfield(optional=True)
 
-    log10_Mcrit_ACG_ave: float = attrs.field(default=None)
-    log10_Mcrit_MCG_ave: float = attrs.field(default=None)
-
-    @property
-    def halo_mass(self):
-        """The halo mass density field.
-
-        This property is deprecated and will be removed in a future version. Please use `halo_mass_density` directly instead.
-        """
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "halo_mass",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details="halo_mass is deprecated and will be removed in a future version. Please use halo_mass_density directly instead.",
-            ),
-            stacklevel=2,
-        )
-        return self.halo_mass_density
+    log10_mturn_acg_ave: float = attrs.field(default=None)
+    log10_mturn_mcg_ave: float = attrs.field(default=None)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1132,25 +1115,25 @@ class EmissivityFields(OutputStructZ):
         # this might change in the future
         out = {"n_ion": Array(shape, dtype=np.float32)}
 
-        # TODO: similarly, as above, whalo_sfr is only needed for Lagrangian source models at the moment, but this might change
+        # TODO: similarly, as above, fesc_weighted_sfrd is only needed for Lagrangian source models at the moment, but this might change
         if (
             inputs.astro_options.RECOMB_MODEL != "none"
             and inputs.matter_options.lagrangian_source_grid
         ):
-            out["whalo_sfr"] = Array(shape, dtype=np.float32)
+            out["fesc_weighted_sfrd"] = Array(shape, dtype=np.float32)
 
         if inputs.astro_options.USE_TS_FLUCT:
-            out["halo_xray"] = Array(shape, dtype=np.float32)
-            out["halo_sfr"] = Array(shape, dtype=np.float32)
+            out["xray_emissivity"] = Array(shape, dtype=np.float32)
+            out["sfrd_acg"] = Array(shape, dtype=np.float32)
             if inputs.astro_options.USE_MCGS:
-                out["halo_sfr_mini"] = Array(shape, dtype=np.float32)
+                out["sfrd_mcg"] = Array(shape, dtype=np.float32)
 
         if config["EXTRA_EMISSIVITY_FIELDS"]:
-            out["count"] = Array(shape, dtype=np.float32)
+            out["halo_number"] = Array(shape, dtype=np.float32)
             out["halo_mass_density"] = Array(shape, dtype=np.float32)
-            out["halo_stars"] = Array(shape, dtype=np.float32)
+            out["stellar_mass_density_acg"] = Array(shape, dtype=np.float32)
             if inputs.astro_options.USE_MCGS:
-                out["halo_stars_mini"] = Array(shape, dtype=np.float32)
+                out["stellar_mass_density_mcg"] = Array(shape, dtype=np.float32)
 
         return cls(
             inputs=inputs,
@@ -1251,10 +1234,180 @@ class EmissivityFields(OutputStructZ):
 
             # If we need the box, only keep the interpolated fields
             if self.redshift <= last_z_above:
-                keep += ["halo_sfr", "halo_xray"]
+                keep += ["sfrd_acg", "xray_emissivity"]
                 if self.astro_options.USE_MCGS:
-                    keep += ["halo_sfr_mini"]
+                    keep += ["sfrd_mcg"]
         self.prepare(keep=keep, force=force)
+
+    @property
+    def count(self) -> Array:
+        """The halo number (per cell).
+
+        This property is deprecated and will be removed in a future version. Please use `halo_number` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "count",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="count is deprecated and will be removed in a future version. Please use halo_number directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.halo_number
+
+    @property
+    def halo_mass(self) -> Array:
+        """The halo mass density field.
+
+        This property is deprecated and will be removed in a future version. Please use `halo_mass_density` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "halo_mass",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="halo_mass is deprecated and will be removed in a future version. Please use halo_mass_density directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.halo_mass_density
+
+    @property
+    def halo_stars(self) -> Array:
+        """The stellar mass density field in ACGs.
+
+        This property is deprecated and will be removed in a future version. Please use `stellar_mass_density_acg` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "halo_stars",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="halo_stars is deprecated and will be removed in a future version. Please use stellar_mass_density_acg directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.stellar_mass_density_acg
+
+    @property
+    def halo_stars_mini(self) -> Array:
+        """The stellar mass density field in MCGs.
+
+        This property is deprecated and will be removed in a future version. Please use `stellar_mass_density_mcg` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "halo_stars_mini",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="halo_stars_mini is deprecated and will be removed in a future version. Please use stellar_mass_density_mcg directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.stellar_mass_density_mcg
+
+    @property
+    def halo_sfr(self) -> Array:
+        """The star formation rate density field in ACGs.
+
+        This property is deprecated and will be removed in a future version. Please use `sfrd_acg` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "halo_sfr",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="halo_sfr is deprecated and will be removed in a future version. Please use sfrd_acg directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.sfrd_acg
+
+    @property
+    def halo_sfr_mini(self) -> Array:
+        """The star formation rate density field in MCGs.
+
+        This property is deprecated and will be removed in a future version. Please use `sfrd_mcg` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "halo_sfr_mini",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="halo_sfr_mini is deprecated and will be removed in a future version. Please use sfrd_mcg directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.sfrd_mcg
+
+    @property
+    def halo_xray(self) -> Array:
+        """The X-ray emissivity field.
+
+        This property is deprecated and will be removed in a future version. Please use `xray_emissivity` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "halo_xray",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="halo_xray is deprecated and will be removed in a future version. Please use xray_emissivity directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.xray_emissivity
+
+    @property
+    def whalo_sfr(self) -> Array:
+        """The star formation rate density field, weighted by escape fraction, in both ACGs and MCGs.
+
+        This property is deprecated and will be removed in a future version. Please use `fesc_weighted_sfrd` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "whalo_sfr",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="whalo_sfr is deprecated and will be removed in a future version. Please use fesc_weighted_sfrd directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.fesc_weighted_sfrd
+
+    @property
+    def log10_Mcrit_ACG_ave(self) -> float:
+        """The average log10 of the turnover mass for ACGs.
+
+        This property is deprecated and will be removed in a future version. Please use `log10_mturn_acg_ave` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "log10_Mcrit_ACG_ave",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="log10_Mcrit_ACG_ave is deprecated and will be removed in a future version. Please use log10_mturn_acg_ave directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.log10_mturn_acg_ave
+
+    @property
+    def log10_Mcrit_MCG_ave(self) -> float:
+        """The average log10 of the turnover mass for MCGs.
+
+        This property is deprecated and will be removed in a future version. Please use `log10_mturn_mcg_ave` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "log10_Mcrit_MCG_ave",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="log10_Mcrit_MCG_ave is deprecated and will be removed in a future version. Please use log10_mturn_mcg_ave directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.log10_mturn_mcg_ave
 
 
 @attrs.define(slots=False, kw_only=True)
@@ -1586,9 +1739,9 @@ class RadiationFields(OutputStructZ):
         elif isinstance(input_box, TsBox):
             required += ["xray_ionised_fraction"]
         elif isinstance(input_box, EmissivityFields):
-            required += ["halo_sfr", "halo_xray"]
+            required += ["sfrd_acg", "xray_emissivity"]
             if self.astro_options.USE_MCGS:
-                required += ["halo_sfr_mini"]
+                required += ["sfrd_mcg"]
         elif isinstance(input_box, RadiationFieldsSetup):
             required += [
                 "R_values",
@@ -1933,7 +2086,7 @@ class IonizedBox(OutputStructZ):
             if self.matter_options.lagrangian_source_grid:
                 required += ["n_ion"]
                 if self.astro_options.RECOMB_MODEL != "none":
-                    required += ["whalo_sfr"]
+                    required += ["fesc_weighted_sfrd"]
         else:
             raise ValueError(
                 f"{type(input_box)} is not an input required for IonizedBox!"

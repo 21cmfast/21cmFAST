@@ -243,14 +243,14 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
     emissivity_fields = ox.EmissivityFields.new(
         redshift=0.0, inputs=default_input_struct_lc
     )
-    assert emissivity_fields.count is None
+    assert emissivity_fields.halo_number is None
     assert emissivity_fields.halo_mass_density is None
-    assert emissivity_fields.halo_stars is None
-    assert emissivity_fields.halo_stars_mini is None
-    assert emissivity_fields.halo_sfr is None
-    assert emissivity_fields.halo_sfr_mini is None
-    assert emissivity_fields.halo_xray is None
-    assert emissivity_fields.whalo_sfr is None
+    assert emissivity_fields.stellar_mass_density_acg is None
+    assert emissivity_fields.stellar_mass_density_mcg is None
+    assert emissivity_fields.sfrd_acg is None
+    assert emissivity_fields.sfrd_mcg is None
+    assert emissivity_fields.xray_emissivity is None
+    assert emissivity_fields.fesc_weighted_sfrd is None
     assert isinstance(emissivity_fields.n_ion, Array)
 
     with config.use(EXTRA_EMISSIVITY_FIELDS=True):
@@ -258,9 +258,9 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
             redshift=0.0, inputs=default_input_struct_lc
         )
         assert isinstance(emissivity_fields.halo_mass_density, Array)
-        assert isinstance(emissivity_fields.count, Array)
-        assert isinstance(emissivity_fields.halo_stars, Array)
-        assert emissivity_fields.halo_stars_mini is None
+        assert isinstance(emissivity_fields.halo_number, Array)
+        assert isinstance(emissivity_fields.stellar_mass_density_acg, Array)
+        assert emissivity_fields.stellar_mass_density_mcg is None
 
         emissivity_fields = ox.EmissivityFields.new(
             redshift=0.0,
@@ -268,22 +268,22 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
                 USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous", USE_MCGS=True
             ),
         )
-        assert isinstance(emissivity_fields.halo_stars_mini, Array)
+        assert isinstance(emissivity_fields.stellar_mass_density_mcg, Array)
 
     inputs = default_input_struct_lc.evolve_input_structs(
         RECOMB_MODEL="inhomogeneous", SOURCE_MODEL="L-INTEGRAL"
     )
     emissivity_fields = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
-    assert isinstance(emissivity_fields.whalo_sfr, Array)
+    assert isinstance(emissivity_fields.fesc_weighted_sfrd, Array)
 
     inputs = inputs.evolve_input_structs(USE_TS_FLUCT=True)
     emissivity_fields = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
-    assert isinstance(emissivity_fields.halo_sfr, Array)
-    assert isinstance(emissivity_fields.halo_xray, Array)
+    assert isinstance(emissivity_fields.sfrd_acg, Array)
+    assert isinstance(emissivity_fields.xray_emissivity, Array)
 
     inputs = inputs.evolve_input_structs(USE_MCGS=True)
     emissivity_fields = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
-    assert isinstance(emissivity_fields.halo_sfr_mini, Array)
+    assert isinstance(emissivity_fields.sfrd_mcg, Array)
 
 
 def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameters):

@@ -320,10 +320,10 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
 
                     // Compute SFRD (only required for spin temperature calculations)
                     if (astro_options_global->USE_TS_FLUCT) {
-                        do_cic_interpolation(emissivity_fields->halo_sfr, pos, out_dim,
+                        do_cic_interpolation(emissivity_fields->sfrd_acg, pos, out_dim,
                                              properties.sfrd_acg * vol_ratio_out);
                         if (astro_options_global->USE_MCGS) {
-                            do_cic_interpolation(emissivity_fields->halo_sfr_mini, pos, out_dim,
+                            do_cic_interpolation(emissivity_fields->sfrd_mcg, pos, out_dim,
                                                  properties.sfrd_mcg * vol_ratio_out);
                         }
                     }
@@ -334,21 +334,22 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
                     // interpolation.
                     if (astro_options_global->USE_TS_FLUCT &&
                         astro_options_global->USE_METALLICITY) {
-                        do_cic_interpolation(emissivity_fields->halo_xray, pos, out_dim,
+                        do_cic_interpolation(emissivity_fields->xray_emissivity, pos, out_dim,
                                              properties.xray_emissivity * vol_ratio_out);
                     }
 
                     // If the user is interested in extra fields, we also compute them
                     if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-                        do_cic_interpolation(emissivity_fields->count, pos, out_dim,
+                        do_cic_interpolation(emissivity_fields->halo_number, pos, out_dim,
                                              properties.halo_number);
                         do_cic_interpolation(emissivity_fields->halo_mass_density, pos, out_dim,
                                              properties.halo_mass_density * vol_ratio_out);
-                        do_cic_interpolation(emissivity_fields->halo_stars, pos, out_dim,
+                        do_cic_interpolation(emissivity_fields->stellar_mass_density_acg, pos,
+                                             out_dim,
                                              properties.stellar_mass_density_acg * vol_ratio_out);
                         if (astro_options_global->USE_MCGS) {
                             do_cic_interpolation(
-                                emissivity_fields->halo_stars_mini, pos, out_dim,
+                                emissivity_fields->stellar_mass_density_mcg, pos, out_dim,
                                 properties.stellar_mass_density_mcg * vol_ratio_out);
                         }
                     }
@@ -362,13 +363,13 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
         // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
         // take advantage of it
         if (astro_options_global->USE_TS_FLUCT && !astro_options_global->USE_METALLICITY) {
-            emissivity_fields->halo_xray[i] = consts->l_x * emissivity_fields->halo_sfr[i];
+            emissivity_fields->xray_emissivity[i] = consts->l_x * emissivity_fields->sfrd_acg[i];
             if (astro_options_global->USE_MCGS) {
-                emissivity_fields->halo_xray[i] +=
-                    consts->l_x_mini * emissivity_fields->halo_sfr_mini[i];
+                emissivity_fields->xray_emissivity[i] +=
+                    consts->l_x_mini * emissivity_fields->sfrd_mcg[i];
             }
         }
-        // Only Lagrangian source models require having whalo_sfr in IonisationBox.c
+        // Only Lagrangian source models require having fesc_weighted_sfrd in IonisationBox.c
         // TODO: I think this should be changed in the future
         if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
             uses_recombination(astro_options_global->RECOMB_MODEL)) {
@@ -376,19 +377,20 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
                 // For the mass-dependent source model, without stochasticity, the weighted SFRD is
                 // n_ion times the constants that give it units of SFRD
                 double prefactor_wsfr = RHOcrit * cosmo_params_global->OMb / consts->sfr_timescale;
-                emissivity_fields->whalo_sfr[i] = emissivity_fields->n_ion[i] * prefactor_wsfr;
+                emissivity_fields->fesc_weighted_sfrd[i] =
+                    emissivity_fields->n_ion[i] * prefactor_wsfr;
             } else {
                 // For the mass-independent source model, the weighted SFRD is proportional to the
                 // SFRD
                 // TODO: This is a dead code at the moment, but it's useful to keep it here since in
                 // the future we might want to use
                 //       the weighted SFRD for Eulerian source models as well.
-                //       Note that halo_sfr might not be evaluated in some scenarios.
+                //       Note that sfrd_acg might not be evaluated in some scenarios.
                 //       Also note that currently in IonisationBox.c, t_STAR is used for the
                 //       weighted SFRD, which I think is a mistake
-                emissivity_fields->whalo_sfr[i] = emissivity_fields->halo_sfr[i] /
-                                                  consts->fstar_10 *
-                                                  astro_params_global->HII_EFF_FACTOR;
+                emissivity_fields->fesc_weighted_sfrd[i] = emissivity_fields->sfrd_acg[i] /
+                                                           consts->fstar_10 *
+                                                           astro_params_global->HII_EFF_FACTOR;
             }
         }
     }
@@ -473,27 +475,27 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
             set_halo_properties(hmass, M_turn_acg, M_turn_mcg, consts, halo_rng, &properties);
             do_cic_interpolation(emissivity_fields->n_ion, pos, out_dim, properties.n_ion);
             if (astro_options_global->USE_TS_FLUCT) {
-                do_cic_interpolation(emissivity_fields->halo_sfr, pos, out_dim, properties.sfr_acg);
-                do_cic_interpolation(emissivity_fields->halo_xray, pos, out_dim,
+                do_cic_interpolation(emissivity_fields->sfrd_acg, pos, out_dim, properties.sfr_acg);
+                do_cic_interpolation(emissivity_fields->xray_emissivity, pos, out_dim,
                                      properties.xray_luminosity);
                 if (astro_options_global->USE_MCGS) {
-                    do_cic_interpolation(emissivity_fields->halo_sfr_mini, pos, out_dim,
+                    do_cic_interpolation(emissivity_fields->sfrd_mcg, pos, out_dim,
                                          properties.sfr_mcg);
                 }
             }
             if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
                 uses_recombination(astro_options_global->RECOMB_MODEL)) {
-                do_cic_interpolation(emissivity_fields->whalo_sfr, pos, out_dim,
+                do_cic_interpolation(emissivity_fields->fesc_weighted_sfrd, pos, out_dim,
                                      properties.fesc_weighted_sfr);
             }
             if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-                do_cic_interpolation(emissivity_fields->count, pos, out_dim, 1.0);
+                do_cic_interpolation(emissivity_fields->halo_number, pos, out_dim, 1.0);
                 do_cic_interpolation(emissivity_fields->halo_mass_density, pos, out_dim,
                                      properties.halo_mass);
-                do_cic_interpolation(emissivity_fields->halo_stars, pos, out_dim,
+                do_cic_interpolation(emissivity_fields->stellar_mass_density_acg, pos, out_dim,
                                      properties.stellar_mass_acg);
                 if (astro_options_global->USE_MCGS) {
-                    do_cic_interpolation(emissivity_fields->halo_stars_mini, pos, out_dim,
+                    do_cic_interpolation(emissivity_fields->stellar_mass_density_mcg, pos, out_dim,
                                          properties.stellar_mass_mcg);
                 }
             }
@@ -517,21 +519,21 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
         for (index_huge i_cell = 0; i_cell < HII_TOT_NUM_PIXELS; i_cell++) {
             emissivity_fields->n_ion[i_cell] *= cell_vol_inv;
             if (astro_options_global->USE_TS_FLUCT) {
-                emissivity_fields->halo_sfr[i_cell] *= cell_vol_inv;
-                emissivity_fields->halo_xray[i_cell] *= cell_vol_inv;
+                emissivity_fields->sfrd_acg[i_cell] *= cell_vol_inv;
+                emissivity_fields->xray_emissivity[i_cell] *= cell_vol_inv;
                 if (astro_options_global->USE_MCGS) {
-                    emissivity_fields->halo_sfr_mini[i_cell] *= cell_vol_inv;
+                    emissivity_fields->sfrd_mcg[i_cell] *= cell_vol_inv;
                 }
             }
             if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
                 uses_recombination(astro_options_global->RECOMB_MODEL)) {
-                emissivity_fields->whalo_sfr[i_cell] *= cell_vol_inv;
+                emissivity_fields->fesc_weighted_sfrd[i_cell] *= cell_vol_inv;
             }
             if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
                 emissivity_fields->halo_mass_density[i_cell] *= cell_vol_inv;
-                emissivity_fields->halo_stars[i_cell] *= cell_vol_inv;
+                emissivity_fields->stellar_mass_density_acg[i_cell] *= cell_vol_inv;
                 if (astro_options_global->USE_MCGS) {
-                    emissivity_fields->halo_stars_mini[i_cell] *= cell_vol_inv;
+                    emissivity_fields->stellar_mass_density_mcg[i_cell] *= cell_vol_inv;
                 }
             }
         }

@@ -31,6 +31,7 @@ from py21cmfast import (
     PerturbedField,
     compute_emissivity_fields,
     compute_halo_grid,
+    compute_initial_conditions,
     compute_ionization_field,
     compute_radiation_fields,
     config,
@@ -66,6 +67,38 @@ def computed_emissivity_fields(ic, pt, redshift_test, default_input_struct_lc, c
             initial_conditions=ic,
             perturbed_field=pt,
             inputs=default_input_struct_lc,
+            cache=cache,
+        )
+    return ic, pt, ef
+
+
+@pytest.fixture(scope="module")
+def computed_emissivity_fields_with_mcgs(redshift_test, default_input_struct_lc, cache):
+    """A real, computed EmissivityFields with MCGs."""
+    inputs = default_input_struct_lc.evolve_input_structs(
+        USE_TS_FLUCT=True,
+        RECOMB_MODEL="inhomogeneous",
+        USE_MCGS=True,
+        V_CB_MODEL="AVG-DEBUG",
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        SOURCE_MODEL="L-INTEGRAL",
+    )
+    ic = compute_initial_conditions(
+        inputs=inputs,
+        cache=cache,
+    )
+    pt = perturb_field(
+        redshift=redshift_test,
+        initial_conditions=ic,
+        inputs=inputs,
+        cache=cache,
+    )
+    with config.use(EXTRA_EMISSIVITY_FIELDS=True):
+        ef = compute_emissivity_fields(
+            redshift=redshift_test,
+            initial_conditions=ic,
+            perturbed_field=pt,
+            inputs=inputs,
             cache=cache,
         )
     return ic, pt, ef
@@ -117,9 +150,9 @@ def test_extra_halobox_fields_deprecated_warning(default_input_struct_lc):
             redshift=0.0, inputs=default_input_struct_lc
         )
         assert isinstance(emissivity_fields.halo_mass_density, Array)
-        assert isinstance(emissivity_fields.count, Array)
-        assert isinstance(emissivity_fields.halo_stars, Array)
-        assert emissivity_fields.halo_stars_mini is None
+        assert isinstance(emissivity_fields.halo_number, Array)
+        assert isinstance(emissivity_fields.stellar_mass_density_acg, Array)
+        assert emissivity_fields.stellar_mass_density_mcg is None
 
         emissivity_fields = EmissivityFields.new(
             redshift=0.0,
@@ -131,13 +164,13 @@ def test_extra_halobox_fields_deprecated_warning(default_input_struct_lc):
                 M_TURN_STELLAR_FEEDBACK=5.0,
             ),
         )
-        assert isinstance(emissivity_fields.halo_stars_mini, Array)
+        assert isinstance(emissivity_fields.stellar_mass_density_mcg, Array)
 
     inputs = default_input_struct_lc.evolve_input_structs(
         RECOMB_MODEL="inhomogeneous", SOURCE_MODEL="L-INTEGRAL"
     )
     emissivity_fields = EmissivityFields.new(redshift=0.0, inputs=inputs)
-    assert isinstance(emissivity_fields.whalo_sfr, Array)
+    assert isinstance(emissivity_fields.fesc_weighted_sfrd, Array)
 
 
 @deprecation.fail_if_not_removed
@@ -148,9 +181,9 @@ def test_extra_halobox_fields_is_removed(default_input_struct_lc):
             redshift=0.0, inputs=default_input_struct_lc
         )
         assert isinstance(emissivity_fields.halo_mass_density, Array)
-        assert isinstance(emissivity_fields.count, Array)
-        assert isinstance(emissivity_fields.halo_stars, Array)
-        assert emissivity_fields.halo_stars_mini is None
+        assert isinstance(emissivity_fields.halo_number, Array)
+        assert isinstance(emissivity_fields.stellar_mass_density_acg, Array)
+        assert emissivity_fields.stellar_mass_density_mcg is None
 
         emissivity_fields = EmissivityFields.new(
             redshift=0.0,
@@ -162,13 +195,13 @@ def test_extra_halobox_fields_is_removed(default_input_struct_lc):
                 M_TURN_STELLAR_FEEDBACK=5.0,
             ),
         )
-        assert isinstance(emissivity_fields.halo_stars_mini, Array)
+        assert isinstance(emissivity_fields.stellar_mass_density_mcg, Array)
 
     inputs = default_input_struct_lc.evolve_input_structs(
         RECOMB_MODEL="inhomogeneous", SOURCE_MODEL="L-INTEGRAL"
     )
     emissivity_fields = EmissivityFields.new(redshift=0.0, inputs=inputs)
-    assert isinstance(emissivity_fields.whalo_sfr, Array)
+    assert isinstance(emissivity_fields.fesc_weighted_sfrd, Array)
 
 
 def test_coeval_with_halobox_deprecated_warning(default_input_struct_lc):
@@ -526,6 +559,23 @@ def test_l_x_mini_is_removed():
     AstroParams(L_X_MINI=40.5)
 
 
+def test_count_deprecated_warning(computed_emissivity_fields):
+    """Test that using count shows deprecation warning."""
+    _, _, ef = computed_emissivity_fields
+    with pytest.warns(deprecation.DeprecatedWarning, match="count is deprecated"):
+        assert isinstance(ef.count, Array)
+    with pytest.warns(deprecation.DeprecatedWarning, match="count is deprecated"):
+        assert np.all(ef.count.value == ef.halo_number.value)
+
+
+@deprecation.fail_if_not_removed
+def test_count_is_removed(computed_emissivity_fields):
+    """Fails when removed_in version is reached, reminding you to delete count."""
+    _, _, ef = computed_emissivity_fields
+    assert isinstance(ef.count, Array)
+    assert np.all(ef.count.value == ef.halo_number.value)
+
+
 def test_halo_mass_deprecated_warning(computed_emissivity_fields):
     """Test that using halo_mass shows deprecation warning."""
     _, _, ef = computed_emissivity_fields
@@ -541,6 +591,148 @@ def test_halo_mass_is_removed(computed_emissivity_fields):
     _, _, ef = computed_emissivity_fields
     assert isinstance(ef.halo_mass, Array)
     assert np.all(ef.halo_mass.value == ef.halo_mass_density.value)
+
+
+def test_halo_stars_deprecated_warning(computed_emissivity_fields):
+    """Test that using halo_stars shows deprecation warning."""
+    _, _, ef = computed_emissivity_fields
+    with pytest.warns(deprecation.DeprecatedWarning, match="halo_stars is deprecated"):
+        assert isinstance(ef.halo_stars, Array)
+    with pytest.warns(deprecation.DeprecatedWarning, match="halo_stars is deprecated"):
+        assert np.all(ef.halo_stars.value == ef.stellar_mass_density_acg.value)
+
+
+@deprecation.fail_if_not_removed
+def test_halo_stars_is_removed(computed_emissivity_fields):
+    """Fails when removed_in version is reached, reminding you to delete halo_stars."""
+    _, _, ef = computed_emissivity_fields
+    assert isinstance(ef.halo_stars, Array)
+    assert np.all(ef.halo_stars.value == ef.stellar_mass_density_acg.value)
+
+
+def test_halo_stars_mini_deprecated_warning(computed_emissivity_fields_with_mcgs):
+    """Test that using halo_stars_mini shows deprecation warning."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="halo_stars_mini is deprecated"
+    ):
+        assert isinstance(ef.halo_stars_mini, Array)
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="halo_stars_mini is deprecated"
+    ):
+        assert np.all(ef.halo_stars_mini.value == ef.stellar_mass_density_mcg.value)
+
+
+@deprecation.fail_if_not_removed
+def test_halo_stars_mini_is_removed(computed_emissivity_fields_with_mcgs):
+    """Fails when removed_in version is reached, reminding you to delete halo_stars_mini."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    assert isinstance(ef.halo_stars_mini, Array)
+    assert np.all(ef.halo_stars_mini.value == ef.stellar_mass_density_mcg.value)
+
+
+def test_halo_sfr_deprecated_warning(computed_emissivity_fields_with_mcgs):
+    """Test that using halo_sfr shows deprecation warning."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    with pytest.warns(deprecation.DeprecatedWarning, match="halo_sfr is deprecated"):
+        assert isinstance(ef.halo_sfr, Array)
+    with pytest.warns(deprecation.DeprecatedWarning, match="halo_sfr is deprecated"):
+        assert np.all(ef.halo_sfr.value == ef.sfrd_acg.value)
+
+
+@deprecation.fail_if_not_removed
+def test_halo_sfr_is_removed(computed_emissivity_fields_with_mcgs):
+    """Fails when removed_in version is reached, reminding you to delete halo_sfr."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    assert isinstance(ef.halo_sfr, Array)
+    assert np.all(ef.halo_sfr.value == ef.sfrd_acg.value)
+
+
+def test_halo_sfr_mini_deprecated_warning(computed_emissivity_fields_with_mcgs):
+    """Test that using halo_sfr_mini shows deprecation warning."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="halo_sfr_mini is deprecated"
+    ):
+        assert isinstance(ef.halo_sfr_mini, Array)
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="halo_sfr_mini is deprecated"
+    ):
+        assert np.all(ef.halo_sfr_mini.value == ef.sfrd_mcg.value)
+
+
+@deprecation.fail_if_not_removed
+def test_halo_sfr_mini_is_removed(computed_emissivity_fields_with_mcgs):
+    """Fails when removed_in version is reached, reminding you to delete halo_sfr_mini."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    assert isinstance(ef.halo_sfr_mini, Array)
+    assert np.all(ef.halo_sfr_mini.value == ef.sfrd_mcg.value)
+
+
+def test_halo_xray_deprecated_warning(computed_emissivity_fields_with_mcgs):
+    """Test that using halo_xray shows deprecation warning."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    with pytest.warns(deprecation.DeprecatedWarning, match="halo_xray is deprecated"):
+        assert isinstance(ef.halo_xray, Array)
+    with pytest.warns(deprecation.DeprecatedWarning, match="halo_xray is deprecated"):
+        assert np.all(ef.halo_xray.value == ef.xray_emissivity.value)
+
+
+@deprecation.fail_if_not_removed
+def test_halo_xray_is_removed(computed_emissivity_fields_with_mcgs):
+    """Fails when removed_in version is reached, reminding you to delete halo_xray."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    assert isinstance(ef.halo_xray, Array)
+    assert np.all(ef.halo_xray.value == ef.xray_emissivity.value)
+
+
+def test_whalo_sfr_deprecated_warning(computed_emissivity_fields_with_mcgs):
+    """Test that using whalo_sfr shows deprecation warning."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    with pytest.warns(deprecation.DeprecatedWarning, match="whalo_sfr is deprecated"):
+        assert isinstance(ef.whalo_sfr, Array)
+    with pytest.warns(deprecation.DeprecatedWarning, match="whalo_sfr is deprecated"):
+        assert np.all(ef.whalo_sfr.value == ef.fesc_weighted_sfrd.value)
+
+
+def test_log10_mcrit_acg_ave_deprecated_warning(computed_emissivity_fields_with_mcgs):
+    """Test that using log10_mcrit_acg_ave shows deprecation warning."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="log10_Mcrit_ACG_ave is deprecated"
+    ):
+        assert np.all(ef.log10_Mcrit_ACG_ave == ef.log10_mturn_acg_ave)
+
+
+@deprecation.fail_if_not_removed
+def test_log10_mcrit_acg_ave_is_removed(computed_emissivity_fields_with_mcgs):
+    """Fails when removed_in version is reached, reminding you to delete log10_mcrit_acg_ave."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    assert np.all(ef.log10_Mcrit_ACG_ave == ef.log10_mturn_acg_ave)
+
+
+def test_log10_mcrit_mcg_ave_deprecated_warning(computed_emissivity_fields_with_mcgs):
+    """Test that using log10_mcrit_mcg_ave shows deprecation warning."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="log10_Mcrit_MCG_ave is deprecated"
+    ):
+        assert np.all(ef.log10_Mcrit_MCG_ave == ef.log10_mturn_mcg_ave)
+
+
+@deprecation.fail_if_not_removed
+def test_log10_mcrit_mcg_ave_is_removed(computed_emissivity_fields_with_mcgs):
+    """Fails when removed_in version is reached, reminding you to delete log10_mcrit_mcg_ave."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    assert np.all(ef.log10_Mcrit_MCG_ave == ef.log10_mturn_mcg_ave)
+
+
+@deprecation.fail_if_not_removed
+def test_whalo_sfr_is_removed(computed_emissivity_fields_with_mcgs):
+    """Fails when removed_in version is reached, reminding you to delete whalo_sfr."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    assert isinstance(ef.whalo_sfr, Array)
+    assert np.all(ef.whalo_sfr.value == ef.fesc_weighted_sfrd.value)
 
 
 def test_bad_deprecated_inputs():

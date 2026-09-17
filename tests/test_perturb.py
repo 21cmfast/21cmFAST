@@ -203,17 +203,17 @@ class TestPerturb:
 
         rtol = 1e-2
         np.testing.assert_allclose(
-            emissivity_fields.get("halo_sfr"), integral_sfrd, rtol=rtol
+            emissivity_fields.get("sfrd_acg"), integral_sfrd, rtol=rtol
         )
         np.testing.assert_allclose(
             emissivity_fields.get("n_ion"), integral_nion, rtol=rtol
         )
         np.testing.assert_allclose(
-            emissivity_fields.get("halo_xray"), integral_xray, rtol=rtol
+            emissivity_fields.get("xray_emissivity"), integral_xray, rtol=rtol
         )
 
-    def test_hb_count_nonzero(self, inputs_low, test_pt_z):
-        """Tests that the EmissivityFields count field is non-zero with EXTRA_EMISSIVITY_FIELDS=True."""
+    def test_halo_number_nonzero(self, inputs_low, test_pt_z):
+        """Tests that the EmissivityFields halo_number field is non-zero with EXTRA_EMISSIVITY_FIELDS=True."""
         from py21cmfast import config
 
         ics = self.get_fake_ics(inputs_low, test_pt_z)
@@ -223,8 +223,8 @@ class TestPerturb:
                 initial_conditions=ics,
                 inputs=inputs_low,
             )
-        count = emissivity_fields.get("count")
-        assert count is not None, (
-            "count field should be populated when EXTRA_EMISSIVITY_FIELDS=True"
+        halo_number = emissivity_fields.get("halo_number")
+        assert halo_number is not None, (
+            "halo_number should be populated when EXTRA_EMISSIVITY_FIELDS=True"
         )
-        assert np.any(count > 0), "count field should be non-zero"
+        assert np.any(halo_number > 0), "halo_number field should be non-zero"

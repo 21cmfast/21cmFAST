@@ -153,7 +153,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
         }
     }
 
-    // Only Lagrangian source models require having whalo_sfr in IonisationBox.c
+    // Only Lagrangian source models require having fesc_weighted_sfrd in IonisationBox.c
     // TODO: I think this should be changed in the future
     if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
         uses_recombination(astro_options_global->RECOMB_MODEL)) {
@@ -167,7 +167,7 @@ int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_tu
             // TODO: This is a dead code at the moment, but it's useful to keep it here since in the
             // future we might want to use
             //       the weighted SFRD for Eulerian source models as well.
-            //       Note that halo_sfr might not be evaluated in some scenarios.
+            //       Note that sfrd_acg might not be evaluated in some scenarios.
             //       Also note that currently in IonisationBox.c, t_STAR is used for the weighted
             //       SFRD, which I think is a mistake
             averages_out->fesc_weighted_sfrd =
@@ -198,22 +198,22 @@ IntegralProperties get_emissivity_fields_averages(EmissivityFields *emissivity_f
             }
             mean_n_ion += emissivity_fields->n_ion[i];
             if (astro_options_global->USE_TS_FLUCT) {
-                mean_sfr += emissivity_fields->halo_sfr[i] / factor;
-                mean_xray += emissivity_fields->halo_xray[i] / factor;
+                mean_sfr += emissivity_fields->sfrd_acg[i] / factor;
+                mean_xray += emissivity_fields->xray_emissivity[i] / factor;
                 if (astro_options_global->USE_MCGS) {
-                    mean_sfr_mini += emissivity_fields->halo_sfr_mini[i] / factor;
+                    mean_sfr_mini += emissivity_fields->sfrd_mcg[i] / factor;
                 }
             }
             if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
                 uses_recombination(astro_options_global->RECOMB_MODEL))
-                mean_wsfr += emissivity_fields->whalo_sfr[i] / factor;
+                mean_wsfr += emissivity_fields->fesc_weighted_sfrd[i] / factor;
 
             if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-                mean_count += emissivity_fields->count[i] / factor;
+                mean_count += emissivity_fields->halo_number[i] / factor;
                 mean_mass += emissivity_fields->halo_mass_density[i] / factor;
-                mean_stars += emissivity_fields->halo_stars[i] / factor;
+                mean_stars += emissivity_fields->stellar_mass_density_acg[i] / factor;
                 if (astro_options_global->USE_MCGS)
-                    mean_stars_mini += emissivity_fields->halo_stars_mini[i] / factor;
+                    mean_stars_mini += emissivity_fields->stellar_mass_density_mcg[i] / factor;
             }
         }
     }
@@ -239,8 +239,8 @@ IntegralProperties get_emissivity_fields_averages(EmissivityFields *emissivity_f
 void mean_fix_emissivities(double M_min, double M_max, EmissivityFields *emissivity_fields,
                            PerturbedField *perturbed_field, ScalingConstants *consts) {
     IntegralProperties averages_global;
-    double M_turn_acg_global = pow(10, emissivity_fields->log10_Mcrit_ACG_ave);
-    double M_turn_mcg_global = pow(10, emissivity_fields->log10_Mcrit_MCG_ave);
+    double M_turn_acg_global = pow(10, emissivity_fields->log10_mturn_acg_ave);
+    double M_turn_mcg_global = pow(10, emissivity_fields->log10_mturn_mcg_ave);
     get_uhmf_averages(M_min, M_max, M_turn_acg_global, M_turn_mcg_global, consts, &averages_global);
     IntegralProperties averages_emissivity_fields;
     averages_emissivity_fields = get_emissivity_fields_averages(emissivity_fields, perturbed_field);
@@ -250,31 +250,31 @@ void mean_fix_emissivities(double M_min, double M_max, EmissivityFields *emissiv
     for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
         emissivity_fields->n_ion[idx] *= averages_global.n_ion / averages_emissivity_fields.n_ion;
         if (astro_options_global->USE_TS_FLUCT) {
-            emissivity_fields->halo_sfr[idx] *=
+            emissivity_fields->sfrd_acg[idx] *=
                 averages_global.sfrd_acg / averages_emissivity_fields.sfrd_acg;
-            emissivity_fields->halo_xray[idx] *=
+            emissivity_fields->xray_emissivity[idx] *=
                 averages_global.xray_emissivity / averages_emissivity_fields.xray_emissivity;
             if (astro_options_global->USE_MCGS) {
-                emissivity_fields->halo_sfr_mini[idx] *=
+                emissivity_fields->sfrd_mcg[idx] *=
                     averages_global.sfrd_mcg / averages_emissivity_fields.sfrd_mcg;
             }
         }
         if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
             uses_recombination(astro_options_global->RECOMB_MODEL)) {
-            emissivity_fields->whalo_sfr[idx] *=
+            emissivity_fields->fesc_weighted_sfrd[idx] *=
                 averages_global.fesc_weighted_sfrd / averages_emissivity_fields.fesc_weighted_sfrd;
         }
 
         if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-            emissivity_fields->count[idx] *=
+            emissivity_fields->halo_number[idx] *=
                 averages_global.halo_number / averages_emissivity_fields.halo_number;
             emissivity_fields->halo_mass_density[idx] *=
                 averages_global.halo_mass_density / averages_emissivity_fields.halo_mass_density;
-            emissivity_fields->halo_stars[idx] *=
+            emissivity_fields->stellar_mass_density_acg[idx] *=
                 averages_global.stellar_mass_density_acg /
                 averages_emissivity_fields.stellar_mass_density_acg;
             if (astro_options_global->USE_MCGS) {
-                emissivity_fields->halo_stars_mini[idx] *=
+                emissivity_fields->stellar_mass_density_mcg[idx] *=
                     averages_global.stellar_mass_density_mcg /
                     averages_emissivity_fields.stellar_mass_density_mcg;
             }
@@ -521,20 +521,20 @@ int add_integral_contribution(double M_min, double M_max, InitialConditions *ini
     LOG_ULTRA_DEBUG("Cell 0 Totals: NI: %.2e", emissivity_fields->n_ion[0]);
     if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
         uses_recombination(astro_options_global->RECOMB_MODEL)) {
-        LOG_ULTRA_DEBUG("FESC * SF %.2e", emissivity_fields->whalo_sfr[0]);
+        LOG_ULTRA_DEBUG("FESC * SF %.2e", emissivity_fields->fesc_weighted_sfrd[0]);
     }
     if (astro_options_global->USE_TS_FLUCT) {
-        LOG_ULTRA_DEBUG("SF: %.2e", emissivity_fields->halo_sfr[0]);
-        LOG_ULTRA_DEBUG("X-ray %.2e", emissivity_fields->halo_xray[0]);
+        LOG_ULTRA_DEBUG("SF: %.2e", emissivity_fields->sfrd_acg[0]);
+        LOG_ULTRA_DEBUG("X-ray %.2e", emissivity_fields->xray_emissivity[0]);
         if (astro_options_global->USE_MCGS) {
-            LOG_ULTRA_DEBUG("MCG SF %.2e", emissivity_fields->halo_sfr_mini[0]);
+            LOG_ULTRA_DEBUG("MCG SF %.2e", emissivity_fields->sfrd_mcg[0]);
         }
     }
     if (astro_options_global->USE_MCGS) {
         LOG_ULTRA_DEBUG("log10_Mturn_acg %.2e log10_Mturn_mcg %.2e", log10_mturn_acg_grid[0],
                         log10_mturn_mcg_grid[0]);
         if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-            LOG_ULTRA_DEBUG("MCG SM %.2e", emissivity_fields->halo_stars_mini[0]);
+            LOG_ULTRA_DEBUG("MCG SM %.2e", emissivity_fields->stellar_mass_density_mcg[0]);
         }
     }
     free_conditional_tables();
@@ -553,8 +553,8 @@ void emissivity_fields_debug_print_avg(EmissivityFields *emissivity_fields,
     averages_box = get_emissivity_fields_averages(emissivity_fields, perturbed_field);
     IntegralProperties averages_global;
     LOG_DEBUG("EMISSIVITY FIELDS REDSHIFT %.2f [%.2e %.2e]", consts->redshift, M_min, M_max);
-    double mturn_acg_avg = pow(10, emissivity_fields->log10_Mcrit_ACG_ave);
-    double mturn_mcg_avg = pow(10, emissivity_fields->log10_Mcrit_MCG_ave);
+    double mturn_acg_avg = pow(10, emissivity_fields->log10_mturn_acg_ave);
+    double mturn_mcg_avg = pow(10, emissivity_fields->log10_mturn_mcg_ave);
     get_uhmf_averages(M_min, M_max, mturn_acg_avg, mturn_mcg_avg, consts, &averages_global);
 
     LOG_DEBUG("N_ion average: Expected: %11.3e, from box: %11.3e", averages_global.n_ion,
@@ -687,20 +687,20 @@ void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloCata
     LOG_ULTRA_DEBUG("Cell 0 Totals: NI: %.2e", emissivity_fields->n_ion[0]);
     if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
         uses_recombination(astro_options_global->RECOMB_MODEL)) {
-        LOG_ULTRA_DEBUG("FESC * SF %.2e", emissivity_fields->whalo_sfr[0]);
+        LOG_ULTRA_DEBUG("FESC * SF %.2e", emissivity_fields->fesc_weighted_sfrd[0]);
     }
     if (astro_options_global->USE_TS_FLUCT) {
-        LOG_ULTRA_DEBUG("SF: %.2e", emissivity_fields->halo_sfr[0]);
-        LOG_ULTRA_DEBUG("X-ray %.2e", emissivity_fields->halo_xray[0]);
+        LOG_ULTRA_DEBUG("SF: %.2e", emissivity_fields->sfrd_acg[0]);
+        LOG_ULTRA_DEBUG("X-ray %.2e", emissivity_fields->xray_emissivity[0]);
         if (astro_options_global->USE_MCGS) {
-            LOG_ULTRA_DEBUG("MCG SF %.2e", emissivity_fields->halo_sfr_mini[0]);
+            LOG_ULTRA_DEBUG("MCG SF %.2e", emissivity_fields->sfrd_mcg[0]);
         }
     }
     if (astro_options_global->USE_MCGS) {
         LOG_ULTRA_DEBUG("log10_Mturn_acg %.2e log10_Mturn_mcg %.2e", log10_mturn_acg_grid[0],
                         log10_mturn_mcg_grid[0]);
         if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-            LOG_ULTRA_DEBUG("MCG SM %.2e", emissivity_fields->halo_stars_mini[0]);
+            LOG_ULTRA_DEBUG("MCG SM %.2e", emissivity_fields->stellar_mass_density_mcg[0]);
         }
     }
 }
@@ -728,22 +728,22 @@ int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
         for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
             emissivity_fields->n_ion[idx] = 0.0;
             if (astro_options_global->USE_TS_FLUCT) {
-                emissivity_fields->halo_sfr[idx] = 0.0;
-                emissivity_fields->halo_xray[idx] = 0.0;
+                emissivity_fields->sfrd_acg[idx] = 0.0;
+                emissivity_fields->xray_emissivity[idx] = 0.0;
                 if (astro_options_global->USE_MCGS) {
-                    emissivity_fields->halo_sfr_mini[idx] = 0.0;
+                    emissivity_fields->sfrd_mcg[idx] = 0.0;
                 }
             }
             if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
                 uses_recombination(astro_options_global->RECOMB_MODEL)) {
-                emissivity_fields->whalo_sfr[idx] = 0.0;
+                emissivity_fields->fesc_weighted_sfrd[idx] = 0.0;
             }
             if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
                 emissivity_fields->halo_mass_density[idx] = 0.0;
-                emissivity_fields->halo_stars[idx] = 0.0;
-                emissivity_fields->count[idx] = 0.0;
+                emissivity_fields->stellar_mass_density_acg[idx] = 0.0;
+                emissivity_fields->halo_number[idx] = 0.0;
                 if (astro_options_global->USE_MCGS) {
-                    emissivity_fields->halo_stars_mini[idx] = 0.0;
+                    emissivity_fields->stellar_mass_density_mcg[idx] = 0.0;
                 }
             }
         }
@@ -769,8 +769,8 @@ int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
         get_log10_turnovers(ini_boxes, previous_spin_temp, previous_ionize_box,
                             log10_mturn_acg_grid, log10_mturn_mcg_grid, &consts,
                             log10_mturn_averages);
-        emissivity_fields->log10_Mcrit_ACG_ave = log10_mturn_averages[0];
-        emissivity_fields->log10_Mcrit_MCG_ave = log10_mturn_averages[1];
+        emissivity_fields->log10_mturn_acg_ave = log10_mturn_averages[0];
+        emissivity_fields->log10_mturn_mcg_ave = log10_mturn_averages[1];
         if (source_model_uses_sampled_halos(matter_options_global->SOURCE_MODEL)) {
             sum_halos_onto_grid(redshift, ini_boxes, halos, log10_mturn_acg_grid,
                                 log10_mturn_mcg_grid, &consts, emissivity_fields);
@@ -802,8 +802,8 @@ int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
         }
         // NOTE: the density-grid based calculations (SOURCE_MODEL='E-INTEGRAL')
         //  use the cell-weighted average of the log10(Mturn) (see issue #369)
-        LOG_SUPER_DEBUG("log10 Mutrn ACG: %.6e", pow(10, emissivity_fields->log10_Mcrit_ACG_ave));
-        LOG_SUPER_DEBUG("log10 Mutrn MCG: %.6e", pow(10, emissivity_fields->log10_Mcrit_MCG_ave));
+        LOG_SUPER_DEBUG("log10 Mutrn ACG: %.6e", pow(10, emissivity_fields->log10_mturn_acg_ave));
+        LOG_SUPER_DEBUG("log10 Mutrn MCG: %.6e", pow(10, emissivity_fields->log10_mturn_mcg_ave));
     }
     Catch(status) { return (status); }
     LOG_DEBUG("Done.");

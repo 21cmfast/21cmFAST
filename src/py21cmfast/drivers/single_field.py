@@ -430,7 +430,7 @@ def compute_halo_grid(**kwargs) -> EmissivityFields:
 
 # TODO: make this more general and probably combine with the lightcone interp function
 # TODO: remove the need_c argument, this is currently required because we call this function once for just computing the history of
-# log10_Mcrit_MCG_ave - see other comment about this in need_c.
+# log10_mturn_mcg_ave - see other comment about this in need_c.
 def interp_emissivity_fields(
     emissivity_fields_list: list[EmissivityFields],
     interp_fields: list[str],
@@ -587,7 +587,7 @@ def setup_radiation_fields(
     # Let's figure out if we really need to go through the C code
     sfr_allzero = np.all(
         [
-            np.all(emissivity_fields.get("halo_sfr") == 0)
+            np.all(emissivity_fields.get("sfrd_acg") == 0)
             for emissivity_fields in emissivity_fields_list
         ]
     )
@@ -597,7 +597,7 @@ def setup_radiation_fields(
     if need_c:
         # TODO: the whole code below is only required if we use mini-halos. It could be removed though, see comment below
         if inputs.astro_options.USE_MCGS:
-            # Get log10_Mcrit_MCG_ave for each shell
+            # Get log10_mturn_mcg_ave for each shell
             # TODO: The reason why this field is evaluated separately is because it is already required in SetupRadiationFields() in the C code,
             # as it sets rad_setup->ave_log10_MturnLW. This array is needed (specifically, in global_reion_properties) for two purposese:
             #   (1) For computing the global Nion, which is used for the NO_LIGHT condition. Here however, note that only the first entry of
@@ -632,12 +632,12 @@ def setup_radiation_fields(
                 else:
                     emissivity_fields_interp = interp_emissivity_fields(
                         emissivity_fields_list=emissivity_fields_list[::-1],
-                        interp_fields=["log10_Mcrit_MCG_ave"],
+                        interp_fields=["log10_mturn_mcg_ave"],
                         redshift=rad_setup.zpp_avg.value[i],
                         need_c=False,
                     )
                     rad_setup.ave_log10_MturnLW.value[i] = (
-                        emissivity_fields_interp.log10_Mcrit_MCG_ave
+                        emissivity_fields_interp.log10_mturn_mcg_ave
                     )
 
         rad_setup.compute(
@@ -737,7 +737,7 @@ def compute_radiation_fields(
     # Let's figure out if we really need to go through the C code
     sfr_allzero = np.all(
         [
-            np.all(emissivity_fields.get("halo_sfr") == 0)
+            np.all(emissivity_fields.get("sfrd_acg") == 0)
             for emissivity_fields in emissivity_fields_list
         ]
     )
@@ -775,9 +775,9 @@ def compute_radiation_fields(
         else:
             R_star = 0.0 * un.Mpc
 
-        interp_fields = ["halo_sfr", "halo_xray"]
+        interp_fields = ["sfrd_acg", "xray_emissivity"]
         if inputs.astro_options.USE_MCGS:
-            interp_fields += ["halo_sfr_mini"]
+            interp_fields += ["sfrd_mcg"]
 
         # For each shell, interpolate the emissivity fields and evaluate the contribution to the radiation fields
         # NOTE: the following loop is done in reverse order (i.e. we go from the largest to the smallest shell),

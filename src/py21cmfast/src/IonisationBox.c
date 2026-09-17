@@ -1392,10 +1392,10 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         double mturn_acg_avg = 0., mturn_mcg_avg = 0.;
         if (ionbox_constants.lagrangian_source_grids) {
             // Here these are only used for the global calculations
-            box->log10_Mturnover_ave = emissivity_fields->log10_Mcrit_ACG_ave;
-            box->log10_Mturnover_MINI_ave = emissivity_fields->log10_Mcrit_MCG_ave;
-            mturn_acg_avg = pow(10., emissivity_fields->log10_Mcrit_ACG_ave);
-            mturn_mcg_avg = pow(10., emissivity_fields->log10_Mcrit_MCG_ave);
+            box->log10_Mturnover_ave = emissivity_fields->log10_mturn_acg_ave;
+            box->log10_Mturnover_MINI_ave = emissivity_fields->log10_mturn_mcg_ave;
+            mturn_acg_avg = pow(10., emissivity_fields->log10_mturn_acg_ave);
+            mturn_mcg_avg = pow(10., emissivity_fields->log10_mturn_mcg_ave);
         } else if (ionbox_constants.mass_dep_zeta) {
             LOG_SUPER_DEBUG(
                 "Calculating and outputting Mcrit boxes for atomic and molecular halos...");
@@ -1443,7 +1443,7 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                 prepare_box_for_filtering(emissivity_fields->n_ion, grid_struct->stars_unfiltered,
                                           1., 0., 1e20);
                 if (uses_recombination(astro_options_global->RECOMB_MODEL)) {
-                    prepare_box_for_filtering(emissivity_fields->whalo_sfr,
+                    prepare_box_for_filtering(emissivity_fields->fesc_weighted_sfrd,
                                               grid_struct->sfr_unfiltered, 1., 0., 1e20);
                 }
             } else {

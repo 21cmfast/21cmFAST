@@ -662,10 +662,10 @@ def test_radiation_fields_with_zero_sfr(
     emissivity_fields2 = EmissivityFields.new(redshift=redshift, inputs=inputs)
 
     # This is needed because the input arrays must be in a computed state.
-    fields = ["halo_sfr", "halo_xray"]
+    fields = ["sfrd_acg", "xray_emissivity"]
     if use_mini_halos:
-        fields += ["halo_sfr_mini", "log10_Mcrit_MCG_ave"]
-    shape = emissivity_fields1.halo_sfr.shape
+        fields += ["sfrd_mcg", "log10_mturn_mcg_ave"]
+    shape = emissivity_fields1.sfrd_acg.shape
     array = (
         Array(shape=shape, dtype=np.float32)
         .initialize()
@@ -675,7 +675,7 @@ def test_radiation_fields_with_zero_sfr(
         for name in fields:
             setattr(emissivity_fields, name, array.computed())
         if use_mini_halos:
-            emissivity_fields.log10_Mcrit_MCG_ave = 5.0
+            emissivity_fields.log10_mturn_mcg_ave = 5.0
 
     radiation_fields = p21c.compute_radiation_fields(
         emissivity_fields_list=[emissivity_fields1, emissivity_fields2],

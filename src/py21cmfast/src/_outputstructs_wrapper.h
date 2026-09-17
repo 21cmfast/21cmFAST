@@ -47,21 +47,21 @@ typedef struct PerturbedHaloCatalog {
 typedef struct EmissivityFields {
     // Things that aren't used in radiation fields but useful outputs
     float *halo_mass_density;
-    float *halo_stars;
-    float *halo_stars_mini;
-    float *count;
+    float *stellar_mass_density_acg;
+    float *stellar_mass_density_mcg;
+    float *halo_number;
 
     // For IonisationBox.c and SpinTemperatureBox.c
-    float *n_ion;     // weighted by F_ESC*PopN_ion
-    float *halo_sfr;  // for x-rays and Ts stuff
-    float *halo_xray;
-    float *halo_sfr_mini;  // for x-rays and Ts stuff
-    float *whalo_sfr;      // SFR weighted by PopN_ion and F_ESC, used for Gamma12
+    float *n_ion;               // weighted by F_ESC*PopN_ion
+    float *sfrd_acg;            // for x-rays and Ts stuff
+    float *xray_emissivity;     // for x-rays and Ts stuff
+    float *sfrd_mcg;            // for x-rays and Ts stuff
+    float *fesc_weighted_sfrd;  // SFR weighted by PopN_ion and F_ESC, used for Gamma12
 
     // Average volume-weighted log10 Turnover masses are kept in order to compare with the expected
     // MF integrals
-    double log10_Mcrit_ACG_ave;
-    double log10_Mcrit_MCG_ave;
+    double log10_mturn_acg_ave;
+    double log10_mturn_mcg_ave;
 } EmissivityFields;
 
 typedef struct RadiationFieldsSetup {
