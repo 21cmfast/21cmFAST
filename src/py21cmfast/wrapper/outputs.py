@@ -1080,7 +1080,7 @@ class EmissivityFields(OutputStructZ):
     _c_compute_function = lib.ComputeEmissivityFields
 
     count = _arrayfield(optional=True)
-    halo_mass = _arrayfield(optional=True)
+    halo_mass_density = _arrayfield(optional=True)
     halo_stars = _arrayfield(optional=True)
     halo_stars_mini = _arrayfield(optional=True)
     halo_sfr = _arrayfield(optional=True)
@@ -1091,6 +1091,23 @@ class EmissivityFields(OutputStructZ):
 
     log10_Mcrit_ACG_ave: float = attrs.field(default=None)
     log10_Mcrit_MCG_ave: float = attrs.field(default=None)
+
+    @property
+    def halo_mass(self):
+        """The halo mass density field.
+
+        This property is deprecated and will be removed in a future version. Please use `halo_mass_density` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "halo_mass",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="halo_mass is deprecated and will be removed in a future version. Please use halo_mass_density directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.halo_mass_density
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -1130,7 +1147,7 @@ class EmissivityFields(OutputStructZ):
 
         if config["EXTRA_EMISSIVITY_FIELDS"]:
             out["count"] = Array(shape, dtype=np.float32)
-            out["halo_mass"] = Array(shape, dtype=np.float32)
+            out["halo_mass_density"] = Array(shape, dtype=np.float32)
             out["halo_stars"] = Array(shape, dtype=np.float32)
             if inputs.astro_options.USE_MCGS:
                 out["halo_stars_mini"] = Array(shape, dtype=np.float32)

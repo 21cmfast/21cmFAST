@@ -46,7 +46,7 @@ typedef struct PerturbedHaloCatalog {
 
 typedef struct EmissivityFields {
     // Things that aren't used in radiation fields but useful outputs
-    float *halo_mass;
+    float *halo_mass_density;
     float *halo_stars;
     float *halo_stars_mini;
     float *count;

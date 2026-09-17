@@ -349,7 +349,7 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
                     if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
                         do_cic_interpolation(emissivity_fields->count, pos, out_dim,
                                              properties.count);
-                        do_cic_interpolation(emissivity_fields->halo_mass, pos, out_dim,
+                        do_cic_interpolation(emissivity_fields->halo_mass_density, pos, out_dim,
                                              properties.halo_mass * vol_ratio_out);
                         do_cic_interpolation(emissivity_fields->halo_stars, pos, out_dim,
                                              properties.stellar_mass * vol_ratio_out);
@@ -495,7 +495,7 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
             }
             if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
                 do_cic_interpolation(emissivity_fields->count, pos, out_dim, 1.0);
-                do_cic_interpolation(emissivity_fields->halo_mass, pos, out_dim,
+                do_cic_interpolation(emissivity_fields->halo_mass_density, pos, out_dim,
                                      properties.halo_mass);
                 do_cic_interpolation(emissivity_fields->halo_stars, pos, out_dim,
                                      properties.stellar_mass);
@@ -533,7 +533,7 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
                 emissivity_fields->whalo_sfr[i_cell] *= cell_vol_inv;
             }
             if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-                emissivity_fields->halo_mass[i_cell] *= cell_vol_inv;
+                emissivity_fields->halo_mass_density[i_cell] *= cell_vol_inv;
                 emissivity_fields->halo_stars[i_cell] *= cell_vol_inv;
                 if (astro_options_global->USE_MCGS) {
                     emissivity_fields->halo_stars_mini[i_cell] *= cell_vol_inv;

@@ -60,13 +60,14 @@ def pt(ic, redshift_test, default_input_struct_lc, cache):
 @pytest.fixture(scope="module")
 def computed_emissivity_fields(ic, pt, redshift_test, default_input_struct_lc, cache):
     """A real, computed EmissivityFields + its perturbed field, for testing the driver functions."""
-    ef = compute_emissivity_fields(
-        redshift=redshift_test,
-        initial_conditions=ic,
-        perturbed_field=pt,
-        inputs=default_input_struct_lc,
-        cache=cache,
-    )
+    with config.use(EXTRA_EMISSIVITY_FIELDS=True):
+        ef = compute_emissivity_fields(
+            redshift=redshift_test,
+            initial_conditions=ic,
+            perturbed_field=pt,
+            inputs=default_input_struct_lc,
+            cache=cache,
+        )
     return ic, pt, ef
 
 
@@ -115,7 +116,7 @@ def test_extra_halobox_fields_deprecated_warning(default_input_struct_lc):
         emissivity_fields = EmissivityFields.new(
             redshift=0.0, inputs=default_input_struct_lc
         )
-        assert isinstance(emissivity_fields.halo_mass, Array)
+        assert isinstance(emissivity_fields.halo_mass_density, Array)
         assert isinstance(emissivity_fields.count, Array)
         assert isinstance(emissivity_fields.halo_stars, Array)
         assert emissivity_fields.halo_stars_mini is None
@@ -146,7 +147,7 @@ def test_extra_halobox_fields_is_removed(default_input_struct_lc):
         emissivity_fields = EmissivityFields.new(
             redshift=0.0, inputs=default_input_struct_lc
         )
-        assert isinstance(emissivity_fields.halo_mass, Array)
+        assert isinstance(emissivity_fields.halo_mass_density, Array)
         assert isinstance(emissivity_fields.count, Array)
         assert isinstance(emissivity_fields.halo_stars, Array)
         assert emissivity_fields.halo_stars_mini is None
@@ -523,6 +524,23 @@ def test_l_x_mini_deprecated_warning():
 def test_l_x_mini_is_removed():
     """Fails when removed_in version is reached, reminding you to delete L_X_MINI."""
     AstroParams(L_X_MINI=40.5)
+
+
+def test_halo_mass_deprecated_warning(computed_emissivity_fields):
+    """Test that using halo_mass shows deprecation warning."""
+    _, _, ef = computed_emissivity_fields
+    with pytest.warns(deprecation.DeprecatedWarning, match="halo_mass is deprecated"):
+        assert isinstance(ef.halo_mass, Array)
+    with pytest.warns(deprecation.DeprecatedWarning, match="halo_mass is deprecated"):
+        assert np.all(ef.halo_mass.value == ef.halo_mass_density.value)
+
+
+@deprecation.fail_if_not_removed
+def test_halo_mass_is_removed(computed_emissivity_fields):
+    """Fails when removed_in version is reached, reminding you to delete halo_mass."""
+    _, _, ef = computed_emissivity_fields
+    assert isinstance(ef.halo_mass, Array)
+    assert np.all(ef.halo_mass.value == ef.halo_mass_density.value)
 
 
 def test_bad_deprecated_inputs():

@@ -209,7 +209,7 @@ HaloProperties get_emissivity_fields_averages(EmissivityFields *emissivity_field
 
             if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
                 mean_count += emissivity_fields->count[i] / factor;
-                mean_mass += emissivity_fields->halo_mass[i] / factor;
+                mean_mass += emissivity_fields->halo_mass_density[i] / factor;
                 mean_stars += emissivity_fields->halo_stars[i] / factor;
                 if (astro_options_global->USE_MCGS)
                     mean_stars_mini += emissivity_fields->halo_stars_mini[i] / factor;
@@ -267,7 +267,7 @@ void mean_fix_emissivities(double M_min, double M_max, EmissivityFields *emissiv
         if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
             emissivity_fields->count[idx] *=
                 averages_global.count / averages_emissivity_fields.count;
-            emissivity_fields->halo_mass[idx] *=
+            emissivity_fields->halo_mass_density[idx] *=
                 averages_global.halo_mass / averages_emissivity_fields.halo_mass;
             emissivity_fields->halo_stars[idx] *=
                 averages_global.stellar_mass / averages_emissivity_fields.stellar_mass;
@@ -309,7 +309,9 @@ void get_cell_integrals(double dens, double M_min, double M_max, double l10_mtur
 
     // The SFRD is required for either the spin temperature calculations or for extra fields
     // (stellar density)
-    if (astro_options_global->USE_TS_FLUCT || config_settings.EXTRA_EMISSIVITY_FIELDS) {
+    if (astro_options_global->USE_TS_FLUCT ||
+        (config_settings.EXTRA_EMISSIVITY_FIELDS &&
+         source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))) {
         properties->halo_sfr = evaluate_sfrd_conditional_acg(dens, l10_mturn_acg, growth_z, M_min,
                                                              M_max, M_cell, sigma_cell, consts);
         if (astro_options_global->USE_MCGS) {
@@ -490,13 +492,19 @@ int add_integral_contribution(double M_min, double M_max, InitialConditions *ini
             initialise_GL(lnM_min, lnM_max);
         }
 
-        if (astro_options_global->USE_TS_FLUCT) {
-            if (astro_options_global->USE_METALLICITY) {
-                initialize_xray_emissivity_conditional_tables(
-                    ev_consts->redshift, min_density, max_density, M_min, M_max, M_cell, ev_consts);
-            }
+        // The SFRD integration might be need even without computing the spin temperature,
+        // since the stellar mass density is proportional to the SFRD for the mass-dependent source
+        // model
+        if (astro_options_global->USE_TS_FLUCT ||
+            (config_settings.EXTRA_EMISSIVITY_FIELDS &&
+             source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))) {
             initialize_sfrd_conditional_tables(ev_consts->redshift, min_density, max_density, M_min,
                                                M_max, M_cell, ev_consts);
+        }
+
+        if (astro_options_global->USE_TS_FLUCT && astro_options_global->USE_METALLICITY) {
+            initialize_xray_emissivity_conditional_tables(
+                ev_consts->redshift, min_density, max_density, M_min, M_max, M_cell, ev_consts);
         }
 
         initialize_nion_conditional_tables(ev_consts->redshift, min_density, max_density, M_min,
@@ -732,7 +740,7 @@ int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
                 emissivity_fields->whalo_sfr[idx] = 0.0;
             }
             if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
-                emissivity_fields->halo_mass[idx] = 0.0;
+                emissivity_fields->halo_mass_density[idx] = 0.0;
                 emissivity_fields->halo_stars[idx] = 0.0;
                 emissivity_fields->count[idx] = 0.0;
                 if (astro_options_global->USE_MCGS) {

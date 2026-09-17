@@ -244,7 +244,7 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
         redshift=0.0, inputs=default_input_struct_lc
     )
     assert emissivity_fields.count is None
-    assert emissivity_fields.halo_mass is None
+    assert emissivity_fields.halo_mass_density is None
     assert emissivity_fields.halo_stars is None
     assert emissivity_fields.halo_stars_mini is None
     assert emissivity_fields.halo_sfr is None
@@ -257,7 +257,7 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
         emissivity_fields = ox.EmissivityFields.new(
             redshift=0.0, inputs=default_input_struct_lc
         )
-        assert isinstance(emissivity_fields.halo_mass, Array)
+        assert isinstance(emissivity_fields.halo_mass_density, Array)
         assert isinstance(emissivity_fields.count, Array)
         assert isinstance(emissivity_fields.halo_stars, Array)
         assert emissivity_fields.halo_stars_mini is None
