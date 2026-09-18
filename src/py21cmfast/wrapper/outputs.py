@@ -1982,12 +1982,12 @@ class IonizedBox(OutputStructZ):
     mean_free_path = _arrayfield(optional=True)
     cumulative_recombinations = _arrayfield(optional=True)
     kinetic_temperature = _arrayfield(optional=True)
-    nion_conditional_filtered = _arrayfield(optional=True)
-    nion_conditional_filtered_mini = _arrayfield(optional=True)
+    nion_conditional_filtered_acg = _arrayfield(optional=True)
+    nion_conditional_filtered_mcg = _arrayfield(optional=True)
     log10_Mturnover_ave: float = attrs.field(default=None)
     log10_Mturnover_MINI_ave: float = attrs.field(default=None)
-    nion_unconditional: float = attrs.field(default=None)
-    nion_unconditional_mini: float = attrs.field(default=None)
+    nion_unconditional_acg: float = attrs.field(default=None)
+    nion_unconditional_mcg: float = attrs.field(default=None)
 
     @classmethod
     def new(cls, inputs, redshift: float, **kw) -> Self:
@@ -2056,10 +2056,10 @@ class IonizedBox(OutputStructZ):
             out["cumulative_recombinations"] = Array((1, 1, 1), dtype=np.float32)
 
         if not inputs.matter_options.lagrangian_source_grid:
-            out["nion_conditional_filtered"] = Array(filter_shape, dtype=np.float32)
+            out["nion_conditional_filtered_acg"] = Array(filter_shape, dtype=np.float32)
 
             if inputs.astro_options.USE_MCGS:
-                out["nion_conditional_filtered_mini"] = Array(
+                out["nion_conditional_filtered_mcg"] = Array(
                     filter_shape, dtype=np.float32
                 )
 
@@ -2101,8 +2101,8 @@ class IonizedBox(OutputStructZ):
                 and not self.matter_options.lagrangian_source_grid
             ):
                 required += [
-                    "nion_conditional_filtered",
-                    "nion_conditional_filtered_mini",
+                    "nion_conditional_filtered_acg",
+                    "nion_conditional_filtered_mcg",
                 ]
         elif isinstance(input_box, EmissivityFields):
             if self.matter_options.lagrangian_source_grid:
