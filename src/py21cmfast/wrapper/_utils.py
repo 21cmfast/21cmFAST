@@ -40,8 +40,7 @@ def asarray(ptr, shape):
     array = np.frombuffer(
         _ffi.buffer(ptr, _ffi.sizeof(ctype) * np.prod(shape)), ctype2dtype[ctype]
     )
-    array.shape = shape
-    return array
+    return array.reshape(shape)
 
 
 def _call_c_simple(fnc, *args):

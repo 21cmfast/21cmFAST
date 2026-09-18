@@ -173,12 +173,13 @@ def test_optional_field_ic(default_input_struct_lc: InputParameters):
     assert isinstance(ic.hires_vz, Array)
     assert isinstance(ic.hires_vz_2LPT, Array)
 
-    ic = ox.InitialConditions.new(
-        inputs=default_input_struct_lc.evolve_input_structs(
-            V_CB_MODEL="FLUCTS",
-            POWER_SPECTRUM="CLASS",
+    with pytest.warns(UserWarning, match="USE_MINI_HALOS is False but V_CB_MODEL"):
+        ic = ox.InitialConditions.new(
+            inputs=default_input_struct_lc.evolve_input_structs(
+                V_CB_MODEL="FLUCTS",
+                POWER_SPECTRUM="CLASS",
+            )
         )
-    )
     assert isinstance(ic.lowres_vx, Array)
     assert isinstance(ic.lowres_vx_2LPT, Array)
     assert ic.hires_vx is None
@@ -204,6 +205,11 @@ def test_optional_field_perturb(default_input_struct_lc: InputParameters):
     assert pt.velocity_y is None
 
 
+# Retain the shared fixture's bubble radius while checking which output
+# fields are enabled by recombination and mini-halo options.
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParameters):
     """Ensure that the correct HaloBox fields are set based on the parameters."""
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
@@ -230,7 +236,12 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
         redshift=0.0, inputs=inputs, buffer_size=1
     )
     assert isinstance(pert_halo_cat.fesc_sfr, Array)
-    inputs = inputs.evolve_input_structs(USE_MINI_HALOS=True)
+    inputs = inputs.evolve_input_structs(
+        USE_MINI_HALOS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        M_TURN_STELLAR_FEEDBACK=5.0,
+    )
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
@@ -238,6 +249,11 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
     assert isinstance(pert_halo_cat.sfr_mini, Array)
 
 
+# Retain the shared fixture's bubble radius while checking which output
+# fields are enabled by recombination and mini-halo options.
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 def test_optional_field_halobox(default_input_struct_lc: InputParameters):
     """Ensure that the correct HaloBox fields are set based on the parameters."""
     hb = ox.HaloBox.new(redshift=0.0, inputs=default_input_struct_lc)
@@ -261,7 +277,12 @@ def test_optional_field_halobox(default_input_struct_lc: InputParameters):
         hb = ox.HaloBox.new(
             redshift=0.0,
             inputs=default_input_struct_lc.evolve_input_structs(
-                USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous", USE_MINI_HALOS=True
+                USE_TS_FLUCT=True,
+                RECOMB_MODEL="inhomogeneous",
+                USE_MINI_HALOS=True,
+                V_CB_MODEL="FLUCTS",
+                POWER_SPECTRUM="CLASS",
+                M_TURN_STELLAR_FEEDBACK=5.0,
             ),
         )
         assert isinstance(hb.halo_stars_mini, Array)
@@ -277,11 +298,21 @@ def test_optional_field_halobox(default_input_struct_lc: InputParameters):
     assert isinstance(hb.halo_sfr, Array)
     assert isinstance(hb.halo_xray, Array)
 
-    inputs = inputs.evolve_input_structs(USE_MINI_HALOS=True)
+    inputs = inputs.evolve_input_structs(
+        USE_MINI_HALOS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        M_TURN_STELLAR_FEEDBACK=5.0,
+    )
     hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
     assert isinstance(hb.halo_sfr_mini, Array)
 
 
+# Retain the shared fixture's bubble radius while checking which output
+# fields are enabled by recombination and mini-halo options.
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameters):
     """Ensure that the correct fields of RadiationFieldsSetup are set based on the parameters."""
     rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=default_input_struct_lc)
@@ -292,12 +323,20 @@ def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameter
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
         USE_MINI_HALOS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
         RECOMB_MODEL="inhomogeneous",
+        M_TURN_STELLAR_FEEDBACK=5.0,
     )
     rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=inputs)
     assert isinstance(rfs.filtered_sfr_mini, Array)
 
 
+# Retain the shared fixture's bubble radius while checking which output
+# fields are enabled by recombination and mini-halo options.
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 def test_optional_field_ts(default_input_struct_lc: InputParameters):
     """Ensure that the correct TsBox fields are set based on the parameters."""
     ts = ox.TsBox.new(redshift=0.0, inputs=default_input_struct_lc)
@@ -310,11 +349,19 @@ def test_optional_field_ts(default_input_struct_lc: InputParameters):
         USE_TS_FLUCT=True,
         RECOMB_MODEL="inhomogeneous",
         USE_MINI_HALOS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        M_TURN_STELLAR_FEEDBACK=5.0,
     )
     ts = ox.TsBox.new(redshift=0.0, inputs=inputs)
     assert isinstance(ts.J_21_LW, Array)
 
 
+# Retain the shared fixture's bubble radius while checking which output
+# fields are enabled by recombination and mini-halo options.
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 def test_optional_field_ion(default_input_struct_lc: InputParameters):
     """Ensure that the correct IonizedBox fields are set based on the parameters."""
     ion = ox.IonizedBox.new(redshift=0.0, inputs=default_input_struct_lc)
@@ -331,6 +378,9 @@ def test_optional_field_ion(default_input_struct_lc: InputParameters):
     inputs = inputs.evolve_input_structs(
         USE_TS_FLUCT=True,
         USE_MINI_HALOS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        M_TURN_STELLAR_FEEDBACK=5.0,
     )
     ion = ox.IonizedBox.new(redshift=0.0, inputs=inputs)
     assert isinstance(ion.unnormalised_nion_mini, Array)

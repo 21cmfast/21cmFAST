@@ -31,6 +31,30 @@ def pytest_addoption(parser):
     parser.addoption("--log-level-21", action="store", default="WARNING")
 
 
+# Small test boxes intentionally trigger these numerical/physical advisories.
+SMALL_BOX_WARNING_FILTERS = (
+    "ignore:^Resolution is likely too low:UserWarning",
+    "ignore:^The maximum halo mass:UserWarning",
+    "ignore:^Your R_BUBBLE_MAX is > BOX_LEN:UserWarning",
+)
+
+
+def pytest_collection_modifyitems(items):
+    """Add shared warning filters to every collected test item.
+
+    Uses append=False so shared filters are inserted before each item's
+    existing marks, allowing test-specific overrides to retain precedence.
+    Warning marks take precedence over CLI -W error, and pytest applies
+    them before fixture setup, test body, and teardown.
+    """
+    for item in items:
+        for warning_filter in SMALL_BOX_WARNING_FILTERS:
+            item.add_marker(
+                pytest.mark.filterwarnings(warning_filter),
+                append=False,
+            )
+
+
 @pytest.fixture(scope="session")
 def tmpdirec(tmp_path_factory):
     """Pytest fixture instantiating a new session-scope "data" folder.

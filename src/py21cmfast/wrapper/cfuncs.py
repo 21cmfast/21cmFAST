@@ -393,25 +393,17 @@ def compute_luminosity_function(
     mturns_acg = pow(10.0, log10mturns_acg)
     mturns_mcg = pow(10.0, log10mturns_mcg)
 
-    lfunc = np.zeros(len(redshifts) * nbins)
-    Muvfunc = np.zeros(len(redshifts) * nbins)
-    Mhfunc = np.zeros(len(redshifts) * nbins)
-
-    lfunc.shape = (len(redshifts), nbins)
-    Muvfunc.shape = (len(redshifts), nbins)
-    Mhfunc.shape = (len(redshifts), nbins)
+    lfunc = np.zeros((len(redshifts), nbins))
+    Muvfunc = np.zeros((len(redshifts), nbins))
+    Mhfunc = np.zeros((len(redshifts), nbins))
 
     c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
     c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
     c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
 
-    lfunc_MINI = np.zeros(len(redshifts) * nbins)
-    Muvfunc_MINI = np.zeros(len(redshifts) * nbins)
-    Mhfunc_MINI = np.zeros(len(redshifts) * nbins)
-
-    lfunc_MINI.shape = (len(redshifts), nbins)
-    Muvfunc_MINI.shape = (len(redshifts), nbins)
-    Mhfunc_MINI.shape = (len(redshifts), nbins)
+    lfunc_MINI = np.zeros((len(redshifts), nbins))
+    Muvfunc_MINI = np.zeros((len(redshifts), nbins))
+    Mhfunc_MINI = np.zeros((len(redshifts), nbins))
 
     c_Muvfunc_MINI = ffi.cast("double *", ffi.from_buffer(Muvfunc_MINI))
     c_Mhfunc_MINI = ffi.cast("double *", ffi.from_buffer(Mhfunc_MINI))
@@ -467,13 +459,9 @@ def compute_luminosity_function(
 
     if component == "both":
         # redo the Muv range using the faintest (most likely MINI) and the brightest (most likely massive)
-        lfunc_all = np.zeros(len(redshifts) * nbins)
-        Muvfunc_all = np.zeros(len(redshifts) * nbins)
-        Mhfunc_all = np.zeros(len(redshifts) * nbins * 2)
-
-        lfunc_all.shape = (len(redshifts), nbins)
-        Muvfunc_all.shape = (len(redshifts), nbins)
-        Mhfunc_all.shape = (len(redshifts), nbins, 2)
+        lfunc_all = np.zeros((len(redshifts), nbins))
+        Muvfunc_all = np.zeros((len(redshifts), nbins))
+        Mhfunc_all = np.zeros((len(redshifts), nbins, 2))
 
         for iz in range(len(redshifts)):
             Muvfunc_all[iz] = np.linspace(

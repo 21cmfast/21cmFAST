@@ -18,12 +18,14 @@ class TestPerturb:
     """Tests regarding the perturbation algorithms."""
 
     @pytest.fixture(scope="class")
-    def test_pt_z(self):
+    @classmethod
+    def test_pt_z(cls):
         """Set redshift at which to test the 2LPT."""
         return 8.0
 
     @pytest.fixture(scope="class")
-    def inputs_low(self, default_input_struct_ts):
+    @classmethod
+    def inputs_low(cls, default_input_struct_ts):
         """Parameters for 2LPT tests."""
         # using 3-1 ratio for testing
         return default_input_struct_ts.evolve_input_structs(
@@ -36,14 +38,16 @@ class TestPerturb:
         )
 
     @pytest.fixture(scope="class")
-    def inputs_zel(self, inputs_low):
+    @classmethod
+    def inputs_zel(cls, inputs_low):
         """Parameters for Zel'dovich test."""
         return inputs_low.evolve_input_structs(
             PERTURB_ALGORITHM="ZELDOVICH",
         )
 
     @pytest.fixture(scope="class")
-    def inputs_linear(self, inputs_low):
+    @classmethod
+    def inputs_linear(cls, inputs_low):
         """Parameters for Linear test."""
         return inputs_low.evolve_input_structs(
             PERTURB_ALGORITHM="LINEAR",
