@@ -24,7 +24,8 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
         cosmo_tables_global->USE_SIGMA_8 = cosmo_tables->USE_SIGMA_8;
         cosmo_tables_global->V_CB_AVG = cosmo_tables->V_CB_AVG;
 
-        if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
+        if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS ||
+            matter_options_global->POWER_SPECTRUM == 6) {
             n = cosmo_tables->transfer_density->size;
             cosmo_tables_global->transfer_density = malloc(sizeof(Table1D));
             cosmo_tables_global->transfer_density->size = n;
@@ -62,7 +63,8 @@ void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
 
 void Free_cosmo_tables_global() {
     if (allocated_cosmo_tables) {
-        if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS) {
+        if (matter_options_global->POWER_SPECTRUM == POWER_SPECTRUM_CLASS ||
+            matter_options_global->POWER_SPECTRUM == 6) {
             free(cosmo_tables_global->transfer_density->x_values);
             free(cosmo_tables_global->transfer_density->y_values);
             free(cosmo_tables_global->transfer_density);
