@@ -5,7 +5,6 @@ These functions are high-level wrappers around C-functions that compute 3D field
 example initial conditions, perturbed fields and ionization fields.
 """
 
-import gc
 import logging
 import warnings
 
