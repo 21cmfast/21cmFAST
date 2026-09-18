@@ -323,7 +323,7 @@ def test_optional_field_ion(default_input_struct_lc: InputParameters):
     """Ensure that the correct IonizedBox fields are set based on the parameters."""
     ion = ox.IonizedBox.new(redshift=0.0, inputs=default_input_struct_lc)
     assert isinstance(ion.neutral_fraction, Array)
-    assert ion.unnormalised_nion_mini is None
+    assert ion.nion_conditional_filtered_mini is None
     assert ion.cumulative_recombinations is None
 
     inputs = default_input_struct_lc.evolve_input_structs(
@@ -337,7 +337,7 @@ def test_optional_field_ion(default_input_struct_lc: InputParameters):
         USE_MCGS=True,
     )
     ion = ox.IonizedBox.new(redshift=0.0, inputs=inputs)
-    assert isinstance(ion.unnormalised_nion_mini, Array)
+    assert isinstance(ion.nion_conditional_filtered_mini, Array)
 
 
 def test_optional_field_bt(default_input_struct_lc: InputParameters):

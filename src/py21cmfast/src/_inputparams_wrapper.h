@@ -65,7 +65,7 @@ typedef struct SimulationOptions {
     double CORR_STAR;
     double CORR_SFR;
     double CORR_LX;
-    double MIN_XE_FOR_FCOLL_IN_TAUX;
+    double MIN_XE_FOR_NION_IN_TAUX;
 } SimulationOptions;
 
 typedef struct MatterOptions {

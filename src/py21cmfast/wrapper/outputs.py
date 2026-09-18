@@ -1982,12 +1982,12 @@ class IonizedBox(OutputStructZ):
     mean_free_path = _arrayfield(optional=True)
     cumulative_recombinations = _arrayfield(optional=True)
     kinetic_temperature = _arrayfield(optional=True)
-    unnormalised_nion = _arrayfield(optional=True)
-    unnormalised_nion_mini = _arrayfield(optional=True)
+    nion_conditional_filtered = _arrayfield(optional=True)
+    nion_conditional_filtered_mini = _arrayfield(optional=True)
     log10_Mturnover_ave: float = attrs.field(default=None)
     log10_Mturnover_MINI_ave: float = attrs.field(default=None)
-    mean_f_coll: float = attrs.field(default=None)
-    mean_f_coll_MINI: float = attrs.field(default=None)
+    nion_unconditional: float = attrs.field(default=None)
+    nion_unconditional_mini: float = attrs.field(default=None)
 
     @classmethod
     def new(cls, inputs, redshift: float, **kw) -> Self:
@@ -2056,10 +2056,12 @@ class IonizedBox(OutputStructZ):
             out["cumulative_recombinations"] = Array((1, 1, 1), dtype=np.float32)
 
         if not inputs.matter_options.lagrangian_source_grid:
-            out["unnormalised_nion"] = Array(filter_shape, dtype=np.float32)
+            out["nion_conditional_filtered"] = Array(filter_shape, dtype=np.float32)
 
             if inputs.astro_options.USE_MCGS:
-                out["unnormalised_nion_mini"] = Array(filter_shape, dtype=np.float32)
+                out["nion_conditional_filtered_mini"] = Array(
+                    filter_shape, dtype=np.float32
+                )
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
@@ -2099,8 +2101,8 @@ class IonizedBox(OutputStructZ):
                 and not self.matter_options.lagrangian_source_grid
             ):
                 required += [
-                    "unnormalised_nion",
-                    "unnormalised_nion_mini",
+                    "nion_conditional_filtered",
+                    "nion_conditional_filtered_mini",
                 ]
         elif isinstance(input_box, EmissivityFields):
             if self.matter_options.lagrangian_source_grid:

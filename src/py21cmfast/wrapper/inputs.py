@@ -1005,10 +1005,10 @@ class SimulationOptions(InputStruct):
     K_MAX_FOR_CLASS: float, optional
         Maximum wavenumber to run CLASS, in 1/Mpc. Becomes relevant only if
         ``matter_options.POWER_SPECTRUM = "CLASS"``.
-    MIN_XE_FOR_FCOLL_IN_TAUX: float, optional
-        Minimum global x_e value for which the collapsed fraction (f_coll) is evaluated
+    MIN_XE_FOR_NION_IN_TAUX: float, optional
+        Minimum global x_e value for which n_ion is evaluated
         in the tau_X integral (X-ray optical depth). When x_e is above this threshold
-        value, it is assumed that f_coll=0, in order to speed up the calculations.
+        value, it is assumed that n_ion=0, in order to speed up the calculations.
         For now, this parameter becomes relevant only when run_global_evolution is
         called, as it controls the runtime of this function (higher values reduce the
         runtime, in expense of degraded precision).
@@ -1058,7 +1058,7 @@ class SimulationOptions(InputStruct):
     PARKINSON_y2: float = field(default=0.0, converter=float)
     Z_HEAT_MAX: float = field(default=35.0, converter=float)
     ZPRIME_STEP_FACTOR: float = field(default=1.02, converter=float)
-    MIN_XE_FOR_FCOLL_IN_TAUX: float = field(default=1e-3, converter=float)
+    MIN_XE_FOR_NION_IN_TAUX: float = field(default=1e-3, converter=float)
 
     INITIAL_REDSHIFT: float = field(default=300.0, converter=float)
     DELTA_R_FACTOR: float = field(

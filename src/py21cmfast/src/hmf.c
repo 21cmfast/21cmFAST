@@ -516,7 +516,6 @@ double xray_fraction_doublePL_mini(double lnM, void *param_struct) {
 }
 
 double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF) {
-    // dNdlnM = dfcoll/dM * M / M * constants
     if (HMF == HMF_PS) {
         return dNdM_conditional_EPS(growthf, lnM, delta, sigma);
     }

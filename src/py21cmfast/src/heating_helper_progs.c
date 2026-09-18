@@ -897,9 +897,9 @@ typedef struct {
 } tauX_params;
 
 double tauX_integrand_MINI(double zhat, void *params) {
-    double n, drpropdz, nuhat, sigma_tilde, fcoll, HI_filling_factor_zhat;
+    double n, drpropdz, nuhat, sigma_tilde, nion, HI_filling_factor_zhat;
     double log10_Mturn_acg, log10_Mturn_mcg;
-    double fcoll_MINI;
+    double nion_MINI;
 
     tauX_params *p = (tauX_params *)params;
 
@@ -909,27 +909,27 @@ double tauX_integrand_MINI(double zhat, void *params) {
     log10_Mturn_acg = p->log10_Mturn_acg;
     log10_Mturn_mcg = p->log10_Mturn_mcg;
 
-    // If we only have one cell, approximate fcoll to zero at high redshifts, when x_e is still very
+    // If we only have one cell, approximate nion to zero at high redshifts, when x_e is still very
     // small
     // TODO: Should we extend this to full boxes too?
     if (simulation_options_global->HII_DIM == 1 &&
-        p->x_e_ave < simulation_options_global->MIN_XE_FOR_FCOLL_IN_TAUX) {
-        fcoll = 0.;
-        fcoll_MINI = 0.;
+        p->x_e_ave < simulation_options_global->MIN_XE_FOR_NION_IN_TAUX) {
+        nion = 0.;
+        nion_MINI = 0.;
     } else {
-        fcoll = evaluate_nion_unconditional_acg(zhat, log10_Mturn_acg, p->scale_consts);
-        fcoll_MINI = evaluate_nion_unconditional_mcg(zhat, log10_Mturn_acg, log10_Mturn_mcg,
-                                                     p->scale_consts);
+        nion = evaluate_nion_unconditional_acg(zhat, log10_Mturn_acg, p->scale_consts);
+        nion_MINI = evaluate_nion_unconditional_mcg(zhat, log10_Mturn_acg, log10_Mturn_mcg,
+                                                    p->scale_consts);
     }
 
     // simplification to use the <x_e> value at zp and not
     // zhat.  should'nt matter much since the evolution in
-    // x_e_ave is slower than fcoll.  in principle should make
+    // x_e_ave is slower than nion.  in principle should make
     // an array to store past values of x_e_ave..
-    if ((fcoll < 1e-20) && (fcoll_MINI < 1e-20)) {
+    if ((nion < 1e-20) && (nion_MINI < 1e-20)) {
         HI_filling_factor_zhat = 1;
     } else {
-        HI_filling_factor_zhat = 1 - (fcoll + fcoll_MINI) / (1.0 - p->x_e_ave);
+        HI_filling_factor_zhat = 1 - (nion + nion_MINI) / (1.0 - p->x_e_ave);
     }
     if (HI_filling_factor_zhat < 1e-4)
         HI_filling_factor_zhat = 1e-4;  // set a floor for post-reionization stability
@@ -939,7 +939,7 @@ double tauX_integrand_MINI(double zhat, void *params) {
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
 double tauX_integrand(double zhat, void *params) {
-    double n, drpropdz, nuhat, sigma_tilde, fcoll, HI_filling_factor_zhat;
+    double n, drpropdz, nuhat, sigma_tilde, nion, HI_filling_factor_zhat;
     double log10_Mturn_acg;
 
     tauX_params *p = (tauX_params *)params;
@@ -949,24 +949,24 @@ double tauX_integrand(double zhat, void *params) {
     nuhat = p->nu_0 * (1 + zhat);
     log10_Mturn_acg = p->log10_Mturn_acg;
 
-    // If we only have one cell, approximate fcoll to zero at high redshifts, when x_e is still very
+    // If we only have one cell, approximate nion to zero at high redshifts, when x_e is still very
     // small
     // TODO: Should we extend this to full boxes too?
     if (simulation_options_global->HII_DIM == 1 &&
-        p->x_e_ave < simulation_options_global->MIN_XE_FOR_FCOLL_IN_TAUX) {
-        fcoll = 0.;
+        p->x_e_ave < simulation_options_global->MIN_XE_FOR_NION_IN_TAUX) {
+        nion = 0.;
     } else {
-        fcoll = evaluate_nion_unconditional_acg(zhat, log10_Mturn_acg, p->scale_consts);
+        nion = evaluate_nion_unconditional_acg(zhat, log10_Mturn_acg, p->scale_consts);
     }
 
     // simplification to use the <x_e> value at zp and not
     // zhat.  should'nt matter much since the evolution in
-    // x_e_ave is slower than fcoll.  in principle should make
+    // x_e_ave is slower than nion.  in principle should make
     // an array to store past values of x_e_ave..
-    if (fcoll < 1e-20)
+    if (nion < 1e-20)
         HI_filling_factor_zhat = 1;
     else
-        HI_filling_factor_zhat = 1 - fcoll / (1.0 - p->x_e_ave);
+        HI_filling_factor_zhat = 1 - nion / (1.0 - p->x_e_ave);
     if (HI_filling_factor_zhat < 1e-4)
         HI_filling_factor_zhat = 1e-4;  // set a floor for post-reionization stability
 

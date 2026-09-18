@@ -122,8 +122,8 @@ typedef struct TsBox {
 } TsBox;
 
 typedef struct IonizedBox {
-    double mean_f_coll;
-    double mean_f_coll_MINI;
+    double nion_unconditional;
+    double nion_unconditional_mini;
     double log10_Mturnover_ave;
     double log10_Mturnover_MINI_ave;
     float *neutral_fraction;
@@ -132,8 +132,8 @@ typedef struct IonizedBox {
     float *z_reion;
     float *cumulative_recombinations;
     float *kinetic_temperature;
-    float *unnormalised_nion;
-    float *unnormalised_nion_mini;
+    float *nion_conditional_filtered;
+    float *nion_conditional_filtered_mini;
 } IonizedBox;
 
 typedef struct BrightnessTemp {
