@@ -135,9 +135,9 @@ def compute_global_reionization_at_z(
             .initialize()
             .with_value(val=val * np.ones(shape)),
         )
-    box.log10_Mturnover_ave = np.log10(M_turn_acg)
+    box.log10_mturn_ave_acg = np.log10(M_turn_acg)
     if M_turn_mcg is not None:
-        box.log10_Mturnover_MINI_ave = np.log10(M_turn_mcg)
+        box.log10_mturn_ave_mcg = np.log10(M_turn_mcg)
     return box
 
 
@@ -407,11 +407,11 @@ def run_global_evolution(
         for quantity in global_evolution.quantities:
             if quantity == "log10_mturn_acg":
                 global_evolution.quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_Mturnover_ave
+                    coeval.ionized_box.log10_mturn_ave_acg
                 )
             elif quantity == "log10_mturn_mcg":
                 global_evolution.quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_Mturnover_MINI_ave
+                    coeval.ionized_box.log10_mturn_ave_mcg
                 )
             else:
                 global_evolution.quantities[quantity][iz] = np.mean(

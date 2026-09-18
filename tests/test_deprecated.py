@@ -34,6 +34,7 @@ from py21cmfast import (
     compute_initial_conditions,
     compute_ionization_field,
     compute_radiation_fields,
+    compute_spin_temperature,
     config,
     perturb_field,
 )
@@ -102,6 +103,43 @@ def computed_emissivity_fields_with_mcgs(redshift_test, default_input_struct_lc,
             cache=cache,
         )
     return ic, pt, ef
+
+
+@pytest.fixture(scope="module")
+def computed_ionization_field(
+    computed_emissivity_fields_with_mcgs, default_input_struct_lc, cache
+):
+    inputs = default_input_struct_lc.evolve_input_structs(
+        USE_TS_FLUCT=True,
+        RECOMB_MODEL="inhomogeneous",
+        USE_MCGS=True,
+        V_CB_MODEL="AVG-DEBUG",
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        SOURCE_MODEL="L-INTEGRAL",
+    )
+    ic, pt, ef = computed_emissivity_fields_with_mcgs
+
+    rf = compute_radiation_fields(
+        hboxes=[ef],
+        redshift=ef.redshift,
+        cache=cache,
+    )
+    st = compute_spin_temperature(
+        initial_conditions=ic,
+        perturbed_field=pt,
+        radiation_fields=rf,
+        inputs=inputs,
+        cache=cache,
+    )
+
+    return compute_ionization_field(
+        initial_conditions=ic,
+        perturbed_field=pt,
+        emissivity_fields=ef,
+        spin_temp=st,
+        inputs=inputs,
+        cache=cache,
+    )
 
 
 def _make_run_cache_with_emissivity_fields(
@@ -695,6 +733,14 @@ def test_whalo_sfr_deprecated_warning(computed_emissivity_fields_with_mcgs):
         assert np.all(ef.whalo_sfr.value == ef.fesc_weighted_sfrd.value)
 
 
+@deprecation.fail_if_not_removed
+def test_whalo_sfr_is_removed(computed_emissivity_fields_with_mcgs):
+    """Fails when removed_in version is reached, reminding you to delete whalo_sfr."""
+    _, _, ef = computed_emissivity_fields_with_mcgs
+    assert isinstance(ef.whalo_sfr, Array)
+    assert np.all(ef.whalo_sfr.value == ef.fesc_weighted_sfrd.value)
+
+
 def test_log10_mcrit_acg_ave_deprecated_warning(computed_emissivity_fields_with_mcgs):
     """Test that using log10_mcrit_acg_ave shows deprecation warning."""
     _, _, ef = computed_emissivity_fields_with_mcgs
@@ -727,12 +773,42 @@ def test_log10_mcrit_mcg_ave_is_removed(computed_emissivity_fields_with_mcgs):
     assert np.all(ef.log10_Mcrit_MCG_ave == ef.log10_mturn_mcg_ave)
 
 
+def test_log10_mturnover_ave_deprecated_warning(computed_ionization_field):
+    """Test that using log10_Mturnover_ave shows deprecation warning."""
+    ionized_box = computed_ionization_field
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="log10_Mturnover_ave is deprecated"
+    ):
+        assert np.all(
+            ionized_box.log10_Mturnover_ave == ionized_box.log10_mturn_ave_acg
+        )
+
+
 @deprecation.fail_if_not_removed
-def test_whalo_sfr_is_removed(computed_emissivity_fields_with_mcgs):
-    """Fails when removed_in version is reached, reminding you to delete whalo_sfr."""
-    _, _, ef = computed_emissivity_fields_with_mcgs
-    assert isinstance(ef.whalo_sfr, Array)
-    assert np.all(ef.whalo_sfr.value == ef.fesc_weighted_sfrd.value)
+def test_log10_mturnover_ave_is_removed(computed_ionization_field):
+    """Fails when removed_in version is reached, reminding you to delete log10_Mturnover_ave."""
+    ionized_box = computed_ionization_field
+    assert np.all(ionized_box.log10_Mturnover_ave == ionized_box.log10_mturn_ave_acg)
+
+
+def test_log10_mturnover_mini_ave_deprecated_warning(computed_ionization_field):
+    """Test that using log10_Mturnover_MINI_ave shows deprecation warning."""
+    ionized_box = computed_ionization_field
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="log10_Mturnover_MINI_ave is deprecated"
+    ):
+        assert np.all(
+            ionized_box.log10_Mturnover_MINI_ave == ionized_box.log10_mturn_ave_mcg
+        )
+
+
+@deprecation.fail_if_not_removed
+def test_log10_mturnover_mini_ave_is_removed(computed_ionization_field):
+    """Fails when removed_in version is reached, reminding you to delete log10_Mturnover_MINI_ave."""
+    ionized_box = computed_ionization_field
+    assert np.all(
+        ionized_box.log10_Mturnover_MINI_ave == ionized_box.log10_mturn_ave_mcg
+    )
 
 
 def test_bad_deprecated_inputs():

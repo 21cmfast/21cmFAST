@@ -124,8 +124,8 @@ typedef struct TsBox {
 typedef struct IonizedBox {
     double nion_unconditional_acg;
     double nion_unconditional_mcg;
-    double log10_Mturnover_ave;
-    double log10_Mturnover_MINI_ave;
+    double log10_mturn_ave_acg;
+    double log10_mturn_ave_mcg;
     float *neutral_fraction;
     float *ionisation_rate_G12;
     float *mean_free_path;

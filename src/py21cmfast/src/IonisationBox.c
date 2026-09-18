@@ -1425,8 +1425,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
         double mturn_acg_avg = 0., mturn_mcg_avg = 0.;
         if (ionbox_constants.lagrangian_source_grids) {
             // Here these are only used for the global calculations
-            box->log10_Mturnover_ave = emissivity_fields->log10_mturn_acg_ave;
-            box->log10_Mturnover_MINI_ave = emissivity_fields->log10_mturn_mcg_ave;
+            box->log10_mturn_ave_acg = emissivity_fields->log10_mturn_acg_ave;
+            box->log10_mturn_ave_mcg = emissivity_fields->log10_mturn_mcg_ave;
             mturn_acg_avg = pow(10., emissivity_fields->log10_mturn_acg_ave);
             mturn_mcg_avg = pow(10., emissivity_fields->log10_mturn_mcg_ave);
         } else if (ionbox_constants.mass_dep_zeta) {
@@ -1435,17 +1435,17 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             calculate_mcrit_boxes(previous_ionize_box, spin_temp, ini_boxes, &ionbox_constants,
                                   grid_struct->log10_mturn_acg_grid_unfiltered,
                                   grid_struct->log10_mturn_mcg_grid_unfiltered,
-                                  &(box->log10_Mturnover_ave), &(box->log10_Mturnover_MINI_ave));
+                                  &(box->log10_mturn_ave_acg), &(box->log10_mturn_ave_mcg));
 
-            mturn_acg_avg = pow(10., box->log10_Mturnover_ave);
-            mturn_mcg_avg = pow(10., box->log10_Mturnover_MINI_ave);
+            mturn_acg_avg = pow(10., box->log10_mturn_ave_acg);
+            mturn_mcg_avg = pow(10., box->log10_mturn_ave_mcg);
             LOG_DEBUG("average log10 turnover masses are %.2f and %.2f for ACGs and MCGs",
-                      box->log10_Mturnover_ave, box->log10_Mturnover_MINI_ave);
+                      box->log10_mturn_ave_acg, box->log10_mturn_ave_mcg);
         } else {
             // just store the sharp cutoff mass
             mturn_acg_avg = ionbox_constants.M_min;
-            box->log10_Mturnover_ave = log10(ionbox_constants.M_min);
-            box->log10_Mturnover_MINI_ave = 0.0;  // not used
+            box->log10_mturn_ave_acg = log10(ionbox_constants.M_min);
+            box->log10_mturn_ave_mcg = 0.0;  // not used
         }
         // lets check if we are going to bother with computing the inhmogeneous field at all...
         global_xH = 0.0;

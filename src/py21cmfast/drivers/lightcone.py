@@ -542,11 +542,11 @@ def _run_lightcone_from_perturbed_fields(
         for quantity in lightcone.global_quantities:
             if quantity == "log10_mturn_acg":
                 lightcone.global_quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_Mturnover_ave
+                    coeval.ionized_box.log10_mturn_ave_acg
                 )
             elif quantity == "log10_mturn_mcg":
                 lightcone.global_quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_Mturnover_MINI_ave
+                    coeval.ionized_box.log10_mturn_ave_mcg
                 )
             else:
                 lightcone.global_quantities[quantity][iz] = np.mean(

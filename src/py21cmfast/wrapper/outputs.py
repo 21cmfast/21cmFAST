@@ -1984,8 +1984,8 @@ class IonizedBox(OutputStructZ):
     kinetic_temperature = _arrayfield(optional=True)
     nion_conditional_filtered_acg = _arrayfield(optional=True)
     nion_conditional_filtered_mcg = _arrayfield(optional=True)
-    log10_Mturnover_ave: float = attrs.field(default=None)
-    log10_Mturnover_MINI_ave: float = attrs.field(default=None)
+    log10_mturn_ave_acg: float = attrs.field(default=None)
+    log10_mturn_ave_mcg: float = attrs.field(default=None)
     nion_unconditional_acg: float = attrs.field(default=None)
     nion_unconditional_mcg: float = attrs.field(default=None)
 
@@ -2139,6 +2139,44 @@ class IonizedBox(OutputStructZ):
             emissivity_fields,
             ics,
         )
+
+    @property
+    def log10_Mturnover_ave(self) -> float:
+        """The average log10 of the turnover mass for ACGs.
+
+        This property is deprecated and will be removed in a future version.
+        Please use `log10_mturn_ave_acg` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "log10_Mturnover_ave",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="log10_Mturnover_ave is deprecated and will be removed in a future version. "
+                "Please use log10_mturn_ave_acg directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.log10_mturn_ave_acg
+
+    @property
+    def log10_Mturnover_MINI_ave(self) -> float:
+        """The average log10 of the turnover mass for MCGs.
+
+        This property is deprecated and will be removed in a future version.
+        Please use `log10_mturn_ave_mcg` directly instead.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "log10_Mturnover_MINI_ave",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="log10_Mturnover_MINI_ave is deprecated and will be removed in a future version. "
+                "Please use log10_mturn_ave_mcg directly instead.",
+            ),
+            stacklevel=2,
+        )
+        return self.log10_mturn_ave_mcg
 
 
 @attrs.define(slots=False, kw_only=True)
