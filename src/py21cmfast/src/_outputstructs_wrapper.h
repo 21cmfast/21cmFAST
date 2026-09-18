@@ -69,11 +69,11 @@ typedef struct RadiationFieldsSetup {
     double *R_values, *zpp_avg, *zpp_edges;
 
     // Arrays for the filtered emissivity fields
-    float *filtered_sfr;
-    float *filtered_xray;
-    float *filtered_sfr_mini;
-    float *filtered_sfr_lw;
-    float *filtered_sfr_mini_lw;
+    float *filtered_sfrd_acg_for_lya;
+    float *filtered_xray_emissivity;
+    float *filtered_sfrd_mcg_for_lya;
+    float *filtered_sfrd_acg_for_lw;
+    float *filtered_sfrd_mcg_for_lw;
 
     // frequency integral tables
     double *freq_int_heat_tbl, *freq_int_ion_tbl, *freq_int_lya_tbl, *freq_int_heat_tbl_diff;

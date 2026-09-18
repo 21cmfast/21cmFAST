@@ -70,18 +70,19 @@ void accumulate_radiation_shell(float redshift, RadiationFieldsSetup *rad_setup,
         int num_R = astro_params_global->N_STEP_TS;
 #pragma omp for
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
-            sfr_term = rad_setup->filtered_sfr[box_ct] * z_edge_factor;
+            sfr_term = rad_setup->filtered_sfrd_acg_for_lya[box_ct] * z_edge_factor;
             // Minihalos and s->yr conversion are already included here
-            xray_sfr = rad_setup->filtered_xray[box_ct] * z_edge_factor * xray_R_factor * 1e38;
+            xray_sfr =
+                rad_setup->filtered_xray_emissivity[box_ct] * z_edge_factor * xray_R_factor * 1e38;
             if (astro_options_global->USE_MCGS && astro_options_global->LYA_MULTIPLE_SCATTERING) {
-                sfr_term_lw = rad_setup->filtered_sfr_lw[box_ct] * z_edge_factor;
+                sfr_term_lw = rad_setup->filtered_sfrd_acg_for_lw[box_ct] * z_edge_factor;
             } else {
                 sfr_term_lw = sfr_term;
             }
             if (astro_options_global->USE_MCGS) {
-                sfr_term_mini = rad_setup->filtered_sfr_mini[box_ct] * z_edge_factor;
+                sfr_term_mini = rad_setup->filtered_sfrd_mcg_for_lya[box_ct] * z_edge_factor;
                 if (astro_options_global->LYA_MULTIPLE_SCATTERING) {
-                    sfr_term_mini_lw = rad_setup->filtered_sfr_mini_lw[box_ct] * z_edge_factor;
+                    sfr_term_mini_lw = rad_setup->filtered_sfrd_mcg_for_lw[box_ct] * z_edge_factor;
                 } else {
                     sfr_term_mini_lw = sfr_term_mini;
                 }
@@ -207,8 +208,8 @@ void multiply_radiation_fields_by_constants(float redshift, RadiationFields *rad
     }
 }
 
-void one_annular_filter(float *input_box, float *output_box, double R_inner, double R_outer,
-                        double R_star, int filter_type, double *u_avg, double *f_avg) {
+void one_shell_filter(float *input_box, float *output_box, double R_inner, double R_outer,
+                      double R_star, int filter_type, double *u_avg, double *f_avg) {
     int i, j, k;
     index_huge ct;
     double unfiltered_avg = 0;
@@ -308,31 +309,32 @@ int UpdateRadiationFields(float redshift, EmissivityFields *emissivity_fields, i
 
         double sfr_avg, fsfr_avg, sfr_avg_mini = 0., fsfr_avg_mini = 0.;
         double xray_avg, fxray_avg;
-        int filter_type = astro_options_global->LYA_MULTIPLE_SCATTERING
-                              ? FILTER_SPHERICAL_SHELL_MULTIPLE_SCATTERING
-                              : FILTER_SPHERICAL_SHELL_STRAIGHT_LINE;
+        int lya_filter_type = astro_options_global->LYA_MULTIPLE_SCATTERING
+                                  ? FILTER_SPHERICAL_SHELL_MULTIPLE_SCATTERING
+                                  : FILTER_SPHERICAL_SHELL_STRAIGHT_LINE;
 
         double R_inner = R_ct == 0 ? 0 : rad_setup->R_values[R_ct - 1];
         double R_outer = rad_setup->R_values[R_ct];
 
-        one_annular_filter(emissivity_fields->sfrd_acg, rad_setup->filtered_sfr, R_inner, R_outer,
-                           R_star, filter_type, &sfr_avg, &fsfr_avg);
-        one_annular_filter(emissivity_fields->xray_emissivity, rad_setup->filtered_xray, R_inner,
-                           R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE, &xray_avg,
-                           &fxray_avg);
+        one_shell_filter(emissivity_fields->sfrd_acg, rad_setup->filtered_sfrd_acg_for_lya, R_inner,
+                         R_outer, R_star, lya_filter_type, &sfr_avg, &fsfr_avg);
+        one_shell_filter(emissivity_fields->xray_emissivity, rad_setup->filtered_xray_emissivity,
+                         R_inner, R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE, &xray_avg,
+                         &fxray_avg);
         if (astro_options_global->USE_MCGS) {
-            one_annular_filter(emissivity_fields->sfrd_mcg, rad_setup->filtered_sfr_mini, R_inner,
-                               R_outer, R_star, filter_type, &sfr_avg_mini, &fsfr_avg_mini);
+            one_shell_filter(emissivity_fields->sfrd_mcg, rad_setup->filtered_sfrd_mcg_for_lya,
+                             R_inner, R_outer, R_star, lya_filter_type, &sfr_avg_mini,
+                             &fsfr_avg_mini);
             // In case of multiple scattering and mini-halos, we need to filter the SFRD
             // fields again for the the LW feedback, as these photons travel in straight
             // lines
             if (astro_options_global->LYA_MULTIPLE_SCATTERING) {
-                one_annular_filter(emissivity_fields->sfrd_acg, rad_setup->filtered_sfr_lw, R_inner,
-                                   R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE, &sfr_avg,
-                                   &fsfr_avg);
-                one_annular_filter(emissivity_fields->sfrd_mcg, rad_setup->filtered_sfr_mini_lw,
-                                   R_inner, R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE,
-                                   &sfr_avg_mini, &fsfr_avg_mini);
+                one_shell_filter(emissivity_fields->sfrd_acg, rad_setup->filtered_sfrd_acg_for_lw,
+                                 R_inner, R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE,
+                                 &sfr_avg, &fsfr_avg);
+                one_shell_filter(emissivity_fields->sfrd_mcg, rad_setup->filtered_sfrd_mcg_for_lw,
+                                 R_inner, R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE,
+                                 &sfr_avg_mini, &fsfr_avg_mini);
             }
         }
 

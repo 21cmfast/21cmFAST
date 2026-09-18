@@ -289,9 +289,9 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
 def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameters):
     """Ensure that the correct fields of RadiationFieldsSetup are set based on the parameters."""
     rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=default_input_struct_lc)
-    assert isinstance(rfs.filtered_sfr, Array)
-    assert isinstance(rfs.filtered_xray, Array)
-    assert rfs.filtered_sfr_mini is None
+    assert isinstance(rfs.filtered_sfrd_acg_for_lya, Array)
+    assert isinstance(rfs.filtered_xray_emissivity, Array)
+    assert rfs.filtered_sfrd_mcg_for_lya is None
 
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
@@ -299,7 +299,7 @@ def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameter
         RECOMB_MODEL="inhomogeneous",
     )
     rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=inputs)
-    assert isinstance(rfs.filtered_sfr_mini, Array)
+    assert isinstance(rfs.filtered_sfrd_mcg_for_lya, Array)
 
 
 def test_optional_field_ts(default_input_struct_lc: InputParameters):

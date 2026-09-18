@@ -1243,14 +1243,16 @@ class EmissivityFields(OutputStructZ):
     def count(self) -> Array:
         """The halo number (per cell).
 
-        This property is deprecated and will be removed in a future version. Please use `halo_number` directly instead.
+        This property is deprecated and will be removed in a future version.
+        Please use `halo_number` directly instead.
         """
         warnings.warn(
             deprecation.DeprecatedWarning(
                 "count",
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
-                details="count is deprecated and will be removed in a future version. Please use halo_number directly instead.",
+                details="count is deprecated and will be removed in a future version. "
+                "Please use halo_number directly instead.",
             ),
             stacklevel=2,
         )
@@ -1260,14 +1262,16 @@ class EmissivityFields(OutputStructZ):
     def halo_mass(self) -> Array:
         """The halo mass density field.
 
-        This property is deprecated and will be removed in a future version. Please use `halo_mass_density` directly instead.
+        This property is deprecated and will be removed in a future version.
+        Please use `halo_mass_density` directly instead.
         """
         warnings.warn(
             deprecation.DeprecatedWarning(
                 "halo_mass",
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
-                details="halo_mass is deprecated and will be removed in a future version. Please use halo_mass_density directly instead.",
+                details="halo_mass is deprecated and will be removed in a future version. "
+                "Please use halo_mass_density directly instead.",
             ),
             stacklevel=2,
         )
@@ -1277,14 +1281,16 @@ class EmissivityFields(OutputStructZ):
     def halo_stars(self) -> Array:
         """The stellar mass density field in ACGs.
 
-        This property is deprecated and will be removed in a future version. Please use `stellar_mass_density_acg` directly instead.
+        This property is deprecated and will be removed in a future version.
+        Please use `stellar_mass_density_acg` directly instead.
         """
         warnings.warn(
             deprecation.DeprecatedWarning(
                 "halo_stars",
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
-                details="halo_stars is deprecated and will be removed in a future version. Please use stellar_mass_density_acg directly instead.",
+                details="halo_stars is deprecated and will be removed in a future version. "
+                "Please use stellar_mass_density_acg directly instead.",
             ),
             stacklevel=2,
         )
@@ -1294,14 +1300,16 @@ class EmissivityFields(OutputStructZ):
     def halo_stars_mini(self) -> Array:
         """The stellar mass density field in MCGs.
 
-        This property is deprecated and will be removed in a future version. Please use `stellar_mass_density_mcg` directly instead.
+        This property is deprecated and will be removed in a future version.
+        Please use `stellar_mass_density_mcg` directly instead.
         """
         warnings.warn(
             deprecation.DeprecatedWarning(
                 "halo_stars_mini",
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
-                details="halo_stars_mini is deprecated and will be removed in a future version. Please use stellar_mass_density_mcg directly instead.",
+                details="halo_stars_mini is deprecated and will be removed in a future version. "
+                "Please use stellar_mass_density_mcg directly instead.",
             ),
             stacklevel=2,
         )
@@ -1311,14 +1319,16 @@ class EmissivityFields(OutputStructZ):
     def halo_sfr(self) -> Array:
         """The star formation rate density field in ACGs.
 
-        This property is deprecated and will be removed in a future version. Please use `sfrd_acg` directly instead.
+        This property is deprecated and will be removed in a future version.
+        Please use `sfrd_acg` directly instead.
         """
         warnings.warn(
             deprecation.DeprecatedWarning(
                 "halo_sfr",
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
-                details="halo_sfr is deprecated and will be removed in a future version. Please use sfrd_acg directly instead.",
+                details="halo_sfr is deprecated and will be removed in a future version. "
+                "Please use sfrd_acg directly instead.",
             ),
             stacklevel=2,
         )
@@ -1328,14 +1338,16 @@ class EmissivityFields(OutputStructZ):
     def halo_sfr_mini(self) -> Array:
         """The star formation rate density field in MCGs.
 
-        This property is deprecated and will be removed in a future version. Please use `sfrd_mcg` directly instead.
+        This property is deprecated and will be removed in a future version.
+        Please use `sfrd_mcg` directly instead.
         """
         warnings.warn(
             deprecation.DeprecatedWarning(
                 "halo_sfr_mini",
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
-                details="halo_sfr_mini is deprecated and will be removed in a future version. Please use sfrd_mcg directly instead.",
+                details="halo_sfr_mini is deprecated and will be removed in a future version. "
+                "Please use sfrd_mcg directly instead.",
             ),
             stacklevel=2,
         )
@@ -1345,14 +1357,16 @@ class EmissivityFields(OutputStructZ):
     def halo_xray(self) -> Array:
         """The X-ray emissivity field.
 
-        This property is deprecated and will be removed in a future version. Please use `xray_emissivity` directly instead.
+        This property is deprecated and will be removed in a future version.
+        Please use `xray_emissivity` directly instead.
         """
         warnings.warn(
             deprecation.DeprecatedWarning(
                 "halo_xray",
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
-                details="halo_xray is deprecated and will be removed in a future version. Please use xray_emissivity directly instead.",
+                details="halo_xray is deprecated and will be removed in a future version. "
+                "Please use xray_emissivity directly instead.",
             ),
             stacklevel=2,
         )
@@ -1362,14 +1376,16 @@ class EmissivityFields(OutputStructZ):
     def whalo_sfr(self) -> Array:
         """The star formation rate density field, weighted by escape fraction, in both ACGs and MCGs.
 
-        This property is deprecated and will be removed in a future version. Please use `fesc_weighted_sfrd` directly instead.
+        This property is deprecated and will be removed in a future version.
+        Please use `fesc_weighted_sfrd` directly instead.
         """
         warnings.warn(
             deprecation.DeprecatedWarning(
                 "whalo_sfr",
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
-                details="whalo_sfr is deprecated and will be removed in a future version. Please use fesc_weighted_sfrd directly instead.",
+                details="whalo_sfr is deprecated and will be removed in a future version. "
+                "Please use fesc_weighted_sfrd directly instead.",
             ),
             stacklevel=2,
         )
@@ -1379,14 +1395,16 @@ class EmissivityFields(OutputStructZ):
     def log10_Mcrit_ACG_ave(self) -> float:
         """The average log10 of the turnover mass for ACGs.
 
-        This property is deprecated and will be removed in a future version. Please use `log10_mturn_acg_ave` directly instead.
+        This property is deprecated and will be removed in a future version.
+        Please use `log10_mturn_acg_ave` directly instead.
         """
         warnings.warn(
             deprecation.DeprecatedWarning(
                 "log10_Mcrit_ACG_ave",
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
-                details="log10_Mcrit_ACG_ave is deprecated and will be removed in a future version. Please use log10_mturn_acg_ave directly instead.",
+                details="log10_Mcrit_ACG_ave is deprecated and will be removed in a future version. "
+                "Please use log10_mturn_acg_ave directly instead.",
             ),
             stacklevel=2,
         )
@@ -1396,14 +1414,16 @@ class EmissivityFields(OutputStructZ):
     def log10_Mcrit_MCG_ave(self) -> float:
         """The average log10 of the turnover mass for MCGs.
 
-        This property is deprecated and will be removed in a future version. Please use `log10_mturn_mcg_ave` directly instead.
+        This property is deprecated and will be removed in a future version.
+        Please use `log10_mturn_mcg_ave` directly instead.
         """
         warnings.warn(
             deprecation.DeprecatedWarning(
                 "log10_Mcrit_MCG_ave",
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
-                details="log10_Mcrit_MCG_ave is deprecated and will be removed in a future version. Please use log10_mturn_mcg_ave directly instead.",
+                details="log10_Mcrit_MCG_ave is deprecated and will be removed in a future version. "
+                "Please use log10_mturn_mcg_ave directly instead.",
             ),
             stacklevel=2,
         )
@@ -1452,11 +1472,11 @@ class RadiationFieldsSetup(OutputStructZ):
     R_values = _arrayfield()
     zpp_edges = _arrayfield()
     # Arrays for the filtered emissivity fields
-    filtered_sfr = _arrayfield()
-    filtered_sfr_mini = _arrayfield(optional=True)
-    filtered_xray = _arrayfield()
-    filtered_sfr_lw = _arrayfield(optional=True)
-    filtered_sfr_mini_lw = _arrayfield(optional=True)
+    filtered_sfrd_acg_for_lya = _arrayfield()
+    filtered_sfrd_mcg_for_lya = _arrayfield(optional=True)
+    filtered_xray_emissivity = _arrayfield()
+    filtered_sfrd_acg_for_lw = _arrayfield(optional=True)
+    filtered_sfrd_mcg_for_lw = _arrayfield(optional=True)
     # Frequency integral tables
     freq_int_heat_tbl = _arrayfield()
     freq_int_ion_tbl = _arrayfield()
@@ -1537,15 +1557,15 @@ class RadiationFieldsSetup(OutputStructZ):
             "inverse_diff": Array((x_int_NXHII,), dtype=np.float32),
             "m_xHII_low_box": Array(shape, dtype=np.int32),
             "inverse_val_box": Array(shape, dtype=np.float32),
-            "filtered_sfr": Array(shape, dtype=np.float32),
-            "filtered_xray": Array(shape, dtype=np.float32),
+            "filtered_sfrd_acg_for_lya": Array(shape, dtype=np.float32),
+            "filtered_xray_emissivity": Array(shape, dtype=np.float32),
         }
 
         if inputs.astro_options.USE_MCGS:
-            out["filtered_sfr_mini"] = Array(shape, dtype=np.float32)
+            out["filtered_sfrd_mcg_for_lya"] = Array(shape, dtype=np.float32)
             if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
-                out["filtered_sfr_lw"] = Array(shape, dtype=np.float32)
-                out["filtered_sfr_mini_lw"] = Array(shape, dtype=np.float32)
+                out["filtered_sfrd_acg_for_lw"] = Array(shape, dtype=np.float32)
+                out["filtered_sfrd_mcg_for_lw"] = Array(shape, dtype=np.float32)
 
         if inputs.astro_options.USE_LYA_HEATING:
             out["lya_flux_continuum_prefactor"] = Array(
@@ -1756,13 +1776,13 @@ class RadiationFields(OutputStructZ):
                 "inverse_diff",
                 "m_xHII_low_box",
                 "inverse_val_box",
-                "filtered_sfr",
-                "filtered_xray",
+                "filtered_sfrd_acg_for_lya",
+                "filtered_xray_emissivity",
             ]
             if self.astro_options.USE_MCGS:
-                required += ["filtered_sfr_mini"]
+                required += ["filtered_sfrd_mcg_for_lya"]
                 if self.astro_options.LYA_MULTIPLE_SCATTERING:
-                    required += ["filtered_sfr_lw", "filtered_sfr_mini_lw"]
+                    required += ["filtered_sfrd_acg_for_lw", "filtered_sfrd_mcg_for_lw"]
 
             if self.astro_options.USE_LYA_HEATING:
                 required += [
