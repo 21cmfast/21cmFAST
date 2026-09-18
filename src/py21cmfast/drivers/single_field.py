@@ -615,6 +615,7 @@ def compute_xray_source_field(
                     box.filtered_sfr_lw.value[i] = 0
                     box.filtered_sfr_mini_lw.value[i] = 0
             logger.debug(f"ignoring Radius {i} due to no stars")
+            hbox_interp.purge(force=True)  # free memory from the interpolated halo box
             continue
 
         box = box.compute(
@@ -625,6 +626,7 @@ def compute_xray_source_field(
             R_star=R_star.to("Mpc").value,
             allow_already_computed=True,
         )
+        hbox_interp.purge(force=True)  # free memory from the interpolated halo box
 
     # Sometimes we don't compute at all
     # (if the first zpp > z_max or there are no halos at max R)
