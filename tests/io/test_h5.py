@@ -73,6 +73,38 @@ class TestHDF5ToDict:
 _ALL_TEMPLATE_NAMES = [t["name"] for t in list_templates()]
 
 
+def _h5_roundtrip_marks(model, size):
+    marks = []
+    if model == "Qin20":
+        marks.append(
+            pytest.mark.filterwarnings(
+                "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
+            )
+        )
+    if model in ("const-zeta", "Munoz21"):
+        marks.append(
+            pytest.mark.filterwarnings(
+                "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+            )
+        )
+    if model in (
+        "latest",
+        "minihalos",
+        "latest-discrete",
+        "minihalos-discrete",
+        "Park19",
+        "fixed-halos",
+        "Qin20",
+        "Munoz21",
+    ) and size in ("size-tiny", "size-small"):
+        marks.append(
+            pytest.mark.filterwarnings(
+                "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+            )
+        )
+    return marks
+
+
 class TestInputsIO:
     """Tests of reading and writing InputParameters to HDF5."""
 
@@ -105,10 +137,18 @@ class TestInputsIO:
             assert "InputParameters" in fl
             assert "sentinel" in fl
 
+    # Roundtrip model and size templates without changing their settings.
+    # Qin20 (all sizes) triggers the USE_MINI_HALOS/V_CB_MODEL mismatch;
+    # const-zeta and Munoz21 (all sizes) trigger the EPS conditional-mass-
+    # function advisory; latest, minihalos, latest-discrete,
+    # minihalos-discrete, Park19, and fixed-halos trigger R_BUBBLE_MAX != 50
+    # only when combined with size-tiny or size-small. Scoped per-combination
+    # below rather than applied to all 44 combinations, since only 24
+    # actually fire.
     @pytest.mark.parametrize(
         "inputs",
         [
-            (t, s)
+            pytest.param((t, s), marks=_h5_roundtrip_marks(t, s))
             for t in _ALL_TEMPLATE_NAMES
             if not t.startswith("size-")
             for s in _ALL_TEMPLATE_NAMES

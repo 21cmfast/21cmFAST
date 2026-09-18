@@ -7,6 +7,15 @@ import pytest
 from py21cmfast import InputParameters
 from py21cmfast import input_serialization as srlz
 
+_ROUNDTRIP_CONFIGS = [
+    (InputParameters, {"random_seed": 0}),
+    (InputParameters.from_template, {"name": "Park19", "random_seed": 0}),
+    (
+        InputParameters.from_template,
+        {"name": "default", "HII_DIM": 50, "DIM": 100, "BOX_LEN": 50, "random_seed": 0},
+    ),
+]
+
 
 class TestConvertInputsToDict:
     """Test the convert_inputs_to_dict function."""
@@ -76,14 +85,8 @@ class TestPrepareInputsForSerialization:
         assert "V_CB_AVG" in out["CosmoTables"]
 
     @pytest.mark.parametrize(
-        "inputs",
-        [
-            InputParameters(random_seed=0),
-            InputParameters.from_template("Park19", random_seed=0),
-            InputParameters.from_template(
-                "default", HII_DIM=50, DIM=100, BOX_LEN=50, random_seed=0
-            ),
-        ],
+        "inputs_config",
+        _ROUNDTRIP_CONFIGS,
         ids=[
             "default",
             "park19",
@@ -93,9 +96,11 @@ class TestPrepareInputsForSerialization:
     @pytest.mark.parametrize("mode", ["full", "minimal"])
     @pytest.mark.parametrize("camel", [True, False])
     def test_roundtrip(
-        self, inputs: InputParameters, mode: Literal["full", "minimal"], camel: bool
+        self, inputs_config, mode: Literal["full", "minimal"], camel: bool
     ):
         """Test that writing then reading gives back the same thing."""
+        cls_or_func, kwargs = inputs_config
+        inputs = cls_or_func(**kwargs)
         dct = srlz.prepare_inputs_for_serialization(
             inputs, mode=mode, only_structs=True, camel=camel
         )

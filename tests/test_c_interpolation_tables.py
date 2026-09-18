@@ -71,9 +71,16 @@ def z_range():
 
 @pytest.fixture(scope="module")
 def default_input_struct_mini(default_input_struct_lc):
-    """A default input struct with mini halos turned on."""
+    """A default input struct with mini halos and relative velocities enabled.
+
+    V_CB_MODEL="FLUCTS" requires POWER_SPECTRUM="CLASS": the CLASS Boltzmann code
+    is needed to compute the baryon-CDM relative velocity power spectrum correctly.
+    This is enforced by a validator in inputs.py.
+    """
     return default_input_struct_lc.evolve_input_structs(
         USE_MINI_HALOS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
@@ -374,6 +381,9 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
     )
 
 
+# These comparisons retain the test configuration's nonstandard bubble
+# radius with recombinations enabled; both calculation paths use it.
+@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
 @pytest.mark.parametrize("name", options_hmf)
 def test_SFRD_z_tables(name, z_range, default_global_evolution_mini, plt):
     redshift, kwargs = OPTIONS_HMF[name]
@@ -381,6 +391,9 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution_mini, plt):
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -444,6 +457,9 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution_mini, plt):
     )
 
 
+# These comparisons retain the test configuration's nonstandard bubble
+# radius with recombinations enabled; both calculation paths use it.
+@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
 @pytest.mark.parametrize("name", options_hmf)
 def test_Nion_z_tables(name, z_range, default_global_evolution_mini, plt):
     redshift, kwargs = OPTIONS_HMF[name]
@@ -451,6 +467,9 @@ def test_Nion_z_tables(name, z_range, default_global_evolution_mini, plt):
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -523,6 +542,9 @@ def test_Nion_z_tables(name, z_range, default_global_evolution_mini, plt):
 #       I do not use them here fully, instead calling the integrals directly to avoid parameter changes
 #       Mostly since if we set simulation_options.USE_INTERPOLATION_TABLES=False then the sigma tables aren't used
 #       and it takes forever
+# These comparisons retain the test configuration's nonstandard bubble
+# radius with recombinations enabled; both calculation paths use it.
+@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
 @pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
@@ -553,6 +575,9 @@ def test_Nion_conditional_tables(
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=mini_flag,
+        V_CB_MODEL="FLUCTS" if mini_flag else "NONE",
+        POWER_SPECTRUM="CLASS" if mini_flag else "EH",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -655,6 +680,9 @@ def test_Nion_conditional_tables(
         )
 
 
+# These comparisons retain the test configuration's nonstandard bubble
+# radius with recombinations enabled; both calculation paths use it.
+@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
 @pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
@@ -685,6 +713,9 @@ def test_Xray_conditional_tables(
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=mini_flag,
+        V_CB_MODEL="FLUCTS" if mini_flag else "NONE",
+        POWER_SPECTRUM="CLASS" if mini_flag else "EH",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -750,6 +781,9 @@ def test_Xray_conditional_tables(
     )
 
 
+# These comparisons retain the test configuration's nonstandard bubble
+# radius with recombinations enabled; both calculation paths use it.
+@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
 @pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
@@ -778,6 +812,9 @@ def test_SFRD_conditional_table(
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=mini_flag,
+        V_CB_MODEL="FLUCTS" if mini_flag else "NONE",
+        POWER_SPECTRUM="CLASS" if mini_flag else "EH",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -883,6 +920,9 @@ def test_SFRD_conditional_table(
 INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
 
 
+# These comparisons retain the test configuration's nonstandard bubble
+# radius with recombinations enabled; both calculation paths use it.
+@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("integrand", INTEGRAND_OPTIONS)
@@ -894,6 +934,9 @@ def test_conditional_integral_methods(
     inputs = get_all_options_struct(
         redshift,
         USE_MINI_HALOS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts

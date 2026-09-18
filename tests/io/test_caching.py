@@ -17,6 +17,8 @@ from py21cmfast import (
 from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import outputs
 
+# Small-box warnings handled globally via conftest.py.
+
 
 def create_full_run_cache(cachedir: Path) -> caching.RunCache:
     inputs = InputParameters.from_template(

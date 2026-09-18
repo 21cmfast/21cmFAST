@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import deprecation
 import numpy as np
 import pytest
 
@@ -11,6 +12,7 @@ from py21cmfast import GlobalEvolution
 DATA_PATH = Path(__file__).parent / "test_data"
 
 
+@pytest.mark.filterwarnings("ignore:^Your model:UserWarning")
 @pytest.mark.parametrize("source_model", ["CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL"])
 def test_global_quantities(default_input_struct_ts, source_model):
     """Test that global quantities behave as expected."""
@@ -58,6 +60,7 @@ def test_global_quantities(default_input_struct_ts, source_model):
     assert np.all(x_HI[local_minima_indices[1] + 1 :] == 0.0)
 
 
+@pytest.mark.filterwarnings("ignore:^Your model:UserWarning")
 @pytest.mark.parametrize("source_model", ["CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL"])
 def test_run_global_evolution_without_source_model(
     default_input_struct_ts, source_model
@@ -69,6 +72,9 @@ def test_run_global_evolution_without_source_model(
     assert isinstance(global_evolution, GlobalEvolution)
 
 
+@pytest.mark.filterwarnings(
+    "ignore:^Your inputs.astro_options.USE_TS_FLUCT:UserWarning"
+)
 def test_run_global_evolution_without_Ts(default_input_struct):
     """Test that run_global_evolution doesn't crash when USE_TS_FLUCT=False."""
     global_evolution = p21c.run_global_evolution(
@@ -77,6 +83,12 @@ def test_run_global_evolution_without_Ts(default_input_struct):
     assert isinstance(global_evolution, GlobalEvolution)
 
 
+@pytest.mark.filterwarnings(
+    "ignore:^Your inputs.astro_options.USE_TS_FLUCT:UserWarning"
+)
+@pytest.mark.filterwarnings(
+    "ignore:^You have chosen to work with POWER_SPECTRUM:UserWarning"
+)
 def test_run_global_evolution_from_template():
     """Test that run_global_evolution doesn't crash when using a template."""
     global_evolution = p21c.run_global_evolution(
@@ -116,6 +128,18 @@ def test_global_evolution_bad_inputs(default_input_struct_ts, source_model):
             )
 
 
+# USE_MINI_HALOS=True requires a non-trivial V_CB_MODEL; this test checks
+# database compatibility without configuring relative velocities, intentionally
+# triggering this parameter mismatch advisory.
+@pytest.mark.filterwarnings(
+    "ignore:^Your inputs.astro_options.USE_TS_FLUCT:UserWarning"
+)
+@pytest.mark.filterwarnings(
+    "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
+)
+@pytest.mark.filterwarnings(
+    "ignore:^You have chosen to work with POWER_SPECTRUM:UserWarning"
+)
 def test_compatability_with_database():
     """
     Test that loading GlobalEvolution from the database succeeds.
@@ -127,7 +151,8 @@ def test_compatability_with_database():
     are absolutely sure of what you are doing.
     """
     fname = DATA_PATH / "global_evolution.h5"
-    global_evolution = GlobalEvolution.from_file(fname)
+    with pytest.warns(deprecation.DeprecatedWarning):
+        global_evolution = GlobalEvolution.from_file(fname)
     assert isinstance(global_evolution, GlobalEvolution)
 
 
@@ -164,6 +189,9 @@ def test_linear_perturbation_theory(default_input_struct_ts):
         np.testing.assert_allclose(contrast1, contrast2, atol=0, rtol=1e-5)
 
 
+@pytest.mark.filterwarnings(
+    "ignore:^Your inputs.astro_options.USE_TS_FLUCT:UserWarning"
+)
 def test_linear_density_field(default_input_struct):
     """Test that the linear density field grows linearly with time."""
     delta1 = 1e-7

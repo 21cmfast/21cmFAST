@@ -474,6 +474,11 @@ def test_global_properties(
     assert bt.global_Tb == np.mean(bt.get("brightness_temp"))
 
 
+# Retain the fixture's bubble radius while exercising required-input
+# validation or the zero-source limit with recombinations enabled.
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     """Test that we raise errors when required input structs are omitted."""
     # setting parameters for the maximum number of fields required
@@ -481,6 +486,9 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
         USE_MINI_HALOS=True,
         SOURCE_MODEL="CHMF-SAMPLER",
         RECOMB_MODEL="inhomogeneous",
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        M_TURN_STELLAR_FEEDBACK=5.0,
     ).clone(node_redshifts=(35.0, 11.0, 10.0))
 
     test_inputs_eulerian = test_inputs.evolve_input_structs(
@@ -636,6 +644,11 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
         )
 
 
+# Retain the fixture's bubble radius while exercising required-input
+# validation or the zero-source limit with recombinations enabled.
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 @pytest.mark.parametrize("lya_multiple_scattering", [False, True])
 @pytest.mark.parametrize("use_mini_halos", [False, True])
 def test_radiation_fields_with_zero_sfr(
@@ -646,6 +659,13 @@ def test_radiation_fields_with_zero_sfr(
         USE_MINI_HALOS=use_mini_halos,
         RECOMB_MODEL="inhomogeneous",
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
+        V_CB_MODEL="FLUCTS" if use_mini_halos else "NONE",
+        POWER_SPECTRUM="CLASS" if use_mini_halos else "EH",
+        M_TURN_STELLAR_FEEDBACK=(
+            5.0
+            if use_mini_halos
+            else default_input_struct_ts.astro_params.M_TURN_STELLAR_FEEDBACK
+        ),
     )
 
     hbox1 = HaloBox.new(redshift=redshift + 1, inputs=inputs)

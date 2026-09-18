@@ -182,6 +182,10 @@ class TestTemplateCreate:
 class TestTemplateShow:
     """Tests of the `template show` command."""
 
+    # The test displays the existing Muñoz21 template, preserving its integration method.
+    @pytest.mark.filterwarnings(
+        "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+    )
     def test_show_alias(self, capsys):
         """Test that showing an alias works."""
         app_noexit("template show EOS21")
@@ -275,6 +279,10 @@ class TestRunICS:
         ics = read_output_struct(outfile)
         assert ics.simulation_options.HII_DIM == 32
 
+    # Uses "default" (not "ignore") so the warning passes through to the CLI output.
+    # This test asserts that warnings are correctly formatted and displayed via capsys;
+    # suppressing the warning with "ignore" would break the capsys assertion.
+    @pytest.mark.filterwarnings("default:^Resolution is likely too low:UserWarning")
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
         app_noexit(
@@ -299,6 +307,11 @@ class TestRunICS:
         out = capsys.readouterr().out
         assert "skipping computation" in out
 
+    # The test combines the latest model template with a size template, retaining those
+    # settings while testing CLI overrides of node redshifts.
+    @pytest.mark.filterwarnings(
+        "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+    )
     def test_passing_nodez_overwriting_template(self, capsys, tmp_path):
         """Test that passing nodez parameters does overwrite the template node redshifts."""
         app_noexit(
@@ -345,6 +358,11 @@ class TestRunCoeval:
         cv = Coeval.from_file(cfile)
         assert cv.redshift == 6.0
 
+    # The test combines a model template with a size template, retaining those settings
+    # while testing CLI output.
+    @pytest.mark.filterwarnings(
+        "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+    )
     def test_node_redshifts(self, capsys, tmp_path):
         """Test that having nodez in addition to --redshifts works."""
         # We have other node redshifts, but we don't do anything with them.
@@ -458,6 +476,14 @@ class TestPredictStructSize:
 class TestPredictTotalStorageSize:
     """Test the predict total storage-size command."""
 
+    # The test predicts storage for templates including Muñoz21 (EPS advisory) and
+    # size templates that combine with model templates to trigger the bubble-radius advisory.
+    @pytest.mark.filterwarnings(
+        "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+    )
+    @pytest.mark.filterwarnings(
+        "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+    )
     @pytest.mark.parametrize(
         "template",
         ["simple tiny", "Park19 small", "Munoz21 small", "latest-dhalos large"],
@@ -471,6 +497,14 @@ class TestPredictTotalStorageSize:
         out = capsys.readouterr().out
         assert "Storage Sizes" in out
 
+    # The test predicts storage for templates including Muñoz21 (EPS advisory) and
+    # size templates that combine with model templates to trigger the bubble-radius advisory.
+    @pytest.mark.filterwarnings(
+        "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+    )
+    @pytest.mark.filterwarnings(
+        "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+    )
     @pytest.mark.parametrize(
         "template",
         ["simple tiny", "Park19 small", "Munoz21 small", "latest-dhalos large"],
@@ -491,6 +525,11 @@ class TestPredictTotalStorageSize:
 class TestGlobalEvolution:
     """Tests of the global evolution CLI command."""
 
+    # The test retains the simple template to check global-command file creation and path
+    # handling; it does not validate the resulting physical signal.
+    @pytest.mark.filterwarnings(
+        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
+    )
     def test_basic_run(self, capsys, tmp_path: Path):
         """Test that a basic run produces a lightcone.h5 file."""
         lcfile = tmp_path / "global-evolution.h5"
@@ -505,6 +544,11 @@ class TestGlobalEvolution:
         assert lcfile.exists()
         GlobalEvolution.from_file(lcfile)
 
+    # The test retains the simple template to check global-command file creation and path
+    # handling; it does not validate the resulting physical signal.
+    @pytest.mark.filterwarnings(
+        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
+    )
     def test_non_existent_path(self, tmp_path):
         """Test that a non-existent output path is OK."""
         lcfile = tmp_path / "new" / "global-evolution.h5"
