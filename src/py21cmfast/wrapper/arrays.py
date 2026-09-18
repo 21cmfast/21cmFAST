@@ -91,6 +91,17 @@ class Array:
     It provides methods for initializing, setting values, removing values, writing to
     disk, and loading from disk while maintaining a consistent state.
 
+    .. note:: One deliberate exception to this immutability: accessing a purged
+              array's data directly (e.g. `arr.mean()`, `np.asarray(arr)`, or any
+              other attribute not defined on this class) - rather than through
+              `OutputStruct.get()` - transparently loads it from disk and, unless
+              `config["CACHE_ARRAYS_ON_ACCESS"]` is set to False, caches the result
+              by mutating `value`, `state` and `cache_backend` on this instance in
+              place (bypassing `frozen=True`). Any other reference to the same
+              `Array` object will observe that mutation. All other methods on this
+              class remain purely functional, returning a new instance rather than
+              mutating `self`.
+
     Attributes
     ----------
     shape
@@ -245,17 +256,21 @@ class Array:
 
     def __array__(self, dtype=None, copy=None) -> np.ndarray:
         """Support `np.asarray(array)` and other numpy-protocol consumers."""
+        # Some numpy versions' np.asarray() don't accept `copy=None`.
+        if copy is None:
+            return np.asarray(self._resolve_value(), dtype=dtype)
         return np.asarray(self._resolve_value(), dtype=dtype, copy=copy)
 
     def __getattr__(self, name: str):
         """Delegate unknown attributes (e.g. `.mean()`, `.sum()`) to the value.
 
-        Leading-underscore names are never delegated, and any failure to resolve
-        the value is raised as `AttributeError` rather than propagated as-is - both
-        so that `hasattr()`, `copy.deepcopy()`, and pickling (which all probe for
-        attributes, including dunder methods, via `getattr`) behave normally on an
-        `Array` that hasn't been computed yet, instead of raising a confusing
-        `ValueError` or triggering an unwanted disk read.
+        Leading-underscore names are never delegated, and a `ValueError` raised
+        while resolving an unresolvable (never computed) value is translated to
+        `AttributeError` - so that `hasattr()`, `copy.deepcopy()`, and pickling
+        (which all probe for attributes, including dunder methods, via `getattr`)
+        behave normally on an `Array` that hasn't been computed yet, instead of
+        raising a confusing `ValueError`. Other failures (e.g. the cache backend
+        itself raising `OSError` while reading a purged array) propagate unchanged.
         """
         if name.startswith("_"):
             raise AttributeError(name)
