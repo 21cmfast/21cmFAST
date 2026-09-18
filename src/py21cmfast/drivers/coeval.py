@@ -995,50 +995,38 @@ def _setup_ics_and_pfs_for_scrolling(
             f"to a value lower than z = {np.amin(all_redshifts)}."
         )
 
-    # If every field this batch needs is already cached, perturb_field() and
-    # determine_halo_catalog() would just do a cache lookup for every z anyway
-    # -- so skip entering those loops at all and read the cached boxes
-    # directly instead.
-    if batch_already_cached:
-        perturbed_field = [
-            resume_cache.get_output_struct_at_z("PerturbedField", z=z)
-            for z in all_redshifts
-        ]
-        halofield_list = (
-            [
-                resume_cache.get_output_struct_at_z("HaloCatalog", z=z)
-                for z in all_redshifts
-            ]
-            if inputs.matter_options.has_discrete_halos
-            else []
-        )
-    else:
-        # Get all the perturb boxes early. We need to get the perturb at every
-        # redshift.
-        perturbed_field = []
+    # Note: we don't need to special-case a fully-cached batch here.
+    # perturb_field()/determine_halo_catalog() each do their own per-z cache
+    # lookup (via single_field_func) before touching any input array data, so
+    # a cache hit is already cheap and never requires initial_conditions'
+    # boxes to be loaded. The only thing that forces an eager load of the ICs
+    # is prepare_for_perturb()/prepare_for_spin_temp() below, which is already
+    # gated on `not batch_already_cached`. Reading the cached boxes directly
+    # here instead would actually be worse for memory in that case: it holds
+    # every PerturbedField/HaloCatalog in the batch fully loaded at once with
+    # no purging, whereas this loop purges each one (via MINIMIZE_MEMORY) as
+    # soon as it's read.
+    perturbed_field = []
+    with _progressbar(disable=not progressbar) as _progbar:
+        for z in _progbar.track(all_redshifts, description="Perturbing Matter Fields"):
+            p = sf.perturb_field(
+                redshift=z,
+                inputs=inputs,
+                write=write.perturbed_field,
+                **kw,
+            )
 
-        with _progressbar(disable=not progressbar) as _progbar:
-            for z in _progbar.track(
-                all_redshifts, description="Perturbing Matter Fields"
-            ):
-                p = sf.perturb_field(
-                    redshift=z,
-                    inputs=inputs,
-                    write=write.perturbed_field,
-                    **kw,
-                )
+            if inputs.matter_options.MINIMIZE_MEMORY and write.perturbed_field:
+                p.purge()
+            perturbed_field.append(p)
 
-                if inputs.matter_options.MINIMIZE_MEMORY and write.perturbed_field:
-                    p.purge()
-                perturbed_field.append(p)
-
-        halofield_list = evolve_halos(
-            inputs=inputs,
-            all_redshifts=all_redshifts,
-            write=write,
-            progressbar=progressbar,
-            **kw,
-        )
+    halofield_list = evolve_halos(
+        inputs=inputs,
+        all_redshifts=all_redshifts,
+        write=write,
+        progressbar=progressbar,
+        **kw,
+    )
 
     # Now we can purge initial_conditions further.
     if write.initial_conditions and not batch_already_cached:
