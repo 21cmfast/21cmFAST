@@ -91,6 +91,17 @@ class Array:
     It provides methods for initializing, setting values, removing values, writing to
     disk, and loading from disk while maintaining a consistent state.
 
+    .. note:: One deliberate exception to this immutability: accessing a purged
+              array's data directly (e.g. `arr.mean()`, `np.asarray(arr)`, or any
+              other attribute not defined on this class) - rather than through
+              `OutputStruct.get()` - transparently loads it from disk and, unless
+              `config["CACHE_ARRAYS_ON_ACCESS"]` is set to False, caches the result
+              by mutating `value`, `state` and `cache_backend` on this instance in
+              place (bypassing `frozen=True`). Any other reference to the same
+              `Array` object will observe that mutation. All other methods on this
+              class remain purely functional, returning a new instance rather than
+              mutating `self`.
+
     Attributes
     ----------
     shape
@@ -189,7 +200,7 @@ class Array:
 
     def purged_to_disk(self, backend: CacheBackend | None) -> Self:
         """Move the array data to disk and return a new object with correct state."""
-        return attrs.evolve(self.written_to_disk(backend), value=None)
+        return self.written_to_disk(backend).without_value()
 
     def loaded_from_disk(self, backend: CacheBackend | None = None) -> Self:
         """Load values for the array from a cache backend, and return a new instance."""
@@ -214,3 +225,59 @@ class Array:
         slc = tuple(slice(0, n) for n in trimmed_shape)
         trimmed_value = self.value[slc]
         return attrs.evolve(self, shape=trimmed_shape, value=trimmed_value)
+
+    def _resolve_value(self) -> np.ndarray:
+        """Return the array's value, transparently loading it from disk if needed.
+
+        If the array was purged to disk, this loads it via `loaded_from_disk()`. If
+        `config["CACHE_ARRAYS_ON_ACCESS"]` is True (the default), the loaded value
+        (and state) is cached directly onto this instance - bypassing the
+        `frozen=True` restriction, the same way every other state-transition method
+        *would* if not for their functional, return-a-new-instance convention - so
+        that repeated access doesn't keep re-reading from disk. Otherwise, this
+        instance is left untouched, and every access re-reads from disk.
+        """
+        if self.value is not None:
+            return self.value
+
+        if not self.state.on_disk and not self.state.initialized:
+            raise ValueError("Array is not on disk and not initialized.")
+
+        from .._cfg import config
+
+        loaded = self.loaded_from_disk()
+
+        if config["CACHE_ARRAYS_ON_ACCESS"]:
+            object.__setattr__(self, "value", loaded.value)
+            object.__setattr__(self, "state", loaded.state)
+            object.__setattr__(self, "cache_backend", loaded.cache_backend)
+
+        return loaded.value
+
+    def __array__(self, dtype=None, copy=None) -> np.ndarray:
+        """Support `np.asarray(array)` and other numpy-protocol consumers."""
+        # Some numpy versions' np.asarray() don't accept `copy=None`.
+        if copy is None:
+            return np.asarray(self._resolve_value(), dtype=dtype)
+        return np.asarray(self._resolve_value(), dtype=dtype, copy=copy)
+
+    def __getattr__(self, name: str):
+        """Delegate unknown attributes (e.g. `.mean()`, `.sum()`) to the value.
+
+        Leading-underscore names are never delegated, and a `ValueError` raised
+        while resolving an unresolvable (never computed) value is translated to
+        `AttributeError` - so that `hasattr()`, `copy.deepcopy()`, and pickling
+        (which all probe for attributes, including dunder methods, via `getattr`)
+        behave normally on an `Array` that hasn't been computed yet, instead of
+        raising a confusing `ValueError`. Other failures (e.g. the cache backend
+        itself raising `OSError` while reading a purged array) propagate unchanged.
+        """
+        if name.startswith("_"):
+            raise AttributeError(name)
+
+        try:
+            value = self._resolve_value()
+        except ValueError as e:
+            raise AttributeError(str(e)) from e
+
+        return getattr(value, name)
