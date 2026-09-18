@@ -995,17 +995,6 @@ def _setup_ics_and_pfs_for_scrolling(
             f"to a value lower than z = {np.amin(all_redshifts)}."
         )
 
-    # Note: we don't need to special-case a fully-cached batch here.
-    # perturb_field()/determine_halo_catalog() each do their own per-z cache
-    # lookup (via single_field_func) before touching any input array data, so
-    # a cache hit is already cheap and never requires initial_conditions'
-    # boxes to be loaded. The only thing that forces an eager load of the ICs
-    # is prepare_for_perturb()/prepare_for_spin_temp() below, which is already
-    # gated on `not batch_already_cached`. Reading the cached boxes directly
-    # here instead would actually be worse for memory in that case: it holds
-    # every PerturbedField/HaloCatalog in the batch fully loaded at once with
-    # no purging, whereas this loop purges each one (via MINIMIZE_MEMORY) as
-    # soon as it's read.
     perturbed_field = []
     with _progressbar(disable=not progressbar) as _progbar:
         for z in _progbar.track(all_redshifts, description="Perturbing Matter Fields"):
