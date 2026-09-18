@@ -5,6 +5,7 @@ These functions are high-level wrappers around C-functions that compute 3D field
 example initial conditions, perturbed fields and ionization fields.
 """
 
+import gc
 import logging
 import warnings
 
@@ -31,7 +32,7 @@ from ._param_config import (
     check_output_consistency,
     single_field_func,
 )
-import gc
+
 logger = logging.getLogger(__name__)
 
 
