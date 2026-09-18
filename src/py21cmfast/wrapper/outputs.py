@@ -930,14 +930,14 @@ class PerturbedHaloCatalog(OutputStructZ):
     halo_masses = _arrayfield()
     halo_coords = _arrayfield()
 
-    sfr = _arrayfield()
-    stellar_masses = _arrayfield()
-    ion_emissivity = _arrayfield()
-    xray_emissivity = _arrayfield(optional=True)
-    fesc_sfr = _arrayfield(optional=True)
+    sfr_acg = _arrayfield()
+    stellar_masses_acg = _arrayfield()
+    n_ion = _arrayfield()
+    xray_luminosity = _arrayfield(optional=True)
+    fesc_weighted_sfr = _arrayfield(optional=True)
 
-    stellar_mini = _arrayfield(optional=True)
-    sfr_mini = _arrayfield(optional=True)
+    stellar_masses_mcg = _arrayfield(optional=True)
+    sfr_mcg = _arrayfield(optional=True)
 
     n_halos: int = attrs.field(default=None)
     buffer_size: int = attrs.field(default=None)
@@ -977,17 +977,17 @@ class PerturbedHaloCatalog(OutputStructZ):
         out = {
             "halo_coords": Array((buffer_size, 3), dtype=np.float32),
             "halo_masses": Array((buffer_size,), dtype=np.float32),
-            "stellar_masses": Array((buffer_size,), dtype=np.float32),
-            "sfr": Array((buffer_size,), dtype=np.float32),
-            "ion_emissivity": Array((buffer_size,), dtype=np.float32),
+            "stellar_masses_acg": Array((buffer_size,), dtype=np.float32),
+            "sfr_acg": Array((buffer_size,), dtype=np.float32),
+            "n_ion": Array((buffer_size,), dtype=np.float32),
         }
         if inputs.astro_options.USE_TS_FLUCT:
-            out["xray_emissivity"] = Array((buffer_size,), dtype=np.float32)
+            out["xray_luminosity"] = Array((buffer_size,), dtype=np.float32)
         if inputs.astro_options.RECOMB_MODEL != "none":
-            out["fesc_sfr"] = Array((buffer_size,), dtype=np.float32)
+            out["fesc_weighted_sfr"] = Array((buffer_size,), dtype=np.float32)
         if inputs.astro_options.USE_MCGS:
-            out["stellar_mini"] = Array((buffer_size,), dtype=np.float32)
-            out["sfr_mini"] = Array((buffer_size,), dtype=np.float32)
+            out["stellar_masses_mcg"] = Array((buffer_size,), dtype=np.float32)
+            out["sfr_mcg"] = Array((buffer_size,), dtype=np.float32)
 
         return cls(
             inputs=inputs,

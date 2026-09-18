@@ -282,7 +282,7 @@ void fill_freqint_tables(double zp, RadiationFieldsSetup *rad_setup, ScalingCons
 // calculate the global properties used for making the frequency integrals,
 //   used for filling factor and NO_LIGHT
 int global_reion_properties(double zp, RadiationFieldsSetup *rad_setup) {
-    double sum_nion = 0, sum_nion_mini = 0;
+    double nion_unconditional_acg = 0, nion_unconditional_mcg = 0;
 
     // For a lot of global evolution, this code uses Nion_general. We can replace this with the halo
     // field at the same snapshot, but the nu integrals go from zp to zpp to find the tau = 1
@@ -316,16 +316,18 @@ int global_reion_properties(double zp, RadiationFieldsSetup *rad_setup) {
     //      see https://github.com/21cmfast/21cmFAST/issues/470. Thus, we use the homogeneous
     //      (feedback-free) ACG turnover mass. It is important to remember to fix this when issue
     //      #470 is fixed!
-    sum_nion = evaluate_nion_unconditional_acg(zp, log10(sc.mturn_acg_homogeneous), &sc);
+    nion_unconditional_acg =
+        evaluate_nion_unconditional_acg(zp, log10(sc.mturn_acg_homogeneous), &sc);
     if (astro_options_global->USE_MCGS) {
-        sum_nion_mini = evaluate_nion_unconditional_mcg(zp, log10(sc.mturn_acg_homogeneous),
-                                                        rad_setup->ave_log10_MturnLW[0], &sc);
+        nion_unconditional_mcg = evaluate_nion_unconditional_mcg(
+            zp, log10(sc.mturn_acg_homogeneous), rad_setup->ave_log10_MturnLW[0], &sc);
     }
 
-    LOG_DEBUG("nion zp = %.3e (%.3e MINI)", sum_nion, sum_nion_mini);
+    LOG_DEBUG("nion zp = %.3e (%.3e MCG)", nion_unconditional_acg, nion_unconditional_mcg);
 
     // NOTE: only used without MASS_DEPENDENT_ZETA
-    rad_setup->Q_HI_zp = 1 - (sum_nion + sum_nion_mini) / (1.0 - rad_setup->x_e_ave_zp);
+    rad_setup->Q_HI_zp =
+        1 - (nion_unconditional_acg + nion_unconditional_mcg) / (1.0 - rad_setup->x_e_ave_zp);
 
     // Initialise freq tables & prefactors (x_e by R tables)
     fill_freqint_tables(zp, rad_setup, &sc);
@@ -333,7 +335,7 @@ int global_reion_properties(double zp, RadiationFieldsSetup *rad_setup) {
     // free the global tables if we used them
     free_unconditional_tables();
 
-    return sum_nion + sum_nion_mini > 1e-15 ? 0 : 1;  // NO_LIGHT returned
+    return nion_unconditional_acg + nion_unconditional_mcg > 1e-15 ? 0 : 1;  // NO_LIGHT returned
 }
 
 /*

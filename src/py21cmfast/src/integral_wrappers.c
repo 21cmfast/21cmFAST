@@ -97,7 +97,8 @@ void get_halomass_at_probability(double redshift, double z_prev, int n_condition
 }
 
 void get_unconditional_sfrd(int n_redshift, double *redshifts, double *log10_turnovers_acg,
-                            double *log10_turnovers_mcg, double *out_sfrd, double *out_sfrd_mini) {
+                            double *log10_turnovers_mcg, double *out_sfrd_acg,
+                            double *out_sfrd_mcg) {
     ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
@@ -115,16 +116,18 @@ void get_unconditional_sfrd(int n_redshift, double *redshifts, double *log10_tur
     }
 
     for (i = 0; i < n_redshift; i++) {
-        out_sfrd[i] = evaluate_sfrd_unconditional_acg(redshifts[i], log10_turnovers_acg[i], &sc);
+        out_sfrd_acg[i] =
+            evaluate_sfrd_unconditional_acg(redshifts[i], log10_turnovers_acg[i], &sc);
         if (astro_options_global->USE_MCGS) {
-            out_sfrd_mini[i] = evaluate_sfrd_unconditional_mcg(redshifts[i], log10_turnovers_acg[i],
-                                                               log10_turnovers_mcg[i], &sc);
+            out_sfrd_mcg[i] = evaluate_sfrd_unconditional_mcg(redshifts[i], log10_turnovers_acg[i],
+                                                              log10_turnovers_mcg[i], &sc);
         }
     }
 }
 
 void get_unconditional_nion(int n_redshift, double *redshifts, double *log10_turnovers_acg,
-                            double *log10_turnovers_mcg, double *out_nion, double *out_nion_mini) {
+                            double *log10_turnovers_mcg, double *out_nion_acg,
+                            double *out_nion_mcg) {
     ScalingConstants sc;
     set_scaling_constants(redshifts[0], &sc, false);
 
@@ -140,10 +143,11 @@ void get_unconditional_nion(int n_redshift, double *redshifts, double *log10_tur
         initialize_nion_unconditional_tables(zpp_interp_points_SFR, z_min, z_max + 0.01, &sc);
     }
     for (i = 0; i < n_redshift; i++) {
-        out_nion[i] = evaluate_nion_unconditional_acg(redshifts[i], log10_turnovers_acg[i], &sc);
+        out_nion_acg[i] =
+            evaluate_nion_unconditional_acg(redshifts[i], log10_turnovers_acg[i], &sc);
         if (astro_options_global->USE_MCGS)
-            out_nion_mini[i] = evaluate_nion_unconditional_mcg(redshifts[i], log10_turnovers_acg[i],
-                                                               log10_turnovers_mcg[i], &sc);
+            out_nion_mcg[i] = evaluate_nion_unconditional_mcg(redshifts[i], log10_turnovers_acg[i],
+                                                              log10_turnovers_mcg[i], &sc);
     }
 }
 
@@ -179,8 +183,8 @@ void get_conditional_fcoll_eps(double redshift, double R, int n_densities, doubl
 }
 
 void get_conditional_sfrd(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturn_acg, double log10_mturn_mcg, double *out_sfrd,
-                          double *out_sfrd_mini) {
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_sfrd_acg,
+                          double *out_sfrd_mcg) {
     double M_min = minimum_source_mass(redshift, true);
     double M_cond = RtoM(R);
     double sigma_cond = evaluate_sigma(log(M_cond));
@@ -210,10 +214,10 @@ void get_conditional_sfrd(double redshift, double R, int n_densities, double *de
                                            &sc);
     }
     for (i = 0; i < n_densities; i++) {
-        out_sfrd[i] = evaluate_sfrd_conditional_acg(densities[i], log10_mturn_acg, growthf, M_min,
-                                                    M_cond, M_cond, sigma_cond, &sc);
+        out_sfrd_acg[i] = evaluate_sfrd_conditional_acg(densities[i], log10_mturn_acg, growthf,
+                                                        M_min, M_cond, M_cond, sigma_cond, &sc);
         if (astro_options_global->USE_MCGS) {
-            out_sfrd_mini[i] =
+            out_sfrd_mcg[i] =
                 evaluate_sfrd_conditional_mcg(densities[i], log10_mturn_acg, log10_mturn_mcg,
                                               growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
         }
@@ -221,8 +225,8 @@ void get_conditional_sfrd(double redshift, double R, int n_densities, double *de
 }
 
 void get_conditional_nion(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturn_acg, double log10_mturn_mcg, double *out_nion,
-                          double *out_nion_mini) {
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_nion_acg,
+                          double *out_nion_mcg) {
     double M_min = minimum_source_mass(redshift, true);
     double M_cond = RtoM(R);
     double sigma_cond = evaluate_sigma(log(M_cond));
@@ -251,13 +255,13 @@ void get_conditional_nion(double redshift, double R, int n_densities, double *de
                                            false);
     }
     for (i = 0; i < n_densities; i++)
-        out_nion[i] = evaluate_nion_conditional_acg(densities[i], log10_mturn_acg, growthf, M_min,
-                                                    M_cond, M_cond, sigma_cond, &sc, false);
+        out_nion_acg[i] = evaluate_nion_conditional_acg(
+            densities[i], log10_mturn_acg, growthf, M_min, M_cond, M_cond, sigma_cond, &sc, false);
     if (astro_options_global->USE_MCGS) {
         for (i = 0; i < n_densities; i++)
-            out_nion_mini[i] = evaluate_nion_conditional_mcg(
-                densities[i], log10_mturn_acg, log10_mturn_mcg, growthf, M_min, M_cond, M_cond,
-                sigma_cond, &sc, false);
+            out_nion_mcg[i] = evaluate_nion_conditional_mcg(densities[i], log10_mturn_acg,
+                                                            log10_mturn_mcg, growthf, M_min, M_cond,
+                                                            M_cond, sigma_cond, &sc, false);
     }
 }
 
@@ -281,7 +285,7 @@ void get_conditional_xray_emissivity(double redshift, double R, int n_densities,
     double min_dens = -1;
     double max_dens = 10;
     double dens;
-    double xray_integral, xray_integral_mini;
+    double xray_integral_acg, xray_integral_mcg;
     for (i = 0; i < n_densities; i++) {
         dens = densities[i];
         if (dens < min_dens) min_dens = dens;
@@ -291,8 +295,8 @@ void get_conditional_xray_emissivity(double redshift, double R, int n_densities,
     double X_RAY_FACTOR = 1e38;
     double X_RAY_FACTOR_MINI = 1e38;
     if (!astro_options_global->USE_METALLICITY) {
-        X_RAY_FACTOR *= sc.l_x;
-        X_RAY_FACTOR_MINI *= sc.l_x_mini;
+        X_RAY_FACTOR *= sc.lx_over_sfr_acg;
+        X_RAY_FACTOR_MINI *= sc.lx_over_sfr_mcg;
     }
 
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
@@ -306,25 +310,25 @@ void get_conditional_xray_emissivity(double redshift, double R, int n_densities,
     }
     for (i = 0; i < n_densities; i++) {
         if (astro_options_global->USE_METALLICITY) {
-            xray_integral = evaluate_xray_emissivity_conditional_acg(
+            xray_integral_acg = evaluate_xray_emissivity_conditional_acg(
                 densities[i], log10_mturn_acg, redshift, growthf, M_min, M_cond, M_cond, sigma_cond,
                 &sc);
         } else {
-            xray_integral = evaluate_sfrd_conditional_acg(densities[i], log10_mturn_acg, growthf,
-                                                          M_min, M_cond, M_cond, sigma_cond, &sc);
+            xray_integral_acg = evaluate_sfrd_conditional_acg(
+                densities[i], log10_mturn_acg, growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
         }
-        out_xray[i] = X_RAY_FACTOR * xray_integral;
+        out_xray[i] = X_RAY_FACTOR * xray_integral_acg;
         if (astro_options_global->USE_MCGS) {
             if (astro_options_global->USE_METALLICITY) {
-                xray_integral_mini = evaluate_xray_emissivity_conditional_mcg(
+                xray_integral_mcg = evaluate_xray_emissivity_conditional_mcg(
                     densities[i], log10_mturn_acg, log10_mturn_mcg, redshift, growthf, M_min,
                     M_cond, M_cond, sigma_cond, &sc);
             } else {
-                xray_integral_mini =
+                xray_integral_mcg =
                     evaluate_sfrd_conditional_mcg(densities[i], log10_mturn_acg, log10_mturn_mcg,
                                                   growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
             }
-            out_xray[i] += X_RAY_FACTOR_MINI * xray_integral_mini;
+            out_xray[i] += X_RAY_FACTOR_MINI * xray_integral_mcg;
         }
     }
 }

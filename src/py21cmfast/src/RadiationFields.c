@@ -29,8 +29,8 @@ void accumulate_radiation_shell(float redshift, RadiationFieldsSetup *rad_setup,
                                 RadiationFields *radiation_fields, int R_ct) {
     index_huge box_ct;
     double z_edge_factor, dzpp, zpp, xray_R_factor;
-    double lya_flux_continuum_prefactor_mini = 0., lya_flux_injected_prefactor_mini = 0.,
-           lya_flux_continuum_injected_prefactor_mini = 0.;
+    double lya_flux_continuum_prefactor_mcg = 0., lya_flux_injected_prefactor_mcg = 0.,
+           lya_flux_continuum_injected_prefactor_mcg = 0.;
 
     zpp = rad_setup->zpp_avg[R_ct];
     if (R_ct == 0) {
@@ -43,13 +43,13 @@ void accumulate_radiation_shell(float redshift, RadiationFieldsSetup *rad_setup,
 
     xray_R_factor = pow(1 + zpp, -(astro_params_global->X_RAY_SPEC_INDEX));
 
-    // minihalo factors should be separated since they may not be allocated
+    // MCG factors should be separated since they may not be allocated
     if (astro_options_global->USE_MCGS) {
         if (astro_options_global->USE_LYA_HEATING) {
-            lya_flux_continuum_prefactor_mini = rad_setup->lya_flux_continuum_prefactor_MINI[R_ct];
-            lya_flux_injected_prefactor_mini = rad_setup->lya_flux_injected_prefactor_MINI[R_ct];
+            lya_flux_continuum_prefactor_mcg = rad_setup->lya_flux_continuum_prefactor_MINI[R_ct];
+            lya_flux_injected_prefactor_mcg = rad_setup->lya_flux_injected_prefactor_MINI[R_ct];
         } else {
-            lya_flux_continuum_injected_prefactor_mini =
+            lya_flux_continuum_injected_prefactor_mcg =
                 rad_setup->lya_flux_continuum_injected_prefactor_MINI[R_ct];
         }
     }
@@ -64,27 +64,29 @@ void accumulate_radiation_shell(float redshift, RadiationFieldsSetup *rad_setup,
         int xidx, freq_table_index;
         double ival;
         double freq_int_heat, freq_int_ion, freq_int_lya;
-        double sfr_term, xray_sfr;
-        double sfr_term_mini = 0;
-        double sfr_term_lw, sfr_term_mini_lw;
+        double sfrd_term_for_lya_acg, xray_emissivity_term;
+        double sfrd_term_for_lya_mcg = 0;
+        double sfrd_term_for_lw_acg, sfrd_term_for_lw_mcg;
         int num_R = astro_params_global->N_STEP_TS;
 #pragma omp for
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
-            sfr_term = rad_setup->filtered_sfrd_acg_for_lya[box_ct] * z_edge_factor;
+            sfrd_term_for_lya_acg = rad_setup->filtered_sfrd_acg_for_lya[box_ct] * z_edge_factor;
             // Minihalos and s->yr conversion are already included here
-            xray_sfr =
+            xray_emissivity_term =
                 rad_setup->filtered_xray_emissivity[box_ct] * z_edge_factor * xray_R_factor * 1e38;
             if (astro_options_global->USE_MCGS && astro_options_global->LYA_MULTIPLE_SCATTERING) {
-                sfr_term_lw = rad_setup->filtered_sfrd_acg_for_lw[box_ct] * z_edge_factor;
+                sfrd_term_for_lw_acg = rad_setup->filtered_sfrd_acg_for_lw[box_ct] * z_edge_factor;
             } else {
-                sfr_term_lw = sfr_term;
+                sfrd_term_for_lw_acg = sfrd_term_for_lya_acg;
             }
             if (astro_options_global->USE_MCGS) {
-                sfr_term_mini = rad_setup->filtered_sfrd_mcg_for_lya[box_ct] * z_edge_factor;
+                sfrd_term_for_lya_mcg =
+                    rad_setup->filtered_sfrd_mcg_for_lya[box_ct] * z_edge_factor;
                 if (astro_options_global->LYA_MULTIPLE_SCATTERING) {
-                    sfr_term_mini_lw = rad_setup->filtered_sfrd_mcg_for_lw[box_ct] * z_edge_factor;
+                    sfrd_term_for_lw_mcg =
+                        rad_setup->filtered_sfrd_mcg_for_lw[box_ct] * z_edge_factor;
                 } else {
-                    sfr_term_mini_lw = sfr_term_mini;
+                    sfrd_term_for_lw_mcg = sfrd_term_for_lya_mcg;
                 }
             }
 
@@ -103,26 +105,26 @@ void accumulate_radiation_shell(float redshift, RadiationFieldsSetup *rad_setup,
             // Evaluate the radiation fields by adding the contribution from this shell
             // (R_ct) This implements trapezoidal integration over the shells
             if (astro_options_global->USE_X_RAY_HEATING) {
-                radiation_fields->xray_heating_rate[box_ct] += xray_sfr * freq_int_heat;
+                radiation_fields->xray_heating_rate[box_ct] += xray_emissivity_term * freq_int_heat;
             }
-            radiation_fields->xray_ionization_rate[box_ct] += xray_sfr * freq_int_ion;
-            radiation_fields->xray_lya_flux[box_ct] += xray_sfr * freq_int_lya;
+            radiation_fields->xray_ionization_rate[box_ct] += xray_emissivity_term * freq_int_ion;
+            radiation_fields->xray_lya_flux[box_ct] += xray_emissivity_term * freq_int_lya;
             if (astro_options_global->USE_MCGS) {
                 radiation_fields->lyw_flux[box_ct] +=
-                    sfr_term_lw * rad_setup->lyw_flux_prefactor[R_ct] +
-                    sfr_term_mini_lw * rad_setup->lyw_flux_prefactor_MINI[R_ct];
+                    sfrd_term_for_lw_acg * rad_setup->lyw_flux_prefactor[R_ct] +
+                    sfrd_term_for_lw_mcg * rad_setup->lyw_flux_prefactor_MINI[R_ct];
             }
             if (astro_options_global->USE_LYA_HEATING) {
                 radiation_fields->lya_flux_continuum[box_ct] +=
-                    sfr_term * rad_setup->lya_flux_continuum_prefactor[R_ct] +
-                    sfr_term_mini * lya_flux_continuum_prefactor_mini;
+                    sfrd_term_for_lya_acg * rad_setup->lya_flux_continuum_prefactor[R_ct] +
+                    sfrd_term_for_lya_mcg * lya_flux_continuum_prefactor_mcg;
                 radiation_fields->lya_flux_injected[box_ct] +=
-                    sfr_term * rad_setup->lya_flux_injected_prefactor[R_ct] +
-                    sfr_term_mini * lya_flux_injected_prefactor_mini;
+                    sfrd_term_for_lya_acg * rad_setup->lya_flux_injected_prefactor[R_ct] +
+                    sfrd_term_for_lya_mcg * lya_flux_injected_prefactor_mcg;
             } else {
                 radiation_fields->lya_flux_continuum_injected[box_ct] +=
-                    sfr_term * rad_setup->lya_flux_continuum_injected_prefactor[R_ct] +
-                    sfr_term_mini * lya_flux_continuum_injected_prefactor_mini;
+                    sfrd_term_for_lya_acg * rad_setup->lya_flux_continuum_injected_prefactor[R_ct] +
+                    sfrd_term_for_lya_mcg * lya_flux_continuum_injected_prefactor_mcg;
             }
         }
     }
@@ -307,8 +309,8 @@ int UpdateRadiationFields(float redshift, EmissivityFields *emissivity_fields, i
         // done, see comment below
         if (R_ct == astro_params_global->N_STEP_TS - 1) LOG_DEBUG("starting RadiationFields");
 
-        double sfr_avg, fsfr_avg, sfr_avg_mini = 0., fsfr_avg_mini = 0.;
-        double xray_avg, fxray_avg;
+        double sfrd_avg_acg, filtered_sfrd_avg_acg, sfrd_avg_mcg = 0., filtered_sfrd_avg_mcg = 0.;
+        double xray_emissivity_avg, filtered_xray_emissivity_avg;
         int lya_filter_type = astro_options_global->LYA_MULTIPLE_SCATTERING
                                   ? FILTER_SPHERICAL_SHELL_MULTIPLE_SCATTERING
                                   : FILTER_SPHERICAL_SHELL_STRAIGHT_LINE;
@@ -317,33 +319,34 @@ int UpdateRadiationFields(float redshift, EmissivityFields *emissivity_fields, i
         double R_outer = rad_setup->R_values[R_ct];
 
         one_shell_filter(emissivity_fields->sfrd_acg, rad_setup->filtered_sfrd_acg_for_lya, R_inner,
-                         R_outer, R_star, lya_filter_type, &sfr_avg, &fsfr_avg);
+                         R_outer, R_star, lya_filter_type, &sfrd_avg_acg, &filtered_sfrd_avg_acg);
         one_shell_filter(emissivity_fields->xray_emissivity, rad_setup->filtered_xray_emissivity,
-                         R_inner, R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE, &xray_avg,
-                         &fxray_avg);
+                         R_inner, R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE,
+                         &xray_emissivity_avg, &filtered_xray_emissivity_avg);
         if (astro_options_global->USE_MCGS) {
             one_shell_filter(emissivity_fields->sfrd_mcg, rad_setup->filtered_sfrd_mcg_for_lya,
-                             R_inner, R_outer, R_star, lya_filter_type, &sfr_avg_mini,
-                             &fsfr_avg_mini);
+                             R_inner, R_outer, R_star, lya_filter_type, &sfrd_avg_mcg,
+                             &filtered_sfrd_avg_mcg);
             // In case of multiple scattering and mini-halos, we need to filter the SFRD
             // fields again for the the LW feedback, as these photons travel in straight
             // lines
             if (astro_options_global->LYA_MULTIPLE_SCATTERING) {
                 one_shell_filter(emissivity_fields->sfrd_acg, rad_setup->filtered_sfrd_acg_for_lw,
                                  R_inner, R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE,
-                                 &sfr_avg, &fsfr_avg);
+                                 &sfrd_avg_acg, &filtered_sfrd_avg_acg);
                 one_shell_filter(emissivity_fields->sfrd_mcg, rad_setup->filtered_sfrd_mcg_for_lw,
                                  R_inner, R_outer, R_star, FILTER_SPHERICAL_SHELL_STRAIGHT_LINE,
-                                 &sfr_avg_mini, &fsfr_avg_mini);
+                                 &sfrd_avg_mcg, &filtered_sfrd_avg_mcg);
             }
         }
 
-        LOG_SUPER_DEBUG("R = [%8.3f - %8.3f] | mean filtered sfr  = %10.3e unfiltered %10.3e",
-                        R_inner, R_outer, fsfr_avg, sfr_avg);
-        LOG_ULTRA_DEBUG("mean filtered xray = %10.3e unfiltered %10.3e", fxray_avg, xray_avg);
+        LOG_SUPER_DEBUG("R = [%8.3f - %8.3f] | mean filtered sfrd  = %10.3e unfiltered %10.3e",
+                        R_inner, R_outer, filtered_sfrd_avg_acg, sfrd_avg_acg);
+        LOG_ULTRA_DEBUG("mean filtered xray emissivity = %10.3e unfiltered %10.3e",
+                        filtered_xray_emissivity_avg, xray_emissivity_avg);
         if (astro_options_global->USE_MCGS) {
-            LOG_SUPER_DEBUG("MCGS: filtered sfr %10.3e unfiltered %10.3e", fsfr_avg_mini,
-                            sfr_avg_mini);
+            LOG_SUPER_DEBUG("MCGS: filtered sfrd %10.3e unfiltered %10.3e", filtered_sfrd_avg_mcg,
+                            sfrd_avg_mcg);
         }
 
         // Given the filtered emissivities, we accumulate the contribution of this shell to

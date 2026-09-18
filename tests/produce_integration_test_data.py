@@ -88,7 +88,7 @@ OPTIONS_TESTRUNS = {
         18,
         {"SOURCE_MODEL": "CONST-ION-EFF"},
     ],
-    "mini": [
+    "mcgs": [
         18,
         {
             "USE_MCGS": True,
@@ -105,7 +105,7 @@ OPTIONS_TESTRUNS = {
             "USE_REIONIZATION_PHOTOHEATING_FEEDBACK": True,
         },
     ],
-    "mini_gamma_approx": [
+    "mcgs_gamma_approx": [
         18,
         {
             "USE_MCGS": True,
@@ -173,7 +173,7 @@ OPTIONS_TESTRUNS = {
             "SOURCE_MODEL": "L-INTEGRAL",
         },
     ],
-    "sampler_mini": [
+    "sampler_mcgs": [
         18,
         {
             "SOURCE_MODEL": "CHMF-SAMPLER",
@@ -258,7 +258,7 @@ OPTIONS_TESTRUNS = {
             "USE_TS_FLUCT": True,
         },
     ],
-    "multiple_scattering_mini": [
+    "multiple_scattering_mcgs": [
         18,
         {
             "LYA_MULTIPLE_SCATTERING": True,

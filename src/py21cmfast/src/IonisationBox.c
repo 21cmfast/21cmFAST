@@ -51,7 +51,7 @@ struct IonBoxConstants {
     bool mass_dep_zeta;
     bool filter_recombinations;
     bool lagrangian_source_grids;
-    bool need_minihalo_nion;
+    bool need_mcgs_nion;
     int hii_filter;
 
     // astro parameters
@@ -94,8 +94,8 @@ struct RadiusSpec {
     int R_index;
 
     // calculated within the loop
-    double nion_conditional_ave;
-    double nion_conditional_ave_mini;
+    double nion_conditional_ave_acg;
+    double nion_conditional_ave_mcg;
 };
 
 // this struct should hold all the pointers to grids which need to be filtered
@@ -148,7 +148,7 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
     consts->lagrangian_source_grids =
         source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL);
     consts->fix_mean = !consts->lagrangian_source_grids;  // for now, opposite of above
-    consts->need_minihalo_nion = !consts->lagrangian_source_grids && astro_options_global->USE_MCGS;
+    consts->need_mcgs_nion = !consts->lagrangian_source_grids && astro_options_global->USE_MCGS;
     consts->filter_recombinations = uses_recombination(astro_options_global->RECOMB_MODEL) &&
                                     !astro_options_global->CELL_RECOMB;
 
@@ -169,9 +169,10 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
     consts->mfp_meandens = 25.483241248322766 / cosmo_params_global->hlittle;
 
     // set the nion prefactors (to retrieve the "collapsed fraction")
-    consts->nion_prefactor_acg = consts->mass_dep_zeta ? sc.fstar_10 * sc.fesc_10 * sc.pop2_ion
-                                                       : astro_params_global->HII_EFF_FACTOR;
-    consts->nion_prefactor_mcg = sc.fstar_7 * sc.fesc_7 * sc.pop3_ion;
+    consts->nion_prefactor_acg = consts->mass_dep_zeta
+                                     ? sc.fstar_10_acg * sc.fesc_10_acg * sc.pop2_ion
+                                     : astro_params_global->HII_EFF_FACTOR;
+    consts->nion_prefactor_mcg = sc.fstar_7_mcg * sc.fesc_7_mcg * sc.pop3_ion;
 
     // set the minimum source mass
     consts->M_min = minimum_source_mass(redshift, false);
@@ -471,9 +472,9 @@ void calculate_mcrit_boxes(IonizedBox *prev_ionbox, TsBox *spin_temp, InitialCon
 void set_unconditional_nion(struct IonBoxConstants *c, IonizedBox *prev_box, IonizedBox *curr_box,
                             double mturn_acg, double mturn_mcg, double *nion_limit_acg,
                             double *nion_limit_mcg) {
-    double nion_curr = 0., nion_prev = 0., nion_curr_mini = 0., nion_prev_mini = 0.;
+    double nion_curr_acg = 0., nion_prev_acg = 0., nion_curr_mcg = 0., nion_prev_mcg = 0.;
     ScalingConstants *sc_ptr = &(c->scale_consts);
-    nion_curr = nion_unconditional_acg(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
+    nion_curr_acg = nion_unconditional_acg(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg, sc_ptr);
     *nion_limit_acg = nion_unconditional_acg(simulation_options_global->Z_HEAT_MAX, c->lnMmin,
                                              c->lnMmax_gl, mturn_acg, sc_ptr);
 
@@ -481,34 +482,34 @@ void set_unconditional_nion(struct IonBoxConstants *c, IonizedBox *prev_box, Ion
         if (prev_box->nion_unconditional_acg < 1e-4) {
             // we don't have enough ionising radiation in the previous snapshot, just take the
             // current value
-            curr_box->nion_unconditional_acg = nion_curr;
+            curr_box->nion_unconditional_acg = nion_curr_acg;
         } else {
-            nion_prev = nion_unconditional_acg(c->prev_redshift, c->lnMmin, c->lnMmax_gl, mturn_acg,
-                                               sc_ptr);
+            nion_prev_acg = nion_unconditional_acg(c->prev_redshift, c->lnMmin, c->lnMmax_gl,
+                                                   mturn_acg, sc_ptr);
             curr_box->nion_unconditional_acg =
-                prev_box->nion_unconditional_acg + nion_curr - nion_prev;
+                prev_box->nion_unconditional_acg + nion_curr_acg - nion_prev_acg;
         }
-        nion_curr_mini = nion_unconditional_mcg(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg,
-                                                mturn_mcg, sc_ptr);
+        nion_curr_mcg = nion_unconditional_mcg(c->redshift, c->lnMmin, c->lnMmax_gl, mturn_acg,
+                                               mturn_mcg, sc_ptr);
         if (prev_box->nion_unconditional_mcg < 1e-4) {
-            curr_box->nion_unconditional_mcg = nion_curr_mini;
+            curr_box->nion_unconditional_mcg = nion_curr_mcg;
         } else {
-            nion_prev_mini = nion_unconditional_mcg(c->prev_redshift, c->lnMmin, c->lnMmax_gl,
-                                                    mturn_acg, mturn_mcg, sc_ptr);
+            nion_prev_mcg = nion_unconditional_mcg(c->prev_redshift, c->lnMmin, c->lnMmax_gl,
+                                                   mturn_acg, mturn_mcg, sc_ptr);
             curr_box->nion_unconditional_mcg =
-                prev_box->nion_unconditional_mcg + nion_curr_mini - nion_prev_mini;
+                prev_box->nion_unconditional_mcg + nion_curr_mcg - nion_prev_mcg;
         }
         *nion_limit_mcg = nion_unconditional_mcg(simulation_options_global->Z_HEAT_MAX, c->lnMmin,
                                                  c->lnMmax_gl, mturn_acg, mturn_mcg, sc_ptr);
     } else {
-        curr_box->nion_unconditional_acg = nion_curr;
+        curr_box->nion_unconditional_acg = nion_curr_acg;
         curr_box->nion_unconditional_mcg = 0.;
     }
 
     if (isfinite(curr_box->nion_unconditional_acg) == 0 || curr_box->nion_unconditional_acg < 0) {
         LOG_ERROR("Unconditional N_ion is invalid");
         LOG_ERROR("prev box %g prev intgrl %g curr intrgl %g --> %g",
-                  prev_box->nion_unconditional_acg, nion_prev, nion_curr,
+                  prev_box->nion_unconditional_acg, nion_prev_acg, nion_curr_acg,
                   curr_box->nion_unconditional_acg);
         Throw(InfinityorNaNError);
     }
@@ -520,7 +521,7 @@ void set_unconditional_nion(struct IonBoxConstants *c, IonizedBox *prev_box, Ion
             curr_box->nion_unconditional_mcg < 0) {
             LOG_ERROR("Unconditional N_ion is invalid");
             LOG_ERROR("prev box %g prev intgrl %g curr intrgl %g --> %g",
-                      prev_box->nion_unconditional_mcg, nion_prev_mini, nion_curr_mini,
+                      prev_box->nion_unconditional_mcg, nion_prev_mcg, nion_curr_mcg,
                       curr_box->nion_unconditional_mcg);
             Throw(InfinityorNaNError);
         }
@@ -765,27 +766,27 @@ void setup_integration_tables(struct FilteredGrids *fg_struct, struct IonBoxCons
 void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box,
                                 struct FilteredGrids *fg_struct, struct IonBoxConstants *consts,
                                 struct RadiusSpec *rspec) {
-    double nion_total = 0., nion_total_mini = 0.;
+    double nion_total_acg = 0., nion_total_mcg = 0.;
     // TODO: make proper error tracking through the parallel region
     bool error_flag;
     ScalingConstants *sc_ptr = &(consts->scale_consts);
 
     int fc_r_idx;
-    fc_r_idx = consts->need_minihalo_nion ? rspec->R_index : 0;
+    fc_r_idx = consts->need_mcgs_nion ? rspec->R_index : 0;
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                       HII_D_PARA};
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int x, y, z;
         double curr_dens;
-        double nion_conditional, nion_conditional_mini;
+        double nion_conditional_acg, nion_conditional_mcg;
         double log10_mturn_acg, log10_mturn_mcg;
-        double prev_dens = 0, prev_nion_conditional = 0., prev_nion_conditional_mini = 0.;
+        double prev_dens = 0, prev_nion_conditional_acg = 0., prev_nion_conditional_mcg = 0.;
         log10_mturn_acg = log10(
             consts->scale_consts.mturn_acg_homogeneous);  // used if we don't apply inhomogeneous
                                                           // reionization feedback on ACGS
         index_huge index_r, index_f;
-#pragma omp for reduction(+ : nion_total, nion_total_mini)
+#pragma omp for reduction(+ : nion_total_acg, nion_total_mcg)
         for (x = 0; x < box_dim[0]; x++) {
             for (y = 0; y < box_dim[1]; y++) {
                 for (z = 0; z < box_dim[2]; z++) {
@@ -820,14 +821,14 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                         }
 
                         // Ionising photon output
-                        nion_conditional = *((float *)fg_struct->stars_filtered + index_f);
+                        nion_conditional_acg = *((float *)fg_struct->stars_filtered + index_f);
                         // Minihalos are taken care of already
-                        nion_conditional_mini = 0.;
+                        nion_conditional_mcg = 0.;
                         // The smoothing done with minihalos corrects for sudden changes in M_crit
                         // Nion_smoothed(z,Mcrit) = Nion(z,Mcrit) + (Nion(z_prev,Mcrit_prev) -
                         // Nion(z_prev,Mcrit))
-                        prev_nion_conditional = 0.;
-                        prev_nion_conditional_mini = 0.;
+                        prev_nion_conditional_acg = 0.;
+                        prev_nion_conditional_mcg = 0.;
                     } else {
                         curr_dens = *((float *)fg_struct->deltax_filtered + index_f);
                         if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
@@ -838,7 +839,7 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                             log10_mturn_mcg =
                                 *((float *)fg_struct->log10_mturn_mcg_grid_filtered + index_f);
 
-                            nion_conditional_mini = evaluate_nion_conditional_mcg(
+                            nion_conditional_mcg = evaluate_nion_conditional_mcg(
                                 curr_dens, log10_mturn_acg, log10_mturn_mcg, consts->growth_factor,
                                 consts->M_min, rspec->M_max_R, rspec->M_max_R, rspec->sigma_maxmass,
                                 sc_ptr, false);
@@ -847,20 +848,20 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                                     previous_ionize_box->nion_unconditional_acg >
                                 1e-4) {
                                 prev_dens = *((float *)fg_struct->prev_deltax_filtered + index_f);
-                                prev_nion_conditional = evaluate_nion_conditional_acg(
+                                prev_nion_conditional_acg = evaluate_nion_conditional_acg(
                                     prev_dens, log10_mturn_acg, consts->prev_growth_factor,
                                     consts->M_min, rspec->M_max_R, rspec->M_max_R,
                                     rspec->sigma_maxmass, sc_ptr, true);
-                                prev_nion_conditional_mini = evaluate_nion_conditional_mcg(
+                                prev_nion_conditional_mcg = evaluate_nion_conditional_mcg(
                                     prev_dens, log10_mturn_acg, log10_mturn_mcg,
                                     consts->prev_growth_factor, consts->M_min, rspec->M_max_R,
                                     rspec->M_max_R, rspec->sigma_maxmass, sc_ptr, true);
                             } else {
-                                prev_nion_conditional = 0.;
-                                prev_nion_conditional_mini = 0.;
+                                prev_nion_conditional_acg = 0.;
+                                prev_nion_conditional_mcg = 0.;
                             }
                         }
-                        nion_conditional = evaluate_nion_conditional_acg(
+                        nion_conditional_acg = evaluate_nion_conditional_acg(
                             curr_dens, log10_mturn_acg, consts->growth_factor, consts->M_min,
                             rspec->M_max_R, rspec->M_max_R, rspec->sigma_maxmass, sc_ptr, false);
                     }
@@ -868,19 +869,19 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                     // TODO: each of these grids are clipped before filtering, after filtering,
                     //  after the N_ion integration, and after trapezoidal integration here
                     //  we should figure which of these clips are necessary/useful
-                    if (consts->need_minihalo_nion) {
-                        if (nion_conditional > consts->nion_prefactor_acg)
-                            nion_conditional = consts->nion_prefactor_acg;
-                        if (nion_conditional < 0.) nion_conditional = 1e-40;
-                        if (prev_nion_conditional > consts->nion_prefactor_acg)
-                            prev_nion_conditional = consts->nion_prefactor_acg;
-                        if (prev_nion_conditional < 0.) prev_nion_conditional = 1e-40;
+                    if (consts->need_mcgs_nion) {
+                        if (nion_conditional_acg > consts->nion_prefactor_acg)
+                            nion_conditional_acg = consts->nion_prefactor_acg;
+                        if (nion_conditional_acg < 0.) nion_conditional_acg = 1e-40;
+                        if (prev_nion_conditional_acg > consts->nion_prefactor_acg)
+                            prev_nion_conditional_acg = consts->nion_prefactor_acg;
+                        if (prev_nion_conditional_acg < 0.) prev_nion_conditional_acg = 1e-40;
                         box->nion_conditional_filtered_acg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                            index_r] =
                             previous_ionize_box
                                 ->nion_conditional_filtered_acg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                 index_r] +
-                            nion_conditional - prev_nion_conditional;
+                            nion_conditional_acg - prev_nion_conditional_acg;
 
                         if (box->nion_conditional_filtered_acg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                index_r] >
@@ -888,10 +889,10 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                             box->nion_conditional_filtered_acg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                index_r] =
                                 consts->nion_prefactor_acg;
-                        nion_total +=
+                        nion_total_acg +=
                             box->nion_conditional_filtered_acg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                index_r];
-                        if (isfinite(nion_total) == 0) {
+                        if (isfinite(nion_total_acg) == 0) {
                             LOG_ERROR(
                                 "N_ion is either infinite or NaN! %d %g (%d,%d,%d)?: dens %g, "
                                 "prev %g",
@@ -901,19 +902,19 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                                 previous_ionize_box
                                     ->nion_conditional_filtered_acg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                     index_r],
-                                prev_nion_conditional, nion_conditional,
+                                prev_nion_conditional_acg, nion_conditional_acg,
                                 box->nion_conditional_filtered_acg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                    index_r],
                                 log10_mturn_acg,
                                 *((float *)fg_struct->log10_mturn_mcg_grid_filtered + index_f));
                         }
 
-                        if (nion_conditional_mini > consts->nion_prefactor_mcg)
-                            nion_conditional_mini = consts->nion_prefactor_mcg;
-                        if (nion_conditional_mini < 0.) nion_conditional_mini = 1e-40;
-                        if (prev_nion_conditional_mini > consts->nion_prefactor_mcg)
-                            prev_nion_conditional_mini = consts->nion_prefactor_mcg;
-                        if (prev_nion_conditional_mini < 0.) prev_nion_conditional_mini = 1e-40;
+                        if (nion_conditional_mcg > consts->nion_prefactor_mcg)
+                            nion_conditional_mcg = consts->nion_prefactor_mcg;
+                        if (nion_conditional_mcg < 0.) nion_conditional_mcg = 1e-40;
+                        if (prev_nion_conditional_mcg > consts->nion_prefactor_mcg)
+                            prev_nion_conditional_mcg = consts->nion_prefactor_mcg;
+                        if (prev_nion_conditional_mcg < 0.) prev_nion_conditional_mcg = 1e-40;
                         // TODO: this formatting is awful, try separating the clipping/errors
                         //  into its own loop
                         box->nion_conditional_filtered_mcg[fc_r_idx * HII_TOT_NUM_PIXELS +
@@ -921,7 +922,7 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                             previous_ionize_box
                                 ->nion_conditional_filtered_mcg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                 index_r] +
-                            nion_conditional_mini - prev_nion_conditional_mini;
+                            nion_conditional_mcg - prev_nion_conditional_mcg;
 
                         if (box->nion_conditional_filtered_mcg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                index_r] >
@@ -929,10 +930,10 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                             box->nion_conditional_filtered_mcg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                index_r] =
                                 consts->nion_prefactor_mcg;
-                        nion_total_mini +=
+                        nion_total_mcg +=
                             box->nion_conditional_filtered_mcg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                index_r];
-                        if (isfinite(nion_total_mini) == 0) {
+                        if (isfinite(nion_total_mcg) == 0) {
                             LOG_ERROR(
                                 "N_ion_MINI is either infinite or NaN %d R=%g (%d,%d,%d)?: dens "
                                 "%g, prev %g",
@@ -942,7 +943,7 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                                 previous_ionize_box
                                     ->nion_conditional_filtered_mcg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                     index_r],
-                                prev_nion_conditional_mini, nion_conditional_mini,
+                                prev_nion_conditional_mcg, nion_conditional_mcg,
                                 box->nion_conditional_filtered_mcg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                    index_r],
                                 log10_mturn_mcg,
@@ -952,16 +953,16 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                     } else {
                         if (!consts->lagrangian_source_grids) {
                             box->nion_conditional_filtered_acg[fc_r_idx * HII_TOT_NUM_PIXELS +
-                                                               index_r] = nion_conditional;
+                                                               index_r] = nion_conditional_acg;
                         }
-                        nion_total += nion_conditional;
+                        nion_total_acg += nion_conditional_acg;
                     }
                 }
             }
         }
     }  //  end loop through conditional N_ion box
-    rspec->nion_conditional_ave = nion_total / HII_TOT_NUM_PIXELS;
-    rspec->nion_conditional_ave_mini = nion_total_mini / HII_TOT_NUM_PIXELS;
+    rspec->nion_conditional_ave_acg = nion_total_acg / HII_TOT_NUM_PIXELS;
+    rspec->nion_conditional_ave_mcg = nion_total_mcg / HII_TOT_NUM_PIXELS;
 }
 
 int setup_radii(struct RadiusSpec **rspec_array, struct IonBoxConstants *consts) {
@@ -1016,17 +1017,18 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
     double mean_fix_term_acg = 1.;
     double mean_fix_term_mcg = 1.;
     int fc_r_idx;
-    fc_r_idx = consts->need_minihalo_nion ? rspec.R_index : 0;
+    fc_r_idx = consts->need_mcgs_nion ? rspec.R_index : 0;
 
     LOG_SUPER_DEBUG(
         "Unconditional N_ion ACG (MCG) %.3e (%.3e) box mean N_ion %.3e (%.3e) ratio %.3e (%.3e)",
-        box->nion_unconditional_acg, box->nion_unconditional_mcg, rspec.nion_conditional_ave,
-        rspec.nion_conditional_ave_mini, box->nion_unconditional_acg / rspec.nion_conditional_ave,
-        box->nion_unconditional_mcg / rspec.nion_conditional_ave_mini);
+        box->nion_unconditional_acg, box->nion_unconditional_mcg, rspec.nion_conditional_ave_acg,
+        rspec.nion_conditional_ave_mcg,
+        box->nion_unconditional_acg / rspec.nion_conditional_ave_acg,
+        box->nion_unconditional_mcg / rspec.nion_conditional_ave_mcg);
     if (consts->fix_mean) {
-        mean_fix_term_acg = box->nion_unconditional_acg / rspec.nion_conditional_ave;
+        mean_fix_term_acg = box->nion_unconditional_acg / rspec.nion_conditional_ave_acg;
         if (astro_options_global->USE_MCGS) {
-            mean_fix_term_mcg = box->nion_unconditional_mcg / rspec.nion_conditional_ave_mini;
+            mean_fix_term_mcg = box->nion_unconditional_mcg / rspec.nion_conditional_ave_mcg;
         }
     }
     int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
@@ -1035,7 +1037,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         int x, y, z;
-        double curr_dens, curr_nion, curr_nion_mini;
+        double curr_dens, curr_nion_acg, curr_nion_mcg;
         double rec, xHII_from_xrays, res_xH;
         index_huge index_r, index_f, index_rec;
 #pragma omp for
@@ -1056,33 +1058,33 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         curr_dens = *((float *)fg_struct->deltax_filtered + index_f);
 
                     if (consts->lagrangian_source_grids) {
-                        curr_nion = *((float *)fg_struct->stars_filtered + index_f);
+                        curr_nion_acg = *((float *)fg_struct->stars_filtered + index_f);
                     } else {
-                        curr_nion =
+                        curr_nion_acg =
                             box->nion_conditional_filtered_acg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                index_r];
                     }
-                    curr_nion = mean_fix_term_acg * curr_nion;
+                    curr_nion_acg = mean_fix_term_acg * curr_nion_acg;
 
                     // Since the emissivity fields give ionising photon output, this term accounts
                     // for the local density of absorbers
                     //   We have separated the source/absorber filtering in the halo model so this
                     //   is necessary
-                    if (consts->lagrangian_source_grids) curr_nion *= 1 / (1 + curr_dens);
+                    if (consts->lagrangian_source_grids) curr_nion_acg *= 1 / (1 + curr_dens);
 
-                    // MINIHALOS are already included in the halo model
-                    curr_nion_mini = 0.;
-                    if (consts->need_minihalo_nion) {
-                        curr_nion_mini =
+                    // MCGs are already included in the halo model
+                    curr_nion_mcg = 0.;
+                    if (consts->need_mcgs_nion) {
+                        curr_nion_mcg =
                             box->nion_conditional_filtered_mcg[fc_r_idx * HII_TOT_NUM_PIXELS +
                                                                index_r];
-                        curr_nion_mini = mean_fix_term_mcg * curr_nion_mini;
+                        curr_nion_mcg = mean_fix_term_mcg * curr_nion_mcg;
                     }
 
                     if (consts->mass_dep_zeta) {
-                        if (curr_nion < nion_limit_acg) curr_nion = nion_limit_acg;
+                        if (curr_nion_acg < nion_limit_acg) curr_nion_acg = nion_limit_acg;
                         if (astro_options_global->USE_MCGS) {
-                            if (curr_nion_mini < nion_limit_mcg) curr_nion_mini = nion_limit_mcg;
+                            if (curr_nion_mcg < nion_limit_mcg) curr_nion_mcg = nion_limit_mcg;
                         }
                     }
 
@@ -1115,12 +1117,12 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                     if (x + y + z == 0) {
                         LOG_SUPER_DEBUG(
                             "Cell 0: R=%.1f | d %.4e | N_ion %.4e (%.4e) | rec %.4e | X %.4e",
-                            rspec.R, curr_dens, curr_nion, curr_nion_mini, rec, xHII_from_xrays);
+                            rspec.R, curr_dens, curr_nion_acg, curr_nion_mcg, rec, xHII_from_xrays);
                     }
 #endif
 
                     // check if fully ionized!
-                    if ((curr_nion + curr_nion_mini >
+                    if ((curr_nion_acg + curr_nion_mcg >
                          (1. - xHII_from_xrays) * (1.0 + rec))) {  // IONIZED!!
                         // if this is the first crossing of the ionization barrier for this cell
                         // (largest R), record the gamma this assumes photon-starved growth of HII
@@ -1134,7 +1136,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                             } else {
                                 box->ionisation_rate_G12[index_r] = rspec.R *
                                                                     consts->gamma_prefactor *
-                                                                    (curr_nion + curr_nion_mini);
+                                                                    (curr_nion_acg + curr_nion_mcg);
                             }
                             if (!matter_options_global->MINIMIZE_MEMORY) {
                                 box->mean_free_path[index_r] = rspec.R;
@@ -1166,7 +1168,7 @@ void find_ionised_regions(IonizedBox *box, IonizedBox *previous_ionize_box,
                         //   Poisson/<Poisson> term if 1/5 < M_coll / M_min < 5. This only ever
                         //   affected the old parametrisation due to the M_min term.
 
-                        res_xH = 1. - curr_nion - curr_nion_mini;
+                        res_xH = 1. - curr_nion_acg - curr_nion_mcg;
                         // put the partial ionization here because we need to exclude
                         // xHII_from_xrays...
                         if (!matter_options_global->MINIMIZE_MEMORY) {
@@ -1560,15 +1562,15 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                 // setting the *total* to the minimum for the adjustment factor,
                 // then clipping the grid in the loop below?
                 if (ionbox_constants.mass_dep_zeta) {
-                    if (curr_radius.nion_conditional_ave <= nion_limit_acg)
-                        curr_radius.nion_conditional_ave = nion_limit_acg;
+                    if (curr_radius.nion_conditional_ave_acg <= nion_limit_acg)
+                        curr_radius.nion_conditional_ave_acg = nion_limit_acg;
                     if (astro_options_global->USE_MCGS) {
-                        if (curr_radius.nion_conditional_ave_mini <= nion_limit_mcg)
-                            curr_radius.nion_conditional_ave_mini = nion_limit_mcg;
+                        if (curr_radius.nion_conditional_ave_mcg <= nion_limit_mcg)
+                            curr_radius.nion_conditional_ave_mcg = nion_limit_mcg;
                     }
                 } else {
-                    if (curr_radius.nion_conditional_ave <= FRACT_FLOAT_ERR)
-                        curr_radius.nion_conditional_ave = FRACT_FLOAT_ERR;
+                    if (curr_radius.nion_conditional_ave_acg <= FRACT_FLOAT_ERR)
+                        curr_radius.nion_conditional_ave_acg = FRACT_FLOAT_ERR;
                 }
 
                 find_ionised_regions(box, previous_ionize_box, perturbed_field, spin_temp,
@@ -1619,8 +1621,8 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
             if (!ionbox_constants.fix_mean) {
                 // if we don't fix the mean, make the nion_unconditional in the output reflect the
                 // box since currently it is the global expected mean from the Unconditional MF
-                box->nion_unconditional_acg = curr_radius.nion_conditional_ave;
-                box->nion_unconditional_mcg = curr_radius.nion_conditional_ave_mini;
+                box->nion_unconditional_acg = curr_radius.nion_conditional_ave_acg;
+                box->nion_unconditional_mcg = curr_radius.nion_conditional_ave_mcg;
             }
 
             fftwf_cleanup_threads();

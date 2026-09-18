@@ -213,29 +213,29 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
     assert isinstance(pert_halo_cat.halo_coords, Array)
     assert isinstance(pert_halo_cat.halo_masses, Array)
     assert isinstance(pert_halo_cat.halo_coords, Array)
-    assert isinstance(pert_halo_cat.stellar_masses, Array)
-    assert isinstance(pert_halo_cat.ion_emissivity, Array)
-    assert pert_halo_cat.xray_emissivity is None
-    assert pert_halo_cat.fesc_sfr is None
-    assert pert_halo_cat.stellar_mini is None
-    assert pert_halo_cat.sfr_mini is None
+    assert isinstance(pert_halo_cat.stellar_masses_acg, Array)
+    assert isinstance(pert_halo_cat.n_ion, Array)
+    assert pert_halo_cat.xray_luminosity is None
+    assert pert_halo_cat.fesc_weighted_sfr is None
+    assert pert_halo_cat.stellar_masses_mcg is None
+    assert pert_halo_cat.sfr_mcg is None
 
     inputs = default_input_struct_lc.evolve_input_structs(USE_TS_FLUCT=True)
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
-    assert isinstance(pert_halo_cat.xray_emissivity, Array)
+    assert isinstance(pert_halo_cat.xray_luminosity, Array)
     inputs = inputs.evolve_input_structs(RECOMB_MODEL="inhomogeneous")
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
-    assert isinstance(pert_halo_cat.fesc_sfr, Array)
+    assert isinstance(pert_halo_cat.fesc_weighted_sfr, Array)
     inputs = inputs.evolve_input_structs(USE_MCGS=True)
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
-    assert isinstance(pert_halo_cat.stellar_mini, Array)
-    assert isinstance(pert_halo_cat.sfr_mini, Array)
+    assert isinstance(pert_halo_cat.stellar_masses_mcg, Array)
+    assert isinstance(pert_halo_cat.sfr_mcg, Array)
 
 
 def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):

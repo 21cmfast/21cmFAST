@@ -22,7 +22,8 @@ typedef struct HaloProperties {
     double fesc_weighted_sfr;
     double n_ion;
     double xray_luminosity;
-    double metallicity;
+    double metallicity_acg;
+    double metallicity_mcg;
 } HaloProperties;
 
 // Similar struct to the above, but contains mostly density-fields, evaluated from

@@ -420,34 +420,36 @@ def test_perturb_halos(default_input_struct_ts):
         rtol=5e-5,
     )
     np.testing.assert_allclose(
-        pt_halos.get("stellar_masses"),
-        prop_dict["halo_stars"][: pt_halos.n_halos],
+        pt_halos.get("stellar_masses_acg"),
+        prop_dict["stellar_masses_acg"][: pt_halos.n_halos],
         rtol=5e-5,
     )
     np.testing.assert_allclose(
-        pt_halos.get("sfr"), prop_dict["halo_sfr"][: pt_halos.n_halos], rtol=5e-5
+        pt_halos.get("sfr_acg"), prop_dict["sfr_acg"][: pt_halos.n_halos], rtol=5e-5
     )
     np.testing.assert_allclose(
-        pt_halos.get("ion_emissivity"),
+        pt_halos.get("n_ion"),
         prop_dict["n_ion"][: pt_halos.n_halos],
         rtol=5e-5,
     )
     np.testing.assert_allclose(
-        pt_halos.get("xray_emissivity"),
-        prop_dict["halo_xray"][: pt_halos.n_halos],
+        pt_halos.get("xray_luminosity"),
+        prop_dict["xray_luminosity"][: pt_halos.n_halos],
         rtol=5e-5,
     )
     np.testing.assert_allclose(
-        pt_halos.get("fesc_sfr"), prop_dict["halo_wsfr"][: pt_halos.n_halos], rtol=5e-5
-    )
-    np.testing.assert_allclose(
-        pt_halos.get("stellar_mini"),
-        prop_dict["halo_stars_mini"][: pt_halos.n_halos],
+        pt_halos.get("fesc_weighted_sfr"),
+        prop_dict["fesc_weighted_sfr"][: pt_halos.n_halos],
         rtol=5e-5,
     )
     np.testing.assert_allclose(
-        pt_halos.get("sfr_mini"),
-        prop_dict["halo_sfr_mini"][: pt_halos.n_halos],
+        pt_halos.get("stellar_masses_mcg"),
+        prop_dict["stellar_masses_mcg"][: pt_halos.n_halos],
+        rtol=5e-5,
+    )
+    np.testing.assert_allclose(
+        pt_halos.get("sfr_mcg"),
+        prop_dict["sfr_mcg"][: pt_halos.n_halos],
         rtol=5e-5,
     )
 

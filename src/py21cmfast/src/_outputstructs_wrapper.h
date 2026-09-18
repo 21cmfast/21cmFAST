@@ -34,14 +34,14 @@ typedef struct PerturbedHaloCatalog {
     float *halo_coords;
 
     // Halo properties
-    float *sfr;
-    float *stellar_masses;
-    float *ion_emissivity;
-    float *xray_emissivity;
-    float *fesc_sfr;
+    float *sfr_acg;
+    float *stellar_masses_acg;
+    float *n_ion;
+    float *xray_luminosity;
+    float *fesc_weighted_sfr;
 
-    float *stellar_mini;
-    float *sfr_mini;
+    float *stellar_masses_mcg;
+    float *sfr_mcg;
 } PerturbedHaloCatalog;
 
 typedef struct EmissivityFields {

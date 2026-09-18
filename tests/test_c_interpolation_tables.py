@@ -12,7 +12,7 @@ from .produce_integration_test_data import get_all_options_struct, print_failure
 # NOTE: The relative tolerance is set to cover the inaccuracy in interpolaton
 #       Whereas absolute tolerances are set to avoid issues with minima
 #       i.e the SFRD table has a forced minima of exp(-50)
-#       Currently (with the #defined bin numbers) the minihalo tables have a ~1.5 % error maximum
+#       Currently (with the #defined bin numbers) the mcg tables have a ~1.5 % error maximum
 #       With >1% error in less than 4% of bins (at the high turnover mass where fcoll is tiny)
 #       The rest of the tables (apart from the xfail inverse tables) are well under 1% error
 
@@ -46,7 +46,7 @@ options_hmf = list(OPTIONS_HMF.keys())
 
 # This is confusing and we should change the dict to a list
 options_intmethod = list(OPTIONS_INTMETHOD.keys())
-# the minihalo ffcoll tables have some bins (when Mturn -> M_turn_upper) which go above 10% error compared to their "integrals"
+# the mcg ffcoll tables have some bins (when Mturn -> M_turn_upper) which go above 10% error compared to their "integrals"
 #    they can pass by doubling the number of M_turn bins and setting relative error to 5% but I think this
 #    is better left for later
 
@@ -70,8 +70,8 @@ def z_range():
 
 
 @pytest.fixture(scope="module")
-def default_input_struct_mini(default_input_struct_lc):
-    """A default input struct with mini halos turned on."""
+def default_input_struct_mcgs(default_input_struct_lc):
+    """A default input struct with mcgs turned on."""
     return default_input_struct_lc.evolve_input_structs(
         USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
@@ -82,9 +82,9 @@ def default_input_struct_mini(default_input_struct_lc):
 
 
 @pytest.fixture(scope="module")
-def default_global_evolution_mini(default_input_struct_mini):
-    """A default global signal (with mini halos)."""
-    return p21c.run_global_evolution(inputs=default_input_struct_mini)
+def default_global_evolution_mcgs(default_input_struct_mcgs):
+    """A default global signal (with mcgs)."""
+    return p21c.run_global_evolution(inputs=default_input_struct_mcgs)
 
 
 def get_delta_subset(inputs, redshift, R, delta_range):
@@ -375,9 +375,9 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
 
 
 @pytest.mark.parametrize("name", options_hmf)
-def test_SFRD_z_tables(name, z_range, default_global_evolution_mini, plt):
+def test_SFRD_z_tables(name, z_range, default_global_evolution_mcgs, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    global_evolution = default_global_evolution_mini
+    global_evolution = default_global_evolution_mcgs
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=True,
@@ -389,14 +389,14 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution_mini, plt):
         **kwargs,
     )["inputs"]
 
-    SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_z(
+    SFRD_tables_acg, SFRD_tables_mcg = cf.evaluate_SFRD_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
         redshifts=z_range,
         global_evolution=global_evolution,
     )
-    SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_z(
+    SFRD_integrals_acg, SFRD_integrals_mcg = cf.evaluate_SFRD_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation"
         ),
@@ -409,45 +409,45 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution_mini, plt):
         make_table_comparison_plot(
             [z_range, z_range],
             [None, None],
-            [SFRD_tables, SFRD_tables_mini],
-            [SFRD_integrals, SFRD_integrals_mini],
+            [SFRD_tables_acg, SFRD_tables_mcg],
+            [SFRD_integrals_acg, SFRD_integrals_mcg],
             plt,
             abstol=abs_tol,
             reltol=RELATIVE_TOLERANCE,
             label_test=[True, False],
             xlabels=["redshift", "redshift"],
-            ylabels=["SFRD", "SFRD_mini"],
+            ylabels=["SFRD_acg", "SFRD_mcg"],
         )
 
     print_failure_stats(
-        SFRD_tables,
-        SFRD_integrals,
+        SFRD_tables_acg,
+        SFRD_integrals_acg,
         [z_range],
         abs_tol,
         RELATIVE_TOLERANCE,
-        "SFRD_z",
+        "SFRD_z_acg",
     )
     print_failure_stats(
-        SFRD_tables_mini,
-        SFRD_integrals_mini,
+        SFRD_tables_mcg,
+        SFRD_integrals_mcg,
         [z_range],
         abs_tol,
         RELATIVE_TOLERANCE,
-        "SFRD_z_mini",
+        "SFRD_z_mcg",
     )
 
     np.testing.assert_allclose(
-        SFRD_tables, SFRD_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        SFRD_tables_acg, SFRD_integrals_acg, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        SFRD_tables_mini, SFRD_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        SFRD_tables_mcg, SFRD_integrals_mcg, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
 @pytest.mark.parametrize("name", options_hmf)
-def test_Nion_z_tables(name, z_range, default_global_evolution_mini, plt):
+def test_Nion_z_tables(name, z_range, default_global_evolution_mcgs, plt):
     redshift, kwargs = OPTIONS_HMF[name]
-    global_evolution = default_global_evolution_mini
+    global_evolution = default_global_evolution_mcgs
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=True,
@@ -459,14 +459,14 @@ def test_Nion_z_tables(name, z_range, default_global_evolution_mini, plt):
         **kwargs,
     )["inputs"]
 
-    nion_tables, nion_tables_mini = cf.evaluate_Nion_z(
+    nion_tables_acg, nion_tables_mcg = cf.evaluate_Nion_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation"
         ),
         redshifts=z_range,
         global_evolution=global_evolution,
     )
-    nion_integrals, nion_integrals_mini = cf.evaluate_Nion_z(
+    nion_integrals_acg, nion_integrals_mcg = cf.evaluate_Nion_z(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation"
         ),
@@ -479,38 +479,38 @@ def test_Nion_z_tables(name, z_range, default_global_evolution_mini, plt):
         make_table_comparison_plot(
             [z_range, z_range],
             [None, None],
-            [nion_tables, nion_tables_mini],
-            [nion_integrals, nion_integrals_mini],
+            [nion_tables_acg, nion_tables_mcg],
+            [nion_integrals_acg, nion_integrals_mcg],
             plt,
             abstol=abs_tol,
             reltol=RELATIVE_TOLERANCE,
             label_test=[True, False],
             xlabels=["redshift", "redshift"],
-            ylabels=["Nion", "Nion_mini"],
+            ylabels=["Nion_acg", "Nion_mcg"],
         )
 
     print_failure_stats(
-        nion_tables,
-        nion_integrals,
+        nion_tables_acg,
+        nion_integrals_acg,
         [z_range],
         abs_tol,
         RELATIVE_TOLERANCE,
-        "SFRD_z",
+        "SFRD_z_acg",
     )
     print_failure_stats(
-        nion_tables_mini,
-        nion_integrals_mini,
+        nion_tables_mcg,
+        nion_integrals_mcg,
         [z_range],
         abs_tol,
         RELATIVE_TOLERANCE,
-        "SFRD_z_mini",
+        "SFRD_z_mcg",
     )
 
     np.testing.assert_allclose(
-        nion_tables, nion_integrals, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        nion_tables_acg, nion_integrals_acg, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        nion_tables_mini, nion_integrals_mini, atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        nion_tables_mcg, nion_integrals_mcg, atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 
@@ -523,7 +523,7 @@ def test_Nion_z_tables(name, z_range, default_global_evolution_mini, plt):
 #       I do not use them here fully, instead calling the integrals directly to avoid parameter changes
 #       Mostly since if we set simulation_options.USE_INTERPOLATION_TABLES=False then the sigma tables aren't used
 #       and it takes forever
-@pytest.mark.parametrize("mini", ["mini", "acg"])
+@pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
@@ -532,10 +532,10 @@ def test_Nion_conditional_tables(
     name,
     delta_range,
     R,
-    mini,
+    use_mcgs,
     use_reionization_photoheating_feedback,
     intmethod,
-    default_global_evolution_mini,
+    default_global_evolution_mcgs,
     plt,
 ):
     if intmethod == "FFCOLL":
@@ -546,13 +546,11 @@ def test_Nion_conditional_tables(
                 "FFCOLL TABLES drop sharply at high Mturn, causing failure at 0.1 levels"
             )
 
-    mini_flag = mini == "mini"
-
     redshift, kwargs = OPTIONS_HMF[name]
-    global_evolution = default_global_evolution_mini
+    global_evolution = default_global_evolution_mcgs
     inputs = get_all_options_struct(
         redshift,
-        USE_MCGS=mini_flag,
+        USE_MCGS=use_mcgs,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -564,7 +562,7 @@ def test_Nion_conditional_tables(
         **kwargs,
     )["inputs"]
 
-    Nion_tables, Nion_tables_mini = cf.evaluate_Nion_cond(
+    Nion_tables_acg, Nion_tables_mcg = cf.evaluate_Nion_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation",
         ),
@@ -574,7 +572,7 @@ def test_Nion_conditional_tables(
         global_evolution=global_evolution,
     )
 
-    Nion_integrals, Nion_integrals_mini = cf.evaluate_Nion_cond(
+    Nion_integrals_acg, Nion_integrals_mcg = cf.evaluate_Nion_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation",
         ),
@@ -591,71 +589,71 @@ def test_Nion_conditional_tables(
     abs_tol = 1e-8
 
     if plt == mpl.pyplot:
-        if mini_flag:
+        if use_mcgs:
             make_table_comparison_plot(
                 [delta_range, delta_range],
                 [None, None],
-                [Nion_tables, Nion_tables_mini],
-                [Nion_integrals, Nion_integrals_mini],
+                [Nion_tables_acg, Nion_tables_mcg],
+                [Nion_integrals_acg, Nion_integrals_mcg],
                 plt,
                 abstol=abs_tol,
                 reltol=RELATIVE_TOLERANCE,
                 label_test=[True, False],
                 xlabels=["delta", "delta"],
-                ylabels=["Nion", "Nion_mini"],
+                ylabels=["Nion_acg", "Nion_mcg"],
             )
         else:
             make_table_comparison_plot(
                 [delta_range],
                 [None],
-                [Nion_tables],
-                [Nion_integrals],
+                [Nion_tables_acg],
+                [Nion_integrals_acg],
                 plt,
                 abstol=abs_tol,
                 reltol=RELATIVE_TOLERANCE,
                 label_test=[True],
                 xlabels=["delta"],
-                ylabels=["Nion"],
+                ylabels=["Nion_acg"],
             )
 
     sel_delta = get_delta_subset(inputs, redshift, R, delta_range)
 
     print_failure_stats(
-        Nion_tables[sel_delta],
-        Nion_integrals[sel_delta],
+        Nion_tables_acg[sel_delta],
+        Nion_integrals_acg[sel_delta],
         [delta_range[sel_delta]],
         abs_tol,
         RELATIVE_TOLERANCE,
-        "Nion_c",
+        "Nion_c_acg",
     )
 
-    if mini_flag:
+    if use_mcgs:
         print_failure_stats(
-            Nion_tables_mini[sel_delta],
-            Nion_integrals_mini[sel_delta],
+            Nion_tables_mcg[sel_delta],
+            Nion_integrals_mcg[sel_delta],
             [delta_range[sel_delta]],
             abs_tol,
             RELATIVE_TOLERANCE,
-            "Nion_c_mini",
+            "Nion_c_mcg",
         )
 
     np.testing.assert_allclose(
-        Nion_tables[sel_delta],
-        Nion_integrals[sel_delta],
+        Nion_tables_acg[sel_delta],
+        Nion_integrals_acg[sel_delta],
         atol=abs_tol,
         rtol=RELATIVE_TOLERANCE,
     )
 
-    if mini_flag:
+    if use_mcgs:
         np.testing.assert_allclose(
-            Nion_tables_mini[sel_delta],
-            Nion_integrals_mini[sel_delta],
+            Nion_tables_mcg[sel_delta],
+            Nion_integrals_mcg[sel_delta],
             atol=abs_tol,
             rtol=RELATIVE_TOLERANCE,
         )
 
 
-@pytest.mark.parametrize("mini", ["mini", "acg"])
+@pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
@@ -664,10 +662,10 @@ def test_Xray_conditional_tables(
     name,
     delta_range,
     R,
-    mini,
+    use_mcgs,
     use_reionization_photoheating_feedback,
     intmethod,
-    default_global_evolution_mini,
+    default_global_evolution_mcgs,
     plt,
 ):
     if intmethod == "FFCOLL":
@@ -678,13 +676,11 @@ def test_Xray_conditional_tables(
                 "FFCOLL TABLES drop sharply at high Mturn, causing failure at 0.1 levels"
             )
 
-    mini_flag = mini == "mini"
-
     redshift, kwargs = OPTIONS_HMF[name]
-    global_evolution = default_global_evolution_mini
+    global_evolution = default_global_evolution_mcgs
     inputs = get_all_options_struct(
         redshift,
-        USE_MCGS=mini_flag,
+        USE_MCGS=use_mcgs,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -750,7 +746,7 @@ def test_Xray_conditional_tables(
     )
 
 
-@pytest.mark.parametrize("mini", ["mini", "acg"])
+@pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("intmethod", options_intmethod)
@@ -759,10 +755,10 @@ def test_SFRD_conditional_table(
     name,
     delta_range,
     R,
-    mini,
+    use_mcgs,
     use_reionization_photoheating_feedback,
     intmethod,
-    default_global_evolution_mini,
+    default_global_evolution_mcgs,
     plt,
 ):
     if intmethod == "FFCOLL":
@@ -771,13 +767,11 @@ def test_SFRD_conditional_table(
         else:
             pytest.xfail("FFCOLL TABLES drop sharply at high Mturn, causing failure")
 
-    mini_flag = mini == "mini"
-
     redshift, kwargs = OPTIONS_HMF[name]
-    global_evolution = default_global_evolution_mini
+    global_evolution = default_global_evolution_mcgs
     inputs = get_all_options_struct(
         redshift,
-        USE_MCGS=mini_flag,
+        USE_MCGS=use_mcgs,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
@@ -789,7 +783,7 @@ def test_SFRD_conditional_table(
         **kwargs,
     )["inputs"]
 
-    SFRD_tables, SFRD_tables_mini = cf.evaluate_SFRD_cond(
+    SFRD_tables_acg, SFRD_tables_mcg = cf.evaluate_SFRD_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="hmf-interpolation",
         ),
@@ -799,7 +793,7 @@ def test_SFRD_conditional_table(
         global_evolution=global_evolution,
     )
 
-    SFRD_integrals, SFRD_integrals_mini = cf.evaluate_SFRD_cond(
+    SFRD_integrals_acg, SFRD_integrals_mcg = cf.evaluate_SFRD_cond(
         inputs=inputs.evolve_input_structs(
             USE_INTERPOLATION_TABLES="sigma-interpolation",
         ),
@@ -816,65 +810,65 @@ def test_SFRD_conditional_table(
     abs_tol = 1e-8
 
     if plt == mpl.pyplot:
-        if mini_flag:
+        if use_mcgs:
             make_table_comparison_plot(
                 [delta_range, delta_range],
                 [None, None],
-                [SFRD_tables, SFRD_tables_mini],
-                [SFRD_integrals, SFRD_integrals_mini],
+                [SFRD_tables_acg, SFRD_tables_mcg],
+                [SFRD_integrals_acg, SFRD_integrals_mcg],
                 plt,
                 abstol=abs_tol,
                 reltol=RELATIVE_TOLERANCE,
                 label_test=[True, False],
                 xlabels=["delta", "delta"],
-                ylabels=["SFRD", "SFRD_mini"],
+                ylabels=["SFRD_acg", "SFRD_mcg"],
             )
         else:
             make_table_comparison_plot(
                 [delta_range],
                 [None],
-                [SFRD_tables],
-                [SFRD_integrals],
+                [SFRD_tables_acg],
+                [SFRD_integrals_acg],
                 plt,
                 abstol=abs_tol,
                 reltol=RELATIVE_TOLERANCE,
                 label_test=[True],
                 xlabels=["delta"],
-                ylabels=["SFRD"],
+                ylabels=["SFRD_acg"],
             )
 
     sel_delta = get_delta_subset(inputs, redshift, R, delta_range)
 
     print_failure_stats(
-        SFRD_tables[sel_delta],
-        SFRD_integrals[sel_delta],
+        SFRD_tables_acg[sel_delta],
+        SFRD_integrals_acg[sel_delta],
         [delta_range[sel_delta]],
         abs_tol,
         RELATIVE_TOLERANCE,
-        "SFRD_c",
+        "SFRD_c_acg",
     )
 
-    if mini_flag:
+    if use_mcgs:
         print_failure_stats(
-            SFRD_tables_mini[sel_delta],
-            SFRD_integrals_mini[sel_delta],
+            SFRD_tables_mcg[sel_delta],
+            SFRD_integrals_mcg[sel_delta],
             [delta_range[sel_delta]],
             abs_tol,
             RELATIVE_TOLERANCE,
-            "SFRD_c_mini",
+            "SFRD_c_mcg",
         )
 
     np.testing.assert_allclose(
-        SFRD_tables[sel_delta],
-        SFRD_integrals[sel_delta],
+        SFRD_tables_acg[sel_delta],
+        SFRD_integrals_acg[sel_delta],
         atol=abs_tol,
         rtol=RELATIVE_TOLERANCE,
     )
 
-    if mini_flag:
+    if use_mcgs:
         np.testing.assert_allclose(
-            SFRD_tables_mini[sel_delta],
-            SFRD_integrals_mini[sel_delta],
+            SFRD_tables_mcg[sel_delta],
+            SFRD_integrals_mcg[sel_delta],
             atol=abs_tol,
             rtol=RELATIVE_TOLERANCE,
         )
@@ -887,10 +881,10 @@ INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("integrand", INTEGRAND_OPTIONS)
 def test_conditional_integral_methods(
-    R, delta_range, name, integrand, default_global_evolution_mini, plt
+    R, delta_range, name, integrand, default_global_evolution_mcgs, plt
 ):
     redshift, kwargs = OPTIONS_HMF[name]
-    global_evolution = default_global_evolution_mini
+    global_evolution = default_global_evolution_mcgs
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=True,
@@ -902,8 +896,8 @@ def test_conditional_integral_methods(
         **kwargs,
     )["inputs"]
 
-    integrals = []
-    integrals_mini = []
+    integrals_acg = []
+    integrals_mcg = []
     for method in ["GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX"]:
         print(f"Starting method {method}", flush=True)
         if name != "PS" and method == "GAMMA-APPROX":
@@ -915,7 +909,7 @@ def test_conditional_integral_methods(
         )
 
         if "sfr" in integrand:
-            buf, buf_mini = cf.evaluate_SFRD_cond(
+            buf_acg, buf_mcg = cf.evaluate_SFRD_cond(
                 inputs=inputs,
                 redshift=redshift,
                 radius=R,
@@ -923,33 +917,33 @@ def test_conditional_integral_methods(
                 global_evolution=global_evolution,
             )
         else:
-            buf, buf_mini = cf.evaluate_Nion_cond(
+            buf_acg, buf_mcg = cf.evaluate_Nion_cond(
                 inputs=inputs,
                 redshift=redshift,
                 radius=R,
                 densities=delta_range,
                 global_evolution=global_evolution,
             )
-        integrals.append(buf)
-        integrals_mini.append(buf_mini)
+        integrals_acg.append(buf_acg)
+        integrals_mcg.append(buf_mcg)
 
     abs_tol = 1e-6  # minimum = exp(-40) ~1e-18
     if plt == mpl.pyplot:
-        iplot = [i[:, None] if i.ndim == 1 else i for i in integrals]
-        iplot_mini = [i[:, None] if i.ndim == 1 else i for i in integrals_mini]
+        iplot_acg = [i[:, None] if i.ndim == 1 else i for i in integrals_acg]
+        iplot_mcg = [i[:, None] if i.ndim == 1 else i for i in integrals_mcg]
         make_integral_comparison_plot(
             delta_range,
             None,
-            iplot,
-            iplot_mini,
+            iplot_acg,
+            iplot_mcg,
             plt,
         )
 
     np.testing.assert_allclose(
-        integrals[1], integrals[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        integrals_acg[1], integrals_acg[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
     np.testing.assert_allclose(
-        integrals_mini[1], integrals_mini[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
+        integrals_mcg[1], integrals_mcg[0], atol=abs_tol, rtol=RELATIVE_TOLERANCE
     )
 
 

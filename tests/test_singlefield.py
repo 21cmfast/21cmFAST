@@ -647,13 +647,13 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
 
 
 @pytest.mark.parametrize("lya_multiple_scattering", [False, True])
-@pytest.mark.parametrize("use_mini_halos", [False, True])
+@pytest.mark.parametrize("use_mcgs", [False, True])
 def test_radiation_fields_with_zero_sfr(
-    default_input_struct_ts, redshift, use_mini_halos, lya_multiple_scattering
+    default_input_struct_ts, redshift, use_mcgs, lya_multiple_scattering
 ):
     """Test compute_radiation_fields with zero sfr boxes."""
     inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MCGS=use_mini_halos,
+        USE_MCGS=use_mcgs,
         RECOMB_MODEL="inhomogeneous",
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
     )
@@ -663,7 +663,7 @@ def test_radiation_fields_with_zero_sfr(
 
     # This is needed because the input arrays must be in a computed state.
     fields = ["sfrd_acg", "xray_emissivity"]
-    if use_mini_halos:
+    if use_mcgs:
         fields += ["sfrd_mcg", "log10_mturn_mcg_ave"]
     shape = emissivity_fields1.sfrd_acg.shape
     array = (
@@ -674,7 +674,7 @@ def test_radiation_fields_with_zero_sfr(
     for emissivity_fields in [emissivity_fields1, emissivity_fields2]:
         for name in fields:
             setattr(emissivity_fields, name, array.computed())
-        if use_mini_halos:
+        if use_mcgs:
             emissivity_fields.log10_mturn_mcg_ave = 5.0
 
     radiation_fields = p21c.compute_radiation_fields(
@@ -689,7 +689,7 @@ def test_radiation_fields_with_zero_sfr(
         "lya_flux_continuum",
         "lya_flux_injected",
     ]
-    if use_mini_halos:
+    if use_mcgs:
         output_fields += [
             "lyw_flux",
         ]

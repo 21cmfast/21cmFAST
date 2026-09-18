@@ -104,17 +104,19 @@ void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, do
 void get_halomass_at_probability(double redshift, double z_prev, int n_conditions,
                                  double *cond_values, double *probabilities, double *out_mass);
 void get_unconditional_sfrd(int n_redshift, double *redshifts, double *log10_turnovers_acg,
-                            double *log10_turnovers_mcg, double *out_sfrd, double *out_sfrd_mini);
+                            double *log10_turnovers_mcg, double *out_sfrd_acg,
+                            double *out_sfrd_mcg);
 void get_unconditional_nion(int n_redshift, double *redshifts, double *log10_turnovers_acg,
-                            double *log10_turnovers_mcg, double *out_nion, double *out_nion_mini);
+                            double *log10_turnovers_mcg, double *out_nion_acg,
+                            double *out_nion_mcg);
 void get_conditional_fcoll_eps(double redshift, double R, int n_densities, double *densities,
                                double *out_fcoll, double *out_dfcoll);
 void get_conditional_sfrd(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturn_acg, double log10_mturn_mcg, double *out_sfrd,
-                          double *out_sfrd_mini);
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_sfrd_acg,
+                          double *out_sfrd_mcg);
 void get_conditional_nion(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturn_acg, double log10_mturn_mcg, double *out_nion,
-                          double *out_nion_mini);
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_nion_acg,
+                          double *out_nion_mcg);
 void get_conditional_xray_emissivity(double redshift, double R, int n_densities, double *densities,
                                      double log10_mturn_acg, double log10_mturn_mcg,
                                      double *out_xray);

@@ -301,11 +301,11 @@ class TestAstroOptions:
         ):
             AstroOptions(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
 
-    @pytest.mark.parametrize("use_mini_halos", [True, False])
-    def test_use_reionization_photoheating_feedback_default(self, use_mini_halos):
+    @pytest.mark.parametrize("use_mcgs", [True, False])
+    def test_use_reionization_photoheating_feedback_default(self, use_mcgs):
         """Test that USE_REIONIZATION_PHOTOHEATING_FEEDBACK defaults to the correct value based on USE_MCGS."""
         opts = AstroOptions(
-            USE_MCGS=use_mini_halos,
+            USE_MCGS=use_mcgs,
             RECOMB_MODEL="inhomogeneous",
             USE_TS_FLUCT=True,
         )

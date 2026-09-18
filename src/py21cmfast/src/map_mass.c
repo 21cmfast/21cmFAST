@@ -363,10 +363,11 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
         // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
         // take advantage of it
         if (astro_options_global->USE_TS_FLUCT && !astro_options_global->USE_METALLICITY) {
-            emissivity_fields->xray_emissivity[i] = consts->l_x * emissivity_fields->sfrd_acg[i];
+            emissivity_fields->xray_emissivity[i] =
+                consts->lx_over_sfr_acg * emissivity_fields->sfrd_acg[i];
             if (astro_options_global->USE_MCGS) {
                 emissivity_fields->xray_emissivity[i] +=
-                    consts->l_x_mini * emissivity_fields->sfrd_mcg[i];
+                    consts->lx_over_sfr_mcg * emissivity_fields->sfrd_mcg[i];
             }
         }
         // Only Lagrangian source models require having fesc_weighted_sfrd in IonisationBox.c
@@ -389,7 +390,7 @@ void move_integral_emissivities(double redshift, float *dens_pointer, int dens_d
                 //       Also note that currently in IonisationBox.c, t_STAR is used for the
                 //       weighted SFRD, which I think is a mistake
                 emissivity_fields->fesc_weighted_sfrd[i] = emissivity_fields->sfrd_acg[i] /
-                                                           consts->fstar_10 *
+                                                           consts->fstar_10_acg *
                                                            astro_params_global->HII_EFF_FACTOR;
             }
         }
@@ -507,7 +508,7 @@ void move_halo_emissivities(double redshift, HaloCatalog *halos, float *vel_poin
                     "%.2e Z : %.2e ct : %llu",
                     hmass, properties.stellar_mass_acg, properties.stellar_mass_mcg,
                     properties.sfr_acg, properties.sfr_mcg, properties.xray_luminosity,
-                    properties.n_ion, properties.fesc_weighted_sfr, properties.metallicity, i);
+                    properties.n_ion, properties.fesc_weighted_sfr, properties.metallicity_acg, i);
                 LOG_ULTRA_DEBUG("Mturn_acg %.2e Mturn_mcg %.2e RNG %.3f %.3f %.3f", M_turn_acg,
                                 M_turn_mcg, halo_rng[0], halo_rng[1], halo_rng[2]);
             }

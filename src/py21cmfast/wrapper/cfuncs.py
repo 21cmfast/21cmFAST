@@ -761,9 +761,9 @@ def evaluate_SFRD_z(
 
     Returns
     -------
-    sfrd : np.ndarray
+    sfrd_acg : np.ndarray
         The global star formation rate density at the given redshifts for ACGs.
-    sfrd_mini : np.ndarray or None
+    sfrd_mcg : np.ndarray or None
         The global star formation rate density at the given redshifts for MCGs.
         Will be None if `USE_MCGS` is False.
     """
@@ -785,21 +785,21 @@ def evaluate_SFRD_z(
     redshifts = np.asarray(redshifts).astype("f8")
     log10mturns_acg = log10mturns_acg.astype("f8")
     log10mturns_mcg = log10mturns_mcg.astype("f8")
-    sfrd = np.zeros_like(redshifts)
-    sfrd_mini = np.zeros_like(redshifts)
+    sfrd_acg = np.zeros_like(redshifts)
+    sfrd_mcg = np.zeros_like(redshifts)
 
     lib.get_unconditional_sfrd(
         redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
         ffi.cast("double *", ffi.from_buffer(log10mturns_acg)),
         ffi.cast("double *", ffi.from_buffer(log10mturns_mcg)),
-        ffi.cast("double *", ffi.from_buffer(sfrd)),
-        ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
+        ffi.cast("double *", ffi.from_buffer(sfrd_acg)),
+        ffi.cast("double *", ffi.from_buffer(sfrd_mcg)),
     )
     if not inputs.astro_options.USE_MCGS:
-        sfrd_mini = None
+        sfrd_mcg = None
 
-    return sfrd, sfrd_mini
+    return sfrd_acg, sfrd_mcg
 
 
 @init_c_state(sigma=True)
@@ -831,9 +831,9 @@ def evaluate_Nion_z(
 
     Returns
     -------
-    nion : np.ndarray
+    nion_acg : np.ndarray
         The global number of ionising photons per baryon at the given redshifts for ACGs.
-    nion_mini : np.ndarray or None
+    nion_mcg : np.ndarray or None
         The global number of ionising photons per baryon at the given redshifts for MCGs.
         Will be None if `USE_MCGS` is False.
     """
@@ -855,22 +855,22 @@ def evaluate_Nion_z(
     redshifts = np.asarray(redshifts).astype("f8")
     log10mturns_acg = log10mturns_acg.astype("f8")
     log10mturns_mcg = log10mturns_mcg.astype("f8")
-    nion = np.zeros_like(redshifts)
-    nion_mini = np.zeros_like(redshifts)
+    nion_acg = np.zeros_like(redshifts)
+    nion_mcg = np.zeros_like(redshifts)
 
     lib.get_unconditional_nion(
         redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
         ffi.cast("double *", ffi.from_buffer(log10mturns_acg)),
         ffi.cast("double *", ffi.from_buffer(log10mturns_mcg)),
-        ffi.cast("double *", ffi.from_buffer(nion)),
-        ffi.cast("double *", ffi.from_buffer(nion_mini)),
+        ffi.cast("double *", ffi.from_buffer(nion_acg)),
+        ffi.cast("double *", ffi.from_buffer(nion_mcg)),
     )
 
     if not inputs.astro_options.USE_MCGS:
-        nion_mini = None
+        nion_mcg = None
 
-    return nion, nion_mini
+    return nion_acg, nion_mcg
 
 
 @init_c_state(sigma=True)
@@ -908,9 +908,9 @@ def evaluate_SFRD_cond(
 
     Returns
     -------
-    sfrd : np.ndarray
+    sfrd_acg : np.ndarray
         The conditional star formation rate density at the given redshift and radius for ACGs.
-    sfrd_mini : np.ndarray or None
+    sfrd_mcg : np.ndarray or None
         The conditional star formation rate density at the given redshift and radius for MCGs.
         Will be None if `USE_MCGS` is False.
 
@@ -938,8 +938,8 @@ def evaluate_SFRD_cond(
     )
 
     densities = densities.astype("f8")
-    sfrd = np.zeros_like(densities)
-    sfrd_mini = np.zeros_like(densities)
+    sfrd_acg = np.zeros_like(densities)
+    sfrd_mcg = np.zeros_like(densities)
 
     lib.get_conditional_sfrd(
         redshift,
@@ -948,14 +948,14 @@ def evaluate_SFRD_cond(
         ffi.cast("double *", ffi.from_buffer(densities)),
         log10mturn_acg,
         log10mturn_mcg,
-        ffi.cast("double *", ffi.from_buffer(sfrd)),
-        ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
+        ffi.cast("double *", ffi.from_buffer(sfrd_acg)),
+        ffi.cast("double *", ffi.from_buffer(sfrd_mcg)),
     )
 
     if not inputs.astro_options.USE_MCGS:
-        sfrd_mini = None
+        sfrd_mcg = None
 
-    return sfrd, sfrd_mini
+    return sfrd_acg, sfrd_mcg
 
 
 @init_c_state(sigma=True)
@@ -994,9 +994,9 @@ def evaluate_Nion_cond(
 
     Returns
     -------
-    nion : np.ndarray
+    nion_acg : np.ndarray
         The conditional number of ionising photons per baryon at the given redshift and radius for ACGs.
-    nion_mini : np.ndarray or None
+    nion_mcg : np.ndarray or None
         The conditional number of ionising photons per baryon at the given redshift and radius for MCGs.
         Will be None if `USE_MCGS` is False.
 
@@ -1024,8 +1024,8 @@ def evaluate_Nion_cond(
     )
 
     densities = densities.astype("f8")
-    nion = np.zeros_like(densities)
-    nion_mini = np.zeros_like(densities)
+    nion_acg = np.zeros_like(densities)
+    nion_mcg = np.zeros_like(densities)
 
     lib.get_conditional_nion(
         redshift,
@@ -1034,14 +1034,14 @@ def evaluate_Nion_cond(
         ffi.cast("double *", ffi.from_buffer(densities)),
         log10mturn_acg,
         log10mturn_mcg,
-        ffi.cast("double *", ffi.from_buffer(nion)),
-        ffi.cast("double *", ffi.from_buffer(nion_mini)),
+        ffi.cast("double *", ffi.from_buffer(nion_acg)),
+        ffi.cast("double *", ffi.from_buffer(nion_mcg)),
     )
 
     if not inputs.astro_options.USE_MCGS:
-        nion_mini = None
+        nion_mcg = None
 
-    return nion, nion_mini
+    return nion_acg, nion_mcg
 
 
 @init_c_state(sigma=True)
@@ -1200,7 +1200,7 @@ def convert_halo_properties(
         stellar mass (ACG)
         star formation rate (ACG)
         xray luminosity (combined)
-        ionising emissivity (combined)
+        ionising emissivity, N_ion (combined)
         escape-fraction weighted SFR (combined)
         stellar mass (MCG)
         star formation rate (MCG)
@@ -1257,16 +1257,16 @@ def convert_halo_properties(
 
     return {
         "halo_mass": out_buffer[:, 0].reshape(halo_masses.shape),
-        "halo_stars": out_buffer[:, 1].reshape(halo_masses.shape),
-        "halo_sfr": out_buffer[:, 2].reshape(halo_masses.shape),
-        "halo_xray": out_buffer[:, 3].reshape(halo_masses.shape),
+        "stellar_mass_acg": out_buffer[:, 1].reshape(halo_masses.shape),
+        "sfr_acg": out_buffer[:, 2].reshape(halo_masses.shape),
+        "xray_luminosity": out_buffer[:, 3].reshape(halo_masses.shape),
         "n_ion": out_buffer[:, 4].reshape(halo_masses.shape),
-        "halo_wsfr": out_buffer[:, 5].reshape(halo_masses.shape),
-        "halo_stars_mini": out_buffer[:, 6].reshape(halo_masses.shape),
-        "halo_sfr_mini": out_buffer[:, 7].reshape(halo_masses.shape),
+        "fesc_weighted_sfr": out_buffer[:, 5].reshape(halo_masses.shape),
+        "stellar_mass_mcg": out_buffer[:, 6].reshape(halo_masses.shape),
+        "sfr_mcg": out_buffer[:, 7].reshape(halo_masses.shape),
         "mturn_acg": out_buffer[:, 8].reshape(halo_masses.shape),
         "mturn_mcg": out_buffer[:, 9].reshape(halo_masses.shape),
-        "metallicity": out_buffer[:, 10].reshape(halo_masses.shape),
+        "metallicity_acg": out_buffer[:, 10].reshape(halo_masses.shape),
     }
 
 
