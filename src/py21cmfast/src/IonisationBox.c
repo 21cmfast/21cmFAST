@@ -894,7 +894,7 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                                                                index_r];
                         if (isfinite(nion_total_acg) == 0) {
                             LOG_ERROR(
-                                "N_ion is either infinite or NaN! %d %g (%d,%d,%d)?: dens %g, "
+                                "N_ion_acg is either infinite or NaN! %d %g (%d,%d,%d)?: dens %g, "
                                 "prev %g",
                                 rspec->R_index, rspec->R, x, y, z, curr_dens, prev_dens);
                             LOG_ERROR(
@@ -935,7 +935,7 @@ void calculate_conditional_nion(IonizedBox *box, IonizedBox *previous_ionize_box
                                                                index_r];
                         if (isfinite(nion_total_mcg) == 0) {
                             LOG_ERROR(
-                                "N_ion_MINI is either infinite or NaN %d R=%g (%d,%d,%d)?: dens "
+                                "N_ion_mcg is either infinite or NaN %d R=%g (%d,%d,%d)?: dens "
                                 "%g, prev %g",
                                 rspec->R_index, rspec->R, x, y, z, curr_dens, prev_dens);
                             LOG_ERROR(

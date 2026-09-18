@@ -603,7 +603,7 @@ def setup_radiation_fields(
             #   (1) For computing the global Nion, which is used for the NO_LIGHT condition. Here however, note that only the first entry of
             #       ave_log10_MturnLW is needed, namely for that computation we care about only the CURRENT global turnover mass, not its history.
             #       This usage therefore does not require the full global array as we compute below.
-            #   (2) For computing the lower limit of the frequency integral (it is used in nu_tau_one_MINI, which is called by fill_freqint_tables).
+            #   (2) For computing the lower limit of the frequency integral (it is used in nu_tau_one_mcg, which is called by fill_freqint_tables).
             #       Here, we ought to have the full history of the global turnover mass, since that lower limit depends on the frequency in which
             #       the X-ray optical depth is unity. In order to compute the X-ray optical depth, we need to integrate over the history of the global
             #       neutral volume filling factor, which is currently approximated by the global Nion (the code does something like x_HI = 1 - Nion/(1-x_e)).

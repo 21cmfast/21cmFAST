@@ -896,10 +896,10 @@ typedef struct {
     ScalingConstants *scale_consts;
 } tauX_params;
 
-double tauX_integrand_MINI(double zhat, void *params) {
-    double n, drpropdz, nuhat, sigma_tilde, nion, HI_filling_factor_zhat;
+double tauX_integrand_mcg(double zhat, void *params) {
+    double n, drpropdz, nuhat, sigma_tilde, nion_acg, HI_filling_factor_zhat;
     double log10_Mturn_acg, log10_Mturn_mcg;
-    double nion_MINI;
+    double nion_mcg;
 
     tauX_params *p = (tauX_params *)params;
 
@@ -914,22 +914,22 @@ double tauX_integrand_MINI(double zhat, void *params) {
     // TODO: Should we extend this to full boxes too?
     if (simulation_options_global->HII_DIM == 1 &&
         p->x_e_ave < simulation_options_global->MIN_XE_FOR_NION_IN_TAUX) {
-        nion = 0.;
-        nion_MINI = 0.;
+        nion_acg = 0.;
+        nion_mcg = 0.;
     } else {
-        nion = evaluate_nion_unconditional_acg(zhat, log10_Mturn_acg, p->scale_consts);
-        nion_MINI = evaluate_nion_unconditional_mcg(zhat, log10_Mturn_acg, log10_Mturn_mcg,
-                                                    p->scale_consts);
+        nion_acg = evaluate_nion_unconditional_acg(zhat, log10_Mturn_acg, p->scale_consts);
+        nion_mcg = evaluate_nion_unconditional_mcg(zhat, log10_Mturn_acg, log10_Mturn_mcg,
+                                                   p->scale_consts);
     }
 
     // simplification to use the <x_e> value at zp and not
     // zhat.  should'nt matter much since the evolution in
     // x_e_ave is slower than nion.  in principle should make
     // an array to store past values of x_e_ave..
-    if ((nion < 1e-20) && (nion_MINI < 1e-20)) {
+    if ((nion_acg < 1e-20) && (nion_mcg < 1e-20)) {
         HI_filling_factor_zhat = 1;
     } else {
-        HI_filling_factor_zhat = 1 - (nion + nion_MINI) / (1.0 - p->x_e_ave);
+        HI_filling_factor_zhat = 1 - (nion_acg + nion_mcg) / (1.0 - p->x_e_ave);
     }
     if (HI_filling_factor_zhat < 1e-4)
         HI_filling_factor_zhat = 1e-4;  // set a floor for post-reionization stability
@@ -938,7 +938,7 @@ double tauX_integrand_MINI(double zhat, void *params) {
 
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
-double tauX_integrand(double zhat, void *params) {
+double tauX_integrand_acg(double zhat, void *params) {
     double n, drpropdz, nuhat, sigma_tilde, nion, HI_filling_factor_zhat;
     double log10_Mturn_acg;
 
@@ -974,8 +974,8 @@ double tauX_integrand(double zhat, void *params) {
 
     return drpropdz * n * HI_filling_factor_zhat * sigma_tilde;
 }
-double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp,
-                 double log10_Mturn_acg, double log10_Mturn_mcg, ScalingConstants *sc) {
+double tauX_mcg(double nu, double x_e, double x_e_ave, double zp, double zpp,
+                double log10_Mturn_acg, double log10_Mturn_mcg, ScalingConstants *sc) {
     double result, error;
     gsl_function F;
 
@@ -983,7 +983,7 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp,
     gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
     tauX_params p;
 
-    F.function = &tauX_integrand_MINI;
+    F.function = &tauX_integrand_mcg;
     p.nu_0 = nu / (1 + zp);
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
@@ -1014,15 +1014,15 @@ double tauX_MINI(double nu, double x_e, double x_e_ave, double zp, double zpp,
     return result;
 }
 
-double tauX(double nu, double x_e, double x_e_ave, double zp, double zpp, double log10_Mturn_acg,
-            ScalingConstants *sc) {
+double tauX_acg(double nu, double x_e, double x_e_ave, double zp, double zpp,
+                double log10_Mturn_acg, ScalingConstants *sc) {
     double result, error;
     gsl_function F;
     double rel_tol = 0.005;  //<- relative tolerance
     gsl_integration_workspace *w = gsl_integration_workspace_alloc(1000);
     tauX_params p;
 
-    F.function = &tauX_integrand;
+    F.function = &tauX_integrand_acg;
     p.nu_0 = nu / (1 + zp);
     p.x_e = x_e;
     p.x_e_ave = x_e_ave;
@@ -1066,18 +1066,18 @@ typedef struct {
     double log10_Mturn_mcg;
     ScalingConstants *scale_consts;
 } nu_tau_one_params;
-double nu_tau_one_helper_MINI(double nu, void *params) {
+double nu_tau_one_helper_mcg(double nu, void *params) {
     nu_tau_one_params *p = (nu_tau_one_params *)params;
-    return tauX_MINI(nu, p->x_e, p->x_e, p->zp, p->zpp, p->log10_Mturn_acg, p->log10_Mturn_mcg,
-                     p->scale_consts) -
+    return tauX_mcg(nu, p->x_e, p->x_e, p->zp, p->zpp, p->log10_Mturn_acg, p->log10_Mturn_mcg,
+                    p->scale_consts) -
            1;
 }
-double nu_tau_one_helper(double nu, void *params) {
+double nu_tau_one_helper_acg(double nu, void *params) {
     nu_tau_one_params *p = (nu_tau_one_params *)params;
-    return tauX(nu, p->x_e, p->x_e, p->zp, p->zpp, p->log10_Mturn_acg, p->scale_consts) - 1;
+    return tauX_acg(nu, p->x_e, p->x_e, p->zp, p->zpp, p->log10_Mturn_acg, p->scale_consts) - 1;
 }
-double nu_tau_one_MINI(double zp, double zpp, double x_e, double log10_Mturn_acg,
-                       double log10_Mturn_mcg, ScalingConstants *sc) {
+double nu_tau_one_mcg(double zp, double zpp, double x_e, double log10_Mturn_acg,
+                      double log10_Mturn_mcg, ScalingConstants *sc) {
     int status, iter, max_iter;
     const gsl_root_fsolver_type *T;
     gsl_root_fsolver *s;
@@ -1101,8 +1101,7 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double log10_Mturn_acg
     }
 
     // check if lower bound has null
-    if (tauX_MINI(physconst.nu_ion_HeI, x_e, x_e, zp, zpp, log10_Mturn_acg, log10_Mturn_mcg, sc) <
-        1)
+    if (tauX_mcg(physconst.nu_ion_HeI, x_e, x_e, zp, zpp, log10_Mturn_acg, log10_Mturn_mcg, sc) < 1)
         return physconst.nu_ion_HeI;
 
     // set frequency boundary values
@@ -1117,7 +1116,7 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double log10_Mturn_acg
     p.log10_Mturn_mcg = log10_Mturn_mcg;
     p.scale_consts = sc;
 
-    F.function = &nu_tau_one_helper_MINI;
+    F.function = &nu_tau_one_helper_mcg;
     F.params = &p;
     gsl_root_fsolver_set(s, &F, x_lo, x_hi);
 
@@ -1137,14 +1136,15 @@ double nu_tau_one_MINI(double zp, double zpp, double x_e, double log10_Mturn_acg
     gsl_root_fsolver_free(s);
 
     if (!isfinite(r)) {
-        LOG_ERROR("Value for nu_tau_one_MINI is infinite or NAN");
+        LOG_ERROR("Value for nu_tau_one_mcg is infinite or NAN");
         Throw(InfinityorNaNError);
     }
 
     return r;
 }
 
-double nu_tau_one(double zp, double zpp, double x_e, double log10_Mturn_acg, ScalingConstants *sc) {
+double nu_tau_one_acg(double zp, double zpp, double x_e, double log10_Mturn_acg,
+                      ScalingConstants *sc) {
     int status, iter, max_iter;
     const gsl_root_fsolver_type *T;
     gsl_root_fsolver *s;
@@ -1168,7 +1168,7 @@ double nu_tau_one(double zp, double zpp, double x_e, double log10_Mturn_acg, Sca
     }
 
     // check if lower bound has null
-    if (tauX(physconst.nu_ion_HeI, x_e, x_e, zp, zpp, log10_Mturn_acg, sc) < 1)
+    if (tauX_acg(physconst.nu_ion_HeI, x_e, x_e, zp, zpp, log10_Mturn_acg, sc) < 1)
         return physconst.nu_ion_HeI;
 
     // set frequency boundary values
@@ -1182,7 +1182,7 @@ double nu_tau_one(double zp, double zpp, double x_e, double log10_Mturn_acg, Sca
     p.log10_Mturn_acg = log10_Mturn_acg;
     p.scale_consts = sc;
 
-    F.function = &nu_tau_one_helper;
+    F.function = &nu_tau_one_helper_acg;
     F.params = &p;
     gsl_root_fsolver_set(s, &F, x_lo, x_hi);
 
@@ -1202,7 +1202,7 @@ double nu_tau_one(double zp, double zpp, double x_e, double log10_Mturn_acg, Sca
     gsl_root_fsolver_free(s);
 
     if (!isfinite(r)) {
-        LOG_ERROR("nu_tau_one is infinite or NAN");
+        LOG_ERROR("nu_tau_one_acg is infinite or NAN");
         Throw(InfinityorNaNError);
     }
 

@@ -65,31 +65,31 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
     int R_ct, n_ct;
     double zpp, zpp_integrand;
 
-    double sum_lyn_val, sum_lyn_val_MINI;
-    double sum_lyLW_val, sum_lyLW_val_MINI;
-    double sum_lynto2_val, sum_lynto2_val_MINI;
-    double sum_ly2_val, sum_ly2_val_MINI;
+    double sum_lyn_val_acg, sum_lyn_val_mcg;
+    double sum_lyLW_val_acg, sum_lyLW_val_mcg;
+    double sum_lynto2_val_acg, sum_lynto2_val_mcg;
+    double sum_ly2_val_acg, sum_ly2_val_mcg;
     // technically don't need to initialise since it is only used in R_ct > 1 conditional
-    double sum_lyn_prev = 0., sum_lyn_prev_MINI = 0.;
-    double sum_ly2_prev = 0., sum_ly2_prev_MINI = 0.;
-    double sum_lynto2_prev = 0., sum_lynto2_prev_MINI = 0.;
+    double sum_lyn_prev_acg = 0., sum_lyn_prev_mcg = 0.;
+    double sum_ly2_prev_acg = 0., sum_ly2_prev_mcg = 0.;
+    double sum_lynto2_prev_acg = 0., sum_lynto2_prev_mcg = 0.;
     double prev_zpp = 0;
     for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
         zpp = rad_setup->zpp_avg[R_ct];
         // We need to set up prefactors for how much of Lyman-N radiation is recycled to Lyman-alpha
-        sum_lyLW_val = 0.;
-        sum_lyLW_val_MINI = 0.;
-        sum_lynto2_val = 0.;
-        sum_lynto2_val_MINI = 0.;
-        sum_ly2_val = 0.;
-        sum_ly2_val_MINI = 0.;
+        sum_lyLW_val_acg = 0.;
+        sum_lyLW_val_mcg = 0.;
+        sum_lynto2_val_acg = 0.;
+        sum_lynto2_val_mcg = 0.;
+        sum_ly2_val_acg = 0.;
+        sum_ly2_val_mcg = 0.;
 
         // in case we use LYA_HEATING, we separate the ==2 and >2 cases
         nuprime = nu_n(2) * (1. + zpp) / (1. + zp);
         if (zpp < zmax(zp, 2)) {
-            sum_ly2_val = frecycle(2) * spectral_emissivity(nuprime, 0, 2);
+            sum_ly2_val_acg = frecycle(2) * spectral_emissivity(nuprime, 0, 2);
             if (astro_options_global->USE_MCGS) {
-                sum_ly2_val_MINI = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
+                sum_ly2_val_mcg = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
 
                 if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
                     nuprime = physconst.nu_LW_thresh / physconst.nu_ion_HI;
@@ -97,9 +97,9 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
                 //   currently: emitted frequency >= received frequency of next n
                 if (nuprime >= nu_n(2 + 1)) continue;
 
-                sum_lyLW_val +=
+                sum_lyLW_val_acg +=
                     (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
-                sum_lyLW_val_MINI +=
+                sum_lyLW_val_mcg +=
                     (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 3);
             }
         }
@@ -108,21 +108,21 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
             if (zpp > zmax(zp, n_ct)) continue;
 
             nuprime = nu_n(n_ct) * (1 + zpp) / (1.0 + zp);
-            sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
+            sum_lynto2_val_acg += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
             if (astro_options_global->USE_MCGS) {
-                sum_lynto2_val_MINI += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
+                sum_lynto2_val_mcg += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 
                 if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
                     nuprime = physconst.nu_LW_thresh / physconst.nu_ion_HI;
                 if (nuprime >= nu_n(n_ct + 1)) continue;
-                sum_lyLW_val +=
+                sum_lyLW_val_acg +=
                     (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
-                sum_lyLW_val_MINI +=
+                sum_lyLW_val_mcg +=
                     (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 3);
             }
         }
-        sum_lyn_val = sum_ly2_val + sum_lynto2_val;
-        sum_lyn_val_MINI = sum_ly2_val_MINI + sum_lynto2_val_MINI;
+        sum_lyn_val_acg = sum_ly2_val_acg + sum_lynto2_val_acg;
+        sum_lyn_val_mcg = sum_ly2_val_mcg + sum_lynto2_val_mcg;
 
         // At the edge of the redshift limit, part of the shell will still contain a contribution
         //   This loop approximates the volume which contains the contribution
@@ -130,7 +130,7 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
         // This should probably be done separately for each line, since they all face the same issue
         //   It could also be avoided by approximating the integral within each bin better
         //   than taking the value at the bin centre
-        if (R_ct > 1 && sum_lyn_val == 0.0 && sum_lyn_prev > 0. && first_radii) {
+        if (R_ct > 1 && sum_lyn_val_acg == 0.0 && sum_lyn_prev_acg > 0. && first_radii) {
             for (ii = 0; ii < n_pts_radii; ii++) {
                 trial_zpp = prev_zpp + (zpp - prev_zpp) * (float)ii / ((float)n_pts_radii - 1.);
                 counter = 0;
@@ -145,56 +145,57 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
                     weight = (float)ii / (float)n_pts_radii;
                 }
             }
-            sum_lyn_val = weight * sum_lyn_prev;
-            sum_ly2_val = weight * sum_ly2_prev;
-            sum_lynto2_val = weight * sum_lynto2_prev;
+            sum_lyn_val_acg = weight * sum_lyn_prev_acg;
+            sum_ly2_val_acg = weight * sum_ly2_prev_acg;
+            sum_lynto2_val_acg = weight * sum_lynto2_prev_acg;
             if (astro_options_global->USE_MCGS) {
-                sum_lyn_val_MINI = weight * sum_lyn_prev_MINI;
-                sum_ly2_val_MINI = weight * sum_ly2_prev_MINI;
-                sum_lynto2_val_MINI = weight * sum_lynto2_prev_MINI;
+                sum_lyn_val_mcg = weight * sum_lyn_prev_mcg;
+                sum_ly2_val_mcg = weight * sum_ly2_prev_mcg;
+                sum_lynto2_val_mcg = weight * sum_lynto2_prev_mcg;
             }
             first_radii = false;
         }
         zpp_integrand = (pow(1 + zp, 2) * (1 + zpp));
 
         if (astro_options_global->USE_LYA_HEATING) {
-            rad_setup->lya_flux_continuum_prefactor[R_ct] = zpp_integrand * sum_ly2_val;
-            rad_setup->lya_flux_injected_prefactor[R_ct] = zpp_integrand * sum_lynto2_val;
-            LOG_ULTRA_DEBUG("cont %.2e inj %.2e", rad_setup->lya_flux_continuum_prefactor[R_ct],
-                            rad_setup->lya_flux_injected_prefactor[R_ct]);
+            rad_setup->lya_flux_continuum_prefactor_acg[R_ct] = zpp_integrand * sum_ly2_val_acg;
+            rad_setup->lya_flux_injected_prefactor_acg[R_ct] = zpp_integrand * sum_lynto2_val_acg;
+            LOG_ULTRA_DEBUG("cont %.2e inj %.2e", rad_setup->lya_flux_continuum_prefactor_acg[R_ct],
+                            rad_setup->lya_flux_injected_prefactor_acg[R_ct]);
         } else {
-            rad_setup->lya_flux_continuum_injected_prefactor[R_ct] = zpp_integrand * sum_lyn_val;
+            rad_setup->lya_flux_continuum_injected_prefactor_acg[R_ct] =
+                zpp_integrand * sum_lyn_val_acg;
             LOG_ULTRA_DEBUG("z: %.2e R: %.2e int %.2e starlya: %.4e", zpp,
                             rad_setup->R_values[R_ct], zpp_integrand,
-                            rad_setup->lya_flux_continuum_injected_prefactor[R_ct]);
+                            rad_setup->lya_flux_continuum_injected_prefactor_acg[R_ct]);
         }
         if (astro_options_global->USE_MCGS) {
-            rad_setup->lyw_flux_prefactor[R_ct] = zpp_integrand * sum_lyLW_val;
-            rad_setup->lyw_flux_prefactor_MINI[R_ct] = zpp_integrand * sum_lyLW_val_MINI;
-            LOG_ULTRA_DEBUG("LW: %.2e LWmini: %.2e", rad_setup->lyw_flux_prefactor[R_ct],
-                            rad_setup->lyw_flux_prefactor_MINI[R_ct]);
+            rad_setup->lyw_flux_prefactor_acg[R_ct] = zpp_integrand * sum_lyLW_val_acg;
+            rad_setup->lyw_flux_prefactor_mcg[R_ct] = zpp_integrand * sum_lyLW_val_mcg;
+            LOG_ULTRA_DEBUG("LW (ACG): %.2e LW (MCG): %.2e",
+                            rad_setup->lyw_flux_prefactor_acg[R_ct],
+                            rad_setup->lyw_flux_prefactor_mcg[R_ct]);
             if (astro_options_global->USE_LYA_HEATING) {
-                rad_setup->lya_flux_continuum_prefactor_MINI[R_ct] =
-                    zpp_integrand * sum_ly2_val_MINI;
-                rad_setup->lya_flux_injected_prefactor_MINI[R_ct] =
-                    zpp_integrand * sum_lynto2_val_MINI;
+                rad_setup->lya_flux_continuum_prefactor_mcg[R_ct] = zpp_integrand * sum_ly2_val_mcg;
+                rad_setup->lya_flux_injected_prefactor_mcg[R_ct] =
+                    zpp_integrand * sum_lynto2_val_mcg;
                 LOG_ULTRA_DEBUG("cont mini %.2e inj mini %.2e",
-                                rad_setup->lya_flux_continuum_prefactor_MINI[R_ct],
-                                rad_setup->lya_flux_injected_prefactor_MINI[R_ct]);
+                                rad_setup->lya_flux_continuum_prefactor_mcg[R_ct],
+                                rad_setup->lya_flux_injected_prefactor_mcg[R_ct]);
             } else {
-                rad_setup->lya_flux_continuum_injected_prefactor_MINI[R_ct] =
-                    zpp_integrand * sum_lyn_val_MINI;
+                rad_setup->lya_flux_continuum_injected_prefactor_mcg[R_ct] =
+                    zpp_integrand * sum_lyn_val_mcg;
                 LOG_ULTRA_DEBUG("starmini: %.2e",
-                                rad_setup->lya_flux_continuum_injected_prefactor_MINI[R_ct]);
+                                rad_setup->lya_flux_continuum_injected_prefactor_mcg[R_ct]);
             }
         }
 
-        sum_lyn_prev = sum_lyn_val;
-        sum_lyn_prev_MINI = sum_lyn_val_MINI;
-        sum_ly2_prev = sum_ly2_val;
-        sum_ly2_prev_MINI = sum_ly2_val_MINI;
-        sum_lynto2_prev = sum_lynto2_val;
-        sum_lynto2_prev_MINI = sum_lynto2_val_MINI;
+        sum_lyn_prev_acg = sum_lyn_val_acg;
+        sum_lyn_prev_mcg = sum_lyn_val_mcg;
+        sum_ly2_prev_acg = sum_ly2_val_acg;
+        sum_ly2_prev_mcg = sum_ly2_val_mcg;
+        sum_lynto2_prev_acg = sum_lynto2_val_acg;
+        sum_lynto2_prev_mcg = sum_lynto2_val_mcg;
         prev_zpp = zpp;
     }
 }
@@ -221,14 +222,14 @@ void fill_freqint_tables(double zp, RadiationFieldsSetup *rad_setup, ScalingCons
             //      fix this when issue #470 is fixed!
             if (astro_options_global->USE_MCGS) {
                 lower_int_limit =
-                    fmax(nu_tau_one_MINI(zp, rad_setup->zpp_avg[R_ct], rad_setup->x_e_ave_zp,
-                                         log10(sc->mturn_acg_homogeneous),
-                                         rad_setup->ave_log10_MturnLW[R_ct], sc),
+                    fmax(nu_tau_one_mcg(zp, rad_setup->zpp_avg[R_ct], rad_setup->x_e_ave_zp,
+                                        log10(sc->mturn_acg_homogeneous),
+                                        rad_setup->ave_log10_MturnLW[R_ct], sc),
                          (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
             } else {
                 lower_int_limit =
-                    fmax(nu_tau_one(zp, rad_setup->zpp_avg[R_ct], rad_setup->x_e_ave_zp,
-                                    log10(sc->mturn_acg_homogeneous), sc),
+                    fmax(nu_tau_one_acg(zp, rad_setup->zpp_avg[R_ct], rad_setup->x_e_ave_zp,
+                                        log10(sc->mturn_acg_homogeneous), sc),
                          (astro_params_global->NU_X_THRESH) * physconst.eV_to_Hz);
             }
             // set up frequency integral table for later interpolation for the cell's x_e value

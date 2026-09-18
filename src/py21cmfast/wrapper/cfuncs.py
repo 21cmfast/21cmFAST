@@ -393,29 +393,29 @@ def compute_luminosity_function(
     mturns_acg = pow(10.0, log10mturns_acg)
     mturns_mcg = pow(10.0, log10mturns_mcg)
 
-    lfunc = np.zeros(len(redshifts) * nbins)
-    Muvfunc = np.zeros(len(redshifts) * nbins)
-    Mhfunc = np.zeros(len(redshifts) * nbins)
+    lfunc_acg = np.zeros(len(redshifts) * nbins)
+    Muvfunc_acg = np.zeros(len(redshifts) * nbins)
+    Mhfunc_acg = np.zeros(len(redshifts) * nbins)
 
-    lfunc.shape = (len(redshifts), nbins)
-    Muvfunc.shape = (len(redshifts), nbins)
-    Mhfunc.shape = (len(redshifts), nbins)
+    lfunc_acg.shape = (len(redshifts), nbins)
+    Muvfunc_acg.shape = (len(redshifts), nbins)
+    Mhfunc_acg.shape = (len(redshifts), nbins)
 
-    c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
-    c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
-    c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
+    c_Muvfunc_acg = ffi.cast("double *", ffi.from_buffer(Muvfunc_acg))
+    c_Mhfunc_acg = ffi.cast("double *", ffi.from_buffer(Mhfunc_acg))
+    c_lfunc_acg = ffi.cast("double *", ffi.from_buffer(lfunc_acg))
 
-    lfunc_MINI = np.zeros(len(redshifts) * nbins)
-    Muvfunc_MINI = np.zeros(len(redshifts) * nbins)
-    Mhfunc_MINI = np.zeros(len(redshifts) * nbins)
+    lfunc_mcg = np.zeros(len(redshifts) * nbins)
+    Muvfunc_mcg = np.zeros(len(redshifts) * nbins)
+    Mhfunc_mcg = np.zeros(len(redshifts) * nbins)
 
-    lfunc_MINI.shape = (len(redshifts), nbins)
-    Muvfunc_MINI.shape = (len(redshifts), nbins)
-    Mhfunc_MINI.shape = (len(redshifts), nbins)
+    lfunc_mcg.shape = (len(redshifts), nbins)
+    Muvfunc_mcg.shape = (len(redshifts), nbins)
+    Mhfunc_mcg.shape = (len(redshifts), nbins)
 
-    c_Muvfunc_MINI = ffi.cast("double *", ffi.from_buffer(Muvfunc_MINI))
-    c_Mhfunc_MINI = ffi.cast("double *", ffi.from_buffer(Mhfunc_MINI))
-    c_lfunc_MINI = ffi.cast("double *", ffi.from_buffer(lfunc_MINI))
+    c_Muvfunc_mcg = ffi.cast("double *", ffi.from_buffer(Muvfunc_mcg))
+    c_Mhfunc_mcg = ffi.cast("double *", ffi.from_buffer(Mhfunc_mcg))
+    c_lfunc_mcg = ffi.cast("double *", ffi.from_buffer(lfunc_mcg))
 
     if component in ("both", "acg"):
         # Run the C code
@@ -426,9 +426,9 @@ def compute_luminosity_function(
             ffi.cast("double *", ffi.from_buffer(redshifts)),
             ffi.cast("double *", ffi.from_buffer(mturns_acg)),
             ffi.cast("double *", ffi.from_buffer(mturns_mcg)),
-            c_Muvfunc,
-            c_Mhfunc,
-            c_lfunc,
+            c_Muvfunc_acg,
+            c_Mhfunc_acg,
+            c_lfunc_acg,
         )
 
         _process_exitcode(
@@ -450,9 +450,9 @@ def compute_luminosity_function(
             ffi.cast("double *", ffi.from_buffer(redshifts)),
             ffi.cast("double *", ffi.from_buffer(mturns_acg)),
             ffi.cast("double *", ffi.from_buffer(mturns_mcg)),
-            c_Muvfunc_MINI,
-            c_Mhfunc_MINI,
-            c_lfunc_MINI,
+            c_Muvfunc_mcg,
+            c_Mhfunc_mcg,
+            c_lfunc_mcg,
         )
 
         _process_exitcode(
@@ -477,42 +477,42 @@ def compute_luminosity_function(
 
         for iz in range(len(redshifts)):
             Muvfunc_all[iz] = np.linspace(
-                np.min([Muvfunc.min(), Muvfunc_MINI.min()]),
-                np.max([Muvfunc.max(), Muvfunc_MINI.max()]),
+                np.min([Muvfunc_acg.min(), Muvfunc_mcg.min()]),
+                np.max([Muvfunc_acg.max(), Muvfunc_mcg.max()]),
                 nbins,
             )
             lfunc_all[iz] = np.log10(
                 10
                 ** (
-                    interp1d(Muvfunc[iz], lfunc[iz], fill_value="extrapolate")(
+                    interp1d(Muvfunc_acg[iz], lfunc_acg[iz], fill_value="extrapolate")(
                         Muvfunc_all[iz]
                     )
                 )
                 + 10
                 ** (
-                    interp1d(
-                        Muvfunc_MINI[iz], lfunc_MINI[iz], fill_value="extrapolate"
-                    )(Muvfunc_all[iz])
+                    interp1d(Muvfunc_mcg[iz], lfunc_mcg[iz], fill_value="extrapolate")(
+                        Muvfunc_all[iz]
+                    )
                 )
             )
             Mhfunc_all[iz] = np.array(
                 [
-                    interp1d(Muvfunc[iz], Mhfunc[iz], fill_value="extrapolate")(
+                    interp1d(Muvfunc_acg[iz], Mhfunc_acg[iz], fill_value="extrapolate")(
                         Muvfunc_all[iz]
                     ),
-                    interp1d(
-                        Muvfunc_MINI[iz], Mhfunc_MINI[iz], fill_value="extrapolate"
-                    )(Muvfunc_all[iz]),
+                    interp1d(Muvfunc_mcg[iz], Mhfunc_mcg[iz], fill_value="extrapolate")(
+                        Muvfunc_all[iz]
+                    ),
                 ],
             ).T
         lfunc_all[lfunc_all <= -30] = np.nan
         return Muvfunc_all, Mhfunc_all, lfunc_all
     elif component == "acg":
-        lfunc[lfunc <= -30] = np.nan
-        return Muvfunc, Mhfunc, lfunc
+        lfunc_acg[lfunc_acg <= -30] = np.nan
+        return Muvfunc_acg, Mhfunc_acg, lfunc_acg
     elif component == "mcg":
-        lfunc_MINI[lfunc_MINI <= -30] = np.nan
-        return Muvfunc_MINI, Mhfunc_MINI, lfunc_MINI
+        lfunc_mcg[lfunc_mcg <= -30] = np.nan
+        return Muvfunc_mcg, Mhfunc_mcg, lfunc_mcg
     else:
         raise ValueError(
             f"Unknown component '{component}'. Must be 'both', 'acg' or 'mcg'"

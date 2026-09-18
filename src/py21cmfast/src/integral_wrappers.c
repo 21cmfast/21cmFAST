@@ -292,11 +292,11 @@ void get_conditional_xray_emissivity(double redshift, double R, int n_densities,
         if (dens > max_dens) max_dens = dens;
     }
 
-    double X_RAY_FACTOR = 1e38;
-    double X_RAY_FACTOR_MINI = 1e38;
+    double xray_factor_acg = 1e38;
+    double xray_factor_mcg = 1e38;
     if (!astro_options_global->USE_METALLICITY) {
-        X_RAY_FACTOR *= sc.lx_over_sfr_acg;
-        X_RAY_FACTOR_MINI *= sc.lx_over_sfr_mcg;
+        xray_factor_acg *= sc.lx_over_sfr_acg;
+        xray_factor_mcg *= sc.lx_over_sfr_mcg;
     }
 
     if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
@@ -317,7 +317,7 @@ void get_conditional_xray_emissivity(double redshift, double R, int n_densities,
             xray_integral_acg = evaluate_sfrd_conditional_acg(
                 densities[i], log10_mturn_acg, growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
         }
-        out_xray[i] = X_RAY_FACTOR * xray_integral_acg;
+        out_xray[i] = xray_factor_acg * xray_integral_acg;
         if (astro_options_global->USE_MCGS) {
             if (astro_options_global->USE_METALLICITY) {
                 xray_integral_mcg = evaluate_xray_emissivity_conditional_mcg(
@@ -328,7 +328,7 @@ void get_conditional_xray_emissivity(double redshift, double R, int n_densities,
                     evaluate_sfrd_conditional_mcg(densities[i], log10_mturn_acg, log10_mturn_mcg,
                                                   growthf, M_min, M_cond, M_cond, sigma_cond, &sc);
             }
-            out_xray[i] += X_RAY_FACTOR_MINI * xray_integral_mcg;
+            out_xray[i] += xray_factor_mcg * xray_integral_mcg;
         }
     }
 }

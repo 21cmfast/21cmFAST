@@ -1489,14 +1489,14 @@ class RadiationFieldsSetup(OutputStructZ):
     m_xHII_low_box = _arrayfield()
     inverse_val_box = _arrayfield()
     # arrays for R-dependent prefactors
-    lya_flux_continuum_prefactor = _arrayfield(optional=True)
-    lya_flux_injected_prefactor = _arrayfield(optional=True)
-    lya_flux_continuum_injected_prefactor = _arrayfield(optional=True)
-    lyw_flux_prefactor = _arrayfield(optional=True)
-    lyw_flux_prefactor_MINI = _arrayfield(optional=True)
-    lya_flux_continuum_prefactor_MINI = _arrayfield(optional=True)
-    lya_flux_injected_prefactor_MINI = _arrayfield(optional=True)
-    lya_flux_continuum_injected_prefactor_MINI = _arrayfield(optional=True)
+    lya_flux_continuum_prefactor_acg = _arrayfield(optional=True)
+    lya_flux_injected_prefactor_acg = _arrayfield(optional=True)
+    lya_flux_continuum_injected_prefactor_acg = _arrayfield(optional=True)
+    lyw_flux_prefactor_acg = _arrayfield(optional=True)
+    lyw_flux_prefactor_mcg = _arrayfield(optional=True)
+    lya_flux_continuum_prefactor_mcg = _arrayfield(optional=True)
+    lya_flux_injected_prefactor_mcg = _arrayfield(optional=True)
+    lya_flux_continuum_injected_prefactor_mcg = _arrayfield(optional=True)
     # array and floats required for the X-ray optical depth calculation
     ave_log10_MturnLW = _arrayfield(optional=True)
     Q_HI_zp: float = attrs.field(default=1.0)
@@ -1568,33 +1568,33 @@ class RadiationFieldsSetup(OutputStructZ):
                 out["filtered_sfrd_mcg_for_lw"] = Array(shape, dtype=np.float32)
 
         if inputs.astro_options.USE_LYA_HEATING:
-            out["lya_flux_continuum_prefactor"] = Array(
+            out["lya_flux_continuum_prefactor_acg"] = Array(
                 (inputs.astro_params.N_STEP_TS,), dtype=np.float64
             )
-            out["lya_flux_injected_prefactor"] = Array(
+            out["lya_flux_injected_prefactor_acg"] = Array(
                 (inputs.astro_params.N_STEP_TS,), dtype=np.float64
             )
         else:
-            out["lya_flux_continuum_injected_prefactor"] = Array(
+            out["lya_flux_continuum_injected_prefactor_acg"] = Array(
                 (inputs.astro_params.N_STEP_TS,), dtype=np.float64
             )
 
         if inputs.astro_options.USE_MCGS:
-            out["lyw_flux_prefactor"] = Array(
+            out["lyw_flux_prefactor_acg"] = Array(
                 (inputs.astro_params.N_STEP_TS,), dtype=np.float64
             )
-            out["lyw_flux_prefactor_MINI"] = Array(
+            out["lyw_flux_prefactor_mcg"] = Array(
                 (inputs.astro_params.N_STEP_TS,), dtype=np.float64
             )
             if inputs.astro_options.USE_LYA_HEATING:
-                out["lya_flux_continuum_prefactor_MINI"] = Array(
+                out["lya_flux_continuum_prefactor_mcg"] = Array(
                     (inputs.astro_params.N_STEP_TS,), dtype=np.float64
                 )
-                out["lya_flux_injected_prefactor_MINI"] = Array(
+                out["lya_flux_injected_prefactor_mcg"] = Array(
                     (inputs.astro_params.N_STEP_TS,), dtype=np.float64
                 )
             else:
-                out["lya_flux_continuum_injected_prefactor_MINI"] = Array(
+                out["lya_flux_continuum_injected_prefactor_mcg"] = Array(
                     (inputs.astro_params.N_STEP_TS,), dtype=np.float64
                 )
 
@@ -1786,21 +1786,21 @@ class RadiationFields(OutputStructZ):
 
             if self.astro_options.USE_LYA_HEATING:
                 required += [
-                    "lya_flux_continuum_prefactor",
-                    "lya_flux_injected_prefactor",
+                    "lya_flux_continuum_prefactor_acg",
+                    "lya_flux_injected_prefactor_acg",
                 ]
             else:
-                required += ["lya_flux_continuum_injected_prefactor"]
+                required += ["lya_flux_continuum_injected_prefactor_acg"]
 
             if self.astro_options.USE_MCGS:
-                required += ["lyw_flux_prefactor", "lyw_flux_prefactor_MINI"]
+                required += ["lyw_flux_prefactor_acg", "lyw_flux_prefactor_mcg"]
                 if self.astro_options.USE_LYA_HEATING:
                     required += [
-                        "lya_flux_continuum_prefactor_MINI",
-                        "lya_flux_injected_prefactor_MINI",
+                        "lya_flux_continuum_prefactor_mcg",
+                        "lya_flux_injected_prefactor_mcg",
                     ]
                 else:
-                    required += ["lya_flux_continuum_injected_prefactor_MINI"]
+                    required += ["lya_flux_continuum_injected_prefactor_mcg"]
 
             if self.astro_options.USE_MCGS:
                 required += ["ave_log10_MturnLW"]

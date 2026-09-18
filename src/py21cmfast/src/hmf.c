@@ -770,7 +770,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     if (abs(params.gamma_type) > 4) {
         LOG_ERROR("Approximate Fcoll only works for single power-law scaling relations");
         LOG_ERROR("These include the following General/Conditional integration functions");
-        LOG_ERROR("Nhalo, Fcoll, Nion, Nion_MINI");
+        LOG_ERROR("Nhalo, Fcoll, Nion_acg, Nion_mcg");
         LOG_ERROR("Something has gone wrong in the backend such that the 'Gamma-Approx'");
         LOG_ERROR("integration method was used on a more complex scaling relation");
         Throw(TableGenerationError);

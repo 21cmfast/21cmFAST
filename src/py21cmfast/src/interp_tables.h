@@ -8,16 +8,16 @@
 // all down the chain, so we broadcast them
 
 void initialize_sfrd_unconditional_tables(int Nbin, float zmin, float zmax, ScalingConstants *sc);
-double evaluate_sfrd_unconditional_acg(double redshift, double log10_Mturn_ACG_ave,
+double evaluate_sfrd_unconditional_acg(double redshift, double log10_mturn_acg,
                                        ScalingConstants *sc);
-double evaluate_sfrd_unconditional_mcg(double redshift, double log10_Mturn_ACG_ave,
-                                       double log10_Mturn_MCG_ave, ScalingConstants *sc);
+double evaluate_sfrd_unconditional_mcg(double redshift, double log10_mturn_acg,
+                                       double log10_mturn_mcg, ScalingConstants *sc);
 
 void initialize_nion_unconditional_tables(int Nbin, float zmin, float zmax, ScalingConstants *sc);
-double evaluate_nion_unconditional_acg(double redshift, double log10_Mturn_ACG_ave,
+double evaluate_nion_unconditional_acg(double redshift, double log10_mturn_acg,
                                        ScalingConstants *sc);
-double evaluate_nion_unconditional_mcg(double redshift, double log10_Mturn_ACG_ave,
-                                       double log10_Mturn_MCG_ave, ScalingConstants *sc);
+double evaluate_nion_unconditional_mcg(double redshift, double log10_mturn_acg,
+                                       double log10_mturn_mcg, ScalingConstants *sc);
 
 void initialize_fcoll_unconditional_table(double zmin, double zmax, bool x_ray);
 void initialize_fcoll_conditional_eps_tables(double min_dens, double max_dens, double zpp,
@@ -30,31 +30,31 @@ double evaluate_dfcoll_dz_conditional_eps(double delta, double redshift, double 
 void initialize_nion_conditional_tables(double z, double min_density, double max_density,
                                         double Mmin, double Mmax, double Mcond,
                                         ScalingConstants *sc, bool prev);
-double evaluate_nion_conditional_acg(double delta, double log10Mturn_acg, double growthf,
+double evaluate_nion_conditional_acg(double delta, double log10_mturn_acg, double growthf,
                                      double M_min, double M_max, double M_cond, double sigma_max,
                                      ScalingConstants *sc, bool prev);
-double evaluate_nion_conditional_mcg(double delta, double log10Mturn_acg, double log10Mturn_mcg,
+double evaluate_nion_conditional_mcg(double delta, double log10_mturn_acg, double log10_mturn_mcg,
                                      double growthf, double M_min, double M_max, double M_cond,
                                      double sigma_max, ScalingConstants *sc, bool prev);
 void initialize_xray_emissivity_conditional_tables(double redshift, double min_density,
                                                    double max_density, double Mmin, double Mmax,
                                                    double Mcond, ScalingConstants *sc);
-double evaluate_xray_emissivity_conditional_acg(double delta, double log10Mturn_acg,
+double evaluate_xray_emissivity_conditional_acg(double delta, double log10_mturn_acg,
                                                 double redshift, double growthf, double M_min,
                                                 double M_max, double M_cond, double sigma_max,
                                                 ScalingConstants *sc);
-double evaluate_xray_emissivity_conditional_mcg(double delta, double log10Mturn_acg,
-                                                double log10Mturn_mcg, double redshift,
+double evaluate_xray_emissivity_conditional_mcg(double delta, double log10_mturn_acg,
+                                                double log10_mturn_mcg, double redshift,
                                                 double growthf, double M_min, double M_max,
                                                 double M_cond, double sigma_max,
                                                 ScalingConstants *sc);
 void initialize_sfrd_conditional_tables(double z, double min_density, double max_density,
                                         double Mmin, double Mmax, double Mcond,
                                         ScalingConstants *sc);
-double evaluate_sfrd_conditional_acg(double delta, double log10Mturn_acg, double growthf,
+double evaluate_sfrd_conditional_acg(double delta, double log10_mturn_acg, double growthf,
                                      double M_min, double M_max, double M_cond, double sigma_max,
                                      ScalingConstants *sc);
-double evaluate_sfrd_conditional_mcg(double delta, double log10Mturn_acg, double log10Mturn_mcg,
+double evaluate_sfrd_conditional_mcg(double delta, double log10_mturn_acg, double log10_mturn_mcg,
                                      double growthf, double M_min, double M_max, double M_cond,
                                      double sigma_max, ScalingConstants *sc);
 

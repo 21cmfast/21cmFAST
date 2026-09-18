@@ -46,11 +46,11 @@ void accumulate_radiation_shell(float redshift, RadiationFieldsSetup *rad_setup,
     // MCG factors should be separated since they may not be allocated
     if (astro_options_global->USE_MCGS) {
         if (astro_options_global->USE_LYA_HEATING) {
-            lya_flux_continuum_prefactor_mcg = rad_setup->lya_flux_continuum_prefactor_MINI[R_ct];
-            lya_flux_injected_prefactor_mcg = rad_setup->lya_flux_injected_prefactor_MINI[R_ct];
+            lya_flux_continuum_prefactor_mcg = rad_setup->lya_flux_continuum_prefactor_mcg[R_ct];
+            lya_flux_injected_prefactor_mcg = rad_setup->lya_flux_injected_prefactor_mcg[R_ct];
         } else {
             lya_flux_continuum_injected_prefactor_mcg =
-                rad_setup->lya_flux_continuum_injected_prefactor_MINI[R_ct];
+                rad_setup->lya_flux_continuum_injected_prefactor_mcg[R_ct];
         }
     }
 
@@ -111,19 +111,20 @@ void accumulate_radiation_shell(float redshift, RadiationFieldsSetup *rad_setup,
             radiation_fields->xray_lya_flux[box_ct] += xray_emissivity_term * freq_int_lya;
             if (astro_options_global->USE_MCGS) {
                 radiation_fields->lyw_flux[box_ct] +=
-                    sfrd_term_for_lw_acg * rad_setup->lyw_flux_prefactor[R_ct] +
-                    sfrd_term_for_lw_mcg * rad_setup->lyw_flux_prefactor_MINI[R_ct];
+                    sfrd_term_for_lw_acg * rad_setup->lyw_flux_prefactor_acg[R_ct] +
+                    sfrd_term_for_lw_mcg * rad_setup->lyw_flux_prefactor_mcg[R_ct];
             }
             if (astro_options_global->USE_LYA_HEATING) {
                 radiation_fields->lya_flux_continuum[box_ct] +=
-                    sfrd_term_for_lya_acg * rad_setup->lya_flux_continuum_prefactor[R_ct] +
+                    sfrd_term_for_lya_acg * rad_setup->lya_flux_continuum_prefactor_acg[R_ct] +
                     sfrd_term_for_lya_mcg * lya_flux_continuum_prefactor_mcg;
                 radiation_fields->lya_flux_injected[box_ct] +=
-                    sfrd_term_for_lya_acg * rad_setup->lya_flux_injected_prefactor[R_ct] +
+                    sfrd_term_for_lya_acg * rad_setup->lya_flux_injected_prefactor_acg[R_ct] +
                     sfrd_term_for_lya_mcg * lya_flux_injected_prefactor_mcg;
             } else {
                 radiation_fields->lya_flux_continuum_injected[box_ct] +=
-                    sfrd_term_for_lya_acg * rad_setup->lya_flux_continuum_injected_prefactor[R_ct] +
+                    sfrd_term_for_lya_acg *
+                        rad_setup->lya_flux_continuum_injected_prefactor_acg[R_ct] +
                     sfrd_term_for_lya_mcg * lya_flux_continuum_injected_prefactor_mcg;
             }
         }

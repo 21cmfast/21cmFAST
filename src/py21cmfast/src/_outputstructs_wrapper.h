@@ -85,10 +85,10 @@ typedef struct RadiationFieldsSetup {
     int *m_xHII_low_box;
 
     // arrays for R-dependent prefactors
-    double *lya_flux_continuum_injected_prefactor, *lya_flux_continuum_injected_prefactor_MINI;
-    double *lyw_flux_prefactor, *lyw_flux_prefactor_MINI;
-    double *lya_flux_continuum_prefactor, *lya_flux_injected_prefactor;
-    double *lya_flux_continuum_prefactor_MINI, *lya_flux_injected_prefactor_MINI;
+    double *lya_flux_continuum_injected_prefactor_acg, *lya_flux_continuum_injected_prefactor_mcg;
+    double *lyw_flux_prefactor_acg, *lyw_flux_prefactor_mcg;
+    double *lya_flux_continuum_prefactor_acg, *lya_flux_injected_prefactor_acg;
+    double *lya_flux_continuum_prefactor_mcg, *lya_flux_injected_prefactor_mcg;
 
     // array and floats required for the X-ray optical depth calculation
     double *ave_log10_MturnLW;
