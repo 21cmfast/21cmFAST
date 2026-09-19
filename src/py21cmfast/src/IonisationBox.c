@@ -214,6 +214,8 @@ void set_ionbox_constants(double redshift, double prev_redshift, struct IonBoxCo
                               consts->ion_eff_factor / 1.0e-12;
     if (consts->lagrangian_source_grids)
         consts->gamma_prefactor /= RHOcrit * cosmo_params_global->OMb;
+    else if (!consts->mass_dep_zeta)
+        consts->gamma_prefactor = consts->gamma_prefactor / sc.t_h;
     else
         consts->gamma_prefactor = consts->gamma_prefactor / (sc.t_h * sc.t_star);
 
