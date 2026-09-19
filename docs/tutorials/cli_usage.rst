@@ -355,6 +355,51 @@ for example::
     ``node_redshifts``.
 
 
+Making Plots
+------------
+
+A simulation that writes everything into a (rather hidden) cache directory can feel a
+bit like it did nothing at all. To get a quick look at what you just made, use::
+
+    $ 21cmfast plot lightcone.h5
+
+This writes a simple summary plot (here, ``lightcone_summary.png``) next to the data
+file. It works on any of the "primary" outputs -- coeval, lightcone or global-evolution
+files -- and produces a plot appropriate to the kind of file you give it.
+
+A **lightcone** file gives a slice through the lightcone, with the global signal and
+ionization/temperature histories lined up beneath it on the same line-of-sight axis:
+
+.. image:: ../images/summary_plots/lightcone.png
+    :width: 100%
+    :alt: Summary plot of a lightcone.
+
+A **coeval** file gives slices through the box for the brightness temperature, neutral
+fraction, density and (if computed) spin temperature:
+
+.. image:: ../images/summary_plots/coeval.png
+    :width: 100%
+    :alt: Summary plot of a coeval box.
+
+A **global evolution** file gives the global signal (with a frequency axis), the
+ionization history and the temperature history:
+
+.. image:: ../images/summary_plots/global_evolution.png
+    :width: 80%
+    :alt: Summary plot of a global evolution run.
+
+Use ``--out`` to write the plot somewhere else, and ``--show`` to pop it up in an
+interactive window.
+
+You can also get the plot directly as part of the run, by passing ``--plot``::
+
+    $ 21cmfast run lightcone --param-file custom.toml --redshift-range 6 12 --plot
+
+These plots are deliberately simple -- they're meant as a sanity check that the
+simulation ran and looks sensible, not as publication-quality figures. For that, use
+the functions in :mod:`py21cmfast.plotting` directly.
+
+
 Common Options when Running Simulations
 ---------------------------------------
 
@@ -371,6 +416,8 @@ already discussed above (all are optional, with defaults):
 * ``--verbosity``: set how much info is printed to screen by the simulator. The options
   here are the standard logging levels (INFO, DEBUG, WARNING, etc).
 * ``--progress/--no-progress``: turn the progress bar on and off.
+* ``--plot``: write a simple summary plot of the output alongside the data file
+  (not available for ``run ics``). See `Making Plots`_.
 
 Cookbook
 --------

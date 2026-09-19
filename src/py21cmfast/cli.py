@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import attrs
+import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from cyclopts import App, Group, Parameter
@@ -25,9 +26,9 @@ from rich.text import Text
 from . import __version__, plotting
 from ._templates import TOMLMode, list_templates, write_template
 from .drivers import coeval as cvlmodule
-from .drivers.coeval import generate_coeval
-from .drivers.global_evolution import run_global_evolution
-from .drivers.lightcone import run_lightcone
+from .drivers.coeval import Coeval, generate_coeval
+from .drivers.global_evolution import GlobalEvolution, run_global_evolution
+from .drivers.lightcone import LightCone, run_lightcone
 from .drivers.single_field import compute_initial_conditions
 from .input_serialization import convert_inputs_to_dict
 from .io.caching import CacheConfig, OutputCache, RunCache
@@ -554,6 +555,7 @@ def coeval(
         bool, Parameter(name=("--save-all-redshifts", "-a", "--all"))
     ] = False,
     nodez_params: NodeRedshiftParameters | None = None,
+    plot: bool = False,
 ):
     """Generate coeval cubes at given redshifts.
 
@@ -572,6 +574,8 @@ def coeval(
     save_all_redshifts
         Whether to save all redshifts in `node_redshifts` (i.e. all those
         in the evolution of the simulation), or only those in the redshifts given.
+    plot
+        Whether to write a simple summary plot alongside each saved coeval box.
     min_evolved_redshift
         The minimum redshift down to which to evolve the simulation. For some simulation
         configurations, this is not used at all, while for others it will subtly change
@@ -579,6 +583,7 @@ def coeval(
     """
     inputs = _run_setup(options, params, nodez_params=nodez_params)
 
+    outfile = None
     for coeval, in_outputs in generate_coeval(
         out_redshifts=redshifts,
         inputs=inputs,
@@ -598,6 +603,12 @@ def coeval(
             f"[spring_green3]:duck: Saved z={coeval.redshift:.2f} coeval box to [purple]{outfile}."
         )
 
+        if plot:
+            _write_summary_plot(coeval, _summary_plot_path(outfile))
+
+    if not plot and outfile is not None:
+        _plot_hint(outfile)
+
 
 @run.command()
 def lightcone(
@@ -612,6 +623,7 @@ def lightcone(
         "brightness_temp",
     ),
     nodez_params: NodeRedshiftParameters | None = None,
+    plot: bool = False,
 ):
     """Generate a lightcone between given redshifts.
 
@@ -628,6 +640,8 @@ def lightcone(
         The filename to which to save the lightcone data.
     lightcone_quantities
         Computed fields to generate lightcones for.
+    plot
+        Whether to write a simple summary plot alongside the saved lightcone.
     """
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -658,6 +672,11 @@ def lightcone(
 
     cns.print(f"[spring_green3]:duck: Saved Lightcone to {out}.")
 
+    if plot:
+        _write_summary_plot(lc, _summary_plot_path(out))
+    else:
+        _plot_hint(out)
+
 
 @run.command(name="global")
 def global_evolution(
@@ -674,6 +693,7 @@ def global_evolution(
         Path,
         Parameter(validator=(vld.Path(dir_okay=False, file_okay=False, ext=("h5",)),)),
     ] = Path("global-evolution.h5"),
+    plot: bool = False,
 ):
     """Generate the global evolution between given redshifts.
 
@@ -688,6 +708,8 @@ def global_evolution(
         The minimum redshift down to which to generate the global evolution.
     out
         The filename to which to save the global evolution data.
+    plot
+        Whether to write a simple summary plot alongside the saved data.
     """
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -718,6 +740,91 @@ def global_evolution(
     lc.save(out)
 
     cns.print(f"[spring_green3]:duck: Saved Global Evolution to {out}.")
+
+    if plot:
+        _write_summary_plot(lc, _summary_plot_path(out))
+    else:
+        _plot_hint(out)
+
+
+def load_simulation_output(path: Path) -> Coeval | LightCone | GlobalEvolution:
+    """Read a saved 21cmFAST output file, determining its type automatically."""
+    path = Path(path)
+    with h5py.File(path, "r") as fl:
+        markers = {
+            "lightcone": fl.attrs.get("lightcone", False),
+            "coeval": fl.attrs.get("coeval", False),
+            "global_evolution": fl.attrs.get("global_evolution", False),
+        }
+
+    for marker, cls in (
+        ("lightcone", LightCone),
+        ("coeval", Coeval),
+        ("global_evolution", GlobalEvolution),
+    ):
+        if markers[marker]:
+            return cls.from_file(path)
+
+    raise ValueError(
+        f"The file {path} is not a recognized 21cmFAST output file "
+        "(expected a coeval, lightcone or global-evolution file)."
+    )
+
+
+def _write_summary_plot(obj, out: Path, show: bool = False) -> Path:
+    """Make a default summary plot of ``obj`` and save it to ``out``."""
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fig, _ = plotting.summary_plot(obj)
+    fig.savefig(out, bbox_inches="tight", dpi=150)
+    cns.print(f"[spring_green3]:duck: Saved summary plot to [purple]{out}")
+    if show:  # pragma: no cover
+        plt.show()
+    plt.close(fig)
+    return out
+
+
+def _summary_plot_path(datafile: Path) -> Path:
+    """Get the default path of the summary plot associated with a data file."""
+    return datafile.with_name(f"{datafile.stem}_summary.png")
+
+
+def _plot_hint(datafile: Path):
+    """Tell the user how to make plots of a file they just created."""
+    cns.print(
+        f"[cyan]:bar_chart: Use [bold]21cmfast plot {datafile}[/bold] to get "
+        "summary plots of this simulation!"
+    )
+
+
+@app.command(name="plot")
+def plot_output(
+    filename: cyctp.ExistingFile,
+    out: Annotated[Path | None, Parameter(name=("--out", "-o"))] = None,
+    show: bool = False,
+):
+    """Make a default summary plot of a saved 21cmFAST simulation output.
+
+    The kind of plot produced depends on the kind of file given: a coeval box
+    produces slices through the box, a lightcone produces a lightcone slice along
+    with the global evolution, and a global evolution file produces the global
+    signal, ionization and temperature histories.
+
+    Parameters
+    ----------
+    filename
+        The path to a saved coeval, lightcone or global-evolution file.
+    out
+        Where to write the plot. By default, written alongside `filename` with a
+        "_summary.png" suffix.
+    show
+        Whether to open the plot in an interactive matplotlib window.
+    """
+    obj = load_simulation_output(filename)
+
+    if out is None:
+        out = _summary_plot_path(Path(filename))
+
+    _write_summary_plot(obj, out, show=show)
 
 
 @dev.command(name="feature")

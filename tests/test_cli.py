@@ -4,6 +4,7 @@ import tempfile
 import tomllib as toml
 from pathlib import Path
 
+import h5py
 import pytest
 from rich.console import Console
 
@@ -514,3 +515,72 @@ class TestGlobalEvolution:
         )
 
         assert lcfile.exists()
+
+
+class TestPlot:
+    """Tests of the `plot` command and the `--plot` option on `run` commands."""
+
+    def test_plot_lightcone(self, capsys, tmp_path: Path):
+        """Test that `21cmfast plot` works on a saved lightcone."""
+        lcfile = tmp_path / "lightcone.h5"
+        app_noexit(
+            f"run lightcone --template simple tiny --cachedir {tmp_path} "
+            f"--redshift-range 6.0 12.0 --out {lcfile}",
+        )
+
+        # Without --plot, we should be told how to make one.
+        assert "21cmfast plot" in capsys.readouterr().out
+
+        app_noexit(f"plot {lcfile}")
+        assert (tmp_path / "lightcone_summary.png").exists()
+
+    def test_plot_explicit_out(self, tmp_path: Path):
+        """Test that `--out` puts the plot where we asked for it."""
+        lcfile = tmp_path / "lightcone.h5"
+        app_noexit(
+            f"run lightcone --template simple tiny --cachedir {tmp_path} "
+            f"--redshift-range 6.0 12.0 --out {lcfile}",
+        )
+
+        out = tmp_path / "plots" / "mylc.png"
+        app_noexit(f"plot {lcfile} --out {out}")
+        assert out.exists()
+
+    def test_run_lightcone_with_plot(self, tmp_path: Path):
+        """Test that `run lightcone --plot` writes a plot next to the data."""
+        lcfile = tmp_path / "lightcone.h5"
+        app_noexit(
+            f"run lightcone --template simple tiny --cachedir {tmp_path} "
+            f"--redshift-range 6.0 12.0 --out {lcfile} --plot",
+        )
+
+        assert (tmp_path / "lightcone_summary.png").exists()
+
+    def test_run_coeval_with_plot(self, tmp_path: Path):
+        """Test that `run coeval --plot` writes a plot next to each coeval box."""
+        app_noexit(
+            f"run coeval --template simple tiny --cachedir {tmp_path} "
+            f"--redshifts 7.0 --out {tmp_path} --plot",
+        )
+
+        assert (tmp_path / "coeval_z7.00.h5").exists()
+        assert (tmp_path / "coeval_z7.00_summary.png").exists()
+
+    def test_run_global_with_plot(self, tmp_path: Path):
+        """Test that `run global --plot` writes a plot next to the data."""
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out} --plot",
+        )
+
+        assert (tmp_path / "global-evolution_summary.png").exists()
+
+    def test_plot_unknown_file(self, tmp_path: Path):
+        """Test that a file that isn't a 21cmFAST output gives a nice error."""
+        bad = tmp_path / "bad.h5"
+        with h5py.File(bad, "w") as fl:
+            fl.attrs["something_else"] = True
+
+        with pytest.raises(ValueError, match="not a recognized 21cmFAST output"):
+            cli.load_simulation_output(bad)
