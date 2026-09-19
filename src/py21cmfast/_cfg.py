@@ -87,9 +87,11 @@ class Config(dict):
         backup = self.copy()
         for k, v in kwargs.items():
             self[k] = Path(v).expanduser().absolute() if k == "direc" else v
-        yield self
-        for k in kwargs:
-            self[k] = backup[k]
+        try:
+            yield self
+        finally:
+            for k in kwargs:
+                self[k] = backup[k]
 
     def write(self, fname: str | Path | None = None):
         """Write current configuration to file to make it permanent."""

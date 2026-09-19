@@ -140,12 +140,15 @@ class OutputCache:
         str
             The generated filename for the given OutputStruct object.
         """
-        return self._fill_path_template(
+        template = self._fill_path_template(
             kind=obj.__class__.__name__,
             redshift=getattr(obj, "redshift", None),
             inputs=obj.inputs,
             all_seeds=False,
         )
+        if isinstance(obj, op.EmissivityFields) and config["EXTRA_EMISSIVITY_FIELDS"]:
+            template = template.replace(".h5", "_extra.h5")
+        return template
 
     def get_path(self, obj: OutputStruct) -> Path:
         """

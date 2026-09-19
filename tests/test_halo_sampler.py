@@ -175,9 +175,9 @@ def test_halo_prop_sampling(default_input_struct_ts, plt):
     )
 
     halo_mass_out = out_dict["halo_mass"]
-    halo_stars_out = out_dict["halo_stars"]
-    halo_sfr_out = out_dict["halo_sfr"]
-    halo_xray_out = out_dict["halo_xray"]
+    halo_stars_out = out_dict["stellar_mass_acg"]
+    halo_sfr_out = out_dict["sfr_acg"]
+    halo_xray_out = out_dict["xray_luminosity"]
 
     # assuming same value for all halos
     ap_c = inputs.astro_params.cdict
@@ -421,7 +421,7 @@ def test_perturb_halos(default_input_struct_ts):
     )
     np.testing.assert_allclose(
         pt_halos.get("stellar_masses_acg"),
-        prop_dict["stellar_masses_acg"][: pt_halos.n_halos],
+        prop_dict["stellar_mass_acg"][: pt_halos.n_halos],
         rtol=5e-5,
     )
     np.testing.assert_allclose(
@@ -444,7 +444,7 @@ def test_perturb_halos(default_input_struct_ts):
     )
     np.testing.assert_allclose(
         pt_halos.get("stellar_masses_mcg"),
-        prop_dict["stellar_masses_mcg"][: pt_halos.n_halos],
+        prop_dict["stellar_mass_mcg"][: pt_halos.n_halos],
         rtol=5e-5,
     )
     np.testing.assert_allclose(
