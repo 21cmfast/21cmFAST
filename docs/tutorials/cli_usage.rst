@@ -365,14 +365,28 @@ bit like it did nothing at all. To get a quick look at what you just made, use::
 
 This writes a simple summary plot (here, ``lightcone_summary.png``) next to the data
 file. It works on any of the "primary" outputs -- coeval, lightcone or global-evolution
-files -- and produces a plot appropriate to the kind of file you give it:
+files -- and produces a plot appropriate to the kind of file you give it.
 
-* a **coeval** file gives slices through the box for the brightness temperature,
-  neutral fraction, density and (if computed) spin temperature;
-* a **lightcone** file gives a slice through the lightcone, with the global signal and
-  ionization/temperature histories lined up beneath it on the same line-of-sight axis;
-* a **global evolution** file gives the global signal, ionization history and
-  temperature history.
+A **lightcone** file gives a slice through the lightcone, with the global signal and
+ionization/temperature histories lined up beneath it on the same line-of-sight axis:
+
+.. image:: ../images/summary_plots/lightcone.png
+    :width: 100%
+    :alt: Summary plot of a lightcone.
+
+A **coeval** file gives slices through the box for the brightness temperature, neutral
+fraction, density and (if computed) spin temperature:
+
+.. image:: ../images/summary_plots/coeval.png
+    :width: 100%
+    :alt: Summary plot of a coeval box.
+
+A **global evolution** file gives the global signal (with a frequency axis), the
+ionization history and the temperature history:
+
+.. image:: ../images/summary_plots/global_evolution.png
+    :width: 80%
+    :alt: Summary plot of a global evolution run.
 
 Use ``--out`` to write the plot somewhere else, and ``--show`` to pop it up in an
 interactive window.

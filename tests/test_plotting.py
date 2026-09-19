@@ -165,3 +165,57 @@ def test_summary_plot_dispatch(lc: p21c.LightCone):
 
     with pytest.raises(TypeError, match="Cannot make a summary plot"):
         plotting.summary_plot("not-a-simulation")
+
+
+@pytest.fixture(scope="module")
+def coeval(ic, default_input_struct_ts, cache) -> p21c.Coeval:
+    """A coeval box including spin temperature, for testing summary plots."""
+    return p21c.run_coeval(
+        initial_conditions=ic,
+        inputs=default_input_struct_ts,
+        cache=cache,
+    )[-1]
+
+
+def test_coeval_summary_plot(coeval: p21c.Coeval):
+    _fig, axes = plotting.coeval_summary_plot(coeval)
+
+    # brightness_temp, neutral_fraction, density and spin_temperature.
+    assert len(axes) == 4
+    assert all(ax.images for ax in axes)
+
+    # Only the first panel keeps its y-label.
+    assert axes[0].yaxis.get_label().get_text() == "y-axis [Mpc]"
+    assert axes[1].yaxis.get_label().get_text() == ""
+
+
+def test_coeval_summary_plot_log(coeval: p21c.Coeval):
+    """Wide-dynamic-range fields should get a clipped, log color scale."""
+    # The default slice is through the middle of the box.
+    slc = coeval.spin_temperature[..., coeval.simulation_options.HII_DIM // 2]
+
+    _fig, axes = plotting.coeval_summary_plot(coeval, kinds=["spin_temperature"])
+
+    assert axes[0].images[-1].norm.__class__.__name__ == "LogNorm"
+
+    vmin, vmax = axes[0].images[-1].get_clim()
+    assert vmin > slc.min()
+    assert vmax < slc.max()
+
+    # Explicitly turning off the log scale should also turn off the clipping.
+    _fig, axes = plotting.coeval_summary_plot(
+        coeval, kinds=["spin_temperature"], log=False
+    )
+    vmin, vmax = axes[0].images[-1].get_clim()
+    assert vmin == pytest.approx(slc.min())
+    assert vmax == pytest.approx(slc.max())
+
+
+def test_coeval_summary_plot_no_fields(coeval: p21c.Coeval):
+    with pytest.raises(ValueError, match="No fields available to plot"):
+        plotting.coeval_summary_plot(coeval, kinds=[])
+
+
+def test_summary_plot_dispatch_coeval(coeval: p21c.Coeval):
+    _fig, axes = plotting.summary_plot(coeval)
+    assert axes[0].images

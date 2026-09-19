@@ -574,6 +574,9 @@ _DEFAULT_COEVAL_FIELDS = (
     "spin_temperature",
 )
 
+# Fields whose dynamic range is large enough that they are best shown on a log scale.
+_LOG_FIELDS = ("spin_temperature", "kinetic_temp_neutral", "J_21_LW")
+
 
 def _field_label(kind: str) -> str:
     """Return a nice math-mode label for a given field name."""
@@ -826,6 +829,20 @@ def plot_global_signal(
     return fig, ax
 
 
+def _set_log_cbar_ticks(cbar, nticks: int = 4):
+    """Put a few readable, geometrically-spaced ticks on a log-scaled colorbar."""
+    if cbar is None:
+        return
+
+    vmin, vmax = cbar.mappable.get_clim()
+    if not (np.isfinite(vmin) and np.isfinite(vmax)) or vmin <= 0:
+        return
+
+    ticks = np.geomspace(vmin, vmax, nticks)
+    cbar.set_ticks(ticks, labels=[f"{t:.3g}" for t in ticks])
+    cbar.minorticks_off()
+
+
 def _available_coeval_fields(coeval: Coeval, kinds: Sequence[str]) -> list[str]:
     """Return the subset of ``kinds`` that are actually available on ``coeval``."""
     out = []
@@ -842,6 +859,7 @@ def coeval_summary_plot(
     coeval: Coeval,
     kinds: Sequence[str] | None = None,
     slice_index: int | None = None,
+    log: bool | None = None,
     **kwargs,
 ) -> tuple[plt.Figure, list[plt.Axes]]:
     """Make a simple summary plot of a coeval cube.
@@ -858,6 +876,12 @@ def coeval_summary_plot(
         ``neutral_fraction``, ``density`` and ``spin_temperature`` are available.
     slice_index
         The index of the slice to plot. By default, the middle of the box.
+    log
+        Whether to use a logarithmic color scale. By default, chosen per-field:
+        fields spanning several orders of magnitude (e.g. the temperatures) are
+        plotted logarithmically, provided they are everywhere positive. These
+        fields also have their color scale clipped to their 1st-99th percentile
+        range, unless you pass explicit ``vmin``/``vmax``.
     kwargs
         Passed through to :func:`coeval_sliceplot`.
 
@@ -875,6 +899,8 @@ def coeval_summary_plot(
     if slice_index is None:
         slice_index = coeval.simulation_options.HII_DIM // 2
 
+    slice_axis = kwargs.get("slice_axis", -1)
+
     fig, axes = plt.subplots(
         1,
         len(kinds),
@@ -885,6 +911,23 @@ def coeval_summary_plot(
     axes = list(axes.flatten())
 
     for ax, kind in zip(axes, kinds, strict=True):
+        # Some fields span several orders of magnitude, and are unreadable on a
+        # linear scale (but a log scale is only possible if they're all positive).
+        this_log = (
+            kind in _LOG_FIELDS and np.min(getattr(coeval, kind)) > 0
+            if log is None
+            else log
+        )
+
+        # These fields also have long tails (a handful of very bright cells around
+        # sources), so we clip the color scale to show the bulk of the structure.
+        limits = {}
+        if this_log and not {"vmin", "vmax", "norm"} & set(kwargs):
+            slc = np.take(getattr(coeval, kind), slice_index, axis=slice_axis)
+            limits = dict(
+                zip(("vmin", "vmax"), np.percentile(slc, [1, 99]), strict=True)
+            )
+
         coeval_sliceplot(
             coeval,
             kind=kind,
@@ -893,8 +936,16 @@ def coeval_summary_plot(
             slice_index=slice_index,
             cbar_horizontal=True,
             cbar_label=_field_label(kind),
+            log=this_log,
+            **limits,
             **kwargs,
         )
+
+        if this_log:
+            # Log colorbars spanning less than a decade get unreadably crowded
+            # tick labels by default, so we place a few of our own.
+            _set_log_cbar_ticks(ax.images[-1].colorbar)
+
         if ax is not axes[0]:
             ax.set_ylabel("")
 
