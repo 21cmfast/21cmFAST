@@ -19,7 +19,7 @@ can take 4 values:
    relation is fit by performing a calibration simulation as in (1), and comparing it to
    a range of expected global histories with different power-law slopes.
 3. The normalisation of the ionizing escape fraction is adjusted, using a fit
-   F_ESC10 -> X + Y*Q(z), where Q is the expected global ionized fraction. This relation
+   F_ESC10_ACG -> X + Y*Q(z), where Q is the expected global ionized fraction. This relation
    is fit by performing a calibration simulation as in (1), and taking its ratio with
    the expected global evolution.
 
@@ -43,7 +43,7 @@ The function map for the photon conservation model looks like::
                 lib.ComputeIonizedBox()
                     get_fesc_fit() --> applies the fit to the current redshift
             ELIF PHOTON_CONS_TYPE=='f-photoncons':
-                photoncons_fesc() --> computes and stores F_ESC10 shift vs global neutral fraction
+                photoncons_fesc() --> computes and stores F_ESC10_ACG shift vs global neutral fraction
                 lib.ComputeIonizedBox()
                     get_fesc_fit() --> applies the fit to the current redshift
 
@@ -305,7 +305,7 @@ def calibrate_photon_cons(
     inputs_calibration = inputs.evolve_input_structs(
         USE_TS_FLUCT=False,
         RECOMB_MODEL="none",
-        USE_MINI_HALOS=False,
+        USE_MCGS=False,
         SOURCE_MODEL=source_model_calibration[inputs.matter_options.SOURCE_MODEL],
         PHOTON_CONS_TYPE="no-photoncons",
         R_BUBBLE_MAX=(
@@ -367,7 +367,7 @@ def calibrate_photon_cons(
             z -= 0.5
 
         ib = ib2
-        if inputs.astro_options.USE_MINI_HALOS:
+        if inputs.astro_options.USE_MCGS:
             prev_perturb = this_perturb
 
         fast_node_redshifts.append(z)
@@ -408,9 +408,9 @@ def alpha_func(Q, a_const, a_slope):
 
 
 # (jdavies): this will be a very hacky way to make a (d_alphastar vs z) array
-# for a photoncons done by ALPHA_STAR instead of redshift
+# for a photoncons done by ALPHA_STAR_ACG instead of redshift
 # This will work by taking the calibration simulation, plotting a RANGE of analytic
-# Q vs z curves for different ALPHA_STAR, and then finding the aloha star which has the inverse ratio
+# Q vs z curves for different ALPHA_STAR_ACG, and then finding the aloha star which has the inverse ratio
 # with the reference analytic as the calibration
 # TODO: don't rely on the photoncons functions since they do a bunch of other stuff in C
 def photoncons_alpha(inputs, **kwargs):
@@ -585,7 +585,7 @@ def photoncons_alpha(inputs, **kwargs):
 
 
 def photoncons_fesc(inputs):
-    """Run the Even Simpler photon conservation model using F_ESC10.
+    """Run the Even Simpler photon conservation model using F_ESC10_ACG.
 
     Adjusts the normalisation of the escape fraction to match a global evolution.
     """
@@ -615,13 +615,13 @@ def photoncons_fesc(inputs):
     # ratio of each alpha with calibration
     ratio_ref = ref_interp / (1 - ref_pc_data["nf_calibration"])
 
-    fit_fesc = ratio_ref * ap_c["F_ESC10"]
+    fit_fesc = ratio_ref * ap_c["F_ESC10_ACG"]
     sel = np.isfinite(fit_fesc) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
     popt, _pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
     # pass to C
-    logger.info(f"F_ESC10 Original = {ap_c['F_ESC10']:.3f}")
-    logger.info(f"Running with F_ESC10 = {popt[0]:.2f} + {popt[1]:.2f} * Q")
+    logger.info(f"F_ESC10_ACG Original = {ap_c['F_ESC10_ACG']:.3f}")
+    logger.info(f"Running with F_ESC10_ACG = {popt[0]:.2f} + {popt[1]:.2f} * Q")
 
     # initialise the output structure before the fits
     results = {

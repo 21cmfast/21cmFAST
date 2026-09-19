@@ -330,7 +330,7 @@ void compute_mturns_inhomogeneous(double z, double M_turn_acg_homo, float J_21_L
         M_turn_r = reionization_feedback(z, Gamma12, z_reion);
         *M_turn_acg = fmax(*M_turn_acg, M_turn_r);
     }
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         *M_turn_mcg = fmax(molecular_cooling_threshold_with_feedbacks(z, J_21_LW, vcb),
                            astro_params_global->M_TURN_STELLAR_FEEDBACK);
         if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {

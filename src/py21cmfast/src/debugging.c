@@ -121,19 +121,19 @@ void writeAstroParams(AstroParams *p) {
         "\n        AstroParams:\n"
         "       M_TURN_STELLAR_FEEDBACK=%10.3e\n"
         "       R_BUBBLE_MAX=%8.3f\n"
-        "       F_STAR10=%8.3f\n"
-        "       ALPHA_STAR=%8.3f\n"
-        "       F_ESC10=%8.3f\n"
+        "       F_STAR10_ACG=%8.3f\n"
+        "       ALPHA_STAR_ACG=%8.3f\n"
+        "       F_ESC10_ACG=%8.3f\n"
         "       ALPHA_ESC=%8.3f\n"
         "       t_STAR=%8.3f\n"
-        "       L_X=%10.3e\n"
+        "       LX_OVER_SFR_ACG=%10.3e\n"
         "       NU_X_THRESH=%8.3f\n"
         "       X_RAY_SPEC_INDEX=%8.3f,\n"
         "       UPPER_STELLAR_TURNOVER_MASS=%10.3e\n"
         "       UPPER_STELLAR_TURNOVER_INDEX=%8.3e\n",
-        p->M_TURN_STELLAR_FEEDBACK, p->R_BUBBLE_MAX, p->F_STAR10, p->ALPHA_STAR, p->F_ESC10,
-        p->ALPHA_ESC, p->t_STAR, p->L_X, p->NU_X_THRESH, p->X_RAY_SPEC_INDEX,
-        p->UPPER_STELLAR_TURNOVER_MASS, p->UPPER_STELLAR_TURNOVER_INDEX);
+        p->M_TURN_STELLAR_FEEDBACK, p->R_BUBBLE_MAX, p->F_STAR10_ACG, p->ALPHA_STAR_ACG,
+        p->F_ESC10_ACG, p->ALPHA_ESC, p->t_STAR, p->LX_OVER_SFR_ACG, p->NU_X_THRESH,
+        p->X_RAY_SPEC_INDEX, p->UPPER_STELLAR_TURNOVER_MASS, p->UPPER_STELLAR_TURNOVER_INDEX);
     LOG_INFO(
         "\n        HaloCatalog AstroParams:\n"
         "       SIGMA_STAR=%8.3f\n"
@@ -143,17 +143,17 @@ void writeAstroParams(AstroParams *p) {
         p->SIGMA_STAR, p->SIGMA_SFR_LIM, p->SIGMA_SFR_INDEX, p->SIGMA_LX);
     LOG_INFO(
         "\n        MiniHalo AstroParams:\n"
-        "       ALPHA_STAR_MINI=%8.3f\n"
-        "       F_ESC7_MINI=%8.3f\n"
-        "       L_X_MINI=%10.3e\n"
-        "       F_STAR7_MINI=%8.3f\n"
+        "       ALPHA_STAR_MCG=%8.3f\n"
+        "       F_ESC7_MCG=%8.3f\n"
+        "       LX_OVER_SFR_MCG=%10.3e\n"
+        "       F_STAR7_MCG=%8.3f\n"
         "       F_H2_SHIELD=%8.3f\n"
         "       A_LW=%8.3f\n"
         "       BETA_LW=%8.3f\n"
         "       A_VCB=%8.3f\n"
         "       BETA_VCB=%8.3f\n",
-        p->ALPHA_STAR_MINI, p->F_ESC7_MINI, p->L_X_MINI, p->F_STAR7_MINI, p->F_H2_SHIELD, p->A_LW,
-        p->BETA_LW, p->A_VCB, p->BETA_VCB);
+        p->ALPHA_STAR_MCG, p->F_ESC7_MCG, p->LX_OVER_SFR_MCG, p->F_STAR7_MCG, p->F_H2_SHIELD,
+        p->A_LW, p->BETA_LW, p->A_VCB, p->BETA_VCB);
     LOG_INFO(
         "\n     Const-z  AstroParams:\n"
         "       HII_EFF_FACTOR=%10.3e\n"
@@ -165,7 +165,7 @@ void writeAstroParams(AstroParams *p) {
 void writeAstroOptions(AstroOptions *p) {
     LOG_INFO(
         "\n        AstroOptions:\n"
-        "       USE_MINI_HALOS=%1d\n"
+        "       USE_MCGS=%1d\n"
         "       RECOMB_MODEL=%2d\n"
         "       USE_TS_FLUCT=%1d\n"
         "       M_MIN_in_Mass=%1d\n"
@@ -180,13 +180,13 @@ void writeAstroOptions(AstroOptions *p) {
         "       HII_FILTER=%2d\n"
         "       HEAT_FILTER=%2d\n"
         "       IONISE_ENTIRE_SPHERE=%1d\n"
-        "       INTEGRATION_METHOD_ATOMIC=%2d\n"
-        "       INTEGRATION_METHOD_MINI=%2d\n",
-        p->USE_MINI_HALOS, p->RECOMB_MODEL, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER,
+        "       INTEGRATION_METHOD_ACGS=%2d\n"
+        "       INTEGRATION_METHOD_MCGS=%2d\n",
+        p->USE_MCGS, p->RECOMB_MODEL, p->USE_TS_FLUCT, p->M_MIN_in_Mass, p->USE_EXP_FILTER,
         p->USE_CMB_HEATING, p->USE_LYA_HEATING, p->CELL_RECOMB, p->PHOTON_CONS_TYPE,
         p->USE_METALLICITY, p->USE_UPPER_STELLAR_TURNOVER, p->HALO_SCALING_RELATIONS_MEDIAN,
-        p->HII_FILTER, p->HEAT_FILTER, p->IONISE_ENTIRE_SPHERE, p->INTEGRATION_METHOD_ATOMIC,
-        p->INTEGRATION_METHOD_MINI);
+        p->HII_FILTER, p->HEAT_FILTER, p->IONISE_ENTIRE_SPHERE, p->INTEGRATION_METHOD_ACGS,
+        p->INTEGRATION_METHOD_MCGS);
 }
 
 // Wrapper function to select appropriate indexing function based on layout

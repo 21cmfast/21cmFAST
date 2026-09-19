@@ -83,12 +83,12 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, double *z_LF
         int gsl_status;
 
         gsl_set_error_handler_off();
-        if (astro_params_global->ALPHA_STAR < -0.5)
+        if (astro_params_global->ALPHA_STAR_ACG < -0.5)
             LOG_WARNING(
-                "ALPHA_STAR is %f, which is unphysical value given the observational LFs.\n"
-                "Also, when ALPHA_STAR < -.5, LFs may show a kink. It is recommended to set "
-                "ALPHA_STAR > -0.5.",
-                astro_params_global->ALPHA_STAR);
+                "ALPHA_STAR_ACG is %f, which is unphysical value given the observational LFs.\n"
+                "Also, when ALPHA_STAR_ACG < -.5, LFs may show a kink. It is recommended to set "
+                "ALPHA_STAR_ACG > -0.5.",
+                astro_params_global->ALPHA_STAR_ACG);
 
         mf = matter_options_global->HMF;
 
@@ -107,25 +107,25 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, double *z_LF
                 Mhalo_i = exp(lnMhalo_param[i]);
 
                 if (component == 1)
-                    Fstar = astro_params_global->F_STAR10 *
-                            pow(Mhalo_i / 1e10, astro_params_global->ALPHA_STAR);
+                    Fstar = astro_params_global->F_STAR10_ACG *
+                            pow(Mhalo_i / 1e10, astro_params_global->ALPHA_STAR_ACG);
                 else
-                    Fstar = astro_params_global->F_STAR7_MINI *
-                            pow(Mhalo_i / 1e7, astro_params_global->ALPHA_STAR_MINI);
+                    Fstar = astro_params_global->F_STAR7_MCG *
+                            pow(Mhalo_i / 1e7, astro_params_global->ALPHA_STAR_MCG);
                 if (Fstar > 1.) Fstar = 1;
 
                 if (i_unity < 0) {  // Find the array number at which Fstar crosses unity.
-                    if (astro_params_global->ALPHA_STAR > 0.) {
+                    if (astro_params_global->ALPHA_STAR_ACG > 0.) {
                         if ((1. - Fstar) < FRACT_FLOAT_ERR) i_unity = i;
-                    } else if (astro_params_global->ALPHA_STAR < 0. && i < nbins - 1) {
+                    } else if (astro_params_global->ALPHA_STAR_ACG < 0. && i < nbins - 1) {
                         if (component == 1)
-                            Fstar_temp = astro_params_global->F_STAR10 *
+                            Fstar_temp = astro_params_global->F_STAR10_ACG *
                                          pow(exp(lnMhalo_min + dlnMhalo * (double)(i + 1)) / 1e10,
-                                             astro_params_global->ALPHA_STAR);
+                                             astro_params_global->ALPHA_STAR_ACG);
                         else
-                            Fstar_temp = astro_params_global->F_STAR7_MINI *
+                            Fstar_temp = astro_params_global->F_STAR7_MCG *
                                          pow(exp(lnMhalo_min + dlnMhalo * (double)(i + 1)) / 1e7,
-                                             astro_params_global->ALPHA_STAR_MINI);
+                                             astro_params_global->ALPHA_STAR_MCG);
                         if (Fstar_temp < 1. && (1. - Fstar) < FRACT_FLOAT_ERR) i_unity = i;
                     }
                 }
@@ -157,8 +157,8 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, double *z_LF
             // the derivate in the range where the kink appears. 'i_unity' is the array number at
             // which the kink appears. 'i_unity-3' and 'i_unity+12' are related to the range of
             // interpolation, which is an arbitrary choice. NOTE: This method does NOT work in cases
-            // with ALPHA_STAR < -0.5. But, this parameter range is unphysical given that the
-            //       observational LFs favour positive ALPHA_STAR in this model.
+            // with ALPHA_STAR_ACG < -0.5. But, this parameter range is unphysical given that the
+            //       observational LFs favour positive ALPHA_STAR_ACG in this model.
             // i_smth = 0: calculates LFs without interpolation.
             // i_smth = 1: calculates LFs using interpolation where Fstar crosses unity.
             if (i_unity - 3 < 0)

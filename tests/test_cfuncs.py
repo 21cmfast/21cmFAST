@@ -28,10 +28,10 @@ YUNG24_PHYSICAL_PARAMS = {
 
 
 @pytest.fixture(scope="module")
-def default_input_struct_lc_mini(default_input_struct_lc):
-    """A default input struct with mini halos turned on."""
+def default_input_struct_lc_mcgs(default_input_struct_lc):
+    """A default input struct with mcgs turned on."""
     return default_input_struct_lc.evolve_input_structs(
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
@@ -41,15 +41,15 @@ def default_input_struct_lc_mini(default_input_struct_lc):
 
 
 @pytest.fixture(scope="module")
-def default_global_evolution(default_input_struct_lc_mini):
-    """A default global signal (with mini halos)."""
-    return p21c.run_global_evolution(inputs=default_input_struct_lc_mini)
+def default_global_evolution(default_input_struct_lc_mcgs):
+    """A default global signal (with mcgs)."""
+    return p21c.run_global_evolution(inputs=default_input_struct_lc_mcgs)
 
 
 @pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
 def test_run_lf(
     default_input_struct_lc,
-    default_input_struct_lc_mini,
+    default_input_struct_lc_mcgs,
     lc,
     default_global_evolution,
     what_to_use,
@@ -80,16 +80,16 @@ def test_run_lf(
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
-    _muv_minih, _mhalo_minih, lf_minih = p21c.compute_luminosity_function(
+    _muv_mcg, _mhalo_mcg, lf_mcg = p21c.compute_luminosity_function(
         redshifts=[7, 8, 9],
         nbins=100,
         lightcone=lightcone,
         global_evolution=global_evolution,
         component="mcg",
-        inputs=default_input_struct_lc_mini,
+        inputs=default_input_struct_lc_mcgs,
     )
-    assert np.all(lf_minih[~np.isnan(lf_minih)] > -30)
-    assert lf_minih.shape == (3, 100)
+    assert np.all(lf_mcg[~np.isnan(lf_mcg)] > -30)
+    assert lf_mcg.shape == (3, 100)
 
 
 def test_run_tau():
@@ -545,7 +545,7 @@ def make_matterfield_comparison_plot(
 
 
 @pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
-@pytest.mark.parametrize("use_mini_halos", [True, False])
+@pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize(
     "func",
     [
@@ -558,20 +558,20 @@ def make_matterfield_comparison_plot(
 )
 def test_functions_with_and_without_lightcone(
     default_input_struct_lc,
-    default_input_struct_lc_mini,
+    default_input_struct_lc_mcgs,
     lc,
     default_global_evolution,
     what_to_use,
-    use_mini_halos,
+    use_mcgs,
     func: Callable,
 ):
     """
     Test that we can run functions with and without a lightcone as an input.
 
-    NOTE: The used inputs and lightcone.inputs are actually not the same when using mini halos!
+    NOTE: The used inputs and lightcone.inputs are actually not the same when using mcgs!
           But it should not concern us for this test :)
     """
-    inputs = default_input_struct_lc_mini if use_mini_halos else default_input_struct_lc
+    inputs = default_input_struct_lc_mcgs if use_mcgs else default_input_struct_lc
     lightcone = lc if what_to_use == "lightcone" else None
     global_evolution = (
         default_global_evolution if what_to_use == "global_evolution" else None
@@ -609,20 +609,16 @@ def test_functions_with_and_without_lightcone(
     )
     if func in [cf.evaluate_SFRD_z, cf.evaluate_Nion_z]:
         assert len(output[0]) == len(redshifts)
-        if use_mini_halos:
+        if use_mcgs:
             assert len(output[1]) == len(redshifts)
         else:
-            assert (
-                output[1] is None
-            )  # output_mini should be None if not using mini halos
+            assert output[1] is None  # output_mcg should be None if not using mcgs
     elif func in [cf.evaluate_SFRD_cond, cf.evaluate_Nion_cond]:
         assert len(output[0]) == len(densities)
-        if use_mini_halos:
+        if use_mcgs:
             assert len(output[1]) == len(densities)
         else:
-            assert (
-                output[1] is None
-            )  # output_mini should be None if not using mini halos
+            assert output[1] is None  # output_mcg should be None if not using mcgs
     elif func == cf.evaluate_Xray_cond:
         assert len(output) == len(densities)
 
@@ -695,12 +691,12 @@ def test_removed_arguments_are_cleaned_up_in_v5():
         )
 
 
-@pytest.mark.parametrize("use_mini_halos", [True, False])
+@pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize("use_reionization_photoheating_feedback", [True, False])
 @pytest.mark.parametrize("log10_m_turn_stellar_feedback", [5.0, 6.0, 7.0, 8.0, 9.0])
 def test_compute_mturns_model(
     default_input_struct_ts,
-    use_mini_halos,
+    use_mcgs,
     log10_m_turn_stellar_feedback,
     use_reionization_photoheating_feedback,
 ):
@@ -714,7 +710,7 @@ def test_compute_mturns_model(
 
     If we make a change in the turnover mass model in the C code, this test should fail and we should update it to reflect the new model.
     """
-    if not use_mini_halos and use_reionization_photoheating_feedback:
+    if not use_mcgs and use_reionization_photoheating_feedback:
         pytest.skip(
             "NO POINT IN TESTING REIONIZATION FEEDBACK ON MCG TURNOVER MASS WITHOUT MCGS"
         )
@@ -733,7 +729,7 @@ def test_compute_mturns_model(
     inputs = default_input_struct_ts.evolve_input_structs(
         RECOMB_MODEL="inhomogeneous",
         M_TURN_STELLAR_FEEDBACK=log10_m_turn_stellar_feedback,
-        USE_MINI_HALOS=use_mini_halos,
+        USE_MCGS=use_mcgs,
         USE_REIONIZATION_PHOTOHEATING_FEEDBACK=use_reionization_photoheating_feedback,
     )
     # Compute the turnover masses from the C code, these are the values under test
@@ -772,14 +768,14 @@ def test_compute_mturns_model(
     M_turn_acg = np.maximum(M_turn_acg, pow(10.0, log10_m_turn_stellar_feedback))
     if use_reionization_photoheating_feedback:
         M_turn_acg = np.maximum(M_turn_acg, M_turn_r)
-    if use_mini_halos:
+    if use_mcgs:
         M_turn_mcg = np.maximum(M_turn_mcg, pow(10.0, log10_m_turn_stellar_feedback))
         if use_reionization_photoheating_feedback:
             M_turn_mcg = np.maximum(M_turn_mcg, M_turn_r)
 
     # Compare the results
     np.testing.assert_allclose(Mturn_acg_test, M_turn_acg, rtol=1e-4)
-    if use_mini_halos:
+    if use_mcgs:
         np.testing.assert_allclose(M_turn_mcg_test, M_turn_mcg, rtol=1e-4)
 
 
@@ -787,7 +783,7 @@ def test_compute_mturns_model(
 def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
     inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
         K_MAX_FOR_CLASS=1.0,
         V_CB_MODEL=v_cb_model,

@@ -24,7 +24,7 @@ astro_flags = AstroFlags(
     {
         "RECOMB_MODEL": "inhomogeneous",
         "USE_TS_FLUCT": True,
-        "USE_MINI_HALOS": True,
+        "USE_MCGS": True,
     },
     USE_VELS_AUX=True,
 )

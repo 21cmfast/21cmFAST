@@ -65,7 +65,7 @@ typedef struct SimulationOptions {
     double CORR_STAR;
     double CORR_SFR;
     double CORR_LX;
-    double MIN_XE_FOR_FCOLL_IN_TAUX;
+    double MIN_XE_FOR_NION_IN_TAUX;
 } SimulationOptions;
 
 typedef struct MatterOptions {
@@ -90,13 +90,13 @@ typedef struct AstroParams {
     float HII_EFF_FACTOR;
 
     // SHMR
-    float F_STAR10;
-    float ALPHA_STAR;
-    float ALPHA_STAR_MINI;
+    float F_STAR10_ACG;
+    float ALPHA_STAR_ACG;
+    float ALPHA_STAR_MCG;
     float SIGMA_STAR;
     double UPPER_STELLAR_TURNOVER_MASS;
     double UPPER_STELLAR_TURNOVER_INDEX;
-    float F_STAR7_MINI;
+    float F_STAR7_MCG;
 
     // SFMS
     float t_STAR;
@@ -104,14 +104,14 @@ typedef struct AstroParams {
     double SIGMA_SFR_LIM;
 
     // L_X/SFR
-    double L_X;
-    double L_X_MINI;
+    double LX_OVER_SFR_ACG;
+    double LX_OVER_SFR_MCG;
     double SIGMA_LX;
 
     // Escape Fraction
-    float F_ESC10;
+    float F_ESC10_ACG;
     float ALPHA_ESC;
-    float F_ESC7_MINI;
+    float F_ESC7_MCG;
 
     float T_RE;
 
@@ -146,7 +146,7 @@ typedef struct AstroParams {
 } AstroParams;
 
 typedef struct AstroOptions {
-    bool USE_MINI_HALOS;
+    bool USE_MCGS;
     bool USE_X_RAY_HEATING;
     bool USE_CMB_HEATING;  // CMB Heating Flag
     bool USE_LYA_HEATING;  // Lya Heating Flag
@@ -165,8 +165,8 @@ typedef struct AstroOptions {
     filter_t HII_FILTER;
     filter_t HEAT_FILTER;
     recombination_model_t RECOMB_MODEL;
-    integration_method_t INTEGRATION_METHOD_ATOMIC;
-    integration_method_t INTEGRATION_METHOD_MINI;
+    integration_method_t INTEGRATION_METHOD_ACGS;
+    integration_method_t INTEGRATION_METHOD_MCGS;
 } AstroOptions;
 
 typedef struct Table1D {
@@ -185,7 +185,7 @@ typedef struct CosmoTables {
 
 typedef struct ConfigSettings {
     double HALO_CATALOG_MEM_FACTOR;
-    bool EXTRA_HALOBOX_FIELDS;
+    bool EXTRA_EMISSIVITY_FIELDS;
 
     char *external_table_path;
     char *wisdoms_path;
@@ -198,9 +198,9 @@ typedef struct ConfigSettings {
    different parameters).
 
    In future we should have a parameter structure in each .c file containing ONLY parameters
-   relevant to it (look at HaloBox.c), and force the broadcast at each _compute() step (or even
-   decorate any library call) However this would require us to be very careful about initialising
-   the globals when ANY function from that file is called */
+   relevant to it (look at EmissivityFields.c), and force the broadcast at each _compute() step (or
+   even decorate any library call) However this would require us to be very careful about
+   initialising the globals when ANY function from that file is called */
 // The structs declared here defined in InputParameters.c
 extern SimulationOptions *simulation_options_global;
 extern MatterOptions *matter_options_global;

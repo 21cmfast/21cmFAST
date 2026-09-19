@@ -16,27 +16,28 @@ int ComputePerturbedHaloCatalog(float redshift, InitialConditions *boxes, TsBox 
                                 IonizedBox *prev_ion, HaloCatalog *halos,
                                 PerturbedHaloCatalog *halos_perturbed);
 
-int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
-                 PerturbedField *perturbed_field, RadiationFields *radiation_fields,
-                 TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp);
+int ComputeTsBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
+                 RadiationFields *radiation_fields, TsBox *previous_spin_temp,
+                 InitialConditions *ini_boxes, TsBox *this_spin_temp);
 
 int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
                       PerturbedField *previous_perturbed_field, IonizedBox *previous_ionize_box,
-                      TsBox *spin_temp, HaloBox *halos, InitialConditions *ini_boxes,
-                      IonizedBox *box);
+                      TsBox *spin_temp, EmissivityFields *emissivity_fields,
+                      InitialConditions *ini_boxes, IonizedBox *box);
 
 int ComputeBrightnessTemp(float redshift, TsBox *spin_temp, IonizedBox *ionized_box,
                           PerturbedField *perturb_field, BrightnessTemp *box);
 
-int ComputeHaloBox(double redshift, InitialConditions *ini_boxes, PerturbedField *perturbed_field,
-                   HaloCatalog *halos, TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
-                   HaloBox *grids);
+int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
+                            PerturbedField *perturbed_field, HaloCatalog *halos,
+                            TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
+                            EmissivityFields *emissivity_fields);
 
 int SetupRadiationFields(float redshift, TsBox *previous_spin_temp,
                          RadiationFieldsSetup *rad_setup);
 
-int UpdateRadiationFields(float redshift, HaloBox *halobox, int R_ct, double R_star,
-                          PerturbedField *perturbed_field, TsBox *previous_spin_temp,
+int UpdateRadiationFields(float redshift, EmissivityFields *emissivity_fields, int R_ct,
+                          double R_star, PerturbedField *perturbed_field, TsBox *previous_spin_temp,
                           RadiationFieldsSetup *rad_setup, RadiationFields *radiation_fields);
 /*--------------------------*/
 
@@ -81,13 +82,13 @@ void Broadcast_struct_global_all(SimulationOptions *simulation_options,
                                  MatterOptions *matter_options, CosmoParams *cosmo_params,
                                  AstroParams *astro_params, AstroOptions *astro_options,
                                  CosmoTables *cosmo_tables);
-void initialiseSigmaMInterpTable(float M_Min, float M_Max);
+void initialize_sigma_tables(float M_Min, float M_Max);
 void initialise_GL(double lnM_Min, double lnM_Max);
 /*---------------------------*/
 
 /* Free memory routines*/
 void destruct_heat();
-void freeSigmaMInterpTable();
+void free_sigma_tables();
 void free_ps();
 void free_MHR();
 void Free_cosmo_tables_global();
@@ -102,20 +103,23 @@ void get_halo_chmf_interval(double redshift, double z_prev, int n_conditions, do
                             int n_masslim, double *lnM_lo, double *lnM_hi, double *out_n);
 void get_halomass_at_probability(double redshift, double z_prev, int n_conditions,
                                  double *cond_values, double *probabilities, double *out_mass);
-void get_global_SFRD_z(int n_redshift, double *redshifts, double *log10_turnovers_acg,
-                       double *log10_turnovers_mcg, double *out_sfrd, double *out_sfrd_mini);
-void get_global_Nion_z(int n_redshift, double *redshifts, double *log10_turnovers_acg,
-                       double *log10_turnovers_mcg, double *out_nion, double *out_nion_mini);
-void get_conditional_FgtrM(double redshift, double R, int n_densities, double *densities,
-                           double *out_fcoll, double *out_dfcoll);
-void get_conditional_SFRD(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturn_acg, double log10_mturn_mcg, double *out_sfrd,
-                          double *out_sfrd_mini);
-void get_conditional_Nion(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturn_acg, double log10_mturn_mcg, double *out_nion,
-                          double *out_nion_mini);
-void get_conditional_Xray(double redshift, double R, int n_densities, double *densities,
-                          double log10_mturn_acg, double log10_mturn_mcg, double *out_xray);
+void get_unconditional_sfrd(int n_redshift, double *redshifts, double *log10_turnovers_acg,
+                            double *log10_turnovers_mcg, double *out_sfrd_acg,
+                            double *out_sfrd_mcg);
+void get_unconditional_nion(int n_redshift, double *redshifts, double *log10_turnovers_acg,
+                            double *log10_turnovers_mcg, double *out_nion_acg,
+                            double *out_nion_mcg);
+void get_conditional_fcoll_eps(double redshift, double R, int n_densities, double *densities,
+                               double *out_fcoll, double *out_dfcoll);
+void get_conditional_sfrd(double redshift, double R, int n_densities, double *densities,
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_sfrd_acg,
+                          double *out_sfrd_mcg);
+void get_conditional_nion(double redshift, double R, int n_densities, double *densities,
+                          double log10_mturn_acg, double log10_mturn_mcg, double *out_nion_acg,
+                          double *out_nion_mcg);
+void get_conditional_xray_emissivity(double redshift, double R, int n_densities, double *densities,
+                                     double log10_mturn_acg, double log10_mturn_mcg,
+                                     double *out_xray);
 /*--------------------------------*/
 
 /* Error framework testing */
