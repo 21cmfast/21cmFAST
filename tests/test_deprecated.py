@@ -167,7 +167,7 @@ def _make_run_cache_with_emissivity_fields(
 
 def test_halobox_deprecated_warning(default_input_struct):
     """Test that the HaloBox class is deprecated."""
-    with pytest.warns(deprecation.DeprecatedWarning):
+    with pytest.warns(deprecation.DeprecatedWarning, match="HaloBox is deprecated"):
         halo_box = HaloBox.new(inputs=default_input_struct, redshift=10)
     assert isinstance(halo_box, HaloBox)
 
@@ -180,7 +180,9 @@ def test_halobox_is_removed(default_input_struct):
 
 def test_extra_halobox_fields_deprecated_warning(default_input_struct_lc):
     """Test that the EXTRA_HALOBOX_FIELDS config option is deprecated."""
-    with pytest.warns(deprecation.DeprecatedWarning):
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="EXTRA_HALOBOX_FIELDS is deprecated"
+    ):
         config._translate_deprecated({"EXTRA_HALOBOX_FIELDS": True})
 
     with config.use(EXTRA_HALOBOX_FIELDS=True):
@@ -257,7 +259,7 @@ def test_coeval_with_halobox_deprecated_warning(default_input_struct_lc):
             redshift=0.0, inputs=default_input_struct_lc
         ),
     )
-    with pytest.warns(deprecation.DeprecatedWarning):
+    with pytest.warns(deprecation.DeprecatedWarning, match="halobox is deprecated"):
         assert coeval.halobox is coeval.emissivity_fields
 
 
@@ -284,7 +286,7 @@ def test_run_cache_with_halobox_deprecated_warning(tmp_path: Path):
     """Test that running the cache with halobox is deprecated."""
     inputs = InputParameters.from_template("latest-dhalos", random_seed=12345)
     cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
-    with pytest.warns(deprecation.DeprecatedWarning):
+    with pytest.warns(deprecation.DeprecatedWarning, match="HaloBox is deprecated"):
         assert isinstance(cache.HaloBox, dict)
 
 
@@ -307,7 +309,7 @@ def test_update_cache_with_halobox_deprecated_warning(config_method):
     changed_fields = ["emissivity_fields"]
 
     # First check that the update method works as expected
-    with pytest.warns(deprecation.DeprecatedWarning):
+    with pytest.warns(deprecation.DeprecatedWarning, match="halobox is deprecated"):
         updated_config = config.update(**deprecated_kwargs)
 
     for field in fields:
@@ -317,7 +319,7 @@ def test_update_cache_with_halobox_deprecated_warning(config_method):
             assert getattr(updated_config, field.name) == getattr(config, field.name)
 
     # Then check that the classmethod versions also work as expected
-    with pytest.warns(deprecation.DeprecatedWarning):
+    with pytest.warns(deprecation.DeprecatedWarning, match="halobox is deprecated"):
         updated_config = getattr(caching.CacheConfig, config_method)(
             **deprecated_kwargs
         )
@@ -361,7 +363,7 @@ def test_compute_ionization_field_with_halobox_deprecated_warning(
 ):
     """Test that compute_ionization_field's halobox kwarg is deprecated."""
     ic, pt, ef = computed_emissivity_fields
-    with pytest.warns(deprecation.DeprecatedWarning):
+    with pytest.warns(deprecation.DeprecatedWarning, match="halobox is deprecated"):
         compute_ionization_field(initial_conditions=ic, perturbed_field=pt, halobox=ef)
 
 
@@ -377,7 +379,7 @@ def test_compute_radiation_fields_with_hboxes_deprecated_warning(
 ):
     """Test that compute_radiation_fields's hboxes kwarg is deprecated."""
     _, _, ef = computed_emissivity_fields
-    with pytest.warns(deprecation.DeprecatedWarning):
+    with pytest.warns(deprecation.DeprecatedWarning, match="hboxes is deprecated"):
         compute_radiation_fields(hboxes=[ef], redshift=ef.redshift)
 
 
@@ -391,7 +393,7 @@ def test_compute_radiation_fields_with_hboxes_is_removed(computed_emissivity_fie
 def test_get_output_struct_at_z_with_halobox_deprecated_warning(tmp_path: Path):
     """Test that get_output_struct_at_z with kind='HaloBox' is deprecated."""
     cache, z = _make_run_cache_with_emissivity_fields(tmp_path)
-    with pytest.warns(deprecation.DeprecatedWarning):
+    with pytest.warns(deprecation.DeprecatedWarning, match="HaloBox is deprecated"):
         output = cache.get_output_struct_at_z(kind="HaloBox", z=z)
     assert isinstance(output, EmissivityFields)
 
@@ -408,7 +410,9 @@ def test_compute_halo_grid_deprecated_warning(
     ic, pt, redshift_test, default_input_struct_lc, cache
 ):
     """Test that compute_halo_grid is deprecated."""
-    with pytest.warns(deprecation.DeprecatedWarning):
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="compute_halo_grid is deprecated"
+    ):
         ef = compute_halo_grid(
             redshift=redshift_test,
             initial_conditions=ic,

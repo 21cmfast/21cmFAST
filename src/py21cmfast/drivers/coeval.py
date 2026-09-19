@@ -208,12 +208,12 @@ class Coeval:
         """A deprecated property that returns the EmissivityFields object as a HaloBox."""
         warnings.warn(
             deprecation.DeprecatedWarning(
-                "HaloBox",
+                "halobox",
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
                 details=(
-                    "HaloBox has been renamed to EmissivityFields. "
-                    "Please use EmissivityFields instead."
+                    "halobox is deprecated and will be removed in a future version. "
+                    "Please use emissivity_fields instead."
                 ),
             ),
             stacklevel=2,
