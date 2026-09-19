@@ -546,6 +546,16 @@ class TestPlot:
         app_noexit(f"plot {lcfile} --out {out}")
         assert out.exists()
 
+    def test_run_lightcone_with_plot(self, tmp_path: Path):
+        """Test that `run lightcone --plot` writes a plot next to the data."""
+        lcfile = tmp_path / "lightcone.h5"
+        app_noexit(
+            f"run lightcone --template simple tiny --cachedir {tmp_path} "
+            f"--redshift-range 6.0 12.0 --out {lcfile} --plot",
+        )
+
+        assert (tmp_path / "lightcone_summary.png").exists()
+
     def test_run_coeval_with_plot(self, tmp_path: Path):
         """Test that `run coeval --plot` writes a plot next to each coeval box."""
         app_noexit(

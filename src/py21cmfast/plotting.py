@@ -476,44 +476,39 @@ def plot_global_history(
 
     Parameters
     ----------
-    lightcone : :class:`~LightCone` instance
-        The lightcone containing the quantity to plot.
+    lightcone : :class:`~LightCone` or :class:`~GlobalEvolution` instance
+        The object containing the quantity to plot.
     kind : str, optional
-        The quantity to plot. Must be in the `global_quantities` dict in the lightcone.
-        By default, will choose the first entry in the dict.
+        The quantity to plot. Must be one of the global quantities of the given
+        object. By default, will choose the first one.
     ylabel : str, optional
         A y-label for the plot. If None, will use ``kind``.
+    ylog : bool, optional
+        Whether to use a logarithmic y-axis.
     ax : Axes, optional
         The matplotlib Axes object on which to plot. Otherwise, created.
+    zmax : float, optional
+        If given, only plot redshifts below this value.
     """
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(7, 4))
     else:
         fig = ax.get_figure()
 
+    redshifts, quantities = get_global_quantities(lightcone)
+
     if kind is None:
-        kind = next(iter(lightcone.global_quantities.keys()))
+        kind = next(iter(quantities.keys()))
 
-    assert (
-        kind in lightcone.global_quantities
-        or hasattr(lightcone, "global_" + kind)
-        or (kind.startswith("global_") and hasattr(lightcone, kind))
-    )
+    if kind not in quantities:
+        raise ValueError(
+            f"'{kind}' is not a global quantity of the given object. "
+            f"Available quantities: {sorted(quantities.keys())}"
+        )
 
-    if kind in lightcone.global_quantities:
-        value = lightcone.global_quantities[kind]
-    elif kind.startswith("global)"):
-        value = getattr(lightcone, kind)
-    else:
-        value = getattr(lightcone, "global_" + kind)
+    sel = redshifts < zmax if zmax is not None else Ellipsis
 
-    sel = (
-        np.array(lightcone.inputs.node_redshifts) < zmax
-        if zmax is not None
-        else Ellipsis
-    )
-
-    ax.plot(np.array(lightcone.inputs.node_redshifts)[sel], value[sel], **kwargs)
+    ax.plot(redshifts[sel], quantities[kind][sel], **kwargs)
     ax.set_xlabel("Redshift")
     if ylabel is None:
         ylabel = kind
@@ -619,22 +614,18 @@ def _plot_global_panel(
     x: np.ndarray | None = None,
     cosmo=None,
     **kwargs,
-) -> bool:
+):
     """Draw a single panel of the default global-evolution plot.
 
-    Returns whether anything was actually plotted.
+    Callers are responsible for only passing panels that have data available (see
+    :func:`_available_panels`).
     """
     xx = redshifts if x is None else x
 
-    plotted = False
     for i, q in enumerate(panel["quantities"]):
         if q not in quantities:
             continue
         ax.plot(xx, quantities[q], color=f"C{i}", label=_field_label(q), **kwargs)
-        plotted = True
-
-    if not plotted:
-        return False
 
     if panel is _GLOBAL_PANELS["temperature"] and cosmo is not None:
         ax.plot(
@@ -653,7 +644,19 @@ def _plot_global_panel(
     if panel["legend"]:
         ax.legend(frameon=False, ncols=3, fontsize=9)
 
-    return True
+
+def _available_panels(
+    panels: Sequence[str] | None, quantities: dict[str, np.ndarray]
+) -> list[str]:
+    """Filter ``panels`` down to those with at least one quantity available."""
+    if panels is None:
+        panels = list(_GLOBAL_PANELS.keys())
+
+    return [
+        p
+        for p in panels
+        if any(q in quantities for q in _GLOBAL_PANELS[p]["quantities"])
+    ]
 
 
 def plot_global_evolution(
@@ -696,15 +699,8 @@ def plot_global_evolution(
     """
     redshifts, quantities = get_global_quantities(obj)
 
-    if panels is None:
-        panels = list(_GLOBAL_PANELS.keys())
-
     # Only keep panels for which we actually have data.
-    panels = [
-        p
-        for p in panels
-        if any(q in quantities for q in _GLOBAL_PANELS[p]["quantities"])
-    ]
+    panels = _available_panels(panels, quantities)
     if not panels:
         raise ValueError("None of the requested panels have any data to plot!")
 
@@ -834,11 +830,7 @@ def _set_log_cbar_ticks(cbar, nticks: int = 4):
     if cbar is None:
         return
 
-    vmin, vmax = cbar.mappable.get_clim()
-    if not (np.isfinite(vmin) and np.isfinite(vmax)) or vmin <= 0:
-        return
-
-    ticks = np.geomspace(vmin, vmax, nticks)
+    ticks = np.geomspace(*cbar.mappable.get_clim(), nticks)
     cbar.set_ticks(ticks, labels=[f"{t:.3g}" for t in ticks])
     cbar.minorticks_off()
 
@@ -913,11 +905,14 @@ def coeval_summary_plot(
     for ax, kind in zip(axes, kinds, strict=True):
         # Some fields span several orders of magnitude, and are unreadable on a
         # linear scale (but a log scale is only possible if they're all positive).
-        this_log = (
-            kind in _LOG_FIELDS and np.min(getattr(coeval, kind)) > 0
-            if log is None
-            else log
-        )
+        positive = np.min(getattr(coeval, kind)) > 0
+        this_log = kind in _LOG_FIELDS and positive if log is None else log
+
+        if this_log and not positive:
+            raise ValueError(
+                f"Can't use a log color scale for '{kind}', since it has "
+                "non-positive values."
+            )
 
         # These fields also have long tails (a handful of very bright cells around
         # sources), so we clip the color scale to show the bulk of the structure.
@@ -998,13 +993,7 @@ def lightcone_summary_plot(
 
     redshifts, quantities = get_global_quantities(lightcone)
 
-    if panels is None:
-        panels = list(_GLOBAL_PANELS.keys())
-    panels = [
-        p
-        for p in panels
-        if any(q in quantities for q in _GLOBAL_PANELS[p]["quantities"])
-    ]
+    panels = _available_panels(panels, quantities)
 
     # Plot the global quantities against line-of-sight distance (measured from the
     # front of the lightcone), so that they line up with the lightcone slice.
