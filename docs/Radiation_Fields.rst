@@ -352,4 +352,4 @@ Lyman-alpha photons was achieved by filtering the interpolated emissivity field 
 * ``lya_flux_injected``: the Lyman-alpha flux from injected photons.
 * ``lya_flux_continuum_injected``: the total Lyman-alpha flux from both continuum and injected photons.
 * ``lyw_flux``: the Lyman-Werner flux.
-Meanwhile, the class ``XraySourceBox`` from v4.0.0 was removed in v4.3.0.
+Meanwhile, the class ``XraySourceBox`` from v4.0.0 was removed in v4.3.0, while the class ``HaloBox`` was renamed to ``EmissivityFields``.

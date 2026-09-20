@@ -7,11 +7,13 @@ filename for a given set of parameters).
 
 import logging
 import re
+import warnings
 from hashlib import md5
 from pathlib import Path
 from typing import ClassVar, Self, TypedDict, Unpack
 
 import attrs
+import deprecation
 import numpy as np
 
 from .._cfg import config
@@ -138,12 +140,15 @@ class OutputCache:
         str
             The generated filename for the given OutputStruct object.
         """
-        return self._fill_path_template(
+        template = self._fill_path_template(
             kind=obj.__class__.__name__,
             redshift=getattr(obj, "redshift", None),
             inputs=obj.inputs,
             all_seeds=False,
         )
+        if isinstance(obj, op.EmissivityFields) and config["EXTRA_EMISSIVITY_FIELDS"]:
+            template = template.replace(".h5", "_extra.h5")
+        return template
 
     def get_path(self, obj: OutputStruct) -> Path:
         """
@@ -294,7 +299,7 @@ class RunCache:
     TsBox: dict[float, Path] = _dict_of_paths_field()
     IonizedBox: dict[float, Path] = _dict_of_paths_field()
     BrightnessTemp: dict[float, Path] = _dict_of_paths_field()
-    HaloBox: dict[float, Path] | None = _dict_of_paths_field()
+    EmissivityFields: dict[float, Path] | None = _dict_of_paths_field()
     HaloCatalog: dict[float, Path] | None = _dict_of_paths_field()
     RadiationFields: dict[float, Path] | None = _dict_of_paths_field()
     inputs: InputParameters | None = attrs.field(default=None)
@@ -326,7 +331,7 @@ class RunCache:
 
         others = {
             "PerturbedField": {},
-            "HaloBox": {},
+            "EmissivityFields": {},
             "IonizedBox": {},
             "BrightnessTemp": {},
         }
@@ -428,6 +433,17 @@ class RunCache:
         """
         if not isinstance(kind, str):
             kind = kind.__name__
+        if kind == "HaloBox":
+            warnings.warn(
+                deprecation.DeprecatedWarning(
+                    "HaloBox",
+                    deprecated_in="4.3.0",
+                    removed_in="5.0.0",
+                    details="'HaloBox' has been renamed to 'EmissivityFields'. Please use 'EmissivityFields' instead.",
+                ),
+                stacklevel=2,
+            )
+            kind = "EmissivityFields"
         if kind not in attrs.fields_dict(self.__class__):
             raise ValueError(f"Unknown output kind: {kind}")
         if index is not None:
@@ -518,7 +534,7 @@ class RunCache:
             ionized_box=boxes["IonizedBox"],
             brightness_temperature=boxes["BrightnessTemp"],
             ts_box=boxes.get("TsBox"),
-            halobox=boxes.get("HaloBox"),
+            emissivity_fields=boxes.get("EmissivityFields"),
         )
 
     def is_complete(self) -> bool:
@@ -535,6 +551,23 @@ class RunCache:
                     return False
         return True
 
+    @property
+    def HaloBox(self) -> dict[float, Path] | None:
+        """A deprecated property that returns the EmissivityFields dictionary as HaloBox."""
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "HaloBox",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "HaloBox has been renamed to EmissivityFields. "
+                    "Please use EmissivityFields instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        return self.EmissivityFields
+
 
 class CacheConfigUpdate(TypedDict, total=False):
     """A TypedDict for updating CacheConfig objects."""
@@ -544,7 +577,7 @@ class CacheConfigUpdate(TypedDict, total=False):
     spin_temp: bool
     ionized_box: bool
     brightness_temp: bool
-    halobox: bool
+    emissivity_fields: bool
     halo_catalog: bool
     radiation_fields: bool
 
@@ -558,12 +591,23 @@ class CacheConfig:
     spin_temp: bool = attrs.field(default=True, converter=bool)
     ionized_box: bool = attrs.field(default=True, converter=bool)
     brightness_temp: bool = attrs.field(default=True, converter=bool)
-    halobox: bool = attrs.field(default=True, converter=bool)
+    emissivity_fields: bool = attrs.field(default=True, converter=bool)
     halo_catalog: bool = attrs.field(default=True, converter=bool)
     radiation_fields: bool = attrs.field(default=True, converter=bool)
 
     def update(self, **kwargs: Unpack[CacheConfigUpdate]) -> Self:
         """Return a new CacheConfig with the given fields updated."""
+        if "halobox" in kwargs:
+            warnings.warn(
+                deprecation.DeprecatedWarning(
+                    "halobox",
+                    deprecated_in="4.3.0",
+                    removed_in="5.0.0",
+                    details="'halobox' has been renamed to 'emissivity_fields'. Please use 'emissivity_fields' instead.",
+                ),
+                stacklevel=2,
+            )
+            kwargs["emissivity_fields"] = kwargs.pop("halobox")
         return attrs.evolve(self, **kwargs)
 
     @classmethod
@@ -580,7 +624,7 @@ class CacheConfig:
             spin_temp=False,
             ionized_box=False,
             brightness_temp=False,
-            halobox=False,
+            emissivity_fields=False,
             halo_catalog=False,
             radiation_fields=False,
         ).update(**kwargs)
@@ -594,7 +638,7 @@ class CacheConfig:
             spin_temp=False,
             ionized_box=False,
             brightness_temp=False,
-            halobox=False,
+            emissivity_fields=False,
             halo_catalog=True,
             radiation_fields=False,
         ).update(**kwargs)
@@ -604,7 +648,7 @@ class CacheConfig:
         """Generate a CacheConfig where only boxes needed from more than one step away are cached.
 
         This represents the minimum caching setup which will *never* store every redshift in memory.
-        PerturbedField and PerturbedHaloCatalogs are all calculated at the start of the run, and HaloBox
+        PerturbedField and PerturbedHaloCatalogs are all calculated at the start of the run, and EmissivityFields
         is required at multiple redshifts for RadiationFields. So this caching setup allows free
         purging of these objects without losing data.
         """
@@ -614,7 +658,24 @@ class CacheConfig:
             spin_temp=False,
             ionized_box=False,
             brightness_temp=False,
-            halobox=True,
+            emissivity_fields=True,
             halo_catalog=True,
             radiation_fields=False,
         ).update(**kwargs)
+
+    @property
+    def halobox(self) -> bool:
+        """A deprecated property that returns the emissivity_fields boolean as halobox."""
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "halobox",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "halobox has been renamed to emissivity_fields. "
+                    "Please use emissivity_fields instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        return self.emissivity_fields

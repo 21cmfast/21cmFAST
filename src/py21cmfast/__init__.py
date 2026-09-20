@@ -20,8 +20,9 @@ __all__ = [
     "CacheConfig",
     "Coeval",
     "CosmoParams",
+    "EmissivityFields",
     "GlobalEvolution",
-    "HaloBox",
+    "HaloBox",  # Remove this in v5
     "HaloCatalog",
     "InitialConditions",
     "InputParameters",
@@ -38,6 +39,7 @@ __all__ = [
     "TsBox",
     "__version__",
     "brightness_temperature",
+    "compute_emissivity_fields",
     "compute_halo_grid",
     "compute_initial_conditions",
     "compute_ionization_field",
@@ -80,6 +82,7 @@ from .drivers.global_evolution import GlobalEvolution, run_global_evolution
 from .drivers.lightcone import LightCone, generate_lightcone, run_lightcone
 from .drivers.single_field import (
     brightness_temperature,
+    compute_emissivity_fields,
     compute_halo_grid,
     compute_initial_conditions,
     compute_ionization_field,
@@ -108,7 +111,8 @@ from .wrapper.inputs import (
 )
 from .wrapper.outputs import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
+    HaloBox,  # Remove this in v5
     HaloCatalog,
     InitialConditions,
     IonizedBox,

@@ -51,7 +51,7 @@ class GlobalInitializationManager:
             lib.destruct_heat()
             self.heat_inited = False
         if self.sigma_inited:
-            lib.freeSigmaMInterpTable()
+            lib.free_sigma_tables()
             self.sigma_inited = False
         if self.ps_inited:
             lib.free_ps()
@@ -131,7 +131,7 @@ class GlobalInitializationManager:
         ):
             sigma_min_mass = 5e2
             sigma_max_mass = 1e20
-            lib.initialiseSigmaMInterpTable(sigma_min_mass, sigma_max_mass)
+            lib.initialize_sigma_tables(sigma_min_mass, sigma_max_mass)
             self.sigma_inited = True
 
     def _initialize_heat(self):

@@ -23,23 +23,17 @@ static int debug_printed;
 
 // construct a Ts table above Z_HEAT_MAX, this can happen if we are computing the first box or if we
 // request a redshift above Z_HEAT_MAX
-void init_first_Ts(TsBox *box, float *dens, float z, float zp) {
+void init_first_Ts(TsBox *box, float *dens, float z) {
     index_huge box_ct;
-    // zp is the requested redshift, z is the perturbed field redshift
-    float growth_factor_zp;
-    float inverse_growth_factor_z;
     double xe, TK, cT_ad;
 
-    xe = xion_RECFAST(zp, 0);
-    TK = T_RECFAST(zp, 0);
+    xe = xion_RECFAST(z, 0);
+    TK = T_RECFAST(z, 0);
     if (astro_options_global->USE_ADIABATIC_FLUCTUATIONS) {
-        cT_ad = cT_approx(zp);
+        cT_ad = cT_approx(z);
     } else {
         cT_ad = 0.;
     }
-
-    growth_factor_zp = dicke(zp);
-    inverse_growth_factor_z = 1 / dicke(z);
 
 #pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
     {
@@ -47,7 +41,7 @@ void init_first_Ts(TsBox *box, float *dens, float z, float zp) {
         float curr_xalpha;
 #pragma omp for
         for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
-            gdens = dens[box_ct] * inverse_growth_factor_z * growth_factor_zp;
+            gdens = dens[box_ct];
             box->kinetic_temp_neutral[box_ct] = TK * (1.0 + cT_ad * gdens);
             box->xray_ionised_fraction[box_ct] = xe;
             // compute the spin temperature
@@ -258,7 +252,7 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
 
     output.x_e = x_e;
     output.Tk = Tk;
-    output.J_21_LW = astro_options_global->USE_MINI_HALOS ? rad->lyw_flux : 0.;
+    output.J_21_LW = astro_options_global->USE_MCGS ? rad->lyw_flux : 0.;
 
     if (astro_options_global->USE_LYA_HEATING) {
         J_alpha_tot = rad->lya_flux_continuum + rad->lya_flux_injected + rad->xray_lya_flux;
@@ -324,14 +318,13 @@ struct Ts_cell get_Ts_fast(float zp, float dzp, struct spintemp_from_sfr_prefact
     return output;
 }
 
-int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_redshift, short cleanup,
-                 PerturbedField *perturbed_field, RadiationFields *radiation_fields,
-                 TsBox *previous_spin_temp, InitialConditions *ini_boxes, TsBox *this_spin_temp) {
+int ComputeTsBox(float redshift, float prev_redshift, PerturbedField *perturbed_field,
+                 RadiationFields *radiation_fields, TsBox *previous_spin_temp,
+                 InitialConditions *ini_boxes, TsBox *this_spin_temp) {
     int status;
     Try {  // This Try{} wraps the whole function.
         LOG_DEBUG("Spintemp input values:");
-        LOG_DEBUG("redshift=%f, prev_redshift=%f perturbed_field_redshift=%f", redshift,
-                  prev_redshift, perturbed_field_redshift);
+        LOG_DEBUG("redshift=%f, prev_redshift=%f", redshift, prev_redshift);
 #if LOG_LEVEL >= SUPER_DEBUG_LEVEL
         writeSimulationOptions(simulation_options_global);
         writeCosmoParams(cosmo_params_global);
@@ -342,8 +335,7 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
 
         if (redshift >= simulation_options_global->Z_HEAT_MAX) {
             LOG_DEBUG("redshift greater than Z_HEAT_MAX");
-            init_first_Ts(this_spin_temp, perturbed_field->density, perturbed_field_redshift,
-                          redshift);
+            init_first_Ts(this_spin_temp, perturbed_field->density, redshift);
             return (0);
         }
 
@@ -354,16 +346,11 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
         set_zp_consts(redshift, &zp_consts);
 
         index_huge box_ct;
-        double growth_factor_z, growth_factor_zp;
-        double inverse_growth_factor_z;
         double dzp;
         double J_alpha_ave, xheat_ave, xion_ave, Ts_ave, Tk_ave, x_e_ave;
         J_alpha_ave = xheat_ave = xion_ave = Ts_ave = Tk_ave = x_e_ave = 0;
         double J_LW_ave = 0., lya_flux_continuum_ave = 0, lya_flux_injected_ave = 0;
 
-        growth_factor_z = dicke(perturbed_field_redshift);
-        inverse_growth_factor_z = 1. / growth_factor_z;
-        growth_factor_zp = dicke(redshift);
         dzp = redshift - prev_redshift;
 
 #pragma omp parallel private(box_ct) num_threads(simulation_options_global -> N_THREADS)
@@ -374,8 +361,7 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
 #pragma omp for reduction(+ : J_alpha_ave, xheat_ave, xion_ave, Ts_ave, Tk_ave, x_e_ave, \
                               lya_flux_continuum_ave, lya_flux_injected_ave)
             for (box_ct = 0; box_ct < HII_TOT_NUM_PIXELS; box_ct++) {
-                curr_delta =
-                    perturbed_field->density[box_ct] * growth_factor_zp * inverse_growth_factor_z;
+                curr_delta = perturbed_field->density[box_ct];
                 // NOTE: this corrected for aliasing before, but sometimes there are still some
                 // delta==-1 cells
                 //   which breaks the adiabatic part
@@ -390,7 +376,7 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
                 local_rad.xray_ionization_rate = radiation_fields->xray_ionization_rate[box_ct];
                 local_rad.xray_lya_flux = radiation_fields->xray_lya_flux[box_ct];
                 local_rad.delta = curr_delta;
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     local_rad.lyw_flux = radiation_fields->lyw_flux[box_ct];
                 }
                 if (astro_options_global->USE_LYA_HEATING) {
@@ -409,7 +395,7 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
                 this_spin_temp->spin_temperature[box_ct] = ts_cell.Ts;
                 this_spin_temp->kinetic_temp_neutral[box_ct] = ts_cell.Tk;
                 this_spin_temp->xray_ionised_fraction[box_ct] = ts_cell.x_e;
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     this_spin_temp->J_21_LW[box_ct] = ts_cell.J_21_LW;
                 }
 
@@ -435,7 +421,7 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
                         LOG_SUPER_DEBUG("Cell0: lya_flux_continuum_injected: %.3e",
                                         local_rad.lya_flux_continuum_injected);
                     }
-                    if (astro_options_global->USE_MINI_HALOS) {
+                    if (astro_options_global->USE_MCGS) {
                         LOG_SUPER_DEBUG("lyw_flux %.3e", local_rad.lyw_flux);
                     }
                     LOG_SUPER_DEBUG("Ts %.5e Tk %.5e x_e %.5e J_21_LW %.5e", ts_cell.Ts, ts_cell.Tk,
@@ -447,7 +433,7 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
                 if (astro_options_global->USE_X_RAY_HEATING) {
                     xheat_ave += local_rad.xray_heating_rate;
                 }
-                if (astro_options_global->USE_MINI_HALOS) {
+                if (astro_options_global->USE_MCGS) {
                     J_LW_ave += ts_cell.J_21_LW;
                 }
                 if (astro_options_global->USE_LYA_HEATING) {
@@ -480,7 +466,7 @@ int ComputeTsBox(float redshift, float prev_redshift, float perturbed_field_reds
             xheat_ave /= (double)HII_TOT_NUM_PIXELS;
             LOG_DEBUG("xheat = %.2e", xheat_ave);
         }
-        if (astro_options_global->USE_MINI_HALOS) {
+        if (astro_options_global->USE_MCGS) {
             J_LW_ave /= (double)HII_TOT_NUM_PIXELS;
             LOG_DEBUG("J_LW %.2e", J_LW_ave / 1e21);
         }

@@ -15,7 +15,7 @@ from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
     IonizedBox,
     PerturbedField,
     TsBox,
@@ -36,7 +36,7 @@ def compute_global_reionization_at_z(
     ----------
     inputs : :class:`~InputParameters`
         The input parameters specifying the run. Since this may be the first box
-        to use the astro params/flags, it is needed when we have not computed a TsBox or HaloBox.
+        to use the astro params/flags, it is needed when we have not computed a TsBox or EmissivityFields.
     previous_ionize_box: :class:`IonizedBox`
         An ionized box at higher redshift.
     spin_temp: :class:`TsBox` or None, optional
@@ -135,9 +135,9 @@ def compute_global_reionization_at_z(
             .initialize()
             .with_value(val=val * np.ones(shape)),
         )
-    box.log10_Mturnover_ave = np.log10(M_turn_acg)
+    box.log10_mturn_ave_acg = np.log10(M_turn_acg)
     if M_turn_mcg is not None:
-        box.log10_Mturnover_MINI_ave = np.log10(M_turn_mcg)
+        box.log10_mturn_ave_mcg = np.log10(M_turn_mcg)
     return box
 
 
@@ -163,7 +163,7 @@ class GlobalEvolution:
         """Get a list of the names of the available fields in the simulation."""
         possible_outputs = [
             PerturbedField.new(inputs, redshift=0),
-            HaloBox.new(inputs, redshift=0),
+            EmissivityFields.new(inputs, redshift=0),
             IonizedBox.new(inputs, redshift=0),
             BrightnessTemp.new(inputs, redshift=0),
         ]
@@ -351,8 +351,8 @@ def run_global_evolution(
         "SOURCE_MODEL": source_model,
         "PERTURB_ALGORITHM": "LINEAR",  # no need to do 2LPT
         "USE_INTERPOLATION_TABLES": "sigma-interpolation",  # only need sigma interpolation tables (hmf integrals are evaluated once per snapshot, without interpolation)
-        "INTEGRATION_METHOD_ATOMIC": "GSL-QAG",  # due to above, we ought to use gsl, and not gauss-legendre (BUG?)
-        "INTEGRATION_METHOD_MINI": "GSL-QAG",
+        "INTEGRATION_METHOD_ACGS": "GSL-QAG",  # due to above, we ought to use gsl, and not gauss-legendre (BUG?)
+        "INTEGRATION_METHOD_MCGS": "GSL-QAG",
         "USE_UPPER_STELLAR_TURNOVER": False,  # no upper stellar turnover without discrete halos
         "USE_EXP_FILTER": False,  # we don't run reionization module, so we can leave this parameter on False for all source models
         "KEEP_3D_VELOCITIES": False,  # we don't need any velocities
@@ -399,7 +399,6 @@ def run_global_evolution(
         perturbed_field=perturbed_fields,
         halofield_list=halofield_list,
         write=CacheConfig.off(),
-        cleanup=True,
         progressbar=progressbar,
         photon_nonconservation_data=photon_nonconservation_data,
         init_coeval=prev_coeval,
@@ -408,11 +407,11 @@ def run_global_evolution(
         for quantity in global_evolution.quantities:
             if quantity == "log10_mturn_acg":
                 global_evolution.quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_Mturnover_ave
+                    coeval.ionized_box.log10_mturn_ave_acg
                 )
             elif quantity == "log10_mturn_mcg":
                 global_evolution.quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_Mturnover_MINI_ave
+                    coeval.ionized_box.log10_mturn_ave_mcg
                 )
             else:
                 global_evolution.quantities[quantity][iz] = np.mean(
