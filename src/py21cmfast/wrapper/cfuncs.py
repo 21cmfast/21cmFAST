@@ -393,25 +393,17 @@ def compute_luminosity_function(
     mturns_acg = pow(10.0, log10mturns_acg)
     mturns_mcg = pow(10.0, log10mturns_mcg)
 
-    lfunc_acg = np.zeros(len(redshifts) * nbins)
-    Muvfunc_acg = np.zeros(len(redshifts) * nbins)
-    Mhfunc_acg = np.zeros(len(redshifts) * nbins)
-
-    lfunc_acg.shape = (len(redshifts), nbins)
-    Muvfunc_acg.shape = (len(redshifts), nbins)
-    Mhfunc_acg.shape = (len(redshifts), nbins)
+    lfunc_acg = np.zeros((len(redshifts), nbins))
+    Muvfunc_acg = np.zeros((len(redshifts), nbins))
+    Mhfunc_acg = np.zeros((len(redshifts), nbins))
 
     c_Muvfunc_acg = ffi.cast("double *", ffi.from_buffer(Muvfunc_acg))
     c_Mhfunc_acg = ffi.cast("double *", ffi.from_buffer(Mhfunc_acg))
     c_lfunc_acg = ffi.cast("double *", ffi.from_buffer(lfunc_acg))
 
-    lfunc_mcg = np.zeros(len(redshifts) * nbins)
-    Muvfunc_mcg = np.zeros(len(redshifts) * nbins)
-    Mhfunc_mcg = np.zeros(len(redshifts) * nbins)
-
-    lfunc_mcg.shape = (len(redshifts), nbins)
-    Muvfunc_mcg.shape = (len(redshifts), nbins)
-    Mhfunc_mcg.shape = (len(redshifts), nbins)
+    lfunc_mcg = np.zeros((len(redshifts), nbins))
+    Muvfunc_mcg = np.zeros((len(redshifts), nbins))
+    Mhfunc_mcg = np.zeros((len(redshifts), nbins))
 
     c_Muvfunc_mcg = ffi.cast("double *", ffi.from_buffer(Muvfunc_mcg))
     c_Mhfunc_mcg = ffi.cast("double *", ffi.from_buffer(Mhfunc_mcg))

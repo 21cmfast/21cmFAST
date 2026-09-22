@@ -476,9 +476,9 @@ class OutputStruct(ABC):
         # Perform the C computation
         try:
             exitcode = self._c_compute_function(*inputs, self._cstruct)
-        except TypeError as e:
+        except TypeError:
             logger.error(f"Arguments to {self._c_compute_function.__name__}: {inputs}")
-            raise e
+            raise
 
         _process_exitcode(exitcode, self._c_compute_function, args)
 
@@ -724,7 +724,10 @@ class PerturbedField(OutputStructZ):
         required = []
 
         if not isinstance(input_box, InitialConditions):
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for PerturbedField!"
             )
 
@@ -873,7 +876,10 @@ class HaloCatalog(OutputStructZ):
                     "xray_rng",
                 ]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for HaloCatalog!"
             )
         return required
@@ -1027,7 +1033,10 @@ class PerturbedHaloCatalog(OutputStructZ):
                 "xray_rng",
             ]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for PerturbedHaloCatalog!"
             )
 
@@ -2110,7 +2119,10 @@ class IonizedBox(OutputStructZ):
                 if self.astro_options.RECOMB_MODEL != "none":
                     required += ["fesc_weighted_sfrd"]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for IonizedBox!"
             )
 
@@ -2243,7 +2255,10 @@ class BrightnessTemp(OutputStructZ):
         elif isinstance(input_box, IonizedBox):
             required += ["neutral_fraction"]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for BrightnessTemp!"
             )
 

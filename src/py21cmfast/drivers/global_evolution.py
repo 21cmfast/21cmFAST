@@ -87,7 +87,7 @@ def compute_global_reionization_at_z(
         )
 
     # TODO: I think a more accurate global Q_HI can be achieved by solving an ODE that includes also the recombination rate
-    Q_HI = Q_HI if Q_HI > 0.0 else 0.0
+    Q_HI = max(0.0, Q_HI)
 
     # A crude way to estimate the global photoionization rate
     try:
