@@ -40,27 +40,8 @@ logger.setLevel(logging.INFO)
 options = list(prd.OPTIONS_TESTRUNS.keys())
 options_pt = list(prd.OPTIONS_PT.keys())
 
-# no-mdz, mini_gamma_approx, and ts_nomdz each set SOURCE_MODEL="CONST-ION-EFF"
-# and/or INTEGRATION_METHOD_*="GAMMA-APPROX", which triggers the EPS
-# conditional-mass-function advisory. Scoped per-config rather than applied
-# to all configs, since only these three actually fire it.
-_EPS_WARNING_CONFIGS = ("no-mdz", "mini_gamma_approx", "ts_nomdz")
 
-
-def _integration_marks(name):
-    if name in _EPS_WARNING_CONFIGS:
-        return [
-            pytest.mark.filterwarnings(
-                "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
-            )
-        ]
-    return []
-
-
-options_marked = [pytest.param(n, marks=_integration_marks(n)) for n in options]
-
-
-@pytest.mark.parametrize("name", options_marked)
+@pytest.mark.parametrize("name", options)
 def test_power_spectra_coeval(name, module_direc, plt):
     redshift, kwargs = prd.OPTIONS_TESTRUNS[name]
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
@@ -103,7 +84,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
         make_coeval_comparison_plot(true_k, test_k, true_powers, test_powers, plt)
 
 
-@pytest.mark.parametrize("name", options_marked)
+@pytest.mark.parametrize("name", options)
 def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
     redshift, kwargs = prd.OPTIONS_TESTRUNS[name]
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
