@@ -868,7 +868,7 @@ def _redshift_loop_generator(
                     and resume_cache.TsBox[z].exists()
                 )
                 skip_radfields = ts_cached and not write.radiation_fields
-                
+
                 if not skip_radfields:
                     this_rad_setup = sf.setup_radiation_fields(
                         redshift=z,
