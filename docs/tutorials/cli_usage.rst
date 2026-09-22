@@ -359,13 +359,13 @@ Making Plots
 ------------
 
 A simulation that writes everything into a (rather hidden) cache directory can feel a
-bit like it did nothing at all. To get a quick look at what you just made, use::
+bit like it did nothing at all. To get a quick look at a simulation you just made
+(whether a lightcone, coeval or global signal), use::
 
     $ 21cmfast plot lightcone.h5
 
 This writes a simple summary plot (here, ``lightcone_summary.png``) next to the data
-file. It works on any of the "primary" outputs -- coeval, lightcone or global-evolution
-files -- and produces a plot appropriate to the kind of file you give it.
+file, and produces a plot appropriate to the kind of file you give it.
 
 A **lightcone** file gives a slice through the lightcone, with the global signal and
 ionization/temperature histories lined up beneath it on the same line-of-sight axis:
@@ -391,9 +391,13 @@ ionization history and the temperature history:
 Use ``--out`` to write the plot somewhere else, and ``--show`` to pop it up in an
 interactive window.
 
-You can also get the plot directly as part of the run, by passing ``--plot``::
+You can also get the plot directly as part of the run. ``--plot`` writes it next to
+the simulation output, and ``--show`` opens it in an interactive window; pass both to
+do both::
 
     $ 21cmfast run lightcone --param-file custom.toml --redshift-range 6 12 --plot
+    $ 21cmfast run coeval --param-file custom.toml -z 8 --show
+    $ 21cmfast run global --param-file custom.toml --plot --show
 
 These plots are deliberately simple -- they're meant as a sanity check that the
 simulation ran and looks sensible, not as publication-quality figures. For that, use
@@ -418,6 +422,8 @@ already discussed above (all are optional, with defaults):
 * ``--progress/--no-progress``: turn the progress bar on and off.
 * ``--plot``: write a simple summary plot of the output alongside the data file
   (not available for ``run ics``). See `Making Plots`_.
+* ``--show``: open that same summary plot in an interactive window instead of (or,
+  together with ``--plot``, as well as) writing it to file.
 
 Cookbook
 --------

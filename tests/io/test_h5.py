@@ -6,6 +6,7 @@ import h5py
 import numpy as np
 import pytest
 
+import py21cmfast as p21c
 from py21cmfast import InputParameters
 from py21cmfast._templates import list_templates
 from py21cmfast.io import h5
@@ -171,3 +172,35 @@ class TestInputsIO:
 
         monkeypatch.setattr("py21cmfast.wrapper.inputs.run_classy", _raise_recompute)
         assert new.cosmo_tables == inputs.cosmo_tables
+
+
+class TestLoadHighLevelSimulation:
+    """Tests of the `load_high_level_simulation` convenience reader."""
+
+    def test_lightcone(self, lc, tmp_path: Path):
+        """A lightcone file should come back as a LightCone."""
+        pth = tmp_path / "lightcone.h5"
+        lc.save(pth)
+
+        assert isinstance(h5.load_high_level_simulation(pth), p21c.LightCone)
+
+    def test_global_evolution(self, default_input_struct_lc, tmp_path: Path):
+        """A global-evolution file should come back as a GlobalEvolution."""
+        pth = tmp_path / "global.h5"
+        p21c.GlobalEvolution(
+            inputs=default_input_struct_lc,
+            quantities={
+                "brightness_temp": np.zeros(len(default_input_struct_lc.node_redshifts))
+            },
+        ).save(pth)
+
+        assert isinstance(h5.load_high_level_simulation(pth), p21c.GlobalEvolution)
+
+    def test_unrecognized_file(self, tmp_path: Path):
+        """Anything else should raise a helpful error."""
+        pth = tmp_path / "not-a-simulation.h5"
+        with h5py.File(pth, "w") as fl:
+            fl.attrs["something_else"] = True
+
+        with pytest.raises(ValueError, match="not a recognized 21cmFAST output"):
+            h5.load_high_level_simulation(pth)

@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import attrs
-import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from cyclopts import App, Group, Parameter
@@ -26,12 +25,13 @@ from rich.text import Text
 from . import __version__, plotting
 from ._templates import TOMLMode, list_templates, write_template
 from .drivers import coeval as cvlmodule
-from .drivers.coeval import Coeval, generate_coeval
-from .drivers.global_evolution import GlobalEvolution, run_global_evolution
-from .drivers.lightcone import LightCone, run_lightcone
+from .drivers.coeval import generate_coeval
+from .drivers.global_evolution import run_global_evolution
+from .drivers.lightcone import run_lightcone
 from .drivers.single_field import compute_initial_conditions
 from .input_serialization import convert_inputs_to_dict
 from .io.caching import CacheConfig, OutputCache, RunCache
+from .io.h5 import load_high_level_simulation
 from .lightconers import RectilinearLightconer
 from .wrapper.inputs import (
     AstroOptions,
@@ -556,6 +556,7 @@ def coeval(
     ] = False,
     nodez_params: NodeRedshiftParameters | None = None,
     plot: bool = False,
+    show: bool = False,
 ):
     """Generate coeval cubes at given redshifts.
 
@@ -576,6 +577,9 @@ def coeval(
         in the evolution of the simulation), or only those in the redshifts given.
     plot
         Whether to write a simple summary plot alongside each saved coeval box.
+    show
+        Whether to open a simple summary plot of each coeval box in an interactive
+        matplotlib window. Can be combined with ``--plot`` to both write and show it.
     min_evolved_redshift
         The minimum redshift down to which to evolve the simulation. For some simulation
         configurations, this is not used at all, while for others it will subtly change
@@ -603,10 +607,11 @@ def coeval(
             f"[spring_green3]:duck: Saved z={coeval.redshift:.2f} coeval box to [purple]{outfile}."
         )
 
-        if plot:
-            _write_summary_plot(coeval, _summary_plot_path(outfile))
+        _make_summary_plot(
+            coeval, _summary_plot_path(outfile) if plot else None, show=show
+        )
 
-    if not plot and outfile is not None:
+    if not (plot or show) and outfile is not None:
         _plot_hint(outfile)
 
 
@@ -624,6 +629,7 @@ def lightcone(
     ),
     nodez_params: NodeRedshiftParameters | None = None,
     plot: bool = False,
+    show: bool = False,
 ):
     """Generate a lightcone between given redshifts.
 
@@ -642,6 +648,9 @@ def lightcone(
         Computed fields to generate lightcones for.
     plot
         Whether to write a simple summary plot alongside the saved lightcone.
+    show
+        Whether to open a simple summary plot in an interactive matplotlib window.
+        Can be combined with ``--plot`` to both write and show it.
     """
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -672,9 +681,9 @@ def lightcone(
 
     cns.print(f"[spring_green3]:duck: Saved Lightcone to {out}.")
 
-    if plot:
-        _write_summary_plot(lc, _summary_plot_path(out))
-    else:
+    _make_summary_plot(lc, _summary_plot_path(out) if plot else None, show=show)
+
+    if not (plot or show):
         _plot_hint(out)
 
 
@@ -694,6 +703,7 @@ def global_evolution(
         Parameter(validator=(vld.Path(dir_okay=False, file_okay=False, ext=("h5",)),)),
     ] = Path("global-evolution.h5"),
     plot: bool = False,
+    show: bool = False,
 ):
     """Generate the global evolution between given redshifts.
 
@@ -710,6 +720,9 @@ def global_evolution(
         The filename to which to save the global evolution data.
     plot
         Whether to write a simple summary plot alongside the saved data.
+    show
+        Whether to open a simple summary plot in an interactive matplotlib window.
+        Can be combined with ``--plot`` to both write and show it.
     """
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -741,46 +754,31 @@ def global_evolution(
 
     cns.print(f"[spring_green3]:duck: Saved Global Evolution to {out}.")
 
-    if plot:
-        _write_summary_plot(lc, _summary_plot_path(out))
-    else:
+    _make_summary_plot(lc, _summary_plot_path(out) if plot else None, show=show)
+
+    if not (plot or show):
         _plot_hint(out)
 
 
-def load_simulation_output(path: Path) -> Coeval | LightCone | GlobalEvolution:
-    """Read a saved 21cmFAST output file, determining its type automatically."""
-    path = Path(path)
-    with h5py.File(path, "r") as fl:
-        markers = {
-            "lightcone": fl.attrs.get("lightcone", False),
-            "coeval": fl.attrs.get("coeval", False),
-            "global_evolution": fl.attrs.get("global_evolution", False),
-        }
+def _make_summary_plot(obj, out: Path | None = None, show: bool = False):
+    """Make a default summary plot of ``obj``, writing it to ``out`` and/or showing it.
 
-    for marker, cls in (
-        ("lightcone", LightCone),
-        ("coeval", Coeval),
-        ("global_evolution", GlobalEvolution),
-    ):
-        if markers[marker]:
-            return cls.from_file(path)
+    Does nothing at all if neither ``out`` nor ``show`` is given.
+    """
+    if out is None and not show:
+        return
 
-    raise ValueError(
-        f"The file {path} is not a recognized 21cmFAST output file "
-        "(expected a coeval, lightcone or global-evolution file)."
-    )
-
-
-def _write_summary_plot(obj, out: Path, show: bool = False) -> Path:
-    """Make a default summary plot of ``obj`` and save it to ``out``."""
-    out.parent.mkdir(parents=True, exist_ok=True)
     fig, _ = plotting.summary_plot(obj)
-    fig.savefig(out, bbox_inches="tight", dpi=150)
-    cns.print(f"[spring_green3]:duck: Saved summary plot to [purple]{out}")
-    if show:  # pragma: no cover
+
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out, bbox_inches="tight", dpi=150)
+        cns.print(f"[spring_green3]:duck: Saved summary plot to [purple]{out}")
+
+    if show:
         plt.show()
+
     plt.close(fig)
-    return out
 
 
 def _summary_plot_path(datafile: Path) -> Path:
@@ -819,12 +817,12 @@ def plot_output(
     show
         Whether to open the plot in an interactive matplotlib window.
     """
-    obj = load_simulation_output(filename)
+    obj = load_high_level_simulation(filename)
 
     if out is None:
         out = _summary_plot_path(Path(filename))
 
-    _write_summary_plot(obj, out, show=show)
+    _make_summary_plot(obj, out, show=show)
 
 
 @dev.command(name="feature")

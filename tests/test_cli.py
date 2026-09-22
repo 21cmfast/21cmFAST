@@ -11,7 +11,7 @@ from rich.console import Console
 from py21cmfast import Coeval, GlobalEvolution, LightCone, cli
 from py21cmfast._templates import create_params_from_template
 from py21cmfast.cli import Parameters, ParameterSelection, RunParams, _run_setup, app
-from py21cmfast.io.h5 import read_output_struct
+from py21cmfast.io.h5 import load_high_level_simulation, read_output_struct
 
 
 def app_noexit(*args, **kwargs):
@@ -566,6 +566,11 @@ class TestPlot:
         assert (tmp_path / "coeval_z7.00.h5").exists()
         assert (tmp_path / "coeval_z7.00_summary.png").exists()
 
+        # The same file can be re-plotted afterwards.
+        out = tmp_path / "again.png"
+        app_noexit(f"plot {tmp_path / 'coeval_z7.00.h5'} --out {out}")
+        assert out.exists()
+
     def test_run_global_with_plot(self, tmp_path: Path):
         """Test that `run global --plot` writes a plot next to the data."""
         out = tmp_path / "global-evolution.h5"
@@ -583,4 +588,32 @@ class TestPlot:
             fl.attrs["something_else"] = True
 
         with pytest.raises(ValueError, match="not a recognized 21cmFAST output"):
-            cli.load_simulation_output(bad)
+            load_high_level_simulation(bad)
+
+    @pytest.mark.parametrize("flags", ["--show", "--plot --show"])
+    def test_run_with_show(self, tmp_path: Path, monkeypatch, flags: str):
+        """`--show` displays the plot; only `--plot` also writes it to file."""
+        shown = []
+        monkeypatch.setattr(cli.plt, "show", lambda *a, **kw: shown.append(True))
+
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out} {flags}",
+        )
+
+        assert shown
+        assert (tmp_path / "global-evolution_summary.png").exists() == (
+            "--plot" in flags
+        )
+
+    def test_no_plot_or_show_gives_hint(self, capsys, tmp_path: Path):
+        """With neither flag we should tell the user how to plot later."""
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out}",
+        )
+
+        assert "21cmfast plot" in capsys.readouterr().out
+        assert not list(tmp_path.glob("*.png"))
