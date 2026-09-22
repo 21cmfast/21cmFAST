@@ -35,15 +35,15 @@ gsl_spline *LF_spline;
 gsl_interp_accel *deriv_spline_acc;
 gsl_spline *deriv_spline;
 
-double *lnMhalo_param, *Muv_param, *Mhalo_param;
+double *lnMhalo_param, *Muv_param, *Mhalo_param, *M_turns;
 double *log10phi, *M_uv_z, *M_h_z;
 double *deriv, *lnM_temp, *deriv_temp;
 
-int initialise_ComputeLF(int nbins) {
+int initialise_ComputeLF(int nbins, int n_z) {
     lnMhalo_param = calloc(nbins, sizeof(double));
     Muv_param = calloc(nbins, sizeof(double));
     Mhalo_param = calloc(nbins, sizeof(double));
-
+    M_turns = calloc(n_z, sizeof(double));
     LF_spline_acc = gsl_interp_accel_alloc();
     LF_spline = gsl_spline_alloc(gsl_interp_cspline, nbins);
 
@@ -55,13 +55,15 @@ void cleanup_ComputeLF() {
     free(lnMhalo_param);
     free(Muv_param);
     free(Mhalo_param);
+    free(M_turns);
     gsl_spline_free(LF_spline);
     gsl_interp_accel_free(LF_spline_acc);
     initialised_ComputeLF = 0;
 }
 
-int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF, float *M_TURNs,
-              double *M_uv_z, double *M_h_z, double *log10phi) {
+int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, double *z_LF,
+              double *M_TURNs_ACG, double *M_TURNs_MCG, double *M_uv_z, double *M_h_z,
+              double *log10phi) {
     /*
         This is an API-level function and thus returns an int status.
     */
@@ -69,7 +71,7 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF,
     Try {  // This try block covers the whole function.
         // This NEEDS to be done every time, because the actual object passed in as
         // simulation_options, cosmo_params etc. can change on each call, freeing up the memory.
-        initialise_ComputeLF(nbins);
+        initialise_ComputeLF(nbins, NUM_OF_REDSHIFT_FOR_LF);
 
         int i, i_z;
         int i_unity, i_smth, mf, nbins_smth = 7;
@@ -81,12 +83,12 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF,
         int gsl_status;
 
         gsl_set_error_handler_off();
-        if (astro_params_global->ALPHA_STAR < -0.5)
+        if (astro_params_global->ALPHA_STAR_ACG < -0.5)
             LOG_WARNING(
-                "ALPHA_STAR is %f, which is unphysical value given the observational LFs.\n"
-                "Also, when ALPHA_STAR < -.5, LFs may show a kink. It is recommended to set "
-                "ALPHA_STAR > -0.5.",
-                astro_params_global->ALPHA_STAR);
+                "ALPHA_STAR_ACG is %f, which is unphysical value given the observational LFs.\n"
+                "Also, when ALPHA_STAR_ACG < -.5, LFs may show a kink. It is recommended to set "
+                "ALPHA_STAR_ACG > -0.5.",
+                astro_params_global->ALPHA_STAR_ACG);
 
         mf = matter_options_global->HMF;
 
@@ -105,25 +107,25 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF,
                 Mhalo_i = exp(lnMhalo_param[i]);
 
                 if (component == 1)
-                    Fstar = astro_params_global->F_STAR10 *
-                            pow(Mhalo_i / 1e10, astro_params_global->ALPHA_STAR);
+                    Fstar = astro_params_global->F_STAR10_ACG *
+                            pow(Mhalo_i / 1e10, astro_params_global->ALPHA_STAR_ACG);
                 else
-                    Fstar = astro_params_global->F_STAR7_MINI *
-                            pow(Mhalo_i / 1e7, astro_params_global->ALPHA_STAR_MINI);
+                    Fstar = astro_params_global->F_STAR7_MCG *
+                            pow(Mhalo_i / 1e7, astro_params_global->ALPHA_STAR_MCG);
                 if (Fstar > 1.) Fstar = 1;
 
                 if (i_unity < 0) {  // Find the array number at which Fstar crosses unity.
-                    if (astro_params_global->ALPHA_STAR > 0.) {
+                    if (astro_params_global->ALPHA_STAR_ACG > 0.) {
                         if ((1. - Fstar) < FRACT_FLOAT_ERR) i_unity = i;
-                    } else if (astro_params_global->ALPHA_STAR < 0. && i < nbins - 1) {
+                    } else if (astro_params_global->ALPHA_STAR_ACG < 0. && i < nbins - 1) {
                         if (component == 1)
-                            Fstar_temp = astro_params_global->F_STAR10 *
+                            Fstar_temp = astro_params_global->F_STAR10_ACG *
                                          pow(exp(lnMhalo_min + dlnMhalo * (double)(i + 1)) / 1e10,
-                                             astro_params_global->ALPHA_STAR);
+                                             astro_params_global->ALPHA_STAR_ACG);
                         else
-                            Fstar_temp = astro_params_global->F_STAR7_MINI *
+                            Fstar_temp = astro_params_global->F_STAR7_MCG *
                                          pow(exp(lnMhalo_min + dlnMhalo * (double)(i + 1)) / 1e7,
-                                             astro_params_global->ALPHA_STAR_MINI);
+                                             astro_params_global->ALPHA_STAR_MCG);
                         if (Fstar_temp < 1. && (1. - Fstar) < FRACT_FLOAT_ERR) i_unity = i;
                     }
                 }
@@ -155,8 +157,8 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF,
             // the derivate in the range where the kink appears. 'i_unity' is the array number at
             // which the kink appears. 'i_unity-3' and 'i_unity+12' are related to the range of
             // interpolation, which is an arbitrary choice. NOTE: This method does NOT work in cases
-            // with ALPHA_STAR < -0.5. But, this parameter range is unphysical given that the
-            //       observational LFs favour positive ALPHA_STAR in this model.
+            // with ALPHA_STAR_ACG < -0.5. But, this parameter range is unphysical given that the
+            //       observational LFs favour positive ALPHA_STAR_ACG in this model.
             // i_smth = 0: calculates LFs without interpolation.
             // i_smth = 1: calculates LFs using interpolation where Fstar crosses unity.
             if (i_unity - 3 < 0)
@@ -178,14 +180,23 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF,
 
                     dMuvdMhalo = (Muv_2 - Muv_1) / (2. * delta_lnMhalo * exp(lnMhalo_i));
 
-                    if (component == 1)
+                    if (component == 1) {
                         f_duty_upper = 1.;
-                    else
-                        f_duty_upper = exp(-(Mhalo_param[i] / Mcrit_atom));
+                        M_turns[i_z] = M_TURNs_ACG[i_z];
+                    } else {
+                        // MCGs cannot form if the ACG turnover mass is above the atomic cooling
+                        // threshold (the multiplication by 1.001 is to avoid floating point issues)
+                        if (M_TURNs_ACG[i_z] > Mcrit_atom * 1.001) {
+                            f_duty_upper = 0.;
+                        } else {
+                            f_duty_upper = exp(-(Mhalo_param[i] / Mcrit_atom));
+                        }
+                        M_turns[i_z] = M_TURNs_MCG[i_z];
+                    }
 
                     log10phi[i + i_z * nbins] = log10(
                         unconditional_hmf(growthf, lnMhalo_i, z_LF[i_z], mf) / Mhalo_param[i] *
-                        exp(-(M_TURNs[i_z] / Mhalo_param[i])) *
+                        exp(-(M_turns[i_z] / Mhalo_param[i])) *
                         (cosmo_params_global->OMm * RHOcrit) * f_duty_upper / fabs(dMuvdMhalo));
 
                     if (isinf(log10phi[i + i_z * nbins]) || isnan(log10phi[i + i_z * nbins]) ||
@@ -241,14 +252,23 @@ int ComputeLF(int nbins, int component, int NUM_OF_REDSHIFT_FOR_LF, float *z_LF,
                         deriv_spline, lnMhalo_param[i_unity + i - 1], deriv_spline_acc);
                 }
                 for (i = 0; i < nbins; i++) {
-                    if (component == 1)
+                    if (component == 1) {
                         f_duty_upper = 1.;
-                    else
-                        f_duty_upper = exp(-(Mhalo_param[i] / Mcrit_atom));
+                        M_turns[i_z] = M_TURNs_ACG[i_z];
+                    } else {
+                        // MCGs cannot form if the ACG turnover mass is above the atomic cooling
+                        // threshold (the multiplication by 1.001 is to avoid floating point issues)
+                        if (M_TURNs_ACG[i_z] > Mcrit_atom * 1.001) {
+                            f_duty_upper = 0.;
+                        } else {
+                            f_duty_upper = exp(-(Mhalo_param[i] / Mcrit_atom));
+                        }
+                        M_turns[i_z] = M_TURNs_MCG[i_z];
+                    }
 
                     dndm = unconditional_hmf(growthf, log(Mhalo_param[i]), z_LF[i_z], mf) *
                            (cosmo_params_global->OMm * RHOcrit) / Mhalo_param[i];
-                    log10phi[i + i_z * nbins] = log10(dndm * exp(-(M_TURNs[i_z] / Mhalo_param[i])) *
+                    log10phi[i + i_z * nbins] = log10(dndm * exp(-(M_turns[i_z] / Mhalo_param[i])) *
                                                       f_duty_upper / deriv[i]);
                     if (isinf(log10phi[i + i_z * nbins]) || isnan(log10phi[i + i_z * nbins]) ||
                         log10phi[i + i_z * nbins] < -30.)

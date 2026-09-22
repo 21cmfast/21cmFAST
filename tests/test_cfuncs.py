@@ -12,26 +12,28 @@ from py21cmfast.wrapper import cfuncs as cf
 
 
 @pytest.fixture(scope="module")
-def default_input_struct_lc_mini(default_input_struct_lc):
-    """A default input struct with mini halos turned on."""
+def default_input_struct_lc_mcgs(default_input_struct_lc):
+    """A default input struct with mcgs turned on."""
     return default_input_struct_lc.evolve_input_structs(
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        USE_REIONIZATION_PHOTOHEATING_FEEDBACK=True,
     )
 
 
 @pytest.fixture(scope="module")
-def default_global_evolution(default_input_struct_lc_mini):
-    """A default global signal (with mini halos)."""
-    return p21c.run_global_evolution(inputs=default_input_struct_lc_mini)
+def default_global_evolution(default_input_struct_lc_mcgs):
+    """A default global signal (with mcgs)."""
+    return p21c.run_global_evolution(inputs=default_input_struct_lc_mcgs)
 
 
 @pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
 def test_run_lf(
     default_input_struct_lc,
-    default_input_struct_lc_mini,
+    default_input_struct_lc_mcgs,
     lc,
     default_global_evolution,
     what_to_use,
@@ -62,16 +64,16 @@ def test_run_lf(
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
-    _muv_minih, _mhalo_minih, lf_minih = p21c.compute_luminosity_function(
+    _muv_mcg, _mhalo_mcg, lf_mcg = p21c.compute_luminosity_function(
         redshifts=[7, 8, 9],
         nbins=100,
         lightcone=lightcone,
         global_evolution=global_evolution,
         component="mcg",
-        inputs=default_input_struct_lc_mini,
+        inputs=default_input_struct_lc_mcgs,
     )
-    assert np.all(lf_minih[~np.isnan(lf_minih)] > -30)
-    assert lf_minih.shape == (3, 100)
+    assert np.all(lf_mcg[~np.isnan(lf_mcg)] > -30)
+    assert lf_mcg.shape == (3, 100)
 
 
 def test_run_tau():
@@ -99,6 +101,14 @@ def test_bad_integral_inputs(default_input_struct):
     redshifts = np.linspace(6, 35, num=20)
     lnM_base = np.linspace(7, 13, num=30)
     densities = np.linspace(-1, 3, num=25)
+
+    with pytest.raises(ValueError, match="The shapes of redshifts and"):
+        cf.get_molecular_cooling_threshold_with_feedbacks(
+            inputs=default_input_struct,
+            redshifts=redshifts,
+            J_LW_21=densities,
+            v_cb=redshifts,
+        )
 
     with pytest.raises(ValueError, match="The shapes of redshifts and"):
         cf.compute_mturns(
@@ -461,7 +471,7 @@ def make_matterfield_comparison_plot(
 
 
 @pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
-@pytest.mark.parametrize("use_mini_halos", [True, False])
+@pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize(
     "func",
     [
@@ -474,20 +484,20 @@ def make_matterfield_comparison_plot(
 )
 def test_functions_with_and_without_lightcone(
     default_input_struct_lc,
-    default_input_struct_lc_mini,
+    default_input_struct_lc_mcgs,
     lc,
     default_global_evolution,
     what_to_use,
-    use_mini_halos,
+    use_mcgs,
     func: Callable,
 ):
     """
     Test that we can run functions with and without a lightcone as an input.
 
-    NOTE: The used inputs and lightcone.inputs are actually not the same when using mini halos!
+    NOTE: The used inputs and lightcone.inputs are actually not the same when using mcgs!
           But it should not concern us for this test :)
     """
-    inputs = default_input_struct_lc_mini if use_mini_halos else default_input_struct_lc
+    inputs = default_input_struct_lc_mcgs if use_mcgs else default_input_struct_lc
     lightcone = lc if what_to_use == "lightcone" else None
     global_evolution = (
         default_global_evolution if what_to_use == "global_evolution" else None
@@ -525,20 +535,16 @@ def test_functions_with_and_without_lightcone(
     )
     if func in [cf.evaluate_SFRD_z, cf.evaluate_Nion_z]:
         assert len(output[0]) == len(redshifts)
-        if use_mini_halos:
+        if use_mcgs:
             assert len(output[1]) == len(redshifts)
         else:
-            assert (
-                output[1] is None
-            )  # output_mini should be None if not using mini halos
+            assert output[1] is None  # output_mcg should be None if not using mcgs
     elif func in [cf.evaluate_SFRD_cond, cf.evaluate_Nion_cond]:
         assert len(output[0]) == len(densities)
-        if use_mini_halos:
+        if use_mcgs:
             assert len(output[1]) == len(densities)
         else:
-            assert (
-                output[1] is None
-            )  # output_mini should be None if not using mini halos
+            assert output[1] is None  # output_mcg should be None if not using mcgs
     elif func == cf.evaluate_Xray_cond:
         assert len(output) == len(densities)
 
@@ -611,14 +617,103 @@ def test_removed_arguments_are_cleaned_up_in_v5():
         )
 
 
+@pytest.mark.parametrize("use_mcgs", [True, False])
+@pytest.mark.parametrize("use_reionization_photoheating_feedback", [True, False])
+@pytest.mark.parametrize("log10_m_turn_stellar_feedback", [5.0, 6.0, 7.0, 8.0, 9.0])
+def test_compute_mturns_model(
+    default_input_struct_ts,
+    use_mcgs,
+    log10_m_turn_stellar_feedback,
+    use_reionization_photoheating_feedback,
+):
+    """
+    Test that the the turnover masses follow our model.
+
+    Our model is that the turnover mass is the maximum of three mass scales:
+    1. The atomic (molecular) cooling mass scale for ACGs (MCGs)
+    2. The stellar feedback mass scale
+    3. The reionization feedback mass scale (if applicable)
+
+    If we make a change in the turnover mass model in the C code, this test should fail and we should update it to reflect the new model.
+    """
+    if not use_mcgs and use_reionization_photoheating_feedback:
+        pytest.skip(
+            "NO POINT IN TESTING REIONIZATION FEEDBACK ON MCG TURNOVER MASS WITHOUT MCGS"
+        )
+
+    nz = 20
+    redshifts = np.linspace(5, 35, num=nz)
+    # Draw fields from a uniform distribution to test the function.
+    # The actual values don't matter, as long as they are within the expected range
+    rng = np.random.default_rng(1337)
+    J_LW_21 = rng.uniform(low=0, high=10, size=nz)
+    v_cb = rng.uniform(low=0, high=50, size=nz)
+    ionisation_rate_G12 = rng.uniform(low=0, high=10, size=nz)
+    # z_reion must be greater than the current redshift
+    z_reion = np.maximum(redshifts, rng.uniform(low=5, high=10, size=nz))
+
+    inputs = default_input_struct_ts.evolve_input_structs(
+        RECOMB_MODEL="inhomogeneous",
+        M_TURN_STELLAR_FEEDBACK=log10_m_turn_stellar_feedback,
+        USE_MCGS=use_mcgs,
+        USE_REIONIZATION_PHOTOHEATING_FEEDBACK=use_reionization_photoheating_feedback,
+    )
+    # Compute the turnover masses from the C code, these are the values under test
+    # NOTE: to save time, the C code actually computes the inhomogeneous turnover masses at every cell,
+    #       while the homogeneous ACG turnover mass is computed outside the box loop.
+    #       The function below already includes the homogeneous ACG turnover mass in its calculation
+    Mturn_acg_test, M_turn_mcg_test = cf.compute_mturns(
+        inputs=inputs,
+        redshifts=redshifts,
+        J_LW_21=J_LW_21,
+        v_cb=v_cb,
+        ionisation_rate_G12=ionisation_rate_G12,
+        z_reion=z_reion,
+    )
+    # Compute the "standard" turnover masses for ACGs and MCGs
+    M_turn_acg = cf.get_atomic_cooling_mass_threshold(
+        inputs=inputs,
+        redshifts=redshifts,
+    )
+    M_turn_mcg = cf.get_molecular_cooling_threshold_with_feedbacks(
+        inputs=inputs,
+        redshifts=redshifts,
+        J_LW_21=J_LW_21,
+        v_cb=v_cb,
+    )
+    # Compute the reionization feedback turnover mass, if applicable
+    if use_reionization_photoheating_feedback:
+        M_turn_r = cf.get_reionization_feedback_mass(
+            inputs=inputs,
+            redshifts=redshifts,
+            ionisation_rate_G12=ionisation_rate_G12,
+            z_reion=z_reion,
+        )
+
+    # Determine the final turnover masses by taking the maximum of three mass scales
+    M_turn_acg = np.maximum(M_turn_acg, pow(10.0, log10_m_turn_stellar_feedback))
+    if use_reionization_photoheating_feedback:
+        M_turn_acg = np.maximum(M_turn_acg, M_turn_r)
+    if use_mcgs:
+        M_turn_mcg = np.maximum(M_turn_mcg, pow(10.0, log10_m_turn_stellar_feedback))
+        if use_reionization_photoheating_feedback:
+            M_turn_mcg = np.maximum(M_turn_mcg, M_turn_r)
+
+    # Compare the results
+    np.testing.assert_allclose(Mturn_acg_test, M_turn_acg, rtol=1e-4)
+    if use_mcgs:
+        np.testing.assert_allclose(M_turn_mcg_test, M_turn_mcg, rtol=1e-4)
+
+
 @pytest.mark.parametrize("v_cb_model", ["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"])
 def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
     inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
         K_MAX_FOR_CLASS=1.0,
         V_CB_MODEL=v_cb_model,
+        M_TURN_STELLAR_FEEDBACK=5.0,
         POWER_SPECTRUM="CLASS" if v_cb_model == "FLUCTS" else "EH",
     )
     # Run global evolution and extract global fields
@@ -638,7 +733,7 @@ def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
             v_cb = inputs.astro_params.V_CB_AVG_DEBUG
 
     # Given the above fields, compute mturns using the cfuncs function
-    Mturn_a_global, M_turn_m_global = cf.compute_mturns(
+    Mturn_acg_global, M_turn_mcg_global = cf.compute_mturns(
         inputs=inputs,
         redshifts=global_evolution.node_redshifts,
         J_LW_21=J_21_LW_global,
@@ -649,11 +744,11 @@ def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     # And compare!
     np.testing.assert_allclose(
         log10_mturn_acg_global,
-        np.log10(Mturn_a_global),
+        np.log10(Mturn_acg_global),
         rtol=1e-4,
     )
     np.testing.assert_allclose(
         log10_mturn_mcg_global,
-        np.log10(M_turn_m_global),
+        np.log10(M_turn_mcg_global),
         rtol=1e-4,
     )

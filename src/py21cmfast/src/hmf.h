@@ -21,41 +21,58 @@
 /* HMF Integrals */
 void initialise_GL(double lnM_Min, double lnM_Max);
 
-double Nion_General(double z, double lnM_Min, double lnM_Max, double MassTurnover,
-                    ScalingConstants *sc);
-double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double MassTurnover,
-                         ScalingConstants *sc);
-double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg, double mturn_mcg,
-                    ScalingConstants *sc);
-double Fcoll_General(double z, double lnM_min, double lnM_max);
-double Nhalo_General(double z, double lnM_min, double lnM_max);
+double sfrd_unconditional_acg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                              ScalingConstants *sc);
+double sfrd_unconditional_mcg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                              double mturn_mcg, ScalingConstants *sc);
+double nion_unconditional_acg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                              ScalingConstants *sc);
+double nion_unconditional_mcg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                              double mturn_mcg, ScalingConstants *sc);
+double xray_emissivity_unconditional_acg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                                         ScalingConstants *sc);
+double xray_emissivity_unconditional_mcg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                                         double mturn_mcg, ScalingConstants *sc);
+double fcoll_unconditional(double z, double lnM_min, double lnM_max);
+double nhalo_unconditional(double z, double lnM_min, double lnM_max);
 
-double Nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
+double nhalo_conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
                          double delta, int method);
-double Mcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
+double fcoll_conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
                          double delta, int method);
-double Nion_ConditionalM_MINI(double growthf, double lnM1, double lnM2, double lnM_cond,
-                              double sigma2, double delta2, double MassTurnover,
-                              ScalingConstants *sc, int method);
-double Nion_ConditionalM(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
-                         double delta2, double MassTurnover, ScalingConstants *sc, int method);
-double Xray_ConditionalM(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond,
-                         double sigma2, double delta2, double mturn_acg, double mturn_mcg,
-                         ScalingConstants *sc, int method);
+double sfrd_conditional_acg(double growthf, double lnM1, double lnM2, double lnM_cond,
+                            double sigma2, double delta2, double mturn_acg, ScalingConstants *sc,
+                            int method);
+double sfrd_conditional_mcg(double growthf, double lnM1, double lnM2, double lnM_cond,
+                            double sigma2, double delta2, double mturn_acg, double mturn_mcg,
+                            ScalingConstants *sc, int method);
+double nion_conditional_acg(double growthf, double lnM1, double lnM2, double lnM_cond,
+                            double sigma2, double delta2, double mturn_acg, ScalingConstants *sc,
+                            int method);
+double nion_conditional_mcg(double growthf, double lnM1, double lnM2, double lnM_cond,
+                            double sigma2, double delta2, double mturn_acg, double mturn_mcg,
+                            ScalingConstants *sc, int method);
+double xray_emissivity_conditional_acg(double redshift, double growthf, double lnM1, double lnM2,
+                                       double lnM_cond, double sigma2, double delta2,
+                                       double mturn_acg, ScalingConstants *sc, int method);
+double xray_emissivity_conditional_mcg(double redshift, double growthf, double lnM1, double lnM2,
+                                       double lnM_cond, double sigma2, double delta2,
+                                       double mturn_acg, double mturn_mcg, ScalingConstants *sc,
+                                       int method);
 
 double unconditional_hmf(double growthf, double lnM, double z, int HMF);
 double conditional_hmf(double growthf, double lnM, double delta_cond, double sigma_cond, int HMF);
 
 /* erfc-based HMF integrals (!SOURCE_MODEL==0 and EPS) */
-double FgtrM(double z, double M);
-double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig_large);
-float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias);
+double fcoll_unconditional_eps(double z, double M);
+double fcoll_conditional_eps(float growthf, float del_bias, float sig_small, float sig_large);
+float dfcoll_dz_conditional_eps(float z, float sigma_min, float del_bias, float sig_bias);
+double dfcoll_dz_unconditional(float z, double lnMmin, double lnMmax);
 double splined_erfc(double x);
 
 /* Other values required in other files */
 double get_delta_crit(int HMF, double sigma, double growthf);
 double st_taylor_factor(double sig, double sig_cond, double growthf, double *zeroth_order);
-double atomic_cooling_threshold(float z);
 double minimum_source_mass(double redshift, bool xray);
 double sheth_delc_dexm(double del, double sig);
 float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC);

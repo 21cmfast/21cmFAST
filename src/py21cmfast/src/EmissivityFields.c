@@ -1,0 +1,1052 @@
+/* This file contains fucntions for calculating the EmissivityFields output for 21cmfast, containing
+ * the contributions to the emissivity fields, either from integrating the conditional mass
+ * functions in a cell or from the halo sampler */
+#include "EmissivityFields.h"
+
+#include <gsl/gsl_sf_gamma.h>
+#include <math.h>
+#include <omp.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "Constants.h"
+#include "InputParameters.h"
+#include "OutputStructs.h"
+#include "cexcept.h"
+#include "cosmology.h"
+#include "debugging.h"
+#include "exceptions.h"
+#include "hmf.h"
+#include "indexing.h"
+#include "interp_tables.h"
+#include "logger.h"
+#include "map_mass.h"
+#include "scaling_relations.h"
+#include "thermochem.h"
+
+// calculates halo properties from astro parameters plus the correlated rng
+// The inputs include all properties with a separate RNG
+// The outputs include all sampled halo properties PLUS all properties which cannot be recovered
+// when mixing all the halos together
+//   i.e escape fraction weighting, minihalo stuff that has separate parameters
+// Since there are so many spectral terms in the spin temperature calculation, it will be most
+// efficient to split SFR into regular and minihalos
+//   BUT not split the ionisedbox fields.
+// in order to remain consistent with the minihalo treatment in default (Nion_a * exp(-M/M_a) +
+// Nion_m * exp(-M/M_m - M_a/M))
+//   we treat the minihalos as a shift in the mean, where each halo will have both components,
+//   representing a smooth transition in halo mass from one set of SFR/emmissivity parameters to the
+//   other.
+void set_halo_properties(double halo_mass, double M_turn_acg, double M_turn_mcg,
+                         ScalingConstants *consts, double *input_rng, HaloProperties *output) {
+    double n_ion_sample, fesc_weighted_sfr_sample;
+    double fesc_acg;
+    double fesc_mcg = 0.;
+
+    double stellar_mass_acg, stellar_mass_mcg;
+    get_halo_stellar_mass(halo_mass, M_turn_acg, M_turn_mcg, input_rng[0], consts,
+                          &stellar_mass_acg, &stellar_mass_mcg);
+
+    double sfr_acg, sfr_mcg;
+    get_halo_sfr(stellar_mass_acg, stellar_mass_mcg, input_rng[1], consts, &sfr_acg, &sfr_mcg);
+
+    double metallicity_acg = 0;
+    double metallicity_mcg = 0;
+    double xray_luminosity = 0;
+    if (astro_options_global->USE_TS_FLUCT) {
+        if (astro_options_global->USE_METALLICITY) {
+            get_halo_metallicity(sfr_acg, stellar_mass_acg, consts->redshift, &metallicity_acg);
+            get_halo_metallicity(sfr_mcg, stellar_mass_mcg, consts->redshift, &metallicity_mcg);
+        }
+        get_halo_xray_luminosity(sfr_acg, sfr_mcg, metallicity_acg, metallicity_mcg, input_rng[2],
+                                 consts, &xray_luminosity);
+    }
+
+    // no rng for escape fraction yet
+    fesc_acg = fmin(consts->fesc_10_acg * pow(halo_mass / 1e10, consts->alpha_esc), 1);
+    if (astro_options_global->USE_MCGS)
+        fesc_mcg = fmin(consts->fesc_7_mcg * pow(halo_mass / 1e7, consts->alpha_esc), 1);
+
+    n_ion_sample = (stellar_mass_acg * consts->pop2_ion * fesc_acg +
+                    stellar_mass_mcg * consts->pop3_ion * fesc_mcg) /
+                   (RHOcrit * cosmo_params_global->OMb);
+    fesc_weighted_sfr_sample =
+        sfr_acg * consts->pop2_ion * fesc_acg + sfr_mcg * consts->pop3_ion * fesc_mcg;
+
+    output->halo_mass = halo_mass;
+    output->stellar_mass_acg = stellar_mass_acg;
+    output->stellar_mass_mcg = stellar_mass_mcg;
+    output->sfr_acg = sfr_acg;
+    output->sfr_mcg = sfr_mcg;
+    output->fesc_weighted_sfr = fesc_weighted_sfr_sample;
+    output->n_ion = n_ion_sample;
+    output->metallicity_acg = metallicity_acg;
+    output->metallicity_mcg = metallicity_mcg;
+    output->xray_luminosity = xray_luminosity;
+}
+
+// Expected global averages for box quantities for mean adjustment
+// WARNING: THESE AVERAGE BOXES ARE WRONG, CHECK THEM
+int get_uhmf_averages(double M_min, double M_max, double M_turn_acg, double M_turn_mcg,
+                      ScalingConstants *consts, IntegralProperties *averages_out) {
+    LOG_SUPER_DEBUG("Getting Box averages z=%.2f M [%.2e %.2e] Mt [%.2e %.2e]", consts->redshift,
+                    M_min, M_max, M_turn_acg, M_turn_mcg);
+    double lnMmax = log(M_max);
+    double lnMmin = log(M_min);
+
+    // Compute n_ion
+    averages_out->n_ion =
+        nion_unconditional_acg(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
+    if (astro_options_global->USE_MCGS) {
+        averages_out->n_ion += nion_unconditional_mcg(consts->redshift, lnMmin, lnMmax, M_turn_acg,
+                                                      M_turn_mcg, consts);
+    }
+
+    // The SFRD is required for either spin temperature calculations or for extra fields
+    // (stellar density)
+    if (astro_options_global->USE_TS_FLUCT || config_settings.EXTRA_EMISSIVITY_FIELDS) {
+        averages_out->sfrd_acg =
+            sfrd_unconditional_acg(consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
+        if (astro_options_global->USE_MCGS) {
+            averages_out->sfrd_mcg = sfrd_unconditional_mcg(consts->redshift, lnMmin, lnMmax,
+                                                            M_turn_acg, M_turn_mcg, consts);
+        }
+    }
+
+    // X-ray emissivity is required only for the spin temperature calculation
+    if (astro_options_global->USE_TS_FLUCT) {
+        if (astro_options_global->USE_METALLICITY) {
+            averages_out->xray_emissivity = xray_emissivity_unconditional_acg(
+                consts->redshift, lnMmin, lnMmax, M_turn_acg, consts);
+            if (astro_options_global->USE_MCGS) {
+                averages_out->xray_emissivity += xray_emissivity_unconditional_mcg(
+                    consts->redshift, lnMmin, lnMmax, M_turn_acg, M_turn_mcg, consts);
+            }
+        } else {
+            // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
+            // take advantage of it
+            averages_out->xray_emissivity = consts->lx_over_sfr_acg * averages_out->sfrd_acg;
+            if (astro_options_global->USE_MCGS) {
+                averages_out->xray_emissivity += consts->lx_over_sfr_mcg * averages_out->sfrd_mcg;
+            }
+        }
+    }
+
+    // If the user is interested in extra fields, we also compute them
+    if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
+        averages_out->halo_number =
+            nhalo_unconditional(consts->redshift, lnMmin, lnMmax) * VOLUME / HII_TOT_NUM_PIXELS;
+        averages_out->halo_mass_density = fcoll_unconditional(consts->redshift, lnMmin, lnMmax) *
+                                          RHOcrit * cosmo_params_global->OMm;
+        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+            // For the mass-dependent source model, the SFRD is the stellar mass density in all
+            // halos divided by the SFR timescale
+            averages_out->stellar_mass_density_acg = averages_out->sfrd_acg * consts->sfr_timescale;
+        } else {
+            // For the mass-independent source model, the stellar mass density is proportional to
+            // the collapsed fraction (and n_ion)
+            averages_out->stellar_mass_density_acg =
+                averages_out->n_ion * RHOcrit * cosmo_params_global->OMb * consts->fstar_10_acg /
+                astro_params_global->HII_EFF_FACTOR;
+        }
+        if (astro_options_global->USE_MCGS) {
+            averages_out->stellar_mass_density_mcg = averages_out->sfrd_mcg * consts->sfr_timescale;
+        }
+    }
+
+    // Only Lagrangian source models require having fesc_weighted_sfrd in IonisationBox.c
+    // TODO: I think this should be changed in the future
+    if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
+        uses_recombination(astro_options_global->RECOMB_MODEL)) {
+        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+            // For the mass-dependent source model, the weighted SFRD is n_ion times the constants
+            // that give it units of SFRD
+            averages_out->fesc_weighted_sfrd =
+                averages_out->n_ion * RHOcrit * cosmo_params_global->OMb / consts->sfr_timescale;
+        } else {
+            // For the mass-independent source model, the weighted SFRD is proportional to the SFRD
+            // TODO: This is a dead code at the moment, but it's useful to keep it here since in the
+            // future we might want to use
+            //       the weighted SFRD for Eulerian source models as well.
+            //       Note that sfrd_acg might not be evaluated in some scenarios.
+            //       Also note that currently in IonisationBox.c, t_STAR is used for the weighted
+            //       SFRD, which I think is a mistake
+            averages_out->fesc_weighted_sfrd =
+                averages_out->sfrd_acg / consts->fstar_10_acg * astro_params_global->HII_EFF_FACTOR;
+        }
+    }
+
+    return 0;
+}
+
+IntegralProperties get_emissivity_fields_averages(EmissivityFields *emissivity_fields,
+                                                  PerturbedField *perturbed_field) {
+    double mean_halo_number = 0.;
+    double mean_halo_mass_density = 0., mean_stellar_mass_density_acg = 0.,
+           mean_stellar_mass_density_mcg = 0., mean_sfrd_acg = 0., mean_sfrd_mcg = 0.;
+    double mean_n_ion = 0., mean_xray_emissivity = 0., mean_fesc_weighted_sfrd = 0.;
+
+    bool eulerian_source_model =
+        source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL);
+
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
+    {
+#pragma omp for reduction(+ : mean_halo_number, mean_halo_mass_density,                       \
+                              mean_stellar_mass_density_acg, mean_stellar_mass_density_mcg,   \
+                              mean_sfrd_acg, mean_sfrd_mcg, mean_n_ion, mean_xray_emissivity, \
+                              mean_fesc_weighted_sfrd)
+        for (index_huge i = 0; i < HII_TOT_NUM_PIXELS; i++) {
+            float factor = 1.;
+            if (eulerian_source_model && (1. + perturbed_field->density[i] > FRACT_FLOAT_ERR)) {
+                factor = 1. + perturbed_field->density[i];
+            }
+            mean_n_ion += emissivity_fields->n_ion[i];
+            if (astro_options_global->USE_TS_FLUCT) {
+                mean_sfrd_acg += emissivity_fields->sfrd_acg[i] / factor;
+                mean_xray_emissivity += emissivity_fields->xray_emissivity[i] / factor;
+                if (astro_options_global->USE_MCGS) {
+                    mean_sfrd_mcg += emissivity_fields->sfrd_mcg[i] / factor;
+                }
+            }
+            if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
+                uses_recombination(astro_options_global->RECOMB_MODEL))
+                mean_fesc_weighted_sfrd += emissivity_fields->fesc_weighted_sfrd[i] / factor;
+
+            if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
+                mean_halo_number += emissivity_fields->halo_number[i] / factor;
+                mean_halo_mass_density += emissivity_fields->halo_mass_density[i] / factor;
+                mean_stellar_mass_density_acg +=
+                    emissivity_fields->stellar_mass_density_acg[i] / factor;
+                if (astro_options_global->USE_MCGS)
+                    mean_stellar_mass_density_mcg +=
+                        emissivity_fields->stellar_mass_density_mcg[i] / factor;
+            }
+        }
+    }
+
+    IntegralProperties averages = {
+        .halo_number = mean_halo_number / HII_TOT_NUM_PIXELS,
+        .halo_mass_density = mean_halo_mass_density / HII_TOT_NUM_PIXELS,
+        .stellar_mass_density_acg = mean_stellar_mass_density_acg / HII_TOT_NUM_PIXELS,
+        .stellar_mass_density_mcg = mean_stellar_mass_density_mcg / HII_TOT_NUM_PIXELS,
+        .sfrd_acg = mean_sfrd_acg / HII_TOT_NUM_PIXELS,
+        .sfrd_mcg = mean_sfrd_mcg / HII_TOT_NUM_PIXELS,
+        .n_ion = mean_n_ion / HII_TOT_NUM_PIXELS,
+        .xray_emissivity = mean_xray_emissivity / HII_TOT_NUM_PIXELS,
+        .fesc_weighted_sfrd = mean_fesc_weighted_sfrd / HII_TOT_NUM_PIXELS,
+    };
+    return averages;
+}
+
+// This takes an EmissivityFields struct and fixes it's mean to exactly what we expect from the UMF
+// integrals.
+//   Generally should only be done for the fixed portion of the emissivities, since
+//   it will otherwise make the box inconsistent with the input catalogue
+void mean_fix_emissivities(double M_min, double M_max, EmissivityFields *emissivity_fields,
+                           PerturbedField *perturbed_field, ScalingConstants *consts) {
+    IntegralProperties averages_global;
+    double M_turn_acg_global = pow(10, emissivity_fields->log10_mturn_acg_ave);
+    double M_turn_mcg_global = pow(10, emissivity_fields->log10_mturn_mcg_ave);
+    get_uhmf_averages(M_min, M_max, M_turn_acg_global, M_turn_mcg_global, consts, &averages_global);
+    IntegralProperties averages_emissivity_fields;
+    averages_emissivity_fields = get_emissivity_fields_averages(emissivity_fields, perturbed_field);
+
+    index_huge idx;
+#pragma omp parallel for num_threads(simulation_options_global->N_THREADS) private(idx)
+    for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
+        emissivity_fields->n_ion[idx] *= averages_global.n_ion / averages_emissivity_fields.n_ion;
+        if (astro_options_global->USE_TS_FLUCT) {
+            emissivity_fields->sfrd_acg[idx] *=
+                averages_global.sfrd_acg / averages_emissivity_fields.sfrd_acg;
+            emissivity_fields->xray_emissivity[idx] *=
+                averages_global.xray_emissivity / averages_emissivity_fields.xray_emissivity;
+            if (astro_options_global->USE_MCGS) {
+                emissivity_fields->sfrd_mcg[idx] *=
+                    averages_global.sfrd_mcg / averages_emissivity_fields.sfrd_mcg;
+            }
+        }
+        if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
+            uses_recombination(astro_options_global->RECOMB_MODEL)) {
+            emissivity_fields->fesc_weighted_sfrd[idx] *=
+                averages_global.fesc_weighted_sfrd / averages_emissivity_fields.fesc_weighted_sfrd;
+        }
+
+        if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
+            emissivity_fields->halo_number[idx] *=
+                averages_global.halo_number / averages_emissivity_fields.halo_number;
+            emissivity_fields->halo_mass_density[idx] *=
+                averages_global.halo_mass_density / averages_emissivity_fields.halo_mass_density;
+            emissivity_fields->stellar_mass_density_acg[idx] *=
+                averages_global.stellar_mass_density_acg /
+                averages_emissivity_fields.stellar_mass_density_acg;
+            if (astro_options_global->USE_MCGS) {
+                emissivity_fields->stellar_mass_density_mcg[idx] *=
+                    averages_global.stellar_mass_density_mcg /
+                    averages_emissivity_fields.stellar_mass_density_mcg;
+            }
+        }
+    }
+}
+
+// Evaluate Mass function integrals given information from the cell
+void get_cell_integrals(double dens, double M_min, double M_max, double l10_mturn_acg,
+                        double l10_mturn_mcg, ScalingConstants *consts,
+                        IntegralProperties *properties) {
+    double growth_z = consts->growth_factor;
+    double M_cell = consts->M_cell;
+    double sigma_cell = consts->sigma_cell;
+
+    // set all fields to zero
+    memset(properties, 0, sizeof(IntegralProperties));
+
+    // Compute n_ion
+    properties->n_ion = evaluate_nion_conditional_acg(dens, l10_mturn_acg, growth_z, M_min, M_max,
+                                                      M_cell, sigma_cell, consts, false);
+    if (astro_options_global->USE_MCGS) {
+        properties->n_ion +=
+            evaluate_nion_conditional_mcg(dens, l10_mturn_acg, l10_mturn_mcg, growth_z, M_min,
+                                          M_max, M_cell, sigma_cell, consts, false);
+    }
+
+    // The SFRD is required for either the spin temperature calculations or for extra fields
+    // (stellar density)
+    if (astro_options_global->USE_TS_FLUCT ||
+        (config_settings.EXTRA_EMISSIVITY_FIELDS &&
+         source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))) {
+        properties->sfrd_acg = evaluate_sfrd_conditional_acg(dens, l10_mturn_acg, growth_z, M_min,
+                                                             M_max, M_cell, sigma_cell, consts);
+        if (astro_options_global->USE_MCGS) {
+            properties->sfrd_mcg =
+                evaluate_sfrd_conditional_mcg(dens, l10_mturn_acg, l10_mturn_mcg, growth_z, M_min,
+                                              M_max, M_cell, sigma_cell, consts);
+        }
+    }
+
+    // X-ray emissivity is required only for the spin temperature calculation
+    if (astro_options_global->USE_TS_FLUCT && astro_options_global->USE_METALLICITY) {
+        properties->xray_emissivity = evaluate_xray_emissivity_conditional_acg(
+            dens, l10_mturn_acg, consts->redshift, growth_z, M_min, M_max, M_cell, sigma_cell,
+            consts);
+        if (astro_options_global->USE_MCGS) {
+            properties->xray_emissivity += evaluate_xray_emissivity_conditional_mcg(
+                dens, l10_mturn_acg, l10_mturn_mcg, consts->redshift, growth_z, M_min, M_max,
+                M_cell, sigma_cell, consts);
+        }
+    }
+    // If metallicity is not used, the X-ray emissivity is proportional to the SFRD, so we
+    // take advantage of it (in move_integral_emissivities in map_mass.c)
+
+    // If the user is interested in extra fields, we also compute them
+    if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
+        double cell_volume = M_cell / (RHOcrit * cosmo_params_global->OMm);
+        properties->halo_number = evaluate_nhalo_conditional(dens, growth_z, log(M_min), log(M_max),
+                                                             M_cell, sigma_cell, dens) *
+                                  cell_volume;
+        properties->halo_mass_density =
+            evaluate_fcoll_conditional(dens, growth_z, log(M_min), log(M_max), M_cell, sigma_cell,
+                                       dens) *
+            RHOcrit * cosmo_params_global->OMm;
+        if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
+            // For the mass-dependent source model, the SFRD is the stellar mass density in all
+            // halos divided by the SFR timescale
+            properties->stellar_mass_density_acg = properties->sfrd_acg * consts->sfr_timescale;
+        } else {
+            // For the mass-independent source model, the stellar mass density is proportional to
+            // the collapsed fraction (and n_ion)
+            properties->stellar_mass_density_acg = properties->n_ion * RHOcrit *
+                                                   cosmo_params_global->OMb * consts->fstar_10_acg /
+                                                   astro_params_global->HII_EFF_FACTOR;
+        }
+        if (astro_options_global->USE_MCGS) {
+            properties->stellar_mass_density_mcg = properties->sfrd_mcg * consts->sfr_timescale;
+        }
+    }
+
+    // For the Eulerian source models, we need to multiiply the emissivity fields by (1 + delta)
+    // TODO: why?
+    if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
+        // TODO: right now n_ion from EmissivityFields is not used at all in IonisationBox.c for the
+        // Eulerian source models, so whatever we compute here is not very relevant at the moment.
+        // This might change however in the future. When that happens, we will have to figure out
+        // whether the multiplication of n_ion by (1 + delta) is the right thing to do for the
+        // Eulerian source models, since this factor does not seem to appear in IonisationBox.c for
+        // the Eulerian source models. I wonder if it's because what we call n_ion is not a standard
+        // emissivity field, but rather a ratio: it is the number of ionizing photons that have
+        // escapted into the IGM over the number of baryons in the cell. It's possible that both the
+        // numerator and denominator are scaled by (1 + delta) on the Eulerian grid, and thus the
+        // ratio is not affected by this factor. Anyway, this should be checked.
+
+        // properties->n_ion *= 1. + dens;
+        if (astro_options_global->USE_TS_FLUCT) {
+            properties->sfrd_acg *= 1. + dens;
+            if (astro_options_global->USE_MCGS) {
+                properties->sfrd_mcg *= 1. + dens;
+            }
+            if (astro_options_global->USE_METALLICITY) {
+                properties->xray_emissivity *= 1. + dens;
+            }
+        }
+        if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
+            properties->halo_number *= 1. + dens;
+            properties->halo_mass_density *= 1. + dens;
+            properties->stellar_mass_density_acg *= 1. + dens;
+            if (astro_options_global->USE_MCGS) {
+                properties->stellar_mass_density_mcg *= 1. + dens;
+            }
+        }
+    }
+}
+
+// Add integral contribution.
+// For Lagrangian source models, each property is set as the integral of the CMF on the LAGRANGIAN
+// cell, and then the properties are moved to the EULERIAN grid according to the velocities. For
+// Eulerian source models, each property is set as the integral of the CMF on the EULERIAN cell,
+// with no following advection. This outputs the UN-NORMALISED emissivity fields (before
+// mean-adjustment)
+int add_integral_contribution(double M_min, double M_max, InitialConditions *ini_boxes,
+                              PerturbedField *perturbed_field, float *log10_mturn_acg_grid,
+                              float *log10_mturn_mcg_grid, ScalingConstants *consts,
+                              EmissivityFields *emissivity_fields) {
+    double lnM_min = log(M_min);
+    double lnM_max = log(M_max);
+    double M_cell = consts->M_cell;
+    // If our scaling relations define a median, the scatter will will increase the mean value
+    // due to the asymmetry of the lognormal distribution, we mimic this in the
+    // sub-sampler component.
+    ScalingConstants _ev_consts = *consts;
+    ScalingConstants *ev_consts = &_ev_consts;
+
+    if (astro_options_global->HALO_SCALING_RELATIONS_MEDIAN) {
+        _ev_consts = mimic_scatter_in_consts(consts);
+    }
+    double growthf = ev_consts->growth_factor;
+
+    // find grid limits for tables
+    double min_density = 0.;
+    double max_density = 0.;
+
+    float *vel_pointers[3];
+    float *vel_pointers_2LPT[3];
+    int grid_dim[3];
+    size_huge num_pixels;
+    float *dens_pointer;
+    int out_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                      HII_D_PARA};  // always output to lowres grid
+
+    if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL) ||
+        !matter_options_global->PERTURB_ON_HIGH_RES) {
+        grid_dim[0] = simulation_options_global->HII_DIM;
+        grid_dim[1] = simulation_options_global->HII_DIM;
+        grid_dim[2] = HII_D_PARA;
+        num_pixels = HII_TOT_NUM_PIXELS;
+        if (source_model_uses_eulerian_grids(matter_options_global->SOURCE_MODEL)) {
+            vel_pointers[0] = NULL;
+            vel_pointers[1] = NULL;
+            vel_pointers[2] = NULL;
+            vel_pointers_2LPT[0] = NULL;
+            vel_pointers_2LPT[1] = NULL;
+            vel_pointers_2LPT[2] = NULL;
+            dens_pointer = perturbed_field->density;
+        } else {
+            vel_pointers[0] = ini_boxes->lowres_vx;
+            vel_pointers[1] = ini_boxes->lowres_vy;
+            vel_pointers[2] = ini_boxes->lowres_vz;
+            vel_pointers_2LPT[0] = ini_boxes->lowres_vx_2LPT;
+            vel_pointers_2LPT[1] = ini_boxes->lowres_vy_2LPT;
+            vel_pointers_2LPT[2] = ini_boxes->lowres_vz_2LPT;
+            dens_pointer = ini_boxes->lowres_density;
+        }
+    } else {
+        grid_dim[0] = simulation_options_global->DIM;
+        grid_dim[1] = simulation_options_global->DIM;
+        grid_dim[2] = D_PARA;
+        num_pixels = TOT_NUM_PIXELS;
+        vel_pointers[0] = ini_boxes->hires_vx;
+        vel_pointers[1] = ini_boxes->hires_vy;
+        vel_pointers[2] = ini_boxes->hires_vz;
+        vel_pointers_2LPT[0] = ini_boxes->hires_vx_2LPT;
+        vel_pointers_2LPT[1] = ini_boxes->hires_vy_2LPT;
+        vel_pointers_2LPT[2] = ini_boxes->hires_vz_2LPT;
+        dens_pointer = ini_boxes->hires_density;
+    }
+
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
+    {
+        index_huge i;
+        double dens;
+#pragma omp for reduction(min : min_density) reduction(max : max_density)
+        for (i = 0; i < num_pixels; i++) {
+            dens = dens_pointer[i];
+            if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL)) {
+                dens *= growthf;
+            }
+            if (dens > max_density) max_density = dens;
+            if (dens < min_density) min_density = dens;
+        }
+    }
+    // buffers for table ranges
+    min_density = min_density * 1.001;  // negative
+    max_density = max_density * 1.001;
+
+    LOG_DEBUG("Mean emissivity fields || M = [%.2e %.2e] | Mcell = %.2e", M_min, M_max, M_cell);
+    // These tables are coarser than needed, an initial loop for Mturn to find limits may help
+    if (uses_hmf_interpolation(matter_options_global->USE_INTERPOLATION_TABLES)) {
+        if (astro_options_global->INTEGRATION_METHOD_ACGS == INTEGRATION_METHOD_GAUSS_LEGENDRE ||
+            (astro_options_global->USE_MCGS &&
+             astro_options_global->INTEGRATION_METHOD_MCGS == INTEGRATION_METHOD_GAUSS_LEGENDRE)) {
+            initialise_GL(lnM_min, lnM_max);
+        }
+
+        // The SFRD integration might be need even without computing the spin temperature,
+        // since the stellar mass density is proportional to the SFRD for the mass-dependent source
+        // model
+        if (astro_options_global->USE_TS_FLUCT ||
+            (config_settings.EXTRA_EMISSIVITY_FIELDS &&
+             source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL))) {
+            initialize_sfrd_conditional_tables(ev_consts->redshift, min_density, max_density, M_min,
+                                               M_max, M_cell, ev_consts);
+        }
+
+        if (astro_options_global->USE_TS_FLUCT && astro_options_global->USE_METALLICITY) {
+            initialize_xray_emissivity_conditional_tables(
+                ev_consts->redshift, min_density, max_density, M_min, M_max, M_cell, ev_consts);
+        }
+
+        initialize_nion_conditional_tables(ev_consts->redshift, min_density, max_density, M_min,
+                                           M_max, M_cell, ev_consts, false);
+
+        if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
+            initialize_dndm_tables(min_density, max_density, lnM_min, lnM_max,
+                                   ev_consts->growth_factor, log(M_cell), false);
+        }
+    }
+    move_integral_emissivities(ev_consts->redshift, dens_pointer, grid_dim, vel_pointers,
+                               vel_pointers_2LPT, grid_dim, emissivity_fields, out_dim, M_min,
+                               M_max, log10_mturn_acg_grid, log10_mturn_mcg_grid, ev_consts);
+
+    LOG_ULTRA_DEBUG("Cell 0 Totals: NI: %.2e", emissivity_fields->n_ion[0]);
+    if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
+        uses_recombination(astro_options_global->RECOMB_MODEL)) {
+        LOG_ULTRA_DEBUG("FESC * SF %.2e", emissivity_fields->fesc_weighted_sfrd[0]);
+    }
+    if (astro_options_global->USE_TS_FLUCT) {
+        LOG_ULTRA_DEBUG("SF: %.2e", emissivity_fields->sfrd_acg[0]);
+        LOG_ULTRA_DEBUG("X-ray %.2e", emissivity_fields->xray_emissivity[0]);
+        if (astro_options_global->USE_MCGS) {
+            LOG_ULTRA_DEBUG("MCG SF %.2e", emissivity_fields->sfrd_mcg[0]);
+        }
+    }
+    if (astro_options_global->USE_MCGS) {
+        LOG_ULTRA_DEBUG("log10_Mturn_acg %.2e log10_Mturn_mcg %.2e", log10_mturn_acg_grid[0],
+                        log10_mturn_mcg_grid[0]);
+        if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
+            LOG_ULTRA_DEBUG("MCG SM %.2e", emissivity_fields->stellar_mass_density_mcg[0]);
+        }
+    }
+    free_conditional_tables();
+
+    if (ev_consts->fix_mean)
+        mean_fix_emissivities(M_min, M_max, emissivity_fields, perturbed_field, ev_consts);
+
+    return 0;
+}
+
+void emissivity_fields_debug_print_avg(EmissivityFields *emissivity_fields,
+                                       PerturbedField *perturbed_field, ScalingConstants *consts,
+                                       double M_min, double M_max) {
+    if (LOG_LEVEL < DEBUG_LEVEL) return;
+    IntegralProperties averages_box;
+    averages_box = get_emissivity_fields_averages(emissivity_fields, perturbed_field);
+    IntegralProperties averages_global;
+    LOG_DEBUG("EMISSIVITY FIELDS REDSHIFT %.2f [%.2e %.2e]", consts->redshift, M_min, M_max);
+    double mturn_acg_avg = pow(10, emissivity_fields->log10_mturn_acg_ave);
+    double mturn_mcg_avg = pow(10, emissivity_fields->log10_mturn_mcg_ave);
+    get_uhmf_averages(M_min, M_max, mturn_acg_avg, mturn_mcg_avg, consts, &averages_global);
+
+    LOG_DEBUG("N_ion average: Expected: %11.3e, from box: %11.3e", averages_global.n_ion,
+              averages_box.n_ion);
+    if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
+        LOG_DEBUG("halo mass density average: Expected: %11.3e, from box: %11.3e",
+                  averages_global.halo_mass_density, averages_box.halo_mass_density);
+        LOG_DEBUG("stellar mass density average (ACG): Expected: %11.3e, from box: %11.3e",
+                  averages_global.stellar_mass_density_acg, averages_box.stellar_mass_density_acg);
+        LOG_DEBUG("stellar mass density average (MCG): Expected: %11.3e, from box: %11.3e",
+                  averages_global.stellar_mass_density_mcg, averages_box.stellar_mass_density_mcg);
+    }
+    if (astro_options_global->USE_TS_FLUCT) {
+        LOG_DEBUG("SFRD average (ACG): Expected: %11.3e, from box: %11.3e",
+                  averages_global.sfrd_acg, averages_box.sfrd_acg);
+        LOG_DEBUG("X-ray emissivity average: Expected: %11.3e, from box: %11.3e",
+                  averages_global.xray_emissivity, averages_box.xray_emissivity);
+        if (astro_options_global->USE_MCGS) {
+            LOG_DEBUG("SFRD MCG average (MCG): Expected: %11.3e, from box: %11.3e",
+                      averages_global.sfrd_mcg, averages_box.sfrd_mcg);
+        }
+    }
+}
+
+// We need the mean log10 turnover masses for comparison with expected global Nion and SFRD.
+// Sometimes we don't calculate these on the grid (if we use halos and no sub-sampler)
+// So this function simply returns the volume-weighted average log10 turnover mass
+void get_log10_turnovers(InitialConditions *ini_boxes, TsBox *previous_spin_temp,
+                         IonizedBox *previous_ionize_box, float *log10_mturn_acg_grid,
+                         float *log10_mturn_mcg_grid, ScalingConstants *consts,
+                         double averages[2]) {
+    double log10_mturn_mcg_avg = 0., log10_mturn_acg_avg = 0.;
+    // If we either use mini-halos or reionization feedback, we need to compute the local
+    // fluctuating turnover mass at every cell. The mean of the log10 of these turnover mass
+    // fields is then computed from averaging over the box
+    if (astro_options_global->USE_MCGS ||
+        astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
+        {
+            index_huge i;
+            float J21_val = 0., Gamma12_val = 0., zre_val = 0.;
+            float curr_vcb = consts->vcb_const;
+            float M_turn_acg;
+            float M_turn_mcg;
+
+#pragma omp for reduction(+ : log10_mturn_acg_avg, log10_mturn_mcg_avg)
+            for (i = 0; i < HII_TOT_NUM_PIXELS; i++) {
+                if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS &&
+                    astro_options_global->USE_MCGS) {
+                    curr_vcb = ini_boxes->lowres_vcb[i];
+                }
+                if (consts->redshift < simulation_options_global->Z_HEAT_MAX) {
+                    if (astro_options_global->USE_MCGS) {
+                        J21_val = previous_spin_temp->J_21_LW[i];
+                    }
+                    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+                        Gamma12_val = previous_ionize_box->ionisation_rate_G12[i];
+                        zre_val = previous_ionize_box->z_reion[i];
+                    }
+                }
+                compute_mturns_inhomogeneous(consts->redshift, consts->mturn_acg_homogeneous,
+                                             J21_val, curr_vcb, Gamma12_val, zre_val, &M_turn_acg,
+                                             &M_turn_mcg);
+
+                if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+                    log10_mturn_acg_grid[i] = log10(M_turn_acg);
+                    log10_mturn_acg_avg += log10(M_turn_acg);
+                }
+                if (astro_options_global->USE_MCGS) {
+                    log10_mturn_mcg_grid[i] = log10(M_turn_mcg);
+                    log10_mturn_mcg_avg += log10(M_turn_mcg);
+                }
+            }
+        }
+    }
+
+    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+        // NOTE: This average log10 Mturn will be passed onto the spin temperature calculations
+        // where it is used to perform the frequency integrals (over tau, dependent on <XHI>), and
+        // possibly for mean fixing. It is the volume-weighted mean of LOG10 Mturn, although we
+        // could do another weighting or use Mturn directly None of these are a perfect
+        // representation due to the nonlinear way turnover mass affects N_ion
+        log10_mturn_acg_avg /= HII_TOT_NUM_PIXELS;
+        averages[0] = log10_mturn_acg_avg;
+    } else {
+        averages[0] = log10(consts->mturn_acg_homogeneous);
+    }
+
+    if (astro_options_global->USE_MCGS) {
+        log10_mturn_mcg_avg /= HII_TOT_NUM_PIXELS;
+        averages[1] = log10_mturn_mcg_avg;
+    } else {
+        averages[1] = 0.;  // dummy value for the USE_MCGS = false branch
+    }
+}
+
+void sum_halos_onto_grid(double redshift, InitialConditions *ini_boxes, HaloCatalog *halos,
+                         float *log10_mturn_acg_grid, float *log10_mturn_mcg_grid,
+                         ScalingConstants *consts, EmissivityFields *emissivity_fields) {
+    float *vel_pointers[3];
+    float *vel_pointers_2LPT[3];
+    int vel_dim[3];
+    int out_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                      HII_D_PARA};  // always output to lowres grid
+    if (matter_options_global->PERTURB_ON_HIGH_RES) {
+        vel_dim[0] = simulation_options_global->DIM;
+        vel_dim[1] = simulation_options_global->DIM;
+        vel_dim[2] = D_PARA;
+        vel_pointers[0] = ini_boxes->hires_vx;
+        vel_pointers[1] = ini_boxes->hires_vy;
+        vel_pointers[2] = ini_boxes->hires_vz;
+        vel_pointers_2LPT[0] = ini_boxes->hires_vx_2LPT;
+        vel_pointers_2LPT[1] = ini_boxes->hires_vy_2LPT;
+        vel_pointers_2LPT[2] = ini_boxes->hires_vz_2LPT;
+    } else {
+        vel_dim[0] = simulation_options_global->HII_DIM;
+        vel_dim[1] = simulation_options_global->HII_DIM;
+        vel_dim[2] = HII_D_PARA;
+        vel_pointers[0] = ini_boxes->lowres_vx;
+        vel_pointers[1] = ini_boxes->lowres_vy;
+        vel_pointers[2] = ini_boxes->lowres_vz;
+        vel_pointers_2LPT[0] = ini_boxes->lowres_vx_2LPT;
+        vel_pointers_2LPT[1] = ini_boxes->lowres_vy_2LPT;
+        vel_pointers_2LPT[2] = ini_boxes->lowres_vz_2LPT;
+    }
+    move_halo_emissivities(redshift, halos, vel_pointers, vel_pointers_2LPT, vel_dim,
+                           log10_mturn_acg_grid, log10_mturn_mcg_grid, emissivity_fields, out_dim,
+                           consts);
+
+    LOG_ULTRA_DEBUG("Cell 0 Totals: NI: %.2e", emissivity_fields->n_ion[0]);
+    if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
+        uses_recombination(astro_options_global->RECOMB_MODEL)) {
+        LOG_ULTRA_DEBUG("FESC * SF %.2e", emissivity_fields->fesc_weighted_sfrd[0]);
+    }
+    if (astro_options_global->USE_TS_FLUCT) {
+        LOG_ULTRA_DEBUG("SF: %.2e", emissivity_fields->sfrd_acg[0]);
+        LOG_ULTRA_DEBUG("X-ray %.2e", emissivity_fields->xray_emissivity[0]);
+        if (astro_options_global->USE_MCGS) {
+            LOG_ULTRA_DEBUG("MCG SF %.2e", emissivity_fields->sfrd_mcg[0]);
+        }
+    }
+    if (astro_options_global->USE_MCGS) {
+        LOG_ULTRA_DEBUG("log10_Mturn_acg %.2e log10_Mturn_mcg %.2e", log10_mturn_acg_grid[0],
+                        log10_mturn_mcg_grid[0]);
+        if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
+            LOG_ULTRA_DEBUG("MCG SM %.2e", emissivity_fields->stellar_mass_density_mcg[0]);
+        }
+    }
+}
+
+int ComputeEmissivityFields(double redshift, InitialConditions *ini_boxes,
+                            PerturbedField *perturbed_field, HaloCatalog *halos,
+                            TsBox *previous_spin_temp, IonizedBox *previous_ionize_box,
+                            EmissivityFields *emissivity_fields) {
+    int status;
+    Try {
+        // get parameters
+
+#if LOG_LEVEL >= SUPER_DEBUG_LEVEL
+        writeSimulationOptions(simulation_options_global);
+        writeCosmoParams(cosmo_params_global);
+        writeMatterOptions(matter_options_global);
+        writeAstroParams(astro_params_global);
+        writeAstroOptions(astro_options_global);
+#endif
+
+        LOG_DEBUG("Resetting emissivity_fields dim %d %llu %llu",
+                  simulation_options_global->HII_DIM, HII_D_PARA, HII_TOT_NUM_PIXELS);
+        index_huge idx;
+#pragma omp parallel for num_threads(simulation_options_global->N_THREADS) private(idx)
+        for (idx = 0; idx < HII_TOT_NUM_PIXELS; idx++) {
+            emissivity_fields->n_ion[idx] = 0.0;
+            if (astro_options_global->USE_TS_FLUCT) {
+                emissivity_fields->sfrd_acg[idx] = 0.0;
+                emissivity_fields->xray_emissivity[idx] = 0.0;
+                if (astro_options_global->USE_MCGS) {
+                    emissivity_fields->sfrd_mcg[idx] = 0.0;
+                }
+            }
+            if (source_model_uses_lagrangian_grids(matter_options_global->SOURCE_MODEL) &&
+                uses_recombination(astro_options_global->RECOMB_MODEL)) {
+                emissivity_fields->fesc_weighted_sfrd[idx] = 0.0;
+            }
+            if (config_settings.EXTRA_EMISSIVITY_FIELDS) {
+                emissivity_fields->halo_mass_density[idx] = 0.0;
+                emissivity_fields->stellar_mass_density_acg[idx] = 0.0;
+                emissivity_fields->halo_number[idx] = 0.0;
+                if (astro_options_global->USE_MCGS) {
+                    emissivity_fields->stellar_mass_density_mcg[idx] = 0.0;
+                }
+            }
+        }
+
+        ScalingConstants consts;
+        set_scaling_constants(redshift, &consts, true);
+
+        LOG_DEBUG("Gridding %llu halos...", halos->n_halos);
+
+        double M_min = minimum_source_mass(redshift, false);
+        double M_max_integral;
+
+        float *log10_mturn_acg_grid = NULL;
+        float *log10_mturn_mcg_grid = NULL;
+
+        if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+            log10_mturn_acg_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+        }
+        if (astro_options_global->USE_MCGS) {
+            log10_mturn_mcg_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+        }
+        double log10_mturn_averages[2];
+        get_log10_turnovers(ini_boxes, previous_spin_temp, previous_ionize_box,
+                            log10_mturn_acg_grid, log10_mturn_mcg_grid, &consts,
+                            log10_mturn_averages);
+        emissivity_fields->log10_mturn_acg_ave = log10_mturn_averages[0];
+        emissivity_fields->log10_mturn_mcg_ave = log10_mturn_averages[1];
+        if (source_model_uses_sampled_halos(matter_options_global->SOURCE_MODEL)) {
+            sum_halos_onto_grid(redshift, ini_boxes, halos, log10_mturn_acg_grid,
+                                log10_mturn_mcg_grid, &consts, emissivity_fields);
+        }
+        // set sub-catalogue properties
+        if (matter_options_global->SOURCE_MODEL == SOURCE_MODEL_CHMF_SAMPLER) {
+            M_max_integral = simulation_options_global->SAMPLER_MIN_MASS;
+        } else if (matter_options_global->SOURCE_MODEL == SOURCE_MODEL_DEXM_ESF) {
+            M_max_integral = RtoM(physconst.l_factor * simulation_options_global->BOX_LEN /
+                                  simulation_options_global->DIM);
+        } else {
+            // NOTE: M_max_integral is irrelevant for SOURCE_MODEL = CONST-ION-EFF
+            M_max_integral = M_MAX_INTEGRAL;
+        }
+        if (M_min < M_max_integral) {
+            add_integral_contribution(M_min, M_max_integral, ini_boxes, perturbed_field,
+                                      log10_mturn_acg_grid, log10_mturn_mcg_grid, &consts,
+                                      emissivity_fields);
+            LOG_DEBUG("finished integrated component M[%.2e %.2e]", M_min, M_max_integral);
+        }
+        emissivity_fields_debug_print_avg(emissivity_fields, perturbed_field, &consts, M_min,
+                                          M_MAX_INTEGRAL);
+
+        if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+            free(log10_mturn_acg_grid);
+        }
+        if (astro_options_global->USE_MCGS) {
+            free(log10_mturn_mcg_grid);
+        }
+        // NOTE: the density-grid based calculations (SOURCE_MODEL='E-INTEGRAL')
+        //  use the cell-weighted average of the log10(Mturn) (see issue #369)
+        LOG_SUPER_DEBUG("log10 Mutrn ACG: %.6e", pow(10, emissivity_fields->log10_mturn_acg_ave));
+        LOG_SUPER_DEBUG("log10 Mutrn MCG: %.6e", pow(10, emissivity_fields->log10_mturn_mcg_ave));
+    }
+    Catch(status) { return (status); }
+    LOG_DEBUG("Done.");
+    return 0;
+}
+
+// test function for getting halo properties from the wrapper, can use a lot of memory for large
+// catalogs
+int test_halo_props(double redshift, float *vcb_grid, float *J21_LW_grid, float *z_re_grid,
+                    float *Gamma12_ion_grid, size_huge n_halos, float *halo_masses,
+                    float *halo_coords, float *star_rng, float *sfr_rng, float *xray_rng,
+                    float *halo_props_out) {
+    int status;
+    Try {
+        // get parameters
+
+        ScalingConstants consts;
+        set_scaling_constants(redshift, &consts, true);
+        print_sc_consts(&consts);
+
+        LOG_DEBUG("Getting props for %llu halos at z=%.2f", n_halos, redshift);
+
+        double cell_length =
+            simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM;
+
+        int box_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                          HII_D_PARA};
+
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
+        {
+            int x, y, z;
+            index_huge i_halo, i_cell;
+            double m;
+            float J21_val = 0., Gamma12_val = 0., zre_val = 0.;
+            float curr_vcb = consts.vcb_const;
+            float M_turn_acg =
+                consts.mturn_acg_homogeneous;  // used if we don't apply inhomogeneous
+                                               // reionization feedback on ACGS
+            float M_turn_mcg = 0.;             // dummy value for the USE_MCGS = false branch
+
+            double in_props[3], halo_pos[3];
+            HaloProperties out_props;
+
+#pragma omp for
+            for (i_halo = 0; i_halo < n_halos; i_halo++) {
+                m = halo_masses[i_halo];
+                // It is sometimes useful to make cuts to the halo catalogues before gridding.
+                //   We implement this in a simple way, if the user sets a halo's mass to zero we
+                //   skip it
+                if (m == 0.) {
+                    continue;
+                }
+
+                for (int i = 0; i < 3; i++) {
+                    halo_pos[i] = halo_coords[i + 3 * i_halo] / cell_length;
+                    // This is a special case, where the halo is exactly at the edge of the box
+                    // This can happen due to floating point errors when multiplied by the cell
+                    // length
+                    if (halo_pos[i] == (float)simulation_options_global->HII_DIM) {
+                        halo_pos[i] = (float)simulation_options_global->HII_DIM -
+                                      0.1;  // will place in last cell
+                    }
+                }
+
+                x = (int)(halo_pos[0]);
+                y = (int)(halo_pos[1]);
+                z = (int)(halo_pos[2]);
+                i_cell = grid_index_general(x, y, z, box_dim);
+
+                // set values before reionisation feedback
+                // NOTE: I could easily apply reionization feedback without minihalos but this was
+                // not done previously
+                if (astro_options_global->USE_MCGS ||
+                    astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+                    if (matter_options_global->V_CB_MODEL == V_CB_MODEL_FLUCTS &&
+                        astro_options_global->USE_MCGS) {
+                        curr_vcb = vcb_grid[i_cell];
+                    }
+                    if (redshift < simulation_options_global->Z_HEAT_MAX) {
+                        J21_val = J21_LW_grid[i_cell];
+                        Gamma12_val = Gamma12_ion_grid[i_cell];
+                        zre_val = z_re_grid[i_cell];
+                    }
+
+                    compute_mturns_inhomogeneous(redshift, consts.mturn_acg_homogeneous, J21_val,
+                                                 curr_vcb, Gamma12_val, zre_val, &M_turn_acg,
+                                                 &M_turn_mcg);
+                }
+
+                // these are the halo property RNG sequences
+                in_props[0] = star_rng[i_halo];
+                in_props[1] = sfr_rng[i_halo];
+                in_props[2] = xray_rng[i_halo];
+
+                set_halo_properties(m, M_turn_acg, M_turn_mcg, &consts, in_props, &out_props);
+
+                halo_props_out[11 * i_halo + 0] = out_props.halo_mass;
+                halo_props_out[11 * i_halo + 1] = out_props.stellar_mass_acg;
+                halo_props_out[11 * i_halo + 2] = out_props.sfr_acg;
+
+                halo_props_out[11 * i_halo + 3] = out_props.xray_luminosity;
+                halo_props_out[11 * i_halo + 4] = out_props.n_ion;
+                halo_props_out[11 * i_halo + 5] = out_props.fesc_weighted_sfr;
+
+                halo_props_out[11 * i_halo + 6] = out_props.stellar_mass_mcg;
+                halo_props_out[11 * i_halo + 7] = out_props.sfr_mcg;
+
+                halo_props_out[11 * i_halo + 8] = M_turn_acg;
+                halo_props_out[11 * i_halo + 9] = M_turn_mcg;
+                halo_props_out[11 * i_halo + 10] = out_props.metallicity_acg;
+
+                if (i_halo < 10) {
+                    LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e", out_props.halo_mass,
+                                    out_props.stellar_mass_acg, out_props.sfr_acg, out_props.n_ion,
+                                    out_props.xray_luminosity);
+                    LOG_ULTRA_DEBUG("MCG: SM %.2e SF %.2e WSF %.2e", out_props.stellar_mass_mcg,
+                                    out_props.sfr_mcg, out_props.fesc_weighted_sfr);
+                    LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e", M_turn_acg, M_turn_mcg);
+                    LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e", in_props[0], in_props[1],
+                                    in_props[2]);
+                }
+            }
+        }
+    }
+    Catch(status) { return (status); }
+    LOG_DEBUG("Done.");
+    return 0;
+}
+
+int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
+                       IonizedBox *prev_ion, HaloCatalog *halo_catalog,
+                       PerturbedHaloCatalog *halo_catalog_out) {
+    ScalingConstants consts;
+    set_scaling_constants(redshift, &consts, true);
+    float *log10_mturn_acg_grid = NULL;
+    float *log10_mturn_mcg_grid = NULL;
+
+    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+        log10_mturn_acg_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+    }
+    if (astro_options_global->USE_MCGS) {
+        log10_mturn_mcg_grid = calloc(HII_TOT_NUM_PIXELS, sizeof(float));
+    }
+    double mturn_averages[2];
+    get_log10_turnovers(ics, prev_ts, prev_ion, log10_mturn_acg_grid, log10_mturn_mcg_grid, &consts,
+                        mturn_averages);
+
+    int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
+                     HII_D_PARA};  // always output to lowres grid
+
+    double box_to_lores_factor =
+        simulation_options_global->HII_DIM / (double)simulation_options_global->DIM;
+#pragma omp parallel num_threads(simulation_options_global->N_THREADS)
+    {
+        index_huge i_halo;
+        double m;
+
+        double M_turn_mcg = 0.;  // dummy value for the USE_MCGS = false branch
+        double M_turn_acg = consts.mturn_acg_homogeneous;  // used if we don't apply inhomogeneous
+                                                           // reionization feedback on ACGS
+
+        double in_props[3];
+        double halo_pos[3];
+        HaloProperties out_props;
+
+#pragma omp for
+        for (i_halo = 0; i_halo < halo_catalog->n_halos; i_halo++) {
+            m = halo_catalog->halo_masses[i_halo];
+            // It is sometimes useful to make cuts to the halo catalogues before gridding.
+            //   We implement this in a simple way, if the user sets a halo's mass to zero we
+            //   skip it
+            if (m == 0.) {
+                continue;
+            }
+
+            // the coordinates are already done in PerturbedHaloCatalog
+            halo_pos[0] = halo_catalog_out->halo_coords[3 * i_halo + 0] * box_to_lores_factor;
+            halo_pos[1] = halo_catalog_out->halo_coords[3 * i_halo + 1] * box_to_lores_factor;
+            halo_pos[2] = halo_catalog_out->halo_coords[3 * i_halo + 2] * box_to_lores_factor;
+
+            LOG_ULTRA_DEBUG("getting mturns for halo at (%.2f, %.2f, %.2f)", halo_pos[0],
+                            halo_pos[1], halo_pos[2]);
+
+            if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+                M_turn_acg =
+                    pow(10, cic_read_float_wrapper(log10_mturn_acg_grid, halo_pos, lo_dim));
+            }
+            if (astro_options_global->USE_MCGS) {
+                M_turn_mcg =
+                    pow(10, cic_read_float_wrapper(log10_mturn_mcg_grid, halo_pos, lo_dim));
+            }
+
+            // these are the halo property RNG sequences
+            in_props[0] = halo_catalog->star_rng[i_halo];
+            in_props[1] = halo_catalog->sfr_rng[i_halo];
+            in_props[2] = halo_catalog->xray_rng[i_halo];
+
+            LOG_ULTRA_DEBUG("Halo %llu mass %.2e Mturn_acg %.2e Mturn_mcg %.2e", i_halo, m,
+                            M_turn_acg, M_turn_mcg);
+            LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e", in_props[0], in_props[1],
+                            in_props[2]);
+            set_halo_properties(m, M_turn_acg, M_turn_mcg, &consts, in_props, &out_props);
+
+            halo_catalog_out->halo_masses[i_halo] = out_props.halo_mass;
+            halo_catalog_out->stellar_masses_acg[i_halo] = out_props.stellar_mass_acg;
+            halo_catalog_out->sfr_acg[i_halo] = out_props.sfr_acg;
+            halo_catalog_out->n_ion[i_halo] = out_props.n_ion;
+
+            if (astro_options_global->USE_MCGS) {
+                halo_catalog_out->stellar_masses_mcg[i_halo] = out_props.stellar_mass_mcg;
+                halo_catalog_out->sfr_mcg[i_halo] = out_props.sfr_mcg;
+            }
+            if (uses_recombination(astro_options_global->RECOMB_MODEL)) {
+                halo_catalog_out->fesc_weighted_sfr[i_halo] = out_props.fesc_weighted_sfr;
+            }
+            if (astro_options_global->USE_TS_FLUCT) {
+                halo_catalog_out->xray_luminosity[i_halo] = out_props.xray_luminosity;
+            }
+
+            if (i_halo < 10) {
+                LOG_ULTRA_DEBUG("HM %.2e SM %.2e SF %.2e NI %.2e LX %.2e", out_props.halo_mass,
+                                out_props.stellar_mass_acg, out_props.sfr_acg, out_props.n_ion,
+                                out_props.xray_luminosity);
+                LOG_ULTRA_DEBUG("MCG: SM %.2e SF %.2e WSF %.2e", out_props.stellar_mass_mcg,
+                                out_props.sfr_mcg, out_props.fesc_weighted_sfr);
+                LOG_ULTRA_DEBUG("Mturns ACG %.2e MCG %.2e", M_turn_acg, M_turn_mcg);
+                LOG_ULTRA_DEBUG("RNG: STAR %.2e SFR %.2e XRAY %.2e", in_props[0], in_props[1],
+                                in_props[2]);
+            }
+        }
+    }
+    if (astro_options_global->USE_REIONIZATION_PHOTOHEATING_FEEDBACK) {
+        free(log10_mturn_acg_grid);
+    }
+    if (astro_options_global->USE_MCGS) {
+        free(log10_mturn_mcg_grid);
+    }
+    return 0;
+}

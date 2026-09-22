@@ -103,7 +103,7 @@ class TestCacheConfig:
         fields = attrs.fields(caching.CacheConfig)
 
         # Annoying fields that we don't want to cache
-        annoying_fields = ["xray_source_box", "initial_conditions"]
+        annoying_fields = ["radiation_fields", "initial_conditions"]
         kwargs = dict.fromkeys(annoying_fields, False)
 
         # First check that the update method works as expected
@@ -136,21 +136,22 @@ class TestRunCache:
         cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
         print(attrs.asdict(cache).keys(), flush=True)
 
-        assert isinstance(cache.HaloBox, dict)
+        assert isinstance(cache.EmissivityFields, dict)
         assert isinstance(cache.HaloCatalog, dict)
         assert isinstance(cache.InitialConditions, Path)
         assert isinstance(cache.PerturbedField, dict)
         assert isinstance(cache.IonizedBox, dict)
         assert isinstance(cache.BrightnessTemp, dict)
         assert isinstance(cache.TsBox, dict)
-        assert isinstance(cache.XraySourceBox, dict)
+        assert isinstance(cache.RadiationFields, dict)
 
-        assert len(cache.HaloBox) == len(inputs.node_redshifts)
+        assert len(cache.EmissivityFields) == len(inputs.node_redshifts)
 
         inputs = InputParameters.from_template("simple", random_seed=12345)
         cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
 
-        assert cache.HaloBox is None
+        assert cache.TsBox is None
+        assert cache.RadiationFields is None
 
     def test_from_example_file(self, full_run_cache: caching.RunCache):
         """Test the from_example_file classmethod."""
@@ -239,15 +240,27 @@ class TestRunCache:
         with pytest.raises(ValueError, match="No output struct found"):
             cache.get_output_struct_at_z(kind="TsBox", z=0.0)
 
-    def test_get_all_boxes_at_z(self, full_run_cache):
+    @pytest.mark.parametrize("return_ics", [True, False])
+    def test_get_all_boxes_at_z(self, full_run_cache, return_ics):
         """Test get_all_boxes_at_z functionality."""
         cache = full_run_cache
 
         for z in cache.inputs.node_redshifts:
-            boxes = cache.get_all_boxes_at_z(z)
-            assert len(boxes) == 4  # number of structs with redshifts (PF, Ts, IB, BT)
+            boxes = cache.get_all_boxes_at_z(z, return_ics=return_ics)
+            assert (
+                "InitialConditions" in boxes
+                if return_ics
+                else "InitialConditions" not in boxes
+            )
+            assert "PerturbedField" in boxes
+            assert "EmissivityFields" in boxes
+            assert "RadiationFields" in boxes
+            assert "TsBox" in boxes
+            assert "IonizedBox" in boxes
+            assert "BrightnessTemp" in boxes
             for b in boxes.values():
-                assert b.redshift == z
+                if hasattr(b, "redshift"):
+                    assert b.redshift == z
 
     def test_get_coeval_at_z(self, full_run_cache):
         """Test get_coeval_at_z functionality."""
@@ -343,7 +356,7 @@ class TestOutputCache:
     ):
         """Test that changing parameters affects IonizedBox but not ICs or PerturbedField."""
         input_change = default_input_struct.evolve_input_structs(
-            F_ESC10=-1.5,
+            F_ESC10_ACG=-1.5,
         )
 
         ic2 = InitialConditions.new(inputs=input_change)
@@ -422,7 +435,7 @@ def test_hash_for_different_inputs(default_input_struct, inp_type):
         "simulation_options": {"BOX_LEN": 300},
         "matter_options": {"SOURCE_MODEL": "L-INTEGRAL"},
         "cosmo_params": {"hlittle": 0.7},
-        "astro_params": {"L_X": 38.0},
+        "astro_params": {"LX_OVER_SFR_ACG": 38.0},
         "astro_options": {"USE_CMB_HEATING": False},
     }
     hash_default = caching.OutputCache()._get_hashes(default_input_struct)

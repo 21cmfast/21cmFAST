@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Self, get_args
 
 import attrs
+import deprecation
 import h5py
 import numpy as np
 from rich import progress as prg
@@ -22,12 +23,13 @@ from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
     HaloCatalog,
     InitialConditions,
     IonizedBox,
     OutputStruct,
     PerturbedField,
+    RadiationFieldsSetup,
     TsBox,
 )
 from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
@@ -77,9 +79,11 @@ class Coeval:
         default=None,
         validator=attrs.validators.optional(attrs.validators.instance_of(TsBox)),
     )
-    halobox: HaloBox | None = attrs.field(
+    emissivity_fields: EmissivityFields | None = attrs.field(
         default=None,
-        validator=attrs.validators.optional(attrs.validators.instance_of(HaloBox)),
+        validator=attrs.validators.optional(
+            attrs.validators.instance_of(EmissivityFields)
+        ),
     )
     photon_nonconservation_data: dict = attrs.field(factory=dict)
 
@@ -198,6 +202,23 @@ class Coeval:
     def random_seed(self):
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
+
+    @property
+    def halobox(self) -> EmissivityFields | None:
+        """A deprecated property that returns the EmissivityFields object as a HaloBox."""
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "halobox",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "halobox is deprecated and will be removed in a future version. "
+                    "Please use emissivity_fields instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        return self.emissivity_fields
 
     def prepare_for_next_snapshot(
         self,
@@ -526,7 +547,6 @@ def generate_coeval(
     write: CacheConfig | bool = True,
     cache: OutputCache | None = None,
     initial_conditions: InitialConditions | None = None,
-    cleanup: bool = True,
     progressbar: bool = False,
 ):
     r"""
@@ -575,12 +595,6 @@ def generate_coeval(
         If given, use these intial conditions as a basis for computing the other
         fields, instead of re-computing the ICs. If this is defined, the ``inputs`` do
         not need to be defined (but can be, in order to overwrite the ``node_redshifts``).
-    cleanup : bool, optional
-        A flag to specify whether the C routine cleans up its memory before returning.
-        Typically, if `spin_temperature` is called directly, you will want this to be
-        true, as if the next box to be calculated has different shape, errors will occur
-        if memory is not cleaned. Note that internally, this is set to False until the
-        last iteration.
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
 
@@ -664,7 +678,6 @@ def generate_coeval(
         perturbed_field=perturbed_field,
         halofield_list=halofield_list,
         write=write,
-        cleanup=cleanup,
         progressbar=progressbar,
         iokw=iokw,
         init_coeval=coeval,
@@ -673,12 +686,12 @@ def generate_coeval(
         yield coeval, coeval.redshift in out_redshifts
 
         # Purge the previous coeval after we're done with it
-        # Note: we do not attempt to purge halo box from prev_coeval, since it used in compute_xray_source_field.
-        #       Halo boxes are ultimately purged in halobox.prepare_for_next_snapshot().
+        # Note: we do not attempt to purge emissivity_fields from prev_coeval, since it used in compute_radiation_fields.
+        #       emissivity_fields are ultimately purged in emissivity_fields.prepare_for_next_snapshot().
         #       Meanwhile, unnecessary fields from initial_conditions were removed via prepare_for_perturb and prepare_for_spin_temp
         if prev_coeval is not None and prev_coeval.redshift not in out_redshifts:
             prev_coeval.prepare_for_next_snapshot(
-                keepset=["initial_conditions", "halobox"], force=True
+                keepset=["initial_conditions", "emissivity_fields"], force=True
             )
 
         prev_coeval = coeval
@@ -739,7 +752,7 @@ def _obtain_starting_point_for_scrolling(
             ionized_box=outputs["IonizedBox"],
             brightness_temperature=outputs["BrightnessTemp"],
             ts_box=outputs.get("TsBox", None),
-            halobox=outputs.get("HaloBox", None),
+            emissivity_fields=outputs.get("EmissivityFields", None),
             photon_nonconservation_data=photon_nonconservation_data,
         )
     else:
@@ -754,7 +767,6 @@ def _redshift_loop_generator(
     halofield_list: list[HaloCatalog],
     write: CacheConfig,
     iokw: dict,
-    cleanup: bool,
     progressbar: bool,
     photon_nonconservation_data: dict,
     start_idx: int = 0,
@@ -764,7 +776,7 @@ def _redshift_loop_generator(
         write = CacheConfig()
 
     # Iterate through redshift from top to bottom
-    hbox_arr = []
+    emissivity_fields_list = []
 
     # When resuming partway through the redshift scroll (start_idx > 0), the
     # HaloBox history for the skipped (already-completed) redshifts is not
@@ -784,10 +796,15 @@ def _redshift_loop_generator(
     prev_coeval = init_coeval
     this_coeval = None
 
-    this_halobox = None
+    this_emissivity_fields = None
     this_spin_temp = None
     this_halofield = None
-    this_xraysource = None
+    this_radiation_fields = None
+    if inputs.astro_options.USE_TS_FLUCT:
+        this_rad_setup = RadiationFieldsSetup.new(redshift=-1.0, inputs=inputs)
+        # For efficiency, allocate memory once per simulation
+        this_rad_setup._init_arrays()
+        this_rad_setup.dummy = True
 
     kw = {
         **iokw,
@@ -816,19 +833,19 @@ def _redshift_loop_generator(
             this_perturbed_field = perturbed_field[iz]
             this_perturbed_field.load_all()
 
-            if inputs.matter_options.lagrangian_source_grid:
-                if inputs.matter_options.has_discrete_halos:
-                    this_halofield = halofield_list[iz]
-                    this_halofield.load_all()
-                this_halobox = sf.compute_halo_grid(
-                    inputs=inputs,
-                    halo_catalog=this_halofield,
-                    redshift=z,
-                    previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
-                    previous_spin_temp=getattr(prev_coeval, "ts_box", None),
-                    write=write.halobox,
-                    **kw,
-                )
+            if inputs.matter_options.has_discrete_halos:
+                this_halofield = halofield_list[iz]
+                this_halofield.load_all()
+            this_emissivity_fields = sf.compute_emissivity_fields(
+                inputs=inputs,
+                halo_catalog=this_halofield,
+                redshift=z,
+                perturbed_field=this_perturbed_field,
+                previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
+                previous_spin_temp=getattr(prev_coeval, "ts_box", None),
+                write=write.emissivity_fields,
+                **kw,
+            )
 
             if inputs.astro_options.USE_TS_FLUCT:
                 # XraySourceBox is never itself cached to disk by default (it's
@@ -850,31 +867,47 @@ def _redshift_loop_generator(
                     and z in resume_cache.TsBox
                     and resume_cache.TsBox[z].exists()
                 )
-                skip_xraysource = ts_cached and not write.xray_source_box
-                if inputs.matter_options.lagrangian_source_grid and not skip_xraysource:
-                    # append the halo redshift array so we have all halo boxes [z,zmax]
-                    this_xraysource = sf.compute_xray_source_field(
+                skip_radfields = ts_cached and not write.radiation_fields
+
+                if not skip_radfields:
+                    this_rad_setup = sf.setup_radiation_fields(
                         redshift=z,
-                        hboxes=[*hbox_arr, this_halobox],
-                        previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
-                        write=write.xray_source_box,
-                        **kw,
+                        emissivity_fields_list=[
+                            *emissivity_fields_list,
+                            this_emissivity_fields,
+                        ],
+                        previous_spin_temp=getattr(prev_coeval, "ts_box", None),
+                        previous_rad_setup=this_rad_setup,
                     )
-                else:
-                    this_xraysource = None
+                    this_radiation_fields = sf.compute_radiation_fields(
+                        redshift=z,
+                        emissivity_fields_list=[
+                            *emissivity_fields_list,
+                            this_emissivity_fields,
+                        ],
+                        previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
+                        previous_spin_temp=getattr(prev_coeval, "ts_box", None),
+                        perturbed_field=this_perturbed_field,
+                        rad_setup=this_rad_setup,
+                        write=write.radiation_fields,
+                        **iokw,
+                    )
 
                 this_spin_temp = sf.compute_spin_temperature(
                     inputs=inputs,
                     previous_spin_temp=getattr(prev_coeval, "ts_box", None),
                     perturbed_field=this_perturbed_field,
-                    xray_source_box=this_xraysource,
+                    radiation_fields=this_radiation_fields,
                     write=write.spin_temp,
                     **kw,
-                    cleanup=(cleanup and z == all_redshifts[-1]),
                 )
-                # Purge XraySourceBox because it's enormous
-                if this_xraysource is not None:
-                    this_xraysource.purge(force=True)
+                # Purge RadiationFields because it's enormous
+                # TODO: now that RadiationFields (formerly known as XraySourceBox) does not contain 4D arrays anymore,
+                #       it is not as huge as it was before, but it does contain some extra boxes that are no longer required
+                #       once the spin temperature is computed. These boxes however contain some interesting quantities (radiation fields!),
+                #       we should consider keeping them, but probably as part of working on https://github.com/21cmfast/21cmFAST/issues/642
+                if this_radiation_fields is not None:
+                    this_radiation_fields.purge(force=True)
 
             this_ionized_box = sf.compute_ionization_field(
                 inputs=inputs,
@@ -882,7 +915,7 @@ def _redshift_loop_generator(
                 perturbed_field=this_perturbed_field,
                 # perturb field *not* interpolated here.
                 previous_perturbed_field=getattr(prev_coeval, "perturbed_field", None),
-                halobox=this_halobox,
+                emissivity_fields=this_emissivity_fields,
                 spin_temp=this_spin_temp,
                 write=write.ionized_box,
                 **kw,
@@ -906,18 +939,19 @@ def _redshift_loop_generator(
                 ionized_box=this_ionized_box,
                 brightness_temperature=this_bt,
                 ts_box=this_spin_temp,
-                halobox=this_halobox,
+                emissivity_fields=this_emissivity_fields,
                 photon_nonconservation_data=photon_nonconservation_data,
             )
 
             if (
                 prev_coeval is not None
-                and inputs.matter_options.lagrangian_source_grid
-                and write.halobox
+                and write.emissivity_fields
                 and iz + 1 < len(all_redshifts)
             ):
-                for hbox in hbox_arr:
-                    hbox.prepare_for_next_snapshot(next_z=all_redshifts[iz + 1])
+                for emissivity_fields in emissivity_fields_list:
+                    emissivity_fields.prepare_for_next_snapshot(
+                        next_z=all_redshifts[iz + 1]
+                    )
 
             if this_halofield is not None:
                 this_halofield.purge()
@@ -926,10 +960,14 @@ def _redshift_loop_generator(
                 # Only evolve on the node_redshifts, not any redshifts in-between
                 # that the user might care about.
                 prev_coeval = this_coeval
-                hbox_arr += [this_halobox]
+                emissivity_fields_list += [this_emissivity_fields]
 
             # yield before the cleanup, so we can get at the fields before they are purged
             yield iz, this_coeval
+
+    # Purge the radiation fields setup once we scrolled through all redshifts
+    if inputs.astro_options.USE_TS_FLUCT:
+        this_rad_setup.purge(force=True)
 
 
 def _setup_ics_and_pfs_for_scrolling(

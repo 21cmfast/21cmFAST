@@ -353,17 +353,17 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
 
                     // TODO: it would be nice to combine these into the filter_function call, *but*
                     // since each can take different arguments more thought is needed
-                    if (filter_type == 0) {  // real space top-hat
+                    if (filter_type == FILTER_TOPHAT) {  // real space top-hat
                         kR = sqrt(k_mag_sq) * R;
                         box[grid_index] *= real_tophat_filter(kR);
-                    } else if (filter_type == 1) {  // k-space top hat
+                    } else if (filter_type == FILTER_SHARP_K) {  // k-space top hat
                         // NOTE: why was this commented????
                         //  This is actually (kR^2) but since we zero the value and find kR > 1 this
                         //  is more computationally efficient kR = 0.17103765852*( k_x*k_x + k_y*k_y
                         //  + k_z*k_z )*R*R;
                         kR = sqrt(k_mag_sq) * R;
                         box[grid_index] *= sharp_k_filter(kR);
-                    } else if (filter_type == 2) {  // gaussian
+                    } else if (filter_type == FILTER_GAUSSIAN) {  // gaussian
                         // This is actually (kR^2) but since we zero the value and find kR > 1 this
                         // is more computationally efficient
                         kR = k_mag_sq * R * R;
@@ -371,13 +371,17 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
                     }
                     // The next two filters are not given by the HII_FILTER global, but used for
                     // specific grids
-                    else if (filter_type ==
-                             3) {  // exponentially decaying tophat, param == scale of decay (MFP)
+                    else if (filter_type == FILTER_EXP_MFP) {  // exponentially decaying tophat,
+                                                               // param == scale of decay (MFP)
                         // NOTE: This should be optimized, I havne't looked at it in a while
                         box[grid_index] *= exp_mfp_filter(sqrt(k_mag_sq), R, R_param, R_const);
-                    } else if (filter_type == 4) {  // spherical shell, R_param == inner radius
+                    } else if (filter_type ==
+                               FILTER_SPHERICAL_SHELL_STRAIGHT_LINE) {  // spherical shell, R_param
+                                                                        // == inner radius
                         box[grid_index] *= spherical_shell_filter(sqrt(k_mag_sq), R, R_param);
-                    } else if (filter_type == 5) {  // multiple scattering window function
+                    } else if (filter_type ==
+                               FILTER_SPHERICAL_SHELL_MULTIPLE_SCATTERING) {  // multiple scattering
+                                                                              // window function
                         box[grid_index] *=
                             multiple_scattering_filter(sqrt(k_mag_sq), R, R_param, &consts_for_ms);
                     } else {

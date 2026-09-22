@@ -195,7 +195,7 @@ void compute_relative_velocities(fftwf_complex *box, fftwf_complex *box_saved, f
 
         // we only care about the lowres vcb box, so we filter it directly.
         if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-            filter_box(box, hi_dim, 0,
+            filter_box(box, hi_dim, FILTER_TOPHAT,
                        physconst.l_factor * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
                        0., 0.);
@@ -329,7 +329,7 @@ void compute_velocity_fields(fftwf_complex *box, fftwf_complex *box_saved, float
         // Filter only if we require perturbing on the low-res grid
         if (!matter_options_global->PERTURB_ON_HIGH_RES) {
             if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-                filter_box(box, hi_dim, 0,
+                filter_box(box, hi_dim, FILTER_TOPHAT,
                            physconst.l_factor * simulation_options_global->BOX_LEN /
                                (simulation_options_global->HII_DIM + 0.0),
                            0., 0.);
@@ -512,7 +512,7 @@ void compute_velocity_fields_2LPT(fftwf_complex *box, fftwf_complex *box_saved,
         // Filter only if we require perturbing on the low-res grid
         if (!matter_options_global->PERTURB_ON_HIGH_RES) {
             if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-                filter_box(box, hi_dim, 0,
+                filter_box(box, hi_dim, FILTER_TOPHAT,
                            physconst.l_factor * simulation_options_global->BOX_LEN /
                                (simulation_options_global->HII_DIM + 0.0),
                            0., 0.);
@@ -698,7 +698,7 @@ int ComputeInitialConditions(random_huge random_seed, InitialConditions *boxes) 
 
         // Only filter if we are perturbing on the low-resolution grid
         if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-            filter_box(HIRES_box, hi_dim, 0,
+            filter_box(HIRES_box, hi_dim, FILTER_TOPHAT,
                        physconst.l_factor * simulation_options_global->BOX_LEN /
                            (simulation_options_global->HII_DIM + 0.0),
                        0., 0.);
