@@ -286,10 +286,10 @@ it suppresses star formation for all species below the inhomgeneous photoheating
 the application of the reionization feedback from the presence of MCGs in the simulation,
 which was still the logic in v4.0.0.
 
-In addition, for better clarity, the free astrophysical
+In addition, for better clarity, ``USE_MINI_HALOS`` was renamed to ``USE_MCGS``, while the free astrophysical
 parameter ``M_TURN`` was renamed to ``M_TURN_STELLAR_FEEDBACK``, making it clear that this
 parameter was meant to capture only the effect of stellar feedback on the turnover masses.
-``M_TURN`` therefore became deprecated in v4.3.0.
+``USE_MINI_HALOS`` and ``M_TURN`` therefore became deprecated in v4.3.0.
 
 ``V_CB_MODEL``
 ~~~~~~~~~~~~~~~

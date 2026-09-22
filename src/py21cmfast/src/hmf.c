@@ -130,7 +130,7 @@ struct parameters_gsl_MF_integrals {
     double Mturn_upper;
 
     // X-ray additions
-    double l_x_norm;
+    double lx_over_sfr_norm;
     double sfr_timescale;
 
     // needed for FAST_FCOLL gamma approximations
@@ -153,8 +153,8 @@ double sheth_delc_fixed(double del, double sig) {
 
 double effective_spectral_index(double lnM) {
     double sigma, dsigmasqdm, dlnsdlnm;
-    sigma = EvaluateSigma(lnM);
-    dsigmasqdm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmasqdm = evaluate_dsigma_square_dm(lnM);
     dlnsdlnm = -exp(lnM) * dsigmasqdm / (2. * sigma * sigma);
 
     return -3. * (2. * dlnsdlnm + 1.);
@@ -191,9 +191,9 @@ double dNdlnM_Delos(double growthf, double lnM) {
     const double index_nu = 0.582;
     const double exp_factor = -0.469;
 
-    sigma = EvaluateSigma(lnM);
+    sigma = evaluate_sigma(lnM);
     sigma_inv = 1 / sigma;
-    dsigmadm = EvaluatedSigmasqdm(lnM) * (0.5 * sigma_inv);  // d(s^2)/dm z0 to dsdm
+    dsigmadm = evaluate_dsigma_square_dm(lnM) * (0.5 * sigma_inv);  // d(s^2)/dm z0 to dsdm
 
     nu = physconst.delta_c_delos * sigma_inv / growthf;
 
@@ -212,9 +212,9 @@ double dNdlnM_conditional_Delos(double growthf, double lnM, double delta_cond, d
     const double index_nu = 0.582;
     const double exp_factor = -0.469;
 
-    sigma = EvaluateSigma(lnM);
+    sigma = evaluate_sigma(lnM);
     if (sigma < sigma_cond) return 0.;
-    dsigmadm = EvaluatedSigmasqdm(lnM) * 0.5;  // d(s^2)/dm to s*dsdm
+    dsigmadm = evaluate_dsigma_square_dm(lnM) * 0.5;  // d(s^2)/dm to s*dsdm
     sigdiff_inv = sigma == sigma_cond ? 1e6 : 1 / (sigma * sigma - sigma_cond * sigma_cond);
 
     nu = (physconst.delta_c_delos - delta_cond) * sqrt(sigdiff_inv) / growthf;
@@ -268,8 +268,8 @@ double st_taylor_factor(double sig, double sig_cond, double growthf, double *zer
 double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double sigma_cond) {
     double sigma1, dsigmasqdm, Barrier, factor, sigdiff_inv, result;
     double delta_0 = delta_cond / growthf;
-    sigma1 = EvaluateSigma(lnM);
-    dsigmasqdm = EvaluatedSigmasqdm(lnM);
+    sigma1 = evaluate_sigma(lnM);
+    dsigmasqdm = evaluate_dsigma_square_dm(lnM);
     if (sigma1 < sigma_cond) return 0.;
 
     factor = st_taylor_factor(sigma1, sigma_cond, growthf, &Barrier) - delta_0;
@@ -298,8 +298,8 @@ double dNdM_conditional_ST(double growthf, double lnM, double delta_cond, double
  */
 double dNdlnM_st(double growthf, double lnM) {
     double sigma, dsigmadm, nuhat;
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
@@ -315,8 +315,8 @@ double dNdlnM_st(double growthf, double lnM) {
 double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, double sigma_cond) {
     double sigma1, dsigmasqdm, sigdiff_inv, del;
 
-    sigma1 = EvaluateSigma(lnM);
-    dsigmasqdm = EvaluatedSigmasqdm(lnM);
+    sigma1 = evaluate_sigma(lnM);
+    dsigmasqdm = evaluate_dsigma_square_dm(lnM);
 
     // limit setting
     if (sigma1 < sigma_cond) return 0.;
@@ -343,8 +343,8 @@ double dNdM_conditional_EPS(double growthf, double lnM, double delta_cond, doubl
 double dNdlnM_PS(double growthf, double lnM) {
     double sigma, dsigmadm;
 
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
@@ -368,8 +368,8 @@ double dNdlnM_PS(double growthf, double lnM) {
 double dNdlnM_WatsonFOF(double growthf, double lnM) {
     double sigma, dsigmadm, f_sigma;
 
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
@@ -395,8 +395,8 @@ double dNdlnM_WatsonFOF(double growthf, double lnM) {
 double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM) {
     double sigma, dsigmadm, A_z, alpha_z, beta_z, Omega_m_z, f_sigma;
 
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
 
     sigma = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma));
@@ -418,8 +418,8 @@ double dNdlnM_WatsonFOF_z(double z, double growthf, double lnM) {
 double dNdlnM_Reed07(double growthf, double lnM) {
     double sigma, sigma_z, dsigmadm, neff, nu, lnsigma, G_1, G_2, f_sigma, a_prefac;
 
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
     sigma_z = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma_z));
     neff = effective_spectral_index(lnM);
@@ -440,8 +440,8 @@ double dNdlnM_Reed07(double growthf, double lnM) {
 double dNdlnM_Yung24(double z, double growthf, double lnM) {
     double sigma, sigma_z, dsigmadm, A_z, a_z, b_z, c_z, f_sigma;
 
-    sigma = EvaluateSigma(lnM);
-    dsigmadm = EvaluatedSigmasqdm(lnM);
+    sigma = evaluate_sigma(lnM);
+    dsigmadm = evaluate_dsigma_square_dm(lnM);
     sigma_z = sigma * growthf;
     dsigmadm = dsigmadm * (growthf * growthf / (2. * sigma_z));
 
@@ -457,7 +457,7 @@ double dNdlnM_Yung24(double z, double growthf, double lnM) {
 
 // Halo property helper functions for HMF integrals
 // scaling relation for M_halo --> n_ion used in integrands
-double nion_fraction(double lnM, void *param_struct) {
+double nion_fraction_acg(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
     double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * M_LN10, p.Mlim_star);
     double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 10 * M_LN10, p.Mlim_esc);
@@ -465,7 +465,7 @@ double nion_fraction(double lnM, void *param_struct) {
     return exp(Fstar + Fesc - p.Mturn_acg / exp(lnM) + lnM);
 }
 
-double nion_fraction_mini(double lnM, void *param_struct) {
+double nion_fraction_mcg(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
     double Fstar = log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 7 * M_LN10, p.Mlim_star);
     double Fesc = log_scaling_PL_limit(lnM, p.f_esc_norm, p.alpha_esc, 7 * M_LN10, p.Mlim_esc);
@@ -475,48 +475,47 @@ double nion_fraction_mini(double lnM, void *param_struct) {
 }
 
 // Due to the log(1+Mstar) in the metallicity, this is hard to simplify into log-space
-//   As a result this will be slower, and is currently used only for integrals in HaloBox
+//   As a result this will be slower, and is currently used only for integrals in EmissivityFields
 //   below the sampler mass.
-double xray_fraction_doublePL(double lnM, void *param_struct) {
+double xray_fraction_doublePL_acg(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
     double M = exp(lnM);
     double Fstar =
         exp(log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 10 * M_LN10, p.Mlim_star) -
             p.Mturn_acg / M + p.f_star_norm);
 
-    double stars = M * Fstar * cosmo_params_global->OMb / cosmo_params_global->OMm;
-    double sfr = stars / (p.sfr_timescale);
+    double stellar_mass = M * Fstar * cosmo_params_global->OMb / cosmo_params_global->OMm;
+    double sfr = stellar_mass / (p.sfr_timescale);
 
     double metallicity = 0.;
     if (astro_options_global->USE_METALLICITY) {
-        get_halo_metallicity(sfr, stars, p.redshift, &metallicity);
+        get_halo_metallicity(sfr, stellar_mass, p.redshift, &metallicity);
     }
-    double l_x = get_lx_on_sfr(sfr, metallicity, p.l_x_norm);
+    double lx_over_sfr = get_lx_on_sfr(sfr, metallicity, p.lx_over_sfr_norm);
 
-    return sfr * l_x;
+    return sfr * lx_over_sfr;
 }
 
-double xray_fraction_doublePL_mini(double lnM, void *param_struct) {
+double xray_fraction_doublePL_mcg(double lnM, void *param_struct) {
     struct parameters_gsl_MF_integrals p = *(struct parameters_gsl_MF_integrals *)param_struct;
     double M = exp(lnM);
-    double Fstar_mini =
+    double Fstar =
         exp(log_scaling_PL_limit(lnM, p.f_star_norm, p.alpha_star, 7 * M_LN10, p.Mlim_star) -
             p.Mturn_mcg / M - M / p.Mturn_upper + p.f_star_norm);
 
-    double stars_mini = M * Fstar_mini * cosmo_params_global->OMb / cosmo_params_global->OMm;
-    double sfr_mini = stars_mini / (p.sfr_timescale);
+    double stellar_mass = M * Fstar * cosmo_params_global->OMb / cosmo_params_global->OMm;
+    double sfr = stellar_mass / (p.sfr_timescale);
 
-    double metallicity_mini = 0.;
+    double metallicity = 0.;
     if (astro_options_global->USE_METALLICITY) {
-        get_halo_metallicity(sfr_mini, stars_mini, p.redshift, &metallicity_mini);
+        get_halo_metallicity(sfr, stellar_mass, p.redshift, &metallicity);
     }
-    double l_x_mini = get_lx_on_sfr(sfr_mini, metallicity_mini, p.l_x_norm);
+    double lx_over_sfr = get_lx_on_sfr(sfr, metallicity, p.lx_over_sfr_norm);
 
-    return sfr_mini * l_x_mini;
+    return sfr * lx_over_sfr;
 }
 
 double conditional_hmf(double growthf, double lnM, double delta, double sigma, int HMF) {
-    // dNdlnM = dfcoll/dM * M / M * constants
     if (HMF == HMF_PS) {
         return dNdM_conditional_EPS(growthf, lnM, delta, sigma);
     }
@@ -545,20 +544,20 @@ double c_fcoll_integrand(double lnM, void *param_struct) {
     return exp(lnM) * c_mf_integrand(lnM, param_struct);
 }
 
-double c_nion_integrand(double lnM, void *param_struct) {
-    return nion_fraction(lnM, param_struct) * c_mf_integrand(lnM, param_struct);
+double c_nion_integrand_acg(double lnM, void *param_struct) {
+    return nion_fraction_acg(lnM, param_struct) * c_mf_integrand(lnM, param_struct);
 }
 
-double c_nion_integrand_mini(double lnM, void *param_struct) {
-    return nion_fraction_mini(lnM, param_struct) * c_mf_integrand(lnM, param_struct);
+double c_nion_integrand_mcg(double lnM, void *param_struct) {
+    return nion_fraction_mcg(lnM, param_struct) * c_mf_integrand(lnM, param_struct);
 }
 
-double c_xray_integrand(double lnM, void *param_struct) {
-    return xray_fraction_doublePL(lnM, param_struct) * c_mf_integrand(lnM, param_struct);
+double c_xray_integrand_acg(double lnM, void *param_struct) {
+    return xray_fraction_doublePL_acg(lnM, param_struct) * c_mf_integrand(lnM, param_struct);
 }
 
-double c_xray_integrand_mini(double lnM, void *param_struct) {
-    return xray_fraction_doublePL_mini(lnM, param_struct) * c_mf_integrand(lnM, param_struct);
+double c_xray_integrand_mcg(double lnM, void *param_struct) {
+    return xray_fraction_doublePL_mcg(lnM, param_struct) * c_mf_integrand(lnM, param_struct);
 }
 
 double unconditional_hmf(double growthf, double lnM, double z, int HMF) {
@@ -603,21 +602,21 @@ double u_fcoll_integrand(double lnM, void *param_struct) {
     return exp(lnM) * u_mf_integrand(lnM, param_struct);
 }
 
-double u_nion_integrand(double lnM, void *param_struct) {
-    return nion_fraction(lnM, param_struct) * u_mf_integrand(lnM, param_struct);
+double u_nion_integrand_acg(double lnM, void *param_struct) {
+    return nion_fraction_acg(lnM, param_struct) * u_mf_integrand(lnM, param_struct);
 }
 
 // The reason this is separated from the above is the second exponent
-double u_nion_integrand_mini(double lnM, void *param_struct) {
-    return nion_fraction_mini(lnM, param_struct) * u_mf_integrand(lnM, param_struct);
+double u_nion_integrand_mcg(double lnM, void *param_struct) {
+    return nion_fraction_mcg(lnM, param_struct) * u_mf_integrand(lnM, param_struct);
 }
 
-double u_xray_integrand(double lnM, void *param_struct) {
-    return xray_fraction_doublePL(lnM, param_struct) * u_mf_integrand(lnM, param_struct);
+double u_xray_integrand_acg(double lnM, void *param_struct) {
+    return xray_fraction_doublePL_acg(lnM, param_struct) * u_mf_integrand(lnM, param_struct);
 }
 
-double u_xray_integrand_mini(double lnM, void *param_struct) {
-    return xray_fraction_doublePL_mini(lnM, param_struct) * u_mf_integrand(lnM, param_struct);
+double u_xray_integrand_mcg(double lnM, void *param_struct) {
+    return xray_fraction_doublePL_mcg(lnM, param_struct) * u_mf_integrand(lnM, param_struct);
 }
 
 ///// INTEGRATION ROUTINES BELOW /////
@@ -656,7 +655,8 @@ double IntegratedNdM_QAG(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
                   params.alpha_star, params.Mlim_star);
         LOG_ERROR("f_escn=%.3e a_esc=%.3e Mlim_esc=%.3e", params.f_esc_norm, params.alpha_esc,
                   params.Mlim_esc);
-        LOG_ERROR("sfr_timescale=%.3e lx=%.3e", params.sfr_timescale, params.l_x_norm);
+        LOG_ERROR("sfr_timescale=%.3e lx_over_sfr_norm=%.3e", params.sfr_timescale,
+                  params.lx_over_sfr_norm);
         LOG_ERROR("Mturn_mcg %.3e Mturn_up %.3e gamma_type %d", params.Mturn_mcg,
                   params.Mturn_upper, params.gamma_type);
         CATCH_GSL_ERROR(status);
@@ -770,7 +770,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     if (abs(params.gamma_type) > 4) {
         LOG_ERROR("Approximate Fcoll only works for single power-law scaling relations");
         LOG_ERROR("These include the following General/Conditional integration functions");
-        LOG_ERROR("Nhalo, Fcoll, Nion, Nion_MINI");
+        LOG_ERROR("Nhalo, Fcoll, Nion_acg, Nion_mcg");
         LOG_ERROR("Something has gone wrong in the backend such that the 'Gamma-Approx'");
         LOG_ERROR("integration method was used on a more complex scaling relation");
         Throw(TableGenerationError);
@@ -805,7 +805,7 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
 
     // it is possible for the lower turnover (LW crit or reion feedback)
     //    to be higher than the upper limit (atomic limit) or the condition
-    if (lnM_lo_limit >= lnM_hi_limit || EvaluateSigma(lnM_lo_limit) <= sigma_c) {
+    if (lnM_lo_limit >= lnM_hi_limit || evaluate_sigma(lnM_lo_limit) <= sigma_c) {
         return 0.;
     }
 
@@ -832,10 +832,10 @@ double MFIntegral_Approx(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_
     // not a simple gamma function.
     //  note especially which nu subtracts the condition sigma and not, see Appendix B of Munoz+22
     //  (2110.13919)
-    double sigma_pivot1 = EvaluateSigma(lnMp1);
-    double sigma_pivot2 = EvaluateSigma(lnMp2);
-    double sigma_lo_limit = EvaluateSigma(lnM_lo_limit);
-    double sigma_hi_limit = EvaluateSigma(lnM_hi_limit);
+    double sigma_pivot1 = evaluate_sigma(lnMp1);
+    double sigma_pivot2 = evaluate_sigma(lnMp2);
+    double sigma_lo_limit = evaluate_sigma(lnM_lo_limit);
+    double sigma_hi_limit = evaluate_sigma(lnM_hi_limit);
 
     // These nu use the CMF delta (subtracted the condition delta), but not the condition sigma
     double nu_pivot1_umf = delta_arg / (sigma_pivot1 * sigma_pivot1);
@@ -921,10 +921,10 @@ double IntegratedNdM(double lnM_lo, double lnM_hi, struct parameters_gsl_MF_inte
 // Some wrappers over the integration functions for specific integrals//
 
 /*
- FUNCTION FgtrM(z, M)
+ FUNCTION fcoll_unconditional_eps(z, M)
  Computes the fraction of mass contained in haloes with mass > M at redshift z
  */
-double FgtrM(double z, double M) {
+double fcoll_unconditional_eps(double z, double M) {
     double del, sig;
 
     del = physconst.delta_c_sph / dicke(z);  // regular spherical collapse delta
@@ -946,7 +946,7 @@ double FgtrM_wsigma(double z, double sig) {
     return splined_erfc(del / (sqrt(2) * sig));
 }
 
-double nhalo_General(double z, double lnM_min, double lnM_max) {
+double nhalo_unconditional(double z, double lnM_min, double lnM_max) {
     struct parameters_gsl_MF_integrals integral_params = {
         .redshift = z,
         .growthf = dicke(z),
@@ -957,7 +957,7 @@ double nhalo_General(double z, double lnM_min, double lnM_max) {
     return nhalo_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
-double Fcoll_General(double z, double lnM_min, double lnM_max) {
+double fcoll_unconditional(double z, double lnM_min, double lnM_max) {
     struct parameters_gsl_MF_integrals integral_params = {
         .redshift = z,
         .growthf = dicke(z),
@@ -967,63 +967,63 @@ double Fcoll_General(double z, double lnM_min, double lnM_max) {
     return IntegratedNdM(lnM_min, lnM_max, integral_params, &u_fcoll_integrand, 0);
 }
 
-double Nion_General_integral(double z, double lnM_Min, double lnM_Max, double mturn_acg,
-                             ScalingConstants *sc) {
+double nion_unconditional_acg_integral(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                                       ScalingConstants *sc) {
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
         .Mturn_acg = mturn_acg,
-        .alpha_star = sc->alpha_star,
+        .alpha_star = sc->alpha_star_acg,
         .alpha_esc = sc->alpha_esc,
-        .f_star_norm = log(sc->fstar_10),
-        .f_esc_norm = log(sc->fesc_10),
-        .Mlim_star = log(sc->Mlim_Fstar),
-        .Mlim_esc = log(sc->Mlim_Fesc),
+        .f_star_norm = log(sc->fstar_10_acg),
+        .f_esc_norm = log(sc->fesc_10_acg),
+        .Mlim_star = log(sc->Mlim_Fstar_acg),
+        .Mlim_esc = log(sc->Mlim_Fesc_acg),
         .HMF = matter_options_global->HMF,
         .gamma_type = 3,
     };
-    return IntegratedNdM(lnM_Min, lnM_Max, params, &u_nion_integrand, 0);
+    return IntegratedNdM(lnM_Min, lnM_Max, params, &u_nion_integrand_acg, 0);
 }
 
-double Nion_General_MINI_integral(double z, double lnM_Min, double lnM_Max, double mturn_acg,
-                                  double mturn_mcg, ScalingConstants *sc) {
+double nion_unconditional_mcg_integral(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                                       double mturn_mcg, ScalingConstants *sc) {
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
         .Mturn_mcg = mturn_mcg,
         .Mturn_upper = sc->atomic_cooling_threshold,
-        .alpha_star = sc->alpha_star_mini,
+        .alpha_star = sc->alpha_star_mcg,
         .alpha_esc = sc->alpha_esc,
-        .f_star_norm = log(sc->fstar_7),
-        .f_esc_norm = log(sc->fesc_7),
-        .Mlim_star = log(sc->Mlim_Fstar_mini),
-        .Mlim_esc = log(sc->Mlim_Fesc_mini),
+        .f_star_norm = log(sc->fstar_7_mcg),
+        .f_esc_norm = log(sc->fesc_7_mcg),
+        .Mlim_star = log(sc->Mlim_Fstar_mcg),
+        .Mlim_esc = log(sc->Mlim_Fesc_mcg),
         .HMF = matter_options_global->HMF,
         .gamma_type = 4,
     };
-    return IntegratedNdM(lnM_Min, lnM_Max, params, &u_nion_integrand_mini, 0);
+    return IntegratedNdM(lnM_Min, lnM_Max, params, &u_nion_integrand_mcg, 0);
 }
 
-double Xray_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
-                    ScalingConstants *sc) {
+double xray_emissivity_unconditional_acg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                                         ScalingConstants *sc) {
     struct parameters_gsl_MF_integrals params = {
         .redshift = z,
         .growthf = dicke(z),
         .Mturn_acg = mturn_acg,
-        .alpha_star = sc->alpha_star,
-        .f_star_norm = log(sc->fstar_10),
-        .Mlim_star = log(sc->Mlim_Fstar),
+        .alpha_star = sc->alpha_star_acg,
+        .f_star_norm = log(sc->fstar_10_acg),
+        .Mlim_star = log(sc->Mlim_Fstar_acg),
         .HMF = matter_options_global->HMF,
-        .l_x_norm = sc->l_x,
+        .lx_over_sfr_norm = sc->lx_over_sfr_acg,
         .sfr_timescale = sc->sfr_timescale,
         .gamma_type = 5,
     };
-    double xray_integral = IntegratedNdM(lnM_Min, lnM_Max, params, &u_xray_integrand, 0);
+    double xray_integral = IntegratedNdM(lnM_Min, lnM_Max, params, &u_xray_integrand_acg, 0);
     return xray_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
-double Xray_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_acg,
-                         double mturn_mcg, ScalingConstants *sc) {
+double xray_emissivity_unconditional_mcg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                                         double mturn_mcg, ScalingConstants *sc) {
     // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
     // (the multiplication by 1.001 is to avoid floating point issues)
     if (mturn_acg > sc->atomic_cooling_threshold * 1.001) {
@@ -1036,19 +1036,19 @@ double Xray_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_
         .Mturn_acg = mturn_acg,
         .Mturn_mcg = mturn_mcg,
         .Mturn_upper = sc->atomic_cooling_threshold,
-        .alpha_star = sc->alpha_star_mini,
-        .f_star_norm = log(sc->fstar_7),
-        .Mlim_star = log(sc->Mlim_Fstar_mini),
+        .alpha_star = sc->alpha_star_mcg,
+        .f_star_norm = log(sc->fstar_7_mcg),
+        .Mlim_star = log(sc->Mlim_Fstar_mcg),
         .HMF = matter_options_global->HMF,
-        .l_x_norm = sc->l_x_mini,
+        .lx_over_sfr_norm = sc->lx_over_sfr_mcg,
         .sfr_timescale = sc->sfr_timescale,
         .gamma_type = 6,
     };
-    double xray_integral = IntegratedNdM(lnM_Min, lnM_Max, params, &u_xray_integrand_mini, 0);
+    double xray_integral = IntegratedNdM(lnM_Min, lnM_Max, params, &u_xray_integrand_mcg, 0);
     return xray_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
-double nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
+double nhalo_conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
                          double delta, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
@@ -1074,7 +1074,7 @@ double nhalo_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
     return nhalo_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
-double Fcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
+double fcoll_conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma,
                          double delta, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
@@ -1096,19 +1096,19 @@ double Fcoll_Conditional(double growthf, double lnM1, double lnM2, double lnM_co
     return IntegratedNdM(lnM1, lnM2, params, &c_fcoll_integrand, method);
 }
 
-double Nion_Conditional_MINI_integral(double growthf, double lnM1, double lnM2, double lnM_cond,
-                                      double sigma2, double delta2, double mturn_acg,
-                                      double mturn_mcg, ScalingConstants *sc, int method) {
+double nion_conditional_mcg_integral(double growthf, double lnM1, double lnM2, double lnM_cond,
+                                     double sigma2, double delta2, double mturn_acg,
+                                     double mturn_mcg, ScalingConstants *sc, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
         .Mturn_mcg = mturn_mcg,
         .Mturn_upper = sc->atomic_cooling_threshold,
-        .alpha_star = sc->alpha_star_mini,
+        .alpha_star = sc->alpha_star_mcg,
         .alpha_esc = sc->alpha_esc,
-        .f_star_norm = log(sc->fstar_7),
-        .f_esc_norm = log(sc->fesc_7),
-        .Mlim_star = log(sc->Mlim_Fstar_mini),
-        .Mlim_esc = log(sc->Mlim_Fesc_mini),
+        .f_star_norm = log(sc->fstar_7_mcg),
+        .f_esc_norm = log(sc->fesc_7_mcg),
+        .Mlim_star = log(sc->Mlim_Fstar_mcg),
+        .Mlim_esc = log(sc->Mlim_Fesc_mcg),
         .HMF = matter_options_global->HMF,
         .sigma_cond = sigma2,
         .delta = delta2,
@@ -1123,7 +1123,7 @@ double Nion_Conditional_MINI_integral(double growthf, double lnM1, double lnM2, 
         // this limit is not ideal, but covers floating point errors when we set lnM2==log(M_cond)
         // NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
         if (lnM_cond * (1 - FRACT_FLOAT_ERR) <= lnM2)
-            return nion_fraction_mini(lnM_cond, &params) / exp(lnM_cond);
+            return nion_fraction_mcg(lnM_cond, &params) / exp(lnM_cond);
         else
             return 0.;
     }
@@ -1133,21 +1133,21 @@ double Nion_Conditional_MINI_integral(double growthf, double lnM1, double lnM2, 
     if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
         params.HMF = HMF_PS;
 
-    return IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand_mini, method);
+    return IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand_mcg, method);
 }
 
-double Nion_Conditional_integral(double growthf, double lnM1, double lnM2, double lnM_cond,
-                                 double sigma2, double delta2, double mturn_acg,
-                                 ScalingConstants *sc, int method) {
+double nion_conditional_acg_integral(double growthf, double lnM1, double lnM2, double lnM_cond,
+                                     double sigma2, double delta2, double mturn_acg,
+                                     ScalingConstants *sc, int method) {
     struct parameters_gsl_MF_integrals params = {
         .growthf = growthf,
         .Mturn_acg = mturn_acg,
-        .alpha_star = sc->alpha_star,
+        .alpha_star = sc->alpha_star_acg,
         .alpha_esc = sc->alpha_esc,
-        .f_star_norm = log(sc->fstar_10),
-        .f_esc_norm = log(sc->fesc_10),
-        .Mlim_star = log(sc->Mlim_Fstar),
-        .Mlim_esc = log(sc->Mlim_Fesc),
+        .f_star_norm = log(sc->fstar_10_acg),
+        .f_esc_norm = log(sc->fesc_10_acg),
+        .Mlim_star = log(sc->Mlim_Fstar_acg),
+        .Mlim_esc = log(sc->Mlim_Fesc_acg),
         .HMF = matter_options_global->HMF,
         .sigma_cond = sigma2,
         .delta = delta2,
@@ -1161,7 +1161,7 @@ double Nion_Conditional_integral(double growthf, double lnM1, double lnM2, doubl
         // this limit is not ideal, but covers floating point errors when we set lnM2==log(M_cond)
         // NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
         if (lnM_cond * (1 - FRACT_FLOAT_ERR) <= lnM2)
-            return nion_fraction(lnM_cond, &params) / exp(lnM_cond);
+            return nion_fraction_acg(lnM_cond, &params) / exp(lnM_cond);
 
         return 0.;
     }
@@ -1170,21 +1170,21 @@ double Nion_Conditional_integral(double growthf, double lnM1, double lnM2, doubl
     // NOTE: it's possible we may want to use another default
     if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
         params.HMF = HMF_PS;
-    return IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand, method);
+    return IntegratedNdM(lnM1, lnM2, params, &c_nion_integrand_acg, method);
 }
 
-double Xray_Conditional(double redshift, double growthf, double lnM1, double lnM2, double lnM_cond,
-                        double sigma2, double delta2, double mturn_acg, ScalingConstants *sc,
-                        int method) {
+double xray_emissivity_conditional_acg(double redshift, double growthf, double lnM1, double lnM2,
+                                       double lnM_cond, double sigma2, double delta2,
+                                       double mturn_acg, ScalingConstants *sc, int method) {
     struct parameters_gsl_MF_integrals params = {
         .redshift = redshift,
         .growthf = growthf,
         .Mturn_acg = mturn_acg,
-        .alpha_star = sc->alpha_star,
-        .f_star_norm = log(sc->fstar_10),
-        .Mlim_star = log(sc->Mlim_Fstar),
+        .alpha_star = sc->alpha_star_acg,
+        .f_star_norm = log(sc->fstar_10_acg),
+        .Mlim_star = log(sc->Mlim_Fstar_acg),
         .HMF = matter_options_global->HMF,
-        .l_x_norm = sc->l_x,
+        .lx_over_sfr_norm = sc->lx_over_sfr_acg,
         .sfr_timescale = sc->sfr_timescale,
         .sigma_cond = sigma2,
         .delta = delta2,
@@ -1197,7 +1197,7 @@ double Xray_Conditional(double redshift, double growthf, double lnM1, double lnM
         // this limit is not ideal, but covers floating point errors when we set lnM2==log(M_cond)
         // NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
         if (lnM_cond * (1 - FRACT_FLOAT_ERR) <= lnM2)
-            return xray_fraction_doublePL(lnM_cond, &params) / exp(lnM_cond);
+            return xray_fraction_doublePL_acg(lnM_cond, &params) / exp(lnM_cond);
         else
             return 0.;
     }
@@ -1207,13 +1207,14 @@ double Xray_Conditional(double redshift, double growthf, double lnM1, double lnM
     if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
         params.HMF = HMF_PS;
 
-    double xray_integral = IntegratedNdM(lnM1, lnM2, params, &c_xray_integrand, method);
+    double xray_integral = IntegratedNdM(lnM1, lnM2, params, &c_xray_integrand_acg, method);
     return xray_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
-double Xray_Conditional_MINI(double redshift, double growthf, double lnM1, double lnM2,
-                             double lnM_cond, double sigma2, double delta2, double mturn_acg,
-                             double mturn_mcg, ScalingConstants *sc, int method) {
+double xray_emissivity_conditional_mcg(double redshift, double growthf, double lnM1, double lnM2,
+                                       double lnM_cond, double sigma2, double delta2,
+                                       double mturn_acg, double mturn_mcg, ScalingConstants *sc,
+                                       int method) {
     // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
     // (the multiplication by 1.001 is to avoid floating point issues)
     if (mturn_acg > sc->atomic_cooling_threshold * 1.001) {
@@ -1226,11 +1227,11 @@ double Xray_Conditional_MINI(double redshift, double growthf, double lnM1, doubl
         .Mturn_acg = mturn_acg,
         .Mturn_mcg = mturn_mcg,
         .Mturn_upper = sc->atomic_cooling_threshold,
-        .alpha_star = sc->alpha_star_mini,
-        .f_star_norm = log(sc->fstar_7),
-        .Mlim_star = log(sc->Mlim_Fstar_mini),
+        .alpha_star = sc->alpha_star_mcg,
+        .f_star_norm = log(sc->fstar_7_mcg),
+        .Mlim_star = log(sc->Mlim_Fstar_mcg),
         .HMF = matter_options_global->HMF,
-        .l_x_norm = sc->l_x_mini,
+        .lx_over_sfr_norm = sc->lx_over_sfr_mcg,
         .sfr_timescale = sc->sfr_timescale,
         .sigma_cond = sigma2,
         .delta = delta2,
@@ -1243,7 +1244,7 @@ double Xray_Conditional_MINI(double redshift, double growthf, double lnM1, doubl
         // this limit is not ideal, but covers floating point errors when we set lnM2==log(M_cond)
         // NOTE: condition mass is used as if it were Lagrangian (no 1+delta)
         if (lnM_cond * (1 - FRACT_FLOAT_ERR) <= lnM2)
-            return xray_fraction_doublePL_mini(lnM_cond, &params) / exp(lnM_cond);
+            return xray_fraction_doublePL_mcg(lnM_cond, &params) / exp(lnM_cond);
         else
             return 0.;
     }
@@ -1253,27 +1254,28 @@ double Xray_Conditional_MINI(double redshift, double growthf, double lnM1, doubl
     if (params.HMF != HMF_PS && params.HMF != HMF_ST && params.HMF != HMF_DELOS)
         params.HMF = HMF_PS;
 
-    double xray_integral = IntegratedNdM(lnM1, lnM2, params, &c_xray_integrand_mini, method);
+    double xray_integral = IntegratedNdM(lnM1, lnM2, params, &c_xray_integrand_mcg, method);
     return xray_integral * RHOcrit * cosmo_params_global->OMm;
 }
 
-double SFRD_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
-                    ScalingConstants *sc) {
+double sfrd_unconditional_acg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                              ScalingConstants *sc) {
     double sfrd_integral;
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         // NOTE: We use the same Nion integral to compute the SFRD integral, but we eliminate the
         // escape fraction terms
         ScalingConstants sc_sfrd;
         sc_sfrd = evolve_scaling_constants_sfr(sc);
-        sfrd_integral = Nion_General_integral(z, lnM_Min, lnM_Max, mturn_acg, &sc_sfrd);
+        sfrd_integral = nion_unconditional_acg_integral(z, lnM_Min, lnM_Max, mturn_acg, &sc_sfrd);
     } else {
-        sfrd_integral = dFcoll_dz_General(z, lnM_Min, lnM_Max);
+        sfrd_integral = dfcoll_dz_unconditional(z, lnM_Min, lnM_Max);
     }
-    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->sfr_timescale;
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10_acg /
+           sc->sfr_timescale;
 }
 
-double SFRD_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_acg,
-                         double mturn_mcg, ScalingConstants *sc) {
+double sfrd_unconditional_mcg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                              double mturn_mcg, ScalingConstants *sc) {
     // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
     // (the multiplication by 1.001 is to avoid floating point issues)
     if (mturn_acg > sc->atomic_cooling_threshold * 1.001) {
@@ -1285,25 +1287,25 @@ double SFRD_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_
     ScalingConstants sc_sfrd;
     sc_sfrd = evolve_scaling_constants_sfr(sc);
     double sfrd_integral =
-        Nion_General_MINI_integral(z, lnM_Min, lnM_Max, mturn_acg, mturn_mcg, &sc_sfrd);
-    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_7 / sc->sfr_timescale;
+        nion_unconditional_mcg_integral(z, lnM_Min, lnM_Max, mturn_acg, mturn_mcg, &sc_sfrd);
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_7_mcg / sc->sfr_timescale;
 }
 
-double Nion_General(double z, double lnM_Min, double lnM_Max, double mturn_acg,
-                    ScalingConstants *sc) {
+double nion_unconditional_acg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                              ScalingConstants *sc) {
     double nion_integral, nion_prefactor;
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        nion_integral = Nion_General_integral(z, lnM_Min, lnM_Max, mturn_acg, sc);
-        nion_prefactor = sc->fstar_10 * sc->fesc_10 * sc->pop2_ion;
+        nion_integral = nion_unconditional_acg_integral(z, lnM_Min, lnM_Max, mturn_acg, sc);
+        nion_prefactor = sc->fstar_10_acg * sc->fesc_10_acg * sc->pop2_ion;
     } else {
-        nion_integral = Fcoll_General(z, lnM_Min, lnM_Max);
+        nion_integral = fcoll_unconditional(z, lnM_Min, lnM_Max);
         nion_prefactor = astro_params_global->HII_EFF_FACTOR;
     }
     return nion_integral * nion_prefactor;
 }
 
-double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_acg,
-                         double mturn_mcg, ScalingConstants *sc) {
+double nion_unconditional_mcg(double z, double lnM_Min, double lnM_Max, double mturn_acg,
+                              double mturn_mcg, ScalingConstants *sc) {
     // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
     // (the multiplication by 1.001 is to avoid floating point issues)
     if (mturn_acg > sc->atomic_cooling_threshold * 1.001) {
@@ -1311,30 +1313,32 @@ double Nion_General_MINI(double z, double lnM_Min, double lnM_Max, double mturn_
     }
 
     double nion_integral, nion_prefactor;
-    nion_integral = Nion_General_MINI_integral(z, lnM_Min, lnM_Max, mturn_acg, mturn_mcg, sc);
-    nion_prefactor = sc->fstar_7 * sc->fesc_7 * sc->pop3_ion;
+    nion_integral = nion_unconditional_mcg_integral(z, lnM_Min, lnM_Max, mturn_acg, mturn_mcg, sc);
+    nion_prefactor = sc->fstar_7_mcg * sc->fesc_7_mcg * sc->pop3_ion;
     return nion_integral * nion_prefactor;
 }
 
-double SFRD_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
-                        double delta2, double mturn_acg, ScalingConstants *sc, int method) {
+double sfrd_conditional_acg(double growthf, double lnM1, double lnM2, double lnM_cond,
+                            double sigma2, double delta2, double mturn_acg, ScalingConstants *sc,
+                            int method) {
     double sfrd_integral;
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
         // NOTE: We use the same Nion integral to compute the SFRD integral, but we eliminate the
         // escape fraction terms
         ScalingConstants sc_sfrd;
         sc_sfrd = evolve_scaling_constants_sfr(sc);
-        sfrd_integral = Nion_Conditional_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
-                                                  mturn_acg, &sc_sfrd, method);
+        sfrd_integral = nion_conditional_acg_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
+                                                      mturn_acg, &sc_sfrd, method);
     } else {
-        sfrd_integral = dfcoll_dz(sc->redshift, sc->sigma_min_sfr, delta2, sigma2);
+        sfrd_integral = dfcoll_dz_conditional_eps(sc->redshift, sc->sigma_min_sfr, delta2, sigma2);
     }
-    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10 / sc->sfr_timescale;
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_10_acg /
+           sc->sfr_timescale;
 }
 
-double SFRD_Conditional_MINI(double growthf, double lnM1, double lnM2, double lnM_cond,
-                             double sigma2, double delta2, double mturn_acg, double mturn_mcg,
-                             ScalingConstants *sc, int method) {
+double sfrd_conditional_mcg(double growthf, double lnM1, double lnM2, double lnM_cond,
+                            double sigma2, double delta2, double mturn_acg, double mturn_mcg,
+                            ScalingConstants *sc, int method) {
     // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
     // (the multiplication by 1.001 is to avoid floating point issues)
     if (mturn_acg > sc->atomic_cooling_threshold * 1.001) {
@@ -1346,28 +1350,29 @@ double SFRD_Conditional_MINI(double growthf, double lnM1, double lnM2, double ln
     ScalingConstants sc_sfrd;
     sc_sfrd = evolve_scaling_constants_sfr(sc);
 
-    double sfrd_integral = Nion_Conditional_MINI_integral(
+    double sfrd_integral = nion_conditional_mcg_integral(
         growthf, lnM1, lnM2, lnM_cond, sigma2, delta2, mturn_acg, mturn_mcg, &sc_sfrd, method);
-    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_7 / sc->sfr_timescale;
+    return sfrd_integral * RHOcrit * cosmo_params_global->OMb * sc->fstar_7_mcg / sc->sfr_timescale;
 }
 
-double Nion_Conditional(double growthf, double lnM1, double lnM2, double lnM_cond, double sigma2,
-                        double delta2, double mturn_acg, ScalingConstants *sc, int method) {
+double nion_conditional_acg(double growthf, double lnM1, double lnM2, double lnM_cond,
+                            double sigma2, double delta2, double mturn_acg, ScalingConstants *sc,
+                            int method) {
     double nion_integral, nion_prefactor;
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-        nion_integral = Nion_Conditional_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
-                                                  mturn_acg, sc, method);
-        nion_prefactor = sc->fstar_10 * sc->fesc_10 * sc->pop2_ion;
+        nion_integral = nion_conditional_acg_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
+                                                      mturn_acg, sc, method);
+        nion_prefactor = sc->fstar_10_acg * sc->fesc_10_acg * sc->pop2_ion;
     } else {
-        nion_integral = FgtrM_bias_fast(growthf, delta2, sc->sigma_min_ion, sigma2);
+        nion_integral = fcoll_conditional_eps(growthf, delta2, sc->sigma_min_ion, sigma2);
         nion_prefactor = astro_params_global->HII_EFF_FACTOR;
     }
     return nion_integral * nion_prefactor;
 }
 
-double Nion_Conditional_MINI(double growthf, double lnM1, double lnM2, double lnM_cond,
-                             double sigma2, double delta2, double mturn_acg, double mturn_mcg,
-                             ScalingConstants *sc, int method) {
+double nion_conditional_mcg(double growthf, double lnM1, double lnM2, double lnM_cond,
+                            double sigma2, double delta2, double mturn_acg, double mturn_mcg,
+                            ScalingConstants *sc, int method) {
     // MCGs cannot form if the ACG turnover mass is above the atomic cooling threshold
     // (the multiplication by 1.001 is to avoid floating point issues)
     if (mturn_acg > sc->atomic_cooling_threshold * 1.001) {
@@ -1375,9 +1380,9 @@ double Nion_Conditional_MINI(double growthf, double lnM1, double lnM2, double ln
     }
 
     double nion_integral, nion_prefactor;
-    nion_integral = Nion_Conditional_MINI_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
-                                                   mturn_acg, mturn_mcg, sc, method);
-    nion_prefactor = sc->fstar_7 * sc->fesc_7 * sc->pop3_ion;
+    nion_integral = nion_conditional_mcg_integral(growthf, lnM1, lnM2, lnM_cond, sigma2, delta2,
+                                                  mturn_acg, mturn_mcg, sc, method);
+    nion_prefactor = sc->fstar_7_mcg * sc->fesc_7_mcg * sc->pop3_ion;
     return nion_integral * nion_prefactor;
 }
 
@@ -1415,7 +1420,7 @@ double splined_erfc(double x) {
 */
 
 // I wrote a version of FgtrM which takes the growth func instead of z for a bit of speed
-double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig_large) {
+double fcoll_conditional_eps(float growthf, float del_bias, float sig_small, float sig_large) {
     double del, sig;
     if (sig_large > sig_small) {  // biased region is smaller that halo!
         LOG_ERROR("Trying to compute FgtrM in region where M_min > M_max");
@@ -1439,15 +1444,15 @@ double FgtrM_bias_fast(float growthf, float del_bias, float sig_small, float sig
 
 /* Uses sigma parameters instead of Mass for scale */
 double sigmaparam_FgtrM_bias(float z, float sigsmallR, float del_bias, float sig_bias) {
-    return FgtrM_bias_fast(dicke(z), del_bias, sigsmallR, sig_bias);
+    return fcoll_conditional_eps(dicke(z), del_bias, sigsmallR, sig_bias);
 }
 
 double FgtrM_bias(double z, double M, double del_bias, double sig_bias) {
-    return sigmaparam_FgtrM_bias(z, EvaluateSigma(log(M)), del_bias, sig_bias);
+    return sigmaparam_FgtrM_bias(z, evaluate_sigma(log(M)), del_bias, sig_bias);
 }
 
 //  Redshift derivative of the conditional collapsed fraction (assuming EPS)
-float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias) {
+float dfcoll_dz_conditional_eps(float z, float sigma_min, float del_bias, float sig_bias) {
     double dz, z1, z2;
     double fc1, fc2, ans;
 
@@ -1461,14 +1466,14 @@ float dfcoll_dz(float z, float sigma_min, float del_bias, float sig_bias) {
 }
 
 //  Redshift derivative of the unconditional collapsed fraction (for any HMF)
-double dFcoll_dz_General(float z, double lnMmin, double lnMmax) {
+double dfcoll_dz_unconditional(float z, double lnMmin, double lnMmax) {
     double dz, z1, z2;
     double fc1, fc2, ans;
     dz = 0.001;
     z1 = z + dz;
     z2 = z - dz;
-    fc1 = Fcoll_General(z1, lnMmin, lnMmax);
-    fc2 = Fcoll_General(z2, lnMmin, lnMmax);
+    fc1 = fcoll_unconditional(z1, lnMmin, lnMmax);
+    fc2 = fcoll_unconditional(z2, lnMmin, lnMmax);
     ans = (fc1 - fc2) / (2.0 * dz);
     return ans;
 }
@@ -1523,18 +1528,18 @@ float Mass_limit_bisection(float Mmin, float Mmax, float PL, float FRAC) {
     return (0.0);
 }
 // set the minimum source mass for the integrals, If we have an exponential cutoff we go below the
-// chosen mass by a factor of 50 NOTE: previously, with USE_MINI_HALOS, the sigma table was
+// chosen mass by a factor of 50 NOTE: previously, with USE_MCGS, the sigma table was
 // initialised with M_MIN_INTEGRAL/50, but then all integrals perofmed
 //       from M_MIN_INTEGRAL
 double minimum_source_mass(double redshift, bool xray) {
     double Mmin, min_factor, mu_factor, t_vir_min;
     if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL) &&
-        !astro_options_global->USE_MINI_HALOS)
+        !astro_options_global->USE_MCGS)
         min_factor = 50.;  // small lower bound to cover far below the turnover
     else
         min_factor = 1.;  // sharp cutoff
 
-    if (astro_options_global->USE_MINI_HALOS) {
+    if (astro_options_global->USE_MCGS) {
         Mmin = M_MIN_INTEGRAL;  // overrides the rest of the options
     } else if (astro_options_global->M_MIN_in_Mass) {
         // NOTE: previously this divided Mturn by 50 in spin temperature, but not in the ionised box

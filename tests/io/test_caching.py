@@ -116,7 +116,7 @@ class TestRunCache:
         cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
         print(attrs.asdict(cache).keys(), flush=True)
 
-        assert isinstance(cache.HaloBox, dict)
+        assert isinstance(cache.EmissivityFields, dict)
         assert isinstance(cache.HaloCatalog, dict)
         assert isinstance(cache.InitialConditions, Path)
         assert isinstance(cache.PerturbedField, dict)
@@ -125,7 +125,7 @@ class TestRunCache:
         assert isinstance(cache.TsBox, dict)
         assert isinstance(cache.RadiationFields, dict)
 
-        assert len(cache.HaloBox) == len(inputs.node_redshifts)
+        assert len(cache.EmissivityFields) == len(inputs.node_redshifts)
 
         inputs = InputParameters.from_template("simple", random_seed=12345)
         cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
@@ -215,7 +215,7 @@ class TestRunCache:
                 else "InitialConditions" not in boxes
             )
             assert "PerturbedField" in boxes
-            assert "HaloBox" in boxes
+            assert "EmissivityFields" in boxes
             assert "RadiationFields" in boxes
             assert "TsBox" in boxes
             assert "IonizedBox" in boxes
@@ -309,7 +309,7 @@ class TestOutputCache:
     ):
         """Test that changing parameters affects IonizedBox but not ICs or PerturbedField."""
         input_change = default_input_struct.evolve_input_structs(
-            F_ESC10=-1.5,
+            F_ESC10_ACG=-1.5,
         )
 
         ic2 = InitialConditions.new(inputs=input_change)
@@ -388,7 +388,7 @@ def test_hash_for_different_inputs(default_input_struct, inp_type):
         "simulation_options": {"BOX_LEN": 300},
         "matter_options": {"SOURCE_MODEL": "L-INTEGRAL"},
         "cosmo_params": {"hlittle": 0.7},
-        "astro_params": {"L_X": 38.0},
+        "astro_params": {"LX_OVER_SFR_ACG": 38.0},
         "astro_options": {"USE_CMB_HEATING": False},
     }
     hash_default = caching.OutputCache()._get_hashes(default_input_struct)

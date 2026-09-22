@@ -19,7 +19,7 @@ def test_ref_printing():
     assert "10.1093/mnras/stu377" in ref_str  # inhomogeneous recombinations
     assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
     assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
-    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS
+    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MCGS
     assert "10.1093/mnras/stac185" not in ref_str  # V_CB_MODEL=FLUCTS
     assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
     assert "10.1051/0004-6361/202554951" not in ref_str  # LAGRANGIAN_SOURCE_MODEL
@@ -33,7 +33,7 @@ def test_ref_printing():
     assert "10.1093/mnras/stu377" in ref_str  # inhomogeneous recombinations
     assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
     assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
-    assert "10.1093/mnras/staa1131" in ref_str  # USE_MINI_HALOS
+    assert "10.1093/mnras/staa1131" in ref_str  # USE_MCGS
     assert "10.1093/mnras/stac185" in ref_str  # V_CB_MODEL=FLUCTS
     assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
     assert "10.1051/0004-6361/202554951" in ref_str  # LAGRANGIAN_SOURCE_MODEL
@@ -47,7 +47,7 @@ def test_ref_printing():
     assert "10.1093/mnras/stu377" not in ref_str  # inhomogeneous recombinations
     assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
     assert "10.1093/mnras/stz032" not in ref_str  # USE_MASS_DEPENDENT_ZETA
-    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS
+    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MCGS
     assert "10.1093/mnras/stac185" not in ref_str  # V_CB_MODEL=FLUCTS
     assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
     assert "10.1051/0004-6361/202554951" not in ref_str  # LAGRANGIAN_SOURCE_MODEL
@@ -63,7 +63,7 @@ def test_ref_printing():
     assert "10.1093/mnras/stu377" in ref_str  # inhomogeneous recombinations
     assert "10.1093/mnras/sty796" in ref_str  # LIGHTCONE + RSD
     assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
-    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS
+    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MCGS
     assert "10.1093/mnras/stac185" not in ref_str  # V_CB_MODEL=FLUCTS
     assert "10.1093/mnras/stac2756" not in ref_str  # PHOTON_CONS
     assert "10.1051/0004-6361/202554951" in ref_str  # LAGRANGIAN_SOURCE_MODEL
@@ -79,7 +79,7 @@ def test_ref_printing():
     assert "10.1093/mnras/stu377" in ref_str  # inhomogeneous recombinations
     assert "10.1093/mnras/sty796" not in ref_str  # LIGHTCONE + RSD
     assert "10.1093/mnras/stz032" in ref_str  # USE_MASS_DEPENDENT_ZETA
-    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MINI_HALOS
+    assert "10.1093/mnras/staa1131" not in ref_str  # USE_MCGS
     assert "10.1093/mnras/stac185" not in ref_str  # V_CB_MODEL=FLUCTS
     assert "10.1093/mnras/stac2756" in ref_str  # PHOTON_CONS
     assert "10.1051/0004-6361/202554951" not in ref_str  # LAGRANGIAN_SOURCE_MODEL

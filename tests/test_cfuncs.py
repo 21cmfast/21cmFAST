@@ -29,15 +29,10 @@ YUNG24_PHYSICAL_PARAMS = {
 
 
 @pytest.fixture(scope="module")
-def default_input_struct_lc_mini(default_input_struct_lc):
-    """A default input struct with mini halos and relative velocities enabled.
-
-    V_CB_MODEL="FLUCTS" requires POWER_SPECTRUM="CLASS": the CLASS Boltzmann code
-    is needed to compute the baryon-CDM relative velocity power spectrum correctly.
-    This is enforced by a validator in inputs.py.
-    """
+def default_input_struct_lc_mcgs(default_input_struct_lc):
+    """A default input struct with MCGs."""
     return default_input_struct_lc.evolve_input_structs(
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         V_CB_MODEL="FLUCTS",
         POWER_SPECTRUM="CLASS",
         RECOMB_MODEL="inhomogeneous",
@@ -49,9 +44,9 @@ def default_input_struct_lc_mini(default_input_struct_lc):
 
 
 @pytest.fixture(scope="module")
-def default_global_evolution(default_input_struct_lc_mini):
-    """A default global signal (with mini halos)."""
-    return p21c.run_global_evolution(inputs=default_input_struct_lc_mini)
+def default_global_evolution(default_input_struct_lc_mcgs):
+    """A default global signal (with mcgs)."""
+    return p21c.run_global_evolution(inputs=default_input_struct_lc_mcgs)
 
 
 @pytest.mark.filterwarnings(
@@ -60,7 +55,7 @@ def default_global_evolution(default_input_struct_lc_mini):
 @pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
 def test_run_lf(
     default_input_struct_lc,
-    default_input_struct_lc_mini,
+    default_input_struct_lc_mcgs,
     lc,
     default_global_evolution,
     what_to_use,
@@ -101,16 +96,16 @@ def test_run_lf(
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
-    _muv_minih, _mhalo_minih, lf_minih = p21c.compute_luminosity_function(
+    _muv_mcg, _mhalo_mcg, lf_mcg = p21c.compute_luminosity_function(
         redshifts=[7, 8, 9],
         nbins=100,
         lightcone=lightcone,
         global_evolution=global_evolution,
         component="mcg",
-        inputs=default_input_struct_lc_mini,
+        inputs=default_input_struct_lc_mcgs,
     )
-    assert np.all(lf_minih[~np.isnan(lf_minih)] > -30)
-    assert lf_minih.shape == (3, 100)
+    assert np.all(lf_mcg[~np.isnan(lf_mcg)] > -30)
+    assert lf_mcg.shape == (3, 100)
 
     # Test component="both" to cover the combined ACG+MCG luminosity function
     _muv_both, _mhalo_both, lf_both = p21c.compute_luminosity_function(
@@ -592,7 +587,7 @@ def make_matterfield_comparison_plot(
 
 
 @pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
-@pytest.mark.parametrize("use_mini_halos", [True, False])
+@pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize(
     "func",
     [
@@ -608,20 +603,20 @@ def make_matterfield_comparison_plot(
 )
 def test_functions_with_and_without_lightcone(
     default_input_struct_lc,
-    default_input_struct_lc_mini,
+    default_input_struct_lc_mcgs,
     lc,
     default_global_evolution,
     what_to_use,
-    use_mini_halos,
+    use_mcgs,
     func: Callable,
 ):
     """
     Test that we can run functions with and without a lightcone as an input.
 
-    NOTE: The used inputs and lightcone.inputs are actually not the same when using mini halos!
+    NOTE: The used inputs and lightcone.inputs are actually not the same when using mcgs!
           But it should not concern us for this test :)
     """
-    inputs = default_input_struct_lc_mini if use_mini_halos else default_input_struct_lc
+    inputs = default_input_struct_lc_mcgs if use_mcgs else default_input_struct_lc
     lightcone = lc if what_to_use == "lightcone" else None
     global_evolution = (
         default_global_evolution if what_to_use == "global_evolution" else None
@@ -659,20 +654,16 @@ def test_functions_with_and_without_lightcone(
     )
     if func in [cf.evaluate_SFRD_z, cf.evaluate_Nion_z]:
         assert len(output[0]) == len(redshifts)
-        if use_mini_halos:
+        if use_mcgs:
             assert len(output[1]) == len(redshifts)
         else:
-            assert (
-                output[1] is None
-            )  # output_mini should be None if not using mini halos
+            assert output[1] is None  # output_mcg should be None if not using mcgs
     elif func in [cf.evaluate_SFRD_cond, cf.evaluate_Nion_cond]:
         assert len(output[0]) == len(densities)
-        if use_mini_halos:
+        if use_mcgs:
             assert len(output[1]) == len(densities)
         else:
-            assert (
-                output[1] is None
-            )  # output_mini should be None if not using mini halos
+            assert output[1] is None  # output_mcg should be None if not using mcgs
     elif func == cf.evaluate_Xray_cond:
         assert len(output) == len(densities)
 
@@ -680,12 +671,80 @@ def test_functions_with_and_without_lightcone(
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
-@pytest.mark.parametrize("use_mini_halos", [True, False])
+def test_removed_log10mturns_argument(default_input_struct):
+    """Test that removed `log10mturns` arguments raise a TypeError with a message."""
+    with pytest.raises(
+        TypeError, match="`mturnovers` and `mturnovers_mini` have been removed"
+    ):
+        cf.compute_luminosity_function(
+            inputs=default_input_struct,
+            redshifts=[7, 8, 9],
+            nbins=100,
+            mturnovers=np.array([1e7, 1e8, 1e9]),
+            mturnovers_mini=np.array([1e4, 1e5, 1e6]),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_SFRD_z(
+            inputs=default_input_struct,
+            redshifts=[7, 8, 9],
+            log10mturns=np.array([8.0, 8.5, 9.0]),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_Nion_z(
+            inputs=default_input_struct,
+            redshifts=[7, 8, 9],
+            log10mturns=np.array([8.0, 8.5, 9.0]),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_SFRD_cond(
+            inputs=default_input_struct,
+            redshift=8.0,
+            radius=5,
+            densities=np.linspace(-0.98, 1.7, num=800),
+            log10mturns=np.linspace(8.0, 9.0, num=800),
+        )
+
+    with pytest.raises(
+        TypeError, match="`l10mturns_acg` and `l10mturns_mcg` have been removed"
+    ):
+        cf.evaluate_Nion_cond(
+            inputs=default_input_struct,
+            redshift=8.0,
+            radius=5,
+            densities=np.linspace(-0.98, 1.7, num=800),
+            l10mturns_acg=np.linspace(8.0, 9.0, num=800),
+            l10mturns_mcg=np.linspace(7.0, 8.0, num=800),
+        )
+
+    with pytest.raises(TypeError, match="`log10mturns` has been removed"):
+        cf.evaluate_Xray_cond(
+            inputs=default_input_struct,
+            redshift=8.0,
+            radius=5,
+            densities=np.linspace(-0.98, 1.7, num=800),
+            log10mturns=np.linspace(8.0, 9.0, num=800),
+        )
+
+
+def test_removed_arguments_are_cleaned_up_in_v5():
+    """Reminder to remove the TypeError checks for log10mturns etc. in v5."""
+    version = tuple(int(x) for x in p21c.__version__.split(".")[:2])
+    if version >= (5, 0):
+        pytest.fail(
+            "Version is now >= 5.0 — please remove the deprecated `mturnovers`, "
+            "`log10mturns`, `l10mturns_acg`, and `l10mturns_mcg` arguments and this test."
+        )
+
+
+@pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize("use_reionization_photoheating_feedback", [True, False])
 @pytest.mark.parametrize("log10_m_turn_stellar_feedback", [5.0, 6.0, 7.0, 8.0, 9.0])
 def test_compute_mturns_model(
     default_input_struct_ts,
-    use_mini_halos,
+    use_mcgs,
     log10_m_turn_stellar_feedback,
     use_reionization_photoheating_feedback,
 ):
@@ -699,7 +758,7 @@ def test_compute_mturns_model(
 
     If we make a change in the turnover mass model in the C code, this test should fail and we should update it to reflect the new model.
     """
-    if not use_mini_halos and use_reionization_photoheating_feedback:
+    if not use_mcgs and use_reionization_photoheating_feedback:
         pytest.skip(
             "NO POINT IN TESTING REIONIZATION FEEDBACK ON MCG TURNOVER MASS WITHOUT MCGS"
         )
@@ -722,7 +781,7 @@ def test_compute_mturns_model(
             UserWarning,
             match=r"^You are setting M_TURN_STELLAR_FEEDBACK > 8",
         )
-        if use_mini_halos and log10_m_turn_stellar_feedback > 8
+        if use_mcgs and log10_m_turn_stellar_feedback > 8
         else nullcontext()
     )
 
@@ -730,11 +789,11 @@ def test_compute_mturns_model(
         inputs = default_input_struct_ts.evolve_input_structs(
             RECOMB_MODEL="inhomogeneous",
             M_TURN_STELLAR_FEEDBACK=log10_m_turn_stellar_feedback,
-            USE_MINI_HALOS=use_mini_halos,
+            USE_MCGS=use_mcgs,
             # Use fluctuating relative velocities for the mini-halo cases;
             # the FLUCTS model requires CLASS in this implementation.
-            V_CB_MODEL="FLUCTS" if use_mini_halos else "NONE",
-            POWER_SPECTRUM="CLASS" if use_mini_halos else "EH",
+            V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
+            POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
             USE_REIONIZATION_PHOTOHEATING_FEEDBACK=(
                 use_reionization_photoheating_feedback
             ),
@@ -775,14 +834,14 @@ def test_compute_mturns_model(
     M_turn_acg = np.maximum(M_turn_acg, pow(10.0, log10_m_turn_stellar_feedback))
     if use_reionization_photoheating_feedback:
         M_turn_acg = np.maximum(M_turn_acg, M_turn_r)
-    if use_mini_halos:
+    if use_mcgs:
         M_turn_mcg = np.maximum(M_turn_mcg, pow(10.0, log10_m_turn_stellar_feedback))
         if use_reionization_photoheating_feedback:
             M_turn_mcg = np.maximum(M_turn_mcg, M_turn_r)
 
     # Compare the results
     np.testing.assert_allclose(Mturn_acg_test, M_turn_acg, rtol=1e-4)
-    if use_mini_halos:
+    if use_mcgs:
         np.testing.assert_allclose(M_turn_mcg_test, M_turn_mcg, rtol=1e-4)
 
 
@@ -809,7 +868,7 @@ def test_compute_mturns_model(
 def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
     inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
         K_MAX_FOR_CLASS=1.0,
         V_CB_MODEL=v_cb_model,

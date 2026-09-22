@@ -15,28 +15,28 @@ typedef struct ScalingConstants {
     bool fix_mean;
     bool scaling_median;
 
-    double fstar_10;
-    double alpha_star;
+    double fstar_10_acg;
+    double alpha_star_acg;
     double sigma_star;
 
     double alpha_upper;
     double pivot_upper;
     double upper_pivot_ratio;
 
-    double fstar_7;
-    double alpha_star_mini;
+    double fstar_7_mcg;
+    double alpha_star_mcg;
 
     double sfr_timescale;
     double sigma_sfr_lim;
     double sigma_sfr_idx;
 
-    double l_x;
-    double l_x_mini;
+    double lx_over_sfr_acg;
+    double lx_over_sfr_mcg;
     double sigma_xray;
 
-    double fesc_10;
+    double fesc_10_acg;
     double alpha_esc;
-    double fesc_7;
+    double fesc_7_mcg;
     double pop2_ion;
     double pop3_ion;
 
@@ -49,22 +49,23 @@ typedef struct ScalingConstants {
     double M_cell;
     double sigma_cell;
 
-    double Mlim_Fstar;
-    double Mlim_Fesc;
-    double Mlim_Fstar_mini;
-    double Mlim_Fesc_mini;
+    double Mlim_Fstar_acg;
+    double Mlim_Fesc_acg;
+    double Mlim_Fstar_mcg;
+    double Mlim_Fesc_mcg;
 } ScalingConstants;
 
 void set_scaling_constants(double redshift, ScalingConstants *consts, bool use_photoncons);
 
 double get_lx_on_sfr(double sfr, double metallicity, double lx_constant);
-void get_halo_stellarmass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
-                          ScalingConstants *consts, double *star_acg, double *star_mcg);
-void get_halo_sfr(double stellar_mass, double stellar_mass_mini, double sfr_rng,
-                  ScalingConstants *consts, double *sfr, double *sfr_mini);
+void get_halo_stellar_mass(double halo_mass, double mturn_acg, double mturn_mcg, double star_rng,
+                           ScalingConstants *consts, double *star_acg, double *star_mcg);
+void get_halo_sfr(double stellar_mass_acg, double stellar_mass_mcg, double sfr_rng,
+                  ScalingConstants *consts, double *sfr_acg, double *sfr_mcg);
 void get_halo_metallicity(double sfr, double stellar, double redshift, double *z_out);
-void get_halo_xray(double sfr, double sfr_mini, double metallicity, double metallicity_mini,
-                   double xray_rng, ScalingConstants *consts, double *xray_out);
+void get_halo_xray_luminosity(double sfr_acg, double sfr_mcg, double metallicity_acg,
+                              double metallicity_mcg, double xray_rng, ScalingConstants *consts,
+                              double *xray_luminosity_out);
 
 double scaling_PL_limit(double M, double norm, double alpha, double pivot, double limit);
 double log_scaling_PL_limit(double lnM, double ln_norm, double alpha, double ln_pivot,

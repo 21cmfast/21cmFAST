@@ -223,7 +223,7 @@ def compute_mturns(
         The turnover mass for atomic cooling halos at the given redshifts.
     M_turn_mcg : array-like or None
         The turnover mass for molecular cooling halos at the given redshifts.
-        Will be None if `USE_MINI_HALOS` is False.
+        Will be None if `USE_MCGS` is False.
 
     Raises
     ------
@@ -258,7 +258,7 @@ def compute_mturns(
         redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion
     )
 
-    if not inputs.astro_options.USE_MINI_HALOS:
+    if not inputs.astro_options.USE_MCGS:
         M_turn_mcg = None
 
     if M_turn_acg.ndim == 0:  # scalar input case
@@ -352,7 +352,7 @@ def compute_luminosity_function(
         If None, the function will run a global evolution to estimate the global turnover masses,
         otherwise they will be extracted from the given global evolution.
     component : str, {'both', 'acg', 'mcg}
-        The component of the LF to be calculated. Forced to be 'acg' if USE_MINI_HALOS is False.
+        The component of the LF to be calculated. Forced to be 'acg' if USE_MCGS is False.
 
     Returns
     -------
@@ -375,9 +375,9 @@ def compute_luminosity_function(
             "or leave unspecified and they will be estimated automatically."
         )
 
-    if not astro_options.USE_MINI_HALOS and component != "acg":
+    if not astro_options.USE_MCGS and component != "acg":
         warnings.warn(
-            "USE_MINI_HALOS is False, so only ACG LFs are computed.",
+            "USE_MCGS is False, so only ACG LFs are computed.",
             stacklevel=2,
         )
         component = "acg"
@@ -393,21 +393,21 @@ def compute_luminosity_function(
     mturns_acg = pow(10.0, log10mturns_acg)
     mturns_mcg = pow(10.0, log10mturns_mcg)
 
-    lfunc = np.zeros((len(redshifts), nbins))
-    Muvfunc = np.zeros((len(redshifts), nbins))
-    Mhfunc = np.zeros((len(redshifts), nbins))
+    lfunc_acg = np.zeros((len(redshifts), nbins))
+    Muvfunc_acg = np.zeros((len(redshifts), nbins))
+    Mhfunc_acg = np.zeros((len(redshifts), nbins))
 
-    c_Muvfunc = ffi.cast("double *", ffi.from_buffer(Muvfunc))
-    c_Mhfunc = ffi.cast("double *", ffi.from_buffer(Mhfunc))
-    c_lfunc = ffi.cast("double *", ffi.from_buffer(lfunc))
+    c_Muvfunc_acg = ffi.cast("double *", ffi.from_buffer(Muvfunc_acg))
+    c_Mhfunc_acg = ffi.cast("double *", ffi.from_buffer(Mhfunc_acg))
+    c_lfunc_acg = ffi.cast("double *", ffi.from_buffer(lfunc_acg))
 
-    lfunc_MINI = np.zeros((len(redshifts), nbins))
-    Muvfunc_MINI = np.zeros((len(redshifts), nbins))
-    Mhfunc_MINI = np.zeros((len(redshifts), nbins))
+    lfunc_mcg = np.zeros((len(redshifts), nbins))
+    Muvfunc_mcg = np.zeros((len(redshifts), nbins))
+    Mhfunc_mcg = np.zeros((len(redshifts), nbins))
 
-    c_Muvfunc_MINI = ffi.cast("double *", ffi.from_buffer(Muvfunc_MINI))
-    c_Mhfunc_MINI = ffi.cast("double *", ffi.from_buffer(Mhfunc_MINI))
-    c_lfunc_MINI = ffi.cast("double *", ffi.from_buffer(lfunc_MINI))
+    c_Muvfunc_mcg = ffi.cast("double *", ffi.from_buffer(Muvfunc_mcg))
+    c_Mhfunc_mcg = ffi.cast("double *", ffi.from_buffer(Mhfunc_mcg))
+    c_lfunc_mcg = ffi.cast("double *", ffi.from_buffer(lfunc_mcg))
 
     if component in ("both", "acg"):
         # Run the C code
@@ -418,9 +418,9 @@ def compute_luminosity_function(
             ffi.cast("double *", ffi.from_buffer(redshifts)),
             ffi.cast("double *", ffi.from_buffer(mturns_acg)),
             ffi.cast("double *", ffi.from_buffer(mturns_mcg)),
-            c_Muvfunc,
-            c_Mhfunc,
-            c_lfunc,
+            c_Muvfunc_acg,
+            c_Mhfunc_acg,
+            c_lfunc_acg,
         )
 
         _process_exitcode(
@@ -442,9 +442,9 @@ def compute_luminosity_function(
             ffi.cast("double *", ffi.from_buffer(redshifts)),
             ffi.cast("double *", ffi.from_buffer(mturns_acg)),
             ffi.cast("double *", ffi.from_buffer(mturns_mcg)),
-            c_Muvfunc_MINI,
-            c_Mhfunc_MINI,
-            c_lfunc_MINI,
+            c_Muvfunc_mcg,
+            c_Mhfunc_mcg,
+            c_lfunc_mcg,
         )
 
         _process_exitcode(
@@ -465,42 +465,42 @@ def compute_luminosity_function(
 
         for iz in range(len(redshifts)):
             Muvfunc_all[iz] = np.linspace(
-                np.min([Muvfunc.min(), Muvfunc_MINI.min()]),
-                np.max([Muvfunc.max(), Muvfunc_MINI.max()]),
+                np.min([Muvfunc_acg.min(), Muvfunc_mcg.min()]),
+                np.max([Muvfunc_acg.max(), Muvfunc_mcg.max()]),
                 nbins,
             )
             lfunc_all[iz] = np.log10(
                 10
                 ** (
-                    interp1d(Muvfunc[iz], lfunc[iz], fill_value="extrapolate")(
+                    interp1d(Muvfunc_acg[iz], lfunc_acg[iz], fill_value="extrapolate")(
                         Muvfunc_all[iz]
                     )
                 )
                 + 10
                 ** (
-                    interp1d(
-                        Muvfunc_MINI[iz], lfunc_MINI[iz], fill_value="extrapolate"
-                    )(Muvfunc_all[iz])
+                    interp1d(Muvfunc_mcg[iz], lfunc_mcg[iz], fill_value="extrapolate")(
+                        Muvfunc_all[iz]
+                    )
                 )
             )
             Mhfunc_all[iz] = np.array(
                 [
-                    interp1d(Muvfunc[iz], Mhfunc[iz], fill_value="extrapolate")(
+                    interp1d(Muvfunc_acg[iz], Mhfunc_acg[iz], fill_value="extrapolate")(
                         Muvfunc_all[iz]
                     ),
-                    interp1d(
-                        Muvfunc_MINI[iz], Mhfunc_MINI[iz], fill_value="extrapolate"
-                    )(Muvfunc_all[iz]),
+                    interp1d(Muvfunc_mcg[iz], Mhfunc_mcg[iz], fill_value="extrapolate")(
+                        Muvfunc_all[iz]
+                    ),
                 ],
             ).T
         lfunc_all[lfunc_all <= -30] = np.nan
         return Muvfunc_all, Mhfunc_all, lfunc_all
     elif component == "acg":
-        lfunc[lfunc <= -30] = np.nan
-        return Muvfunc, Mhfunc, lfunc
+        lfunc_acg[lfunc_acg <= -30] = np.nan
+        return Muvfunc_acg, Mhfunc_acg, lfunc_acg
     elif component == "mcg":
-        lfunc_MINI[lfunc_MINI <= -30] = np.nan
-        return Muvfunc_MINI, Mhfunc_MINI, lfunc_MINI
+        lfunc_mcg[lfunc_mcg <= -30] = np.nan
+        return Muvfunc_mcg, Mhfunc_mcg, lfunc_mcg
     else:
         raise ValueError(
             f"Unknown component '{component}'. Must be 'both', 'acg' or 'mcg'"
@@ -709,7 +709,7 @@ def evaluate_FgtrM_cond(
     fcoll = np.zeros_like(densities)
     dfcoll = np.zeros_like(densities)
 
-    lib.get_conditional_FgtrM(
+    lib.get_conditional_fcoll_eps(
         redshift,
         R,
         densities.size,
@@ -749,11 +749,11 @@ def evaluate_SFRD_z(
 
     Returns
     -------
-    sfrd : np.ndarray
+    sfrd_acg : np.ndarray
         The global star formation rate density at the given redshifts for ACGs.
-    sfrd_mini : np.ndarray or None
+    sfrd_mcg : np.ndarray or None
         The global star formation rate density at the given redshifts for MCGs.
-        Will be None if `USE_MINI_HALOS` is False.
+        Will be None if `USE_MCGS` is False.
     """
     if log10mturns is not None:
         raise TypeError(
@@ -767,27 +767,27 @@ def evaluate_SFRD_z(
         redshifts=redshifts,
         lightcone=lightcone,
         global_evolution=global_evolution,
-        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
+        component="both" if inputs.astro_options.USE_MCGS else "acg",
     )
 
     redshifts = np.asarray(redshifts).astype("f8")
     log10mturns_acg = log10mturns_acg.astype("f8")
     log10mturns_mcg = log10mturns_mcg.astype("f8")
-    sfrd = np.zeros_like(redshifts)
-    sfrd_mini = np.zeros_like(redshifts)
+    sfrd_acg = np.zeros_like(redshifts)
+    sfrd_mcg = np.zeros_like(redshifts)
 
-    lib.get_global_SFRD_z(
+    lib.get_unconditional_sfrd(
         redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
         ffi.cast("double *", ffi.from_buffer(log10mturns_acg)),
         ffi.cast("double *", ffi.from_buffer(log10mturns_mcg)),
-        ffi.cast("double *", ffi.from_buffer(sfrd)),
-        ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
+        ffi.cast("double *", ffi.from_buffer(sfrd_acg)),
+        ffi.cast("double *", ffi.from_buffer(sfrd_mcg)),
     )
-    if not inputs.astro_options.USE_MINI_HALOS:
-        sfrd_mini = None
+    if not inputs.astro_options.USE_MCGS:
+        sfrd_mcg = None
 
-    return sfrd, sfrd_mini
+    return sfrd_acg, sfrd_mcg
 
 
 @init_c_state(sigma=True)
@@ -819,11 +819,11 @@ def evaluate_Nion_z(
 
     Returns
     -------
-    nion : np.ndarray
+    nion_acg : np.ndarray
         The global number of ionising photons per baryon at the given redshifts for ACGs.
-    nion_mini : np.ndarray or None
+    nion_mcg : np.ndarray or None
         The global number of ionising photons per baryon at the given redshifts for MCGs.
-        Will be None if `USE_MINI_HALOS` is False.
+        Will be None if `USE_MCGS` is False.
     """
     if log10mturns is not None:
         raise TypeError(
@@ -837,28 +837,28 @@ def evaluate_Nion_z(
         redshifts=redshifts,
         lightcone=lightcone,
         global_evolution=global_evolution,
-        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
+        component="both" if inputs.astro_options.USE_MCGS else "acg",
     )
 
     redshifts = np.asarray(redshifts).astype("f8")
     log10mturns_acg = log10mturns_acg.astype("f8")
     log10mturns_mcg = log10mturns_mcg.astype("f8")
-    nion = np.zeros_like(redshifts)
-    nion_mini = np.zeros_like(redshifts)
+    nion_acg = np.zeros_like(redshifts)
+    nion_mcg = np.zeros_like(redshifts)
 
-    lib.get_global_Nion_z(
+    lib.get_unconditional_nion(
         redshifts.size,
         ffi.cast("double *", ffi.from_buffer(redshifts)),
         ffi.cast("double *", ffi.from_buffer(log10mturns_acg)),
         ffi.cast("double *", ffi.from_buffer(log10mturns_mcg)),
-        ffi.cast("double *", ffi.from_buffer(nion)),
-        ffi.cast("double *", ffi.from_buffer(nion_mini)),
+        ffi.cast("double *", ffi.from_buffer(nion_acg)),
+        ffi.cast("double *", ffi.from_buffer(nion_mcg)),
     )
 
-    if not inputs.astro_options.USE_MINI_HALOS:
-        nion_mini = None
+    if not inputs.astro_options.USE_MCGS:
+        nion_mcg = None
 
-    return nion, nion_mini
+    return nion_acg, nion_mcg
 
 
 @init_c_state(sigma=True)
@@ -896,11 +896,11 @@ def evaluate_SFRD_cond(
 
     Returns
     -------
-    sfrd : np.ndarray
+    sfrd_acg : np.ndarray
         The conditional star formation rate density at the given redshift and radius for ACGs.
-    sfrd_mini : np.ndarray or None
+    sfrd_mcg : np.ndarray or None
         The conditional star formation rate density at the given redshift and radius for MCGs.
-        Will be None if `USE_MINI_HALOS` is False.
+        Will be None if `USE_MCGS` is False.
 
     Notes
     -----
@@ -922,28 +922,28 @@ def evaluate_SFRD_cond(
         redshifts=redshift,
         lightcone=lightcone,
         global_evolution=global_evolution,
-        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
+        component="both" if inputs.astro_options.USE_MCGS else "acg",
     )
 
     densities = densities.astype("f8")
-    sfrd = np.zeros_like(densities)
-    sfrd_mini = np.zeros_like(densities)
+    sfrd_acg = np.zeros_like(densities)
+    sfrd_mcg = np.zeros_like(densities)
 
-    lib.get_conditional_SFRD(
+    lib.get_conditional_sfrd(
         redshift,
         radius,
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
         log10mturn_acg,
         log10mturn_mcg,
-        ffi.cast("double *", ffi.from_buffer(sfrd)),
-        ffi.cast("double *", ffi.from_buffer(sfrd_mini)),
+        ffi.cast("double *", ffi.from_buffer(sfrd_acg)),
+        ffi.cast("double *", ffi.from_buffer(sfrd_mcg)),
     )
 
-    if not inputs.astro_options.USE_MINI_HALOS:
-        sfrd_mini = None
+    if not inputs.astro_options.USE_MCGS:
+        sfrd_mcg = None
 
-    return sfrd, sfrd_mini
+    return sfrd_acg, sfrd_mcg
 
 
 @init_c_state(sigma=True)
@@ -982,11 +982,11 @@ def evaluate_Nion_cond(
 
     Returns
     -------
-    nion : np.ndarray
+    nion_acg : np.ndarray
         The conditional number of ionising photons per baryon at the given redshift and radius for ACGs.
-    nion_mini : np.ndarray or None
+    nion_mcg : np.ndarray or None
         The conditional number of ionising photons per baryon at the given redshift and radius for MCGs.
-        Will be None if `USE_MINI_HALOS` is False.
+        Will be None if `USE_MCGS` is False.
 
     Notes
     -----
@@ -1008,28 +1008,28 @@ def evaluate_Nion_cond(
         redshifts=redshift,
         lightcone=lightcone,
         global_evolution=global_evolution,
-        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
+        component="both" if inputs.astro_options.USE_MCGS else "acg",
     )
 
     densities = densities.astype("f8")
-    nion = np.zeros_like(densities)
-    nion_mini = np.zeros_like(densities)
+    nion_acg = np.zeros_like(densities)
+    nion_mcg = np.zeros_like(densities)
 
-    lib.get_conditional_Nion(
+    lib.get_conditional_nion(
         redshift,
         radius,
         densities.size,
         ffi.cast("double *", ffi.from_buffer(densities)),
         log10mturn_acg,
         log10mturn_mcg,
-        ffi.cast("double *", ffi.from_buffer(nion)),
-        ffi.cast("double *", ffi.from_buffer(nion_mini)),
+        ffi.cast("double *", ffi.from_buffer(nion_acg)),
+        ffi.cast("double *", ffi.from_buffer(nion_mcg)),
     )
 
-    if not inputs.astro_options.USE_MINI_HALOS:
-        nion_mini = None
+    if not inputs.astro_options.USE_MCGS:
+        nion_mcg = None
 
-    return nion, nion_mini
+    return nion_acg, nion_mcg
 
 
 @init_c_state(sigma=True)
@@ -1091,13 +1091,13 @@ def evaluate_Xray_cond(
         redshifts=redshift,
         lightcone=lightcone,
         global_evolution=global_evolution,
-        component="both" if inputs.astro_options.USE_MINI_HALOS else "acg",
+        component="both" if inputs.astro_options.USE_MCGS else "acg",
     )
 
     densities = densities.astype("f8")
     xray_emissivity = np.zeros_like(densities)
 
-    lib.get_conditional_Xray(
+    lib.get_conditional_xray_emissivity(
         redshift,
         radius,
         densities.size,
@@ -1188,7 +1188,7 @@ def convert_halo_properties(
         stellar mass (ACG)
         star formation rate (ACG)
         xray luminosity (combined)
-        ionising emissivity (combined)
+        ionising emissivity, N_ion (combined)
         escape-fraction weighted SFR (combined)
         stellar mass (MCG)
         star formation rate (MCG)
@@ -1245,16 +1245,16 @@ def convert_halo_properties(
 
     return {
         "halo_mass": out_buffer[:, 0].reshape(halo_masses.shape),
-        "halo_stars": out_buffer[:, 1].reshape(halo_masses.shape),
-        "halo_sfr": out_buffer[:, 2].reshape(halo_masses.shape),
-        "halo_xray": out_buffer[:, 3].reshape(halo_masses.shape),
+        "stellar_mass_acg": out_buffer[:, 1].reshape(halo_masses.shape),
+        "sfr_acg": out_buffer[:, 2].reshape(halo_masses.shape),
+        "xray_luminosity": out_buffer[:, 3].reshape(halo_masses.shape),
         "n_ion": out_buffer[:, 4].reshape(halo_masses.shape),
-        "halo_wsfr": out_buffer[:, 5].reshape(halo_masses.shape),
-        "halo_stars_mini": out_buffer[:, 6].reshape(halo_masses.shape),
-        "halo_sfr_mini": out_buffer[:, 7].reshape(halo_masses.shape),
+        "fesc_weighted_sfr": out_buffer[:, 5].reshape(halo_masses.shape),
+        "stellar_mass_mcg": out_buffer[:, 6].reshape(halo_masses.shape),
+        "sfr_mcg": out_buffer[:, 7].reshape(halo_masses.shape),
         "mturn_acg": out_buffer[:, 8].reshape(halo_masses.shape),
         "mturn_mcg": out_buffer[:, 9].reshape(halo_masses.shape),
-        "metallicity": out_buffer[:, 10].reshape(halo_masses.shape),
+        "metallicity_acg": out_buffer[:, 10].reshape(halo_masses.shape),
     }
 
 
