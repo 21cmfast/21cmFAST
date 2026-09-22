@@ -515,7 +515,7 @@ def test_perturb_halos(default_input_struct_ts):
         rtol=5e-5,
     )
     # Ensure the mini-halo stellar-mass comparison is not between all-zero arrays.
-    assert np.any(pt_halos.get("stellar_mini")[: pt_halos.n_halos] > 0), (
+    assert np.any(pt_halos.get("stellar_masses_mcg")[: pt_halos.n_halos] > 0), (
         "Expected nonzero mini-halo stellar masses"
     )
 

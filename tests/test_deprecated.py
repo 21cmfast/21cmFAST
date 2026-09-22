@@ -19,20 +19,41 @@ In v5, remove the obsolete deprecation-warning tests and review the
 removal checks and their version guards.
 """
 
+from contextlib import ExitStack
+from pathlib import Path
+
+import attrs
 import deprecation
 import numpy as np
 import pytest
 from astropy import units as un
 
 import py21cmfast as p21c
-from py21cmfast import lightconers as lcn
-from py21cmfast.wrapper import cfuncs as cf
-from py21cmfast.wrapper.inputs import (
+from py21cmfast import (
     AstroOptions,
     AstroParams,
+    BrightnessTemp,
+    Coeval,
+    EmissivityFields,
+    HaloBox,
+    InitialConditions,
     InputParameters,
-    MatterOptions,
+    IonizedBox,
+    PerturbedField,
+    compute_emissivity_fields,
+    compute_halo_grid,
+    compute_initial_conditions,
+    compute_ionization_field,
+    compute_radiation_fields,
+    compute_spin_temperature,
+    config,
+    perturb_field,
 )
+from py21cmfast import lightconers as lcn
+from py21cmfast.io import caching, h5
+from py21cmfast.wrapper import cfuncs as cf
+from py21cmfast.wrapper.arrays import Array
+from py21cmfast.wrapper.inputs import MatterOptions
 
 _MAJOR_VERSION = int(p21c.__version__.split(".")[0])
 
@@ -183,9 +204,7 @@ def test_v_cb_model_conflict(v_cb_model):
 # advisory since USE_MINI_HALOS defaults to False. The warning is suppressed here
 # because fixing the configuration (adding USE_MINI_HALOS=True) would require
 # RECOMB_MODEL and USE_TS_FLUCT changes that obscure what the test is verifying.
-@pytest.mark.filterwarnings(
-    "ignore:^USE_MINI_HALOS is False but V_CB_MODEL:UserWarning"
-)
+@pytest.mark.filterwarnings("ignore:^USE_MCGS is False but V_CB_MODEL:UserWarning")
 def test_fix_vcb_avg_conflict():
     """Test error when FIX_VCB_AVG conflicts with V_CB_MODEL."""
     for fix_vcb_avg in [True, False]:
@@ -213,9 +232,7 @@ def test_fix_vcb_avg_conflict():
 # FIX_VCB_AVG=True selects AVG-DEBUG while USE_MINI_HALOS remains False.
 # The resulting velocity-model advisory is incidental to this
 # deprecation-warning test.
-@pytest.mark.filterwarnings(
-    "ignore:^USE_MINI_HALOS is False but V_CB_MODEL:UserWarning"
-)
+@pytest.mark.filterwarnings("ignore:^USE_MCGS is False but V_CB_MODEL:UserWarning")
 def test_fix_vcb_avg_deprecated_warning(fix_vcb_avg):
     """Test that using FIX_VCB_AVG shows deprecation warning."""
     v_cb_model = "AVG-DEBUG" if fix_vcb_avg else "NONE"
@@ -384,6 +401,7 @@ def computed_emissivity_fields_with_mcgs(redshift_test, default_input_struct_lc,
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_MCGS=True,
         V_CB_MODEL="AVG-DEBUG",
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -417,6 +435,7 @@ def computed_ionization_field(
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_MCGS=True,
         V_CB_MODEL="AVG-DEBUG",
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -425,7 +444,7 @@ def computed_ionization_field(
     ic, pt, ef = computed_emissivity_fields_with_mcgs
 
     rf = compute_radiation_fields(
-        hboxes=[ef],
+        emissivity_fields_list=[ef],
         redshift=ef.redshift,
         cache=cache,
     )
@@ -490,7 +509,11 @@ def test_extra_halobox_fields_deprecated_warning(default_input_struct_lc):
     ):
         config._translate_deprecated({"EXTRA_HALOBOX_FIELDS": True})
 
-    with config.use(EXTRA_HALOBOX_FIELDS=True):
+    with ExitStack() as stack:
+        with pytest.warns(
+            deprecation.DeprecatedWarning, match="EXTRA_HALOBOX_FIELDS is deprecated"
+        ):
+            stack.enter_context(config.use(EXTRA_HALOBOX_FIELDS=True))
         emissivity_fields = EmissivityFields.new(
             redshift=0.0, inputs=default_input_struct_lc
         )
@@ -504,6 +527,7 @@ def test_extra_halobox_fields_deprecated_warning(default_input_struct_lc):
             inputs=default_input_struct_lc.evolve_input_structs(
                 USE_TS_FLUCT=True,
                 RECOMB_MODEL="inhomogeneous",
+                R_BUBBLE_MAX=50.0,
                 USE_MCGS=True,
                 V_CB_MODEL="AVG-DEBUG",
                 M_TURN_STELLAR_FEEDBACK=5.0,
@@ -512,7 +536,7 @@ def test_extra_halobox_fields_deprecated_warning(default_input_struct_lc):
         assert isinstance(emissivity_fields.stellar_mass_density_mcg, Array)
 
     inputs = default_input_struct_lc.evolve_input_structs(
-        RECOMB_MODEL="inhomogeneous", SOURCE_MODEL="L-INTEGRAL"
+        RECOMB_MODEL="inhomogeneous", R_BUBBLE_MAX=50.0, SOURCE_MODEL="L-INTEGRAL"
     )
     emissivity_fields = EmissivityFields.new(redshift=0.0, inputs=inputs)
     assert isinstance(emissivity_fields.fesc_weighted_sfrd, Array)

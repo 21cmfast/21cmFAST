@@ -669,11 +669,11 @@ def test_radiation_fields_with_zero_sfr(
         USE_MCGS=use_mcgs,
         RECOMB_MODEL="inhomogeneous",
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
-        V_CB_MODEL="FLUCTS" if use_mini_halos else "NONE",
-        POWER_SPECTRUM="CLASS" if use_mini_halos else "EH",
+        V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
+        POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
         M_TURN_STELLAR_FEEDBACK=(
             5.0
-            if use_mini_halos
+            if use_mcgs
             else default_input_struct_ts.astro_params.M_TURN_STELLAR_FEEDBACK
         ),
     )

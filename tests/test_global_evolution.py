@@ -139,7 +139,7 @@ def test_global_evolution_bad_inputs(default_input_struct_ts, source_model):
     r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
 )
 @pytest.mark.filterwarnings(
-    "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
+    "ignore:^USE_MCGS needs a non-trivial V_CB_MODEL:UserWarning"
 )
 @pytest.mark.filterwarnings(
     "ignore:^You have chosen to work with POWER_SPECTRUM:UserWarning"

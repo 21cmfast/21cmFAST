@@ -53,7 +53,7 @@ def test_run_lf(
     # intentionally warns and falls back to the ACG luminosity function.
     with pytest.warns(
         UserWarning,
-        match=r"^USE_MINI_HALOS is False, so only ACG LFs are computed\.",
+        match=r"^USE_MCGS is False, so only ACG LFs are computed\.",
     ):
         *_, lf = p21c.compute_luminosity_function(
             inputs=inputs,
@@ -68,7 +68,7 @@ def test_run_lf(
     # Repeat the same fallback call to retain the existing memory/reuse check.
     with pytest.warns(
         UserWarning,
-        match=r"^USE_MINI_HALOS is False, so only ACG LFs are computed\.",
+        match=r"^USE_MCGS is False, so only ACG LFs are computed\.",
     ):
         _muv, _mhalo, lf2 = p21c.compute_luminosity_function(
             inputs=inputs,
@@ -422,7 +422,7 @@ def test_ps_runs(default_input_struct):
     # star formation. Constructing this configuration intentionally warns.
     with pytest.warns(
         UserWarning,
-        match=r"^USE_MINI_HALOS is False but V_CB_MODEL",
+        match=r"^USE_MCGS is False but V_CB_MODEL",
     ):
         vcb_inputs = default_input_struct.evolve_input_structs(
             POWER_SPECTRUM="CLASS",
@@ -700,8 +700,7 @@ def test_compute_mturns_model(
     # z_reion must be greater than the current redshift
     z_reion = np.maximum(redshifts, rng.uniform(low=5, high=10, size=nz))
 
-    # The parameter sweep deliberately includes strong stellar feedback.
-    # The validator warns when mini-halos are enabled and feedback exceeds 8.
+    # The sweep includes feedback > 8, which warns when MCGs are enabled.
     feedback_warning = (
         pytest.warns(
             UserWarning,
@@ -714,12 +713,10 @@ def test_compute_mturns_model(
     with feedback_warning:
         inputs = default_input_struct_ts.evolve_input_structs(
             RECOMB_MODEL="inhomogeneous",
+            R_BUBBLE_MAX=50.0,
             M_TURN_STELLAR_FEEDBACK=log10_m_turn_stellar_feedback,
             USE_MCGS=use_mcgs,
-            # Use fluctuating relative velocities for the mini-halo cases;
-            # the FLUCTS model requires CLASS in this implementation.
-            V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
-            POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
+            V_CB_MODEL="AVG-DEBUG" if use_mcgs else "NONE",
             USE_REIONIZATION_PHOTOHEATING_FEEDBACK=(
                 use_reionization_photoheating_feedback
             ),
@@ -783,7 +780,7 @@ def test_compute_mturns_model(
         pytest.param(
             "NONE",
             marks=pytest.mark.filterwarnings(
-                "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
+                "ignore:^USE_MCGS needs a non-trivial V_CB_MODEL:UserWarning"
             ),
         ),
         "AVG-AUTO",

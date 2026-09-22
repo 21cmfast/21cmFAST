@@ -13,7 +13,7 @@ N_REPEAT = 10
 # Physics advisory warnings expected from the small-box configurations used
 # throughout the initialization test suite:
 # - R_BUBBLE_MAX: tests set bubble sizes that approach or exceed box dimensions
-# - USE_MINI_HALOS is False but V_CB_MODEL: test_direct_initializations sets
+# - USE_MCGS is False but V_CB_MODEL: test_direct_initializations sets
 #   V_CB_MODEL="FLUCTS" (to exercise the CLASS transfer-function initialization
 #   path) without USE_MINI_HALOS=True. Attempting to pair it with
 #   USE_MINI_HALOS=True surfaces an unrelated singleton state issue across
@@ -23,9 +23,7 @@ pytestmark = [
     pytest.mark.filterwarnings(
         "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
     ),
-    pytest.mark.filterwarnings(
-        "ignore:^USE_MINI_HALOS is False but V_CB_MODEL:UserWarning"
-    ),
+    pytest.mark.filterwarnings("ignore:^USE_MCGS is False but V_CB_MODEL:UserWarning"),
 ]
 
 

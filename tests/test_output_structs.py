@@ -173,7 +173,7 @@ def test_optional_field_ic(default_input_struct_lc: InputParameters):
     assert isinstance(ic.hires_vz, Array)
     assert isinstance(ic.hires_vz_2LPT, Array)
 
-    with pytest.warns(UserWarning, match="USE_MINI_HALOS is False but V_CB_MODEL"):
+    with pytest.warns(UserWarning, match="USE_MCGS is False but V_CB_MODEL"):
         ic = ox.InitialConditions.new(
             inputs=default_input_struct_lc.evolve_input_structs(
                 V_CB_MODEL="FLUCTS",
@@ -278,6 +278,7 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
             inputs=default_input_struct_lc.evolve_input_structs(
                 USE_TS_FLUCT=True,
                 RECOMB_MODEL="inhomogeneous",
+                R_BUBBLE_MAX=50.0,
                 USE_MCGS=True,
                 V_CB_MODEL="FLUCTS",
                 POWER_SPECTRUM="CLASS",
@@ -287,7 +288,7 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
         assert isinstance(emissivity_fields.stellar_mass_density_mcg, Array)
 
     inputs = default_input_struct_lc.evolve_input_structs(
-        RECOMB_MODEL="inhomogeneous", SOURCE_MODEL="L-INTEGRAL"
+        RECOMB_MODEL="inhomogeneous", R_BUBBLE_MAX=50.0, SOURCE_MODEL="L-INTEGRAL"
     )
     emissivity_fields = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
     assert isinstance(emissivity_fields.fesc_weighted_sfrd, Array)

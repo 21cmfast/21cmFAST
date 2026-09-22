@@ -115,7 +115,7 @@ def test_transfer_function(
 
 def test_relvels():
     """Test for relative velocity initial conditions."""
-    with pytest.warns(UserWarning, match="USE_MINI_HALOS is False but V_CB_MODEL"):
+    with pytest.warns(UserWarning, match="USE_MCGS is False but V_CB_MODEL"):
         inputs = p21c.InputParameters(random_seed=1).evolve_input_structs(
             HII_DIM=100,
             DIM=300,

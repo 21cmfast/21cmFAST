@@ -78,7 +78,7 @@ def _h5_roundtrip_marks(model, size):
     if model == "Qin20":
         marks.append(
             pytest.mark.filterwarnings(
-                "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
+                "ignore:^USE_MCGS needs a non-trivial V_CB_MODEL:UserWarning"
             )
         )
     if model in ("const-zeta", "Munoz21"):

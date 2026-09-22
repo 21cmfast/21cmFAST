@@ -579,8 +579,8 @@ def test_Nion_conditional_tables(
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=use_mcgs,
-        V_CB_MODEL="FLUCTS" if mini_flag else "NONE",
-        POWER_SPECTRUM="CLASS" if mini_flag else "EH",
+        V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
+        POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
         K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
@@ -717,8 +717,8 @@ def test_Xray_conditional_tables(
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=use_mcgs,
-        V_CB_MODEL="FLUCTS" if mini_flag else "NONE",
-        POWER_SPECTRUM="CLASS" if mini_flag else "EH",
+        V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
+        POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
         K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,
@@ -816,8 +816,8 @@ def test_SFRD_conditional_table(
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=use_mcgs,
-        V_CB_MODEL="FLUCTS" if mini_flag else "NONE",
-        POWER_SPECTRUM="CLASS" if mini_flag else "EH",
+        V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
+        POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
         K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
         USE_TS_FLUCT=True,

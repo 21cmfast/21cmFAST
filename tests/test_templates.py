@@ -117,7 +117,7 @@ class TestWriteTemplate:
             pytest.param(
                 t,
                 marks=pytest.mark.filterwarnings(
-                    "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
+                    "ignore:^USE_MCGS needs a non-trivial V_CB_MODEL:UserWarning"
                 ),
             )
             if t == "Qin20"
