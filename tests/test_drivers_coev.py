@@ -129,16 +129,16 @@ def test_coeval_resume_reconstructs_hbox_history(tmp_path_factory):
     )[0]
 
     cache_resume = OutputCache(tmp_path_factory.mktemp("resume_partial"))
-    write_no_xrsb = CacheConfig(xray_source_box=False)
+    write_no_radfields = CacheConfig(radiation_fields=False)
     mid_z = inputs.node_redshifts[len(inputs.node_redshifts) // 2]
 
     # First run only partway (up to and including a middle node), matching
-    # production usage of not writing XraySourceBox to disk.
+    # production usage of not writing RadiationFields to disk.
     run_coeval(
         inputs=inputs,
         out_redshifts=mid_z,
         cache=cache_resume,
-        write=write_no_xrsb,
+        write=write_no_radfields,
         regenerate=True,
     )
     # Now request the final redshift; this should trigger a resume from cache.
@@ -146,7 +146,7 @@ def test_coeval_resume_reconstructs_hbox_history(tmp_path_factory):
         inputs=inputs,
         out_redshifts=inputs.node_redshifts[-1],
         cache=cache_resume,
-        write=write_no_xrsb,
+        write=write_no_radfields,
     )[0]
 
     np.testing.assert_array_equal(

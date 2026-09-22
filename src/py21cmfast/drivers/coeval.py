@@ -782,7 +782,8 @@ def _redshift_loop_generator(
     # HaloBox history for the skipped (already-completed) redshifts is not
     # otherwise available to us, but compute_xray_source_field() needs the
     # *entire* halo history within astro_params.R_MAX_TS of each new redshift
-    # to build its filtered source shells (see hbox_arr usage below). Without
+    # to build its filtered source shells (see emissivity_fields_list usage below).
+    # Without
     # reloading these from cache, the X-ray source field -- and therefore the
     # spin temperature and brightness temperature -- computed at the first
     # several redshifts after a resume would silently be wrong, missing
@@ -826,8 +827,10 @@ def _redshift_loop_generator(
                     and z in inputs.node_redshifts
                     and inputs.matter_options.lagrangian_source_grid
                 ):
-                    cached_halobox = resume_cache.get_output_struct_at_z("HaloBox", z=z)
-                    hbox_arr.append(cached_halobox)
+                    cached_emissivity_fields = resume_cache.get_output_struct_at_z(
+                        "EmissivityFields", z=z
+                    )
+                    emissivity_fields_list.append(cached_emissivity_fields)
                 continue
 
             this_perturbed_field = perturbed_field[iz]
