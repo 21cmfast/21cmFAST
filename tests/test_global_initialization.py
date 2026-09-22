@@ -20,7 +20,9 @@ N_REPEAT = 10
 #   parametrized repeats (see PR discussion) — left filtered here pending
 #   that separate investigation.
 pytestmark = [
-    pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning"),
+    pytest.mark.filterwarnings(
+        "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+    ),
     pytest.mark.filterwarnings(
         "ignore:^USE_MINI_HALOS is False but V_CB_MODEL:UserWarning"
     ),

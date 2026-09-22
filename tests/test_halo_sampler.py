@@ -512,12 +512,9 @@ def test_perturb_halos(default_input_struct_ts):
         prop_dict["halo_sfr_mini"][: pt_halos.n_halos],
         rtol=5e-5,
     )
-    # Verify that mini-halo stellar output is actually nonzero — the default
-    # M_TURN_STELLAR_FEEDBACK=8.7 produced an entirely zero stellar_mini field,
-    # making the comparison vacuous. With M_TURN_STELLAR_FEEDBACK=5.0 and actual
-    # halo coordinates, this confirms the test exercises real mini-halo physics.
+    # Ensure the mini-halo stellar-mass comparison is not between all-zero arrays.
     assert np.any(pt_halos.get("stellar_mini")[: pt_halos.n_halos] > 0), (
-        "Expected nonzero mini-halo stellar masses with M_TURN_STELLAR_FEEDBACK=5.0"
+        "Expected nonzero mini-halo stellar masses"
     )
 
 

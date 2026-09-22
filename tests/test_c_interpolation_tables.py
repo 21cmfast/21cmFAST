@@ -383,7 +383,9 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
 
 # These comparisons retain the test configuration's nonstandard bubble
 # radius with recombinations enabled; both calculation paths use it.
-@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 @pytest.mark.parametrize("name", options_hmf)
 def test_SFRD_z_tables(name, z_range, default_global_evolution_mini, plt):
     redshift, kwargs = OPTIONS_HMF[name]
@@ -459,7 +461,9 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution_mini, plt):
 
 # These comparisons retain the test configuration's nonstandard bubble
 # radius with recombinations enabled; both calculation paths use it.
-@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 @pytest.mark.parametrize("name", options_hmf)
 def test_Nion_z_tables(name, z_range, default_global_evolution_mini, plt):
     redshift, kwargs = OPTIONS_HMF[name]
@@ -544,7 +548,9 @@ def test_Nion_z_tables(name, z_range, default_global_evolution_mini, plt):
 #       and it takes forever
 # These comparisons retain the test configuration's nonstandard bubble
 # radius with recombinations enabled; both calculation paths use it.
-@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 @pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
@@ -682,7 +688,9 @@ def test_Nion_conditional_tables(
 
 # These comparisons retain the test configuration's nonstandard bubble
 # radius with recombinations enabled; both calculation paths use it.
-@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 @pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
@@ -783,7 +791,9 @@ def test_Xray_conditional_tables(
 
 # These comparisons retain the test configuration's nonstandard bubble
 # radius with recombinations enabled; both calculation paths use it.
-@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 @pytest.mark.parametrize("mini", ["mini", "acg"])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
@@ -922,7 +932,9 @@ INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
 
 # These comparisons retain the test configuration's nonstandard bubble
 # radius with recombinations enabled; both calculation paths use it.
-@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("integrand", INTEGRAND_OPTIONS)

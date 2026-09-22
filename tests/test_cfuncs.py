@@ -54,7 +54,9 @@ def default_global_evolution(default_input_struct_lc_mini):
     return p21c.run_global_evolution(inputs=default_input_struct_lc_mini)
 
 
-@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 @pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
 def test_run_lf(
     default_input_struct_lc,
@@ -601,7 +603,9 @@ def make_matterfield_comparison_plot(
         cf.evaluate_Xray_cond,
     ],
 )
-@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 def test_functions_with_and_without_lightcone(
     default_input_struct_lc,
     default_input_struct_lc_mini,
@@ -673,7 +677,9 @@ def test_functions_with_and_without_lightcone(
         assert len(output) == len(densities)
 
 
-@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 @pytest.mark.parametrize("use_mini_halos", [True, False])
 @pytest.mark.parametrize("use_reionization_photoheating_feedback", [True, False])
 @pytest.mark.parametrize("log10_m_turn_stellar_feedback", [5.0, 6.0, 7.0, 8.0, 9.0])
@@ -783,7 +789,9 @@ def test_compute_mturns_model(
 # Include the no-relative-velocity limit in the roundtrip comparison.
 # With mini-halos enabled, this case intentionally emits the advisory
 # that a non-trivial velocity model is needed for the physical evolution.
-@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 @pytest.mark.parametrize(
     "v_cb_model",
     [

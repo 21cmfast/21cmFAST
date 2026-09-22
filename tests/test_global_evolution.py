@@ -12,7 +12,9 @@ from py21cmfast import GlobalEvolution
 DATA_PATH = Path(__file__).parent / "test_data"
 
 
-@pytest.mark.filterwarnings("ignore:^Your model:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+)
 @pytest.mark.parametrize("source_model", ["CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL"])
 def test_global_quantities(default_input_struct_ts, source_model):
     """Test that global quantities behave as expected."""
@@ -60,7 +62,9 @@ def test_global_quantities(default_input_struct_ts, source_model):
     assert np.all(x_HI[local_minima_indices[1] + 1 :] == 0.0)
 
 
-@pytest.mark.filterwarnings("ignore:^Your model:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+)
 @pytest.mark.parametrize("source_model", ["CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL"])
 def test_run_global_evolution_without_source_model(
     default_input_struct_ts, source_model
@@ -73,7 +77,7 @@ def test_run_global_evolution_without_source_model(
 
 
 @pytest.mark.filterwarnings(
-    "ignore:^Your inputs.astro_options.USE_TS_FLUCT:UserWarning"
+    r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
 )
 def test_run_global_evolution_without_Ts(default_input_struct):
     """Test that run_global_evolution doesn't crash when USE_TS_FLUCT=False."""
@@ -84,7 +88,7 @@ def test_run_global_evolution_without_Ts(default_input_struct):
 
 
 @pytest.mark.filterwarnings(
-    "ignore:^Your inputs.astro_options.USE_TS_FLUCT:UserWarning"
+    r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
 )
 @pytest.mark.filterwarnings(
     "ignore:^You have chosen to work with POWER_SPECTRUM:UserWarning"
@@ -132,7 +136,7 @@ def test_global_evolution_bad_inputs(default_input_struct_ts, source_model):
 # database compatibility without configuring relative velocities, intentionally
 # triggering this parameter mismatch advisory.
 @pytest.mark.filterwarnings(
-    "ignore:^Your inputs.astro_options.USE_TS_FLUCT:UserWarning"
+    r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
 )
 @pytest.mark.filterwarnings(
     "ignore:^USE_MINI_HALOS needs a non-trivial V_CB_MODEL:UserWarning"
@@ -190,7 +194,7 @@ def test_linear_perturbation_theory(default_input_struct_ts):
 
 
 @pytest.mark.filterwarnings(
-    "ignore:^Your inputs.astro_options.USE_TS_FLUCT:UserWarning"
+    r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
 )
 def test_linear_density_field(default_input_struct):
     """Test that the linear density field grows linearly with time."""

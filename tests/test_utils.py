@@ -7,7 +7,9 @@ from py21cmfast import InputParameters
 from py21cmfast.utils import recursive_difference, show_references
 
 
-@pytest.mark.filterwarnings("ignore:^Your model:UserWarning")
+@pytest.mark.filterwarnings(
+    "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+)
 def test_ref_printing():
     inputs = InputParameters.from_template("latest", random_seed=1234)
     ref_str = show_references(inputs, lightcone=True, print_to_stdout=False)
