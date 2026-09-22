@@ -33,7 +33,7 @@ test_req = [
     "pytest-cov",
     "tox",
     "pytest-remotedata>=0.3.2",
-    "powerbox",
+    "powerbox<1.0",
     "pytest-plt",
     "pytest-benchmark",
     "tyro",
