@@ -346,6 +346,7 @@ def test_removed_arguments_are_cleaned_up_in_v5():
             "`log10mturns`, `l10mturns_acg`, and `l10mturns_mcg` arguments and this test."
         )
 
+
 @pytest.fixture(scope="module")
 def redshift_test(default_input_struct_lc):
     """The first redshift in the default input struct."""

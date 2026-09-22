@@ -237,7 +237,7 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
     )
     assert isinstance(pert_halo_cat.fesc_weighted_sfr, Array)
     inputs = inputs.evolve_input_structs(
-        USE_MCGS=True,         
+        USE_MCGS=True,
         V_CB_MODEL="FLUCTS",
         POWER_SPECTRUM="CLASS",
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -276,8 +276,8 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
         emissivity_fields = ox.EmissivityFields.new(
             redshift=0.0,
             inputs=default_input_struct_lc.evolve_input_structs(
-                USE_TS_FLUCT=True, 
-                RECOMB_MODEL="inhomogeneous", 
+                USE_TS_FLUCT=True,
+                RECOMB_MODEL="inhomogeneous",
                 USE_MCGS=True,
                 V_CB_MODEL="FLUCTS",
                 POWER_SPECTRUM="CLASS",
@@ -298,7 +298,7 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
     assert isinstance(emissivity_fields.xray_emissivity, Array)
 
     inputs = inputs.evolve_input_structs(
-        USE_MCGS=True,         
+        USE_MCGS=True,
         V_CB_MODEL="FLUCTS",
         POWER_SPECTRUM="CLASS",
         M_TURN_STELLAR_FEEDBACK=5.0,
