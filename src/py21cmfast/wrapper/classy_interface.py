@@ -82,13 +82,13 @@ def run_classy(**kwargs) -> Class:
     # Set level to highest order, unless it is specified in kwargs
     level = kwargs.pop("level", "distortions")
 
-    for k in kwargs:
+    for k, value in kwargs.items():
         # "P_k_max_1/Mpc" cannot serve as a kwarg, but this is the input that CLASS expects to receive,
         # so we control this input with "P_k_max" instead
         if k == "P_k_max":
-            params["P_k_max_1/Mpc"] = kwargs["P_k_max"]
+            params["P_k_max_1/Mpc"] = value
         else:
-            params[k] = kwargs[k]
+            params[k] = value
 
     # Set N_ur=3.044 and pop out m_ncdm if N_ncdm=0 (no massive neutrinos)
     if params["N_ncdm"] == 0:

@@ -806,6 +806,7 @@ def compute_radiation_fields(
                     rad_setup=rad_setup,
                     allow_already_computed=True,
                 )
+                emissivity_fields_interp.purge(force=True)
     else:
         # Sometimes we don't compute at all
         # (if the first zpp > source_z_max or there are no halos at max R)

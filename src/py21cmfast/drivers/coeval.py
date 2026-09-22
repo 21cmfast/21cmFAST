@@ -778,6 +778,21 @@ def _redshift_loop_generator(
     # Iterate through redshift from top to bottom
     emissivity_fields_list = []
 
+    # When resuming partway through the redshift scroll (start_idx > 0), the
+    # HaloBox history for the skipped (already-completed) redshifts is not
+    # otherwise available to us, but compute_xray_source_field() needs the
+    # *entire* halo history within astro_params.R_MAX_TS of each new redshift
+    # to build its filtered source shells (see hbox_arr usage below). Without
+    # reloading these from cache, the X-ray source field -- and therefore the
+    # spin temperature and brightness temperature -- computed at the first
+    # several redshifts after a resume would silently be wrong, missing
+    # contributions from the earlier, skipped HaloBoxes. We only need to read
+    # these back (not recompute them), since write.halobox must have been True
+    # for these redshifts to have registered as complete in the first place.
+    resume_cache = None
+    if iokw.get("cache") is not None:
+        resume_cache = RunCache.from_inputs(inputs, iokw["cache"])
+
     prev_coeval = init_coeval
     this_coeval = None
 
@@ -806,6 +821,13 @@ def _redshift_loop_generator(
                     f"Computing Redshift {z} ({iz + 1}/{len(all_redshifts)}) iterations."
                 )
             if iz < start_idx:
+                if (
+                    resume_cache is not None
+                    and z in inputs.node_redshifts
+                    and inputs.matter_options.lagrangian_source_grid
+                ):
+                    cached_halobox = resume_cache.get_output_struct_at_z("HaloBox", z=z)
+                    hbox_arr.append(cached_halobox)
                 continue
 
             this_perturbed_field = perturbed_field[iz]
@@ -826,28 +848,50 @@ def _redshift_loop_generator(
             )
 
             if inputs.astro_options.USE_TS_FLUCT:
-                this_rad_setup = sf.setup_radiation_fields(
-                    redshift=z,
-                    emissivity_fields_list=[
-                        *emissivity_fields_list,
-                        this_emissivity_fields,
-                    ],
-                    previous_spin_temp=getattr(prev_coeval, "ts_box", None),
-                    previous_rad_setup=this_rad_setup,
+                # XraySourceBox is never itself cached to disk by default (it's
+                # enormous -- see write.xray_source_box and RunCache.get_required_fields),
+                # so compute_xray_source_field() is always a cache miss and always
+                # re-does its full (expensive) shell-filtering loop. That's wasted
+                # work whenever the *downstream* TsBox for this redshift is already
+                # cached, since compute_spin_temperature() would just load the
+                # cached TsBox and throw the freshly-built XraySourceBox away
+                # unused. Skip building it in that case -- but only when we
+                # wouldn't have written it to cache anyway: if the caller has
+                # explicitly asked for XraySourceBox to be written
+                # (write.xray_source_box=True), we must still build and write
+                # it even though it won't be used downstream, otherwise we'd
+                # silently violate the requested write config.
+                ts_cached = (
+                    resume_cache is not None
+                    and not iokw.get("regenerate")
+                    and z in resume_cache.TsBox
+                    and resume_cache.TsBox[z].exists()
                 )
-                this_radiation_fields = sf.compute_radiation_fields(
-                    redshift=z,
-                    emissivity_fields_list=[
-                        *emissivity_fields_list,
-                        this_emissivity_fields,
-                    ],
-                    previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
-                    previous_spin_temp=getattr(prev_coeval, "ts_box", None),
-                    perturbed_field=this_perturbed_field,
-                    rad_setup=this_rad_setup,
-                    write=write.radiation_fields,
-                    **iokw,
-                )
+                skip_radfields = ts_cached and not write.radiation_fields
+
+                if not skip_radfields:
+                    this_rad_setup = sf.setup_radiation_fields(
+                        redshift=z,
+                        emissivity_fields_list=[
+                            *emissivity_fields_list,
+                            this_emissivity_fields,
+                        ],
+                        previous_spin_temp=getattr(prev_coeval, "ts_box", None),
+                        previous_rad_setup=this_rad_setup,
+                    )
+                    this_radiation_fields = sf.compute_radiation_fields(
+                        redshift=z,
+                        emissivity_fields_list=[
+                            *emissivity_fields_list,
+                            this_emissivity_fields,
+                        ],
+                        previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
+                        previous_spin_temp=getattr(prev_coeval, "ts_box", None),
+                        perturbed_field=this_perturbed_field,
+                        rad_setup=this_rad_setup,
+                        write=write.radiation_fields,
+                        **iokw,
+                    )
 
                 this_spin_temp = sf.compute_spin_temperature(
                     inputs=inputs,
@@ -862,7 +906,8 @@ def _redshift_loop_generator(
                 #       it is not as huge as it was before, but it does contain some extra boxes that are no longer required
                 #       once the spin temperature is computed. These boxes however contain some interesting quantities (radiation fields!),
                 #       we should consider keeping them, but probably as part of working on https://github.com/21cmfast/21cmFAST/issues/642
-                this_radiation_fields.purge(force=True)
+                if this_radiation_fields is not None:
+                    this_radiation_fields.purge(force=True)
 
             this_ionized_box = sf.compute_ionization_field(
                 inputs=inputs,
@@ -942,9 +987,28 @@ def _setup_ics_and_pfs_for_scrolling(
             **iokw,
         )
 
+    # Only enter the loop if there is something to calculate.
+    # If the cache is already complete, we can skip the loop entirely and just read the cached boxes.
+    resume_cache = None
+    if iokw.get("cache") is not None and not iokw.get("regenerate"):
+        resume_cache = RunCache.from_inputs(inputs, iokw["cache"])
+
+    def _is_z_already_cached(z: float) -> bool:
+        try:
+            return resume_cache.is_complete_at(z=z)
+        except KeyError:
+            # z isn't one of inputs.node_redshifts (e.g. a user-requested
+            # out_redshift off the node grid), so RunCache can't tell us --
+            # be conservative and assume it needs computing.
+            return False
+
+    batch_already_cached = resume_cache is not None and all(
+        _is_z_already_cached(z) for z in all_redshifts
+    )
+
     # We can go ahead and purge some of the stuff in the initial_conditions, but only if
     # it is cached -- otherwise we could be losing information.
-    if write.initial_conditions:
+    if write.initial_conditions and not batch_already_cached:
         initial_conditions.prepare_for_perturb()
     kw = {
         "initial_conditions": initial_conditions,
@@ -969,10 +1033,7 @@ def _setup_ics_and_pfs_for_scrolling(
             f"to a value lower than z = {np.amin(all_redshifts)}."
         )
 
-    # Get all the perturb boxes early. We need to get the perturb at every
-    # redshift.
     perturbed_field = []
-
     with _progressbar(disable=not progressbar) as _progbar:
         for z in _progbar.track(all_redshifts, description="Perturbing Matter Fields"):
             p = sf.perturb_field(
@@ -993,8 +1054,9 @@ def _setup_ics_and_pfs_for_scrolling(
         progressbar=progressbar,
         **kw,
     )
+
     # Now we can purge initial_conditions further.
-    if write.initial_conditions:
+    if write.initial_conditions and not batch_already_cached:
         initial_conditions.prepare_for_spin_temp()
 
     return (
