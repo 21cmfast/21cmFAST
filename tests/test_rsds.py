@@ -10,16 +10,6 @@ from py21cmfast.lightconers import AngularLightconer, RectilinearLightconer
 from py21cmfast.rsds import apply_rsds, include_dvdr_in_tau21, rsds_shift
 from py21cmfast.wrapper.classy_interface import run_classy
 
-# Three warnings were previously filtered module-wide in this file:
-# - "Install numba for a speedup of cloud_in_cell": numba is installed in this
-#   environment and in CI (test_suite.yaml's "Install Non-Python Dependencies"
-#   step); confirmed this warning no longer fires with numba present.
-# - "invalid value encountered in cast": confirmed this does not fire with the
-#   current test inputs in this file.
-# - "The maximum halo mass...": now handled globally via conftest.py's
-#   pytest_collection_modifyitems hook; no per-file handling needed here.
-# All 27 tests in this file pass under -W error with zero filters present.
-
 
 class TestFindRequiredLightconeLimits:
     """Tests of the find_required_lightcone_limits method."""

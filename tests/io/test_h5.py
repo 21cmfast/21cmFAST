@@ -137,14 +137,7 @@ class TestInputsIO:
             assert "InputParameters" in fl
             assert "sentinel" in fl
 
-    # Roundtrip model and size templates without changing their settings.
-    # Qin20 (all sizes) triggers the USE_MINI_HALOS/V_CB_MODEL mismatch;
-    # const-zeta and Munoz21 (all sizes) trigger the EPS conditional-mass-
-    # function advisory; latest, minihalos, latest-discrete,
-    # minihalos-discrete, Park19, and fixed-halos trigger R_BUBBLE_MAX != 50
-    # only when combined with size-tiny or size-small. Scoped per-combination
-    # below rather than applied to all 44 combinations, since only 24
-    # actually fire.
+    # Only these template and size combinations trigger each advisory.
     @pytest.mark.parametrize(
         "inputs",
         [

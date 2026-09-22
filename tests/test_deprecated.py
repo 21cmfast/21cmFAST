@@ -199,11 +199,6 @@ def test_v_cb_model_conflict(v_cb_model):
         )
 
 
-# When fix_vcb_avg=False, the test sets V_CB_MODEL="AVG-DEBUG" to trigger the
-# FIX_VCB_AVG conflict error. This incidentally fires the USE_MINI_HALOS/V_CB_MODEL
-# advisory since USE_MINI_HALOS defaults to False. The warning is suppressed here
-# because fixing the configuration (adding USE_MINI_HALOS=True) would require
-# RECOMB_MODEL and USE_TS_FLUCT changes that obscure what the test is verifying.
 @pytest.mark.filterwarnings("ignore:^USE_MCGS is False but V_CB_MODEL:UserWarning")
 def test_fix_vcb_avg_conflict():
     """Test error when FIX_VCB_AVG conflicts with V_CB_MODEL."""
@@ -229,9 +224,6 @@ def test_fix_vcb_avg_conflict():
 
 
 @pytest.mark.parametrize("fix_vcb_avg", [True, False])
-# FIX_VCB_AVG=True selects AVG-DEBUG while USE_MINI_HALOS remains False.
-# The resulting velocity-model advisory is incidental to this
-# deprecation-warning test.
 @pytest.mark.filterwarnings("ignore:^USE_MCGS is False but V_CB_MODEL:UserWarning")
 def test_fix_vcb_avg_deprecated_warning(fix_vcb_avg):
     """Test that using FIX_VCB_AVG shows deprecation warning."""

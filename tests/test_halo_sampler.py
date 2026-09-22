@@ -128,11 +128,7 @@ def test_sampler(name, cond, cond_type, plt):
         rtol=RELATIVE_TOLERANCE,
     )
 
-    # At delta=-0.9 (cond=0) with cond_type="grid", the extreme underdensity
-    # can produce a zero-valued truth entry, causing a divide-by-zero in
-    # print_failure_stats's relative-error diagnostic, and the binned CMF
-    # can diverge from the analytic CMF at this tail. Scoped to only this
-    # parametrized case since it's the only one that triggers it.
+    # The extreme underdensity grid case can give zero-valued CMF entries.
     if cond == 0 and cond_type == "grid":
         with warnings.catch_warnings():
             warnings.filterwarnings(
@@ -173,16 +169,7 @@ def test_sampler(name, cond, cond_type, plt):
 #   calculate them in the backend and re-write them in the test for a few masses. This means that
 #   changes to any scaling relation model will result in a test fail
 # TODO add minihalo tests, upper turnovers. All 12 properties
-# These filters guard against RuntimeWarning/UserWarning from near-zero or
-# NaN-contaminated values, plausible given the meshgrid includes very small
-# halo masses (1e7 Msun) where exp_SHMR can reach zero due to the exponential
-# cutoff (see inline comment below). NOTE: this has not been independently
-# confirmed to fire in a passing run locally — the test currently fails
-# upstream of these code paths due to a separate, pre-existing GSL
-# integration issue (see cosmology.c sigma_z0), reproducible on a clean
-# release-v4.3 checkout and unrelated to this PR. Left in place as a
-# precaution since removing them cannot be safely verified without a
-# passing run to test against.
+# Near-zero values at the low-mass end of the grid can trigger these diagnostics.
 @pytest.mark.filterwarnings("ignore:invalid value encountered in divide:RuntimeWarning")
 @pytest.mark.filterwarnings(
     "ignore:divide by zero encountered in divide:RuntimeWarning"
@@ -405,14 +392,8 @@ def test_halo_buffer_overflow_error_message(default_input_struct):
 
 
 def test_perturb_halos(default_input_struct_ts):
-    # M_TURN_STELLAR_FEEDBACK=5.0 exercises nonzero mini-halo stellar output.
-    # The default 8.7 produces a zero mini-stellar field (vacuous test).
-    # A homogeneous vcb field is used so that perturb_halo_catalog (which
-    # interpolates at displaced halo positions) and convert_halo_properties
-    # (which samples the cell at supplied coordinates) receive equivalent
-    # physical inputs regardless of spatial position. Without this, the two
-    # paths sample different cells of the spatially varying vcb field and
-    # their outputs cannot be directly compared.
+    # M_TURN_STELLAR_FEEDBACK=5 gives nonzero MCG stellar masses. A homogeneous
+    # vcb field makes both code paths sample the same velocity.
     with pytest.warns(UserWarning, match="R_BUBBLE_MAX"):
         inputs_test = default_input_struct_ts.evolve_input_structs(
             SOURCE_MODEL="CHMF-SAMPLER",
@@ -429,8 +410,6 @@ def test_perturb_halos(default_input_struct_ts):
         inputs=inputs_test,
     )
 
-    # Replace the spatially varying vcb field with a homogeneous field so
-    # both computation paths sample the same velocity value at every position.
     lo_dim = (inputs_test.simulation_options.HII_DIM,) * 3
     vcb_homogeneous = np.full(lo_dim, ics.get("lowres_vcb").mean(), dtype=np.float32)
     ics.set("lowres_vcb", vcb_homogeneous)
@@ -514,7 +493,6 @@ def test_perturb_halos(default_input_struct_ts):
         prop_dict["sfr_mcg"][: pt_halos.n_halos],
         rtol=5e-5,
     )
-    # Ensure the mini-halo stellar-mass comparison is not between all-zero arrays.
     assert np.any(pt_halos.get("stellar_masses_mcg")[: pt_halos.n_halos] > 0), (
         "Expected nonzero mini-halo stellar masses"
     )

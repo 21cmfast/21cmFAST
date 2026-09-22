@@ -182,7 +182,6 @@ class TestTemplateCreate:
 class TestTemplateShow:
     """Tests of the `template show` command."""
 
-    # The test displays the existing Muñoz21 template, preserving its integration method.
     @pytest.mark.filterwarnings(
         "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
     )
@@ -279,9 +278,7 @@ class TestRunICS:
         ics = read_output_struct(outfile)
         assert ics.simulation_options.HII_DIM == 32
 
-    # Uses "default" (not "ignore") so the warning passes through to the CLI output.
-    # This test asserts that warnings are correctly formatted and displayed via capsys;
-    # suppressing the warning with "ignore" would break the capsys assertion.
+    # "default" keeps the warning visible for the capsys assertion.
     @pytest.mark.filterwarnings("default:^Resolution is likely too low:UserWarning")
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
@@ -307,8 +304,6 @@ class TestRunICS:
         out = capsys.readouterr().out
         assert "skipping computation" in out
 
-    # The test combines the latest model template with a size template, retaining those
-    # settings while testing CLI overrides of node redshifts.
     @pytest.mark.filterwarnings(
         "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
     )
@@ -358,8 +353,6 @@ class TestRunCoeval:
         cv = Coeval.from_file(cfile)
         assert cv.redshift == 6.0
 
-    # The test combines a model template with a size template, retaining those settings
-    # while testing CLI output.
     @pytest.mark.filterwarnings(
         "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
     )
@@ -476,8 +469,6 @@ class TestPredictStructSize:
 class TestPredictTotalStorageSize:
     """Test the predict total storage-size command."""
 
-    # The test predicts storage for templates including Muñoz21 (EPS advisory) and
-    # size templates that combine with model templates to trigger the bubble-radius advisory.
     @pytest.mark.filterwarnings(
         "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
     )
@@ -497,8 +488,6 @@ class TestPredictTotalStorageSize:
         out = capsys.readouterr().out
         assert "Storage Sizes" in out
 
-    # The test predicts storage for templates including Muñoz21 (EPS advisory) and
-    # size templates that combine with model templates to trigger the bubble-radius advisory.
     @pytest.mark.filterwarnings(
         "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
     )
@@ -525,8 +514,6 @@ class TestPredictTotalStorageSize:
 class TestGlobalEvolution:
     """Tests of the global evolution CLI command."""
 
-    # The test retains the simple template to check global-command file creation and path
-    # handling; it does not validate the resulting physical signal.
     @pytest.mark.filterwarnings(
         r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
     )
@@ -544,8 +531,6 @@ class TestGlobalEvolution:
         assert lcfile.exists()
         GlobalEvolution.from_file(lcfile)
 
-    # The test retains the simple template to check global-command file creation and path
-    # handling; it does not validate the resulting physical signal.
     @pytest.mark.filterwarnings(
         r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
     )

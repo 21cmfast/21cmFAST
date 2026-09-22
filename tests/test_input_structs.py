@@ -714,8 +714,6 @@ class TestInputParameters:
         altered_struct = self.default.evolve_input_structs(SIGMA_8=1.0)
         assert altered_struct.cosmo_params.SIGMA_8 == 1.0
 
-        # The EH/A_s cases intentionally exercise the normalization fallback,
-        # so assert its advisory while preserving the checks below.
         with pytest.warns(
             UserWarning,
             match=r"^You have chosen to work with POWER_SPECTRUM=EH",
@@ -796,11 +794,7 @@ class TestInputParameters:
         )
         assert altered_struct.cosmo_tables.USE_SIGMA_8
 
-    # Load the published/model templates unchanged. Qin20 (USE_MINI_HALOS
-    # without a non-trivial V_CB_MODEL) and const-zeta/Munoz21/EOS21 (EPS
-    # conditional mass function fallback) each intentionally retain settings
-    # that trigger a specific advisory; scoped per-alias below rather than
-    # applied to all 25 template aliases, since only these 4 actually fire.
+    # Qin20 and the EPS-based templates intentionally trigger advisories.
     @pytest.mark.parametrize(
         "template",
         [

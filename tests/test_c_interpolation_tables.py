@@ -381,8 +381,6 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
     )
 
 
-# These comparisons retain the test configuration's nonstandard bubble
-# radius with recombinations enabled; both calculation paths use it.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
@@ -459,8 +457,6 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution_mcgs, plt):
     )
 
 
-# These comparisons retain the test configuration's nonstandard bubble
-# radius with recombinations enabled; both calculation paths use it.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
@@ -546,8 +542,6 @@ def test_Nion_z_tables(name, z_range, default_global_evolution_mcgs, plt):
 #       I do not use them here fully, instead calling the integrals directly to avoid parameter changes
 #       Mostly since if we set simulation_options.USE_INTERPOLATION_TABLES=False then the sigma tables aren't used
 #       and it takes forever
-# These comparisons retain the test configuration's nonstandard bubble
-# radius with recombinations enabled; both calculation paths use it.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
@@ -684,8 +678,6 @@ def test_Nion_conditional_tables(
         )
 
 
-# These comparisons retain the test configuration's nonstandard bubble
-# radius with recombinations enabled; both calculation paths use it.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
@@ -785,8 +777,6 @@ def test_Xray_conditional_tables(
     )
 
 
-# These comparisons retain the test configuration's nonstandard bubble
-# radius with recombinations enabled; both calculation paths use it.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
@@ -924,8 +914,6 @@ def test_SFRD_conditional_table(
 INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
 
 
-# These comparisons retain the test configuration's nonstandard bubble
-# radius with recombinations enabled; both calculation paths use it.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )

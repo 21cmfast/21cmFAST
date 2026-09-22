@@ -132,9 +132,7 @@ def test_global_evolution_bad_inputs(default_input_struct_ts, source_model):
             )
 
 
-# USE_MINI_HALOS=True requires a non-trivial V_CB_MODEL; this test checks
-# database compatibility without configuring relative velocities, intentionally
-# triggering this parameter mismatch advisory.
+# The stored database file uses MCGs without a V_CB_MODEL.
 @pytest.mark.filterwarnings(
     r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
 )

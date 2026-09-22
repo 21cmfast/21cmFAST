@@ -205,8 +205,6 @@ def test_optional_field_perturb(default_input_struct_lc: InputParameters):
     assert pt.velocity_y is None
 
 
-# Retain the shared fixture's bubble radius while checking which output
-# fields are enabled by recombination and mini-halo options.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
@@ -308,8 +306,6 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
     assert isinstance(emissivity_fields.sfrd_mcg, Array)
 
 
-# Retain the shared fixture's bubble radius while checking which output
-# fields are enabled by recombination and mini-halo options.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
@@ -332,8 +328,6 @@ def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameter
     assert isinstance(rfs.filtered_sfrd_mcg_for_lya, Array)
 
 
-# Retain the shared fixture's bubble radius while checking which output
-# fields are enabled by recombination and mini-halo options.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
@@ -357,8 +351,6 @@ def test_optional_field_ts(default_input_struct_lc: InputParameters):
     assert isinstance(ts.J_21_LW, Array)
 
 
-# Retain the shared fixture's bubble radius while checking which output
-# fields are enabled by recombination and mini-halo options.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )

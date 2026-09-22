@@ -474,8 +474,6 @@ def test_global_properties(
     assert bt.global_Tb == np.mean(bt.get("brightness_temp"))
 
 
-# Retain the fixture's bubble radius while exercising required-input
-# validation or the zero-source limit with recombinations enabled.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
@@ -654,8 +652,6 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
         )
 
 
-# Retain the fixture's bubble radius while exercising required-input
-# validation or the zero-source limit with recombinations enabled.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )

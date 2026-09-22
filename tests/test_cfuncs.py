@@ -49,8 +49,7 @@ def test_run_lf(
     global_evolution = (
         default_global_evolution if what_to_use == "global_evolution" else None
     )
-    # With mini-halos disabled, the default component="both" request
-    # intentionally warns and falls back to the ACG luminosity function.
+    # Without MCGs, component="both" warns and falls back to ACGs.
     with pytest.warns(
         UserWarning,
         match=r"^USE_MCGS is False, so only ACG LFs are computed\.",
@@ -65,7 +64,6 @@ def test_run_lf(
     assert np.all(lf[~np.isnan(lf)] > -30)
     assert lf.shape == (3, 100)
 
-    # Repeat the same fallback call to retain the existing memory/reuse check.
     with pytest.warns(
         UserWarning,
         match=r"^USE_MCGS is False, so only ACG LFs are computed\.",
@@ -418,8 +416,7 @@ def test_ps_runs(default_input_struct):
             k_values=k_values,
         )
 
-    # Exercise the velocity power spectrum independently of mini-halo
-    # star formation. Constructing this configuration intentionally warns.
+    # FLUCTS without MCGs intentionally warns.
     with pytest.warns(
         UserWarning,
         match=r"^USE_MCGS is False but V_CB_MODEL",
@@ -768,9 +765,6 @@ def test_compute_mturns_model(
         np.testing.assert_allclose(M_turn_mcg_test, M_turn_mcg, rtol=1e-4)
 
 
-# Include the no-relative-velocity limit in the roundtrip comparison.
-# With mini-halos enabled, this case intentionally emits the advisory
-# that a non-trivial velocity model is needed for the physical evolution.
 @pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
