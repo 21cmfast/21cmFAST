@@ -85,6 +85,10 @@ class _PhotonConservationState:
 _photoncons_state = _PhotonConservationState()
 
 
+# NOTE: the decorator is what gets `inputs` to the backend: InitialisePhotonCons reads
+# the global astro params rather than taking any arguments, so the ALPHA_ESC scan in
+# photoncons_alpha depends on each set of inputs being broadcast before we call it.
+@init_c_state(sigma=True)
 def _init_photon_conservation_correction(*, inputs, **kwargs):
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),

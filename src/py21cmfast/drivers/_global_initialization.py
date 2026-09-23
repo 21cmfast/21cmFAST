@@ -254,10 +254,12 @@ def c_state(
     heat: bool = False,
     recomb: bool = False,
 ) -> AbstractContextManager[None]:
-    """Compute with the backend set up for ``inputs``, handing the state back on exit.
+    """Compute with the backend set up for ``inputs``.
 
     Use this around a region that deliberately computes with inputs other than those of
-    the calling function, so that the backend is not left set up for the wrong inputs.
+    the calling function: on exit the enclosing scope's state is set up again, so that
+    the code the region returns into still sees its own inputs in the backend. At the
+    outermost level there is no enclosing scope, and the state is left as it is.
     """
     return _GlobalInitManagerSingleton.scope(
         inputs,
