@@ -549,6 +549,31 @@ def test_functions_with_and_without_lightcone(
         assert len(output) == len(densities)
 
 
+def test_nested_global_evolution_does_not_corrupt_the_backend(
+    default_input_struct_lc_mcgs, default_global_evolution
+):
+    """Computing the global evolution internally must give the same answer as passing it in.
+
+    ``evaluate_Nion_z`` runs a global evolution when it isn't given one, and that runs
+    with one-cell inputs of its own. The backend has to be set up for the function's own
+    inputs again by the time it calls into C, or the two paths disagree.
+    """
+    redshifts = [7, 8, 9]
+
+    nion_given, nion_mcg_given = cf.evaluate_Nion_z(
+        inputs=default_input_struct_lc_mcgs,
+        redshifts=redshifts,
+        global_evolution=default_global_evolution,
+    )
+    nion_internal, nion_mcg_internal = cf.evaluate_Nion_z(
+        inputs=default_input_struct_lc_mcgs,
+        redshifts=redshifts,
+    )
+
+    np.testing.assert_allclose(nion_internal, nion_given, rtol=1e-10)
+    np.testing.assert_allclose(nion_mcg_internal, nion_mcg_given, rtol=1e-10)
+
+
 def test_removed_log10mturns_argument(default_input_struct):
     """Test that removed `log10mturns` arguments raise a TypeError with a message."""
     with pytest.raises(

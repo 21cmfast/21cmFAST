@@ -56,7 +56,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
-from ..drivers._global_initialization import init_c_state
+from ..drivers._global_initialization import c_state, init_c_state
 from ._utils import _process_exitcode
 from .inputs import InputParameters
 from .outputs import InitialConditions
@@ -334,43 +334,47 @@ def calibrate_photon_cons(
     #   Since the z-step is Q-dependent, we can't predict the redshifts
     inputs_calibration = inputs_calibration.clone(node_redshifts=None)
 
-    while z > inputs.astro_params.PHOTONCONS_CALIBRATION_END:
-        # Determine the ionisation box with recombinations, spin temperature etc.
-        # turned off.
-        this_perturb = perturb_field(
-            redshift=z,
-            inputs=inputs_calibration,
-            initial_conditions=initial_conditions,
-            **kwargs,
-        )
+    # The calibration simulation deliberately runs with modified inputs, so hold them
+    # open for the whole loop: the calls inside then share a single scope instead of
+    # each rebuilding the backend, and everything after the loop sees `inputs` again.
+    with c_state(inputs_calibration):
+        while z > inputs.astro_params.PHOTONCONS_CALIBRATION_END:
+            # Determine the ionisation box with recombinations, spin temperature etc.
+            # turned off.
+            this_perturb = perturb_field(
+                redshift=z,
+                inputs=inputs_calibration,
+                initial_conditions=initial_conditions,
+                **kwargs,
+            )
 
-        ib2 = compute_ionization_field(
-            inputs=inputs_calibration,
-            previous_ionized_box=ib,
-            initial_conditions=initial_conditions,
-            perturbed_field=this_perturb,
-            previous_perturbed_field=prev_perturb,
-            **kwargs,
-        )
+            ib2 = compute_ionization_field(
+                inputs=inputs_calibration,
+                previous_ionized_box=ib,
+                initial_conditions=initial_conditions,
+                perturbed_field=this_perturb,
+                previous_perturbed_field=prev_perturb,
+                **kwargs,
+            )
 
-        mean_nf = np.mean(ib2.get("neutral_fraction"))
+            mean_nf = np.mean(ib2.get("neutral_fraction"))
 
-        # Save mean/global quantities
-        neutral_fraction_photon_cons.append(mean_nf)
+            # Save mean/global quantities
+            neutral_fraction_photon_cons.append(mean_nf)
 
-        # Can speed up sampling in regions where the evolution is slower
-        if 0.3 < mean_nf <= 0.9:
-            z -= 0.15
-        elif 0.01 < mean_nf <= 0.3:
-            z -= 0.05
-        else:
-            z -= 0.5
+            # Can speed up sampling in regions where the evolution is slower
+            if 0.3 < mean_nf <= 0.9:
+                z -= 0.15
+            elif 0.01 < mean_nf <= 0.3:
+                z -= 0.05
+            else:
+                z -= 0.5
 
-        ib = ib2
-        if inputs.astro_options.USE_MCGS:
-            prev_perturb = this_perturb
+            ib = ib2
+            if inputs.astro_options.USE_MCGS:
+                prev_perturb = this_perturb
 
-        fast_node_redshifts.append(z)
+            fast_node_redshifts.append(z)
 
     fast_node_redshifts = np.array(fast_node_redshifts[::-1])
     neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
