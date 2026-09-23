@@ -90,9 +90,6 @@ def test_run_global_evolution_without_Ts(default_input_struct):
 @pytest.mark.filterwarnings(
     r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
 )
-@pytest.mark.filterwarnings(
-    "ignore:^You have chosen to work with POWER_SPECTRUM:UserWarning"
-)
 def test_run_global_evolution_from_template():
     """Test that run_global_evolution doesn't crash when using a template."""
     global_evolution = p21c.run_global_evolution(

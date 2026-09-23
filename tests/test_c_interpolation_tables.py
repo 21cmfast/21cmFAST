@@ -71,12 +71,7 @@ def z_range():
 
 @pytest.fixture(scope="module")
 def default_input_struct_mcgs(default_input_struct_lc):
-    """A default input struct with MCGs and relative velocities enabled.
-
-    V_CB_MODEL="FLUCTS" requires POWER_SPECTRUM="CLASS": the CLASS Boltzmann code
-    is needed to compute the baryon-CDM relative velocity power spectrum correctly.
-    This is enforced by a validator in inputs.py.
-    """
+    """A default input struct with MCGs (FLUCTS requires CLASS)."""
     return default_input_struct_lc.evolve_input_structs(
         USE_MCGS=True,
         V_CB_MODEL="FLUCTS",

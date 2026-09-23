@@ -4,19 +4,11 @@ Tests for deprecated parameters and APIs.
 This module consolidates all deprecation warning tests in one place.
 Each deprecated parameter should have:
 1. A test verifying the deprecation warning fires correctly.
-2. A test decorated with @pytest.mark.skipif(_MAJOR_VERSION < 5, ...) that
-   will run at v5+ and confirm the parameter was actually removed. These
-   tests are skipped at v4.x since the parameter is still present.
+2. A test decorated with @deprecation.fail_if_not_removed that will
+   fail when the removed_in version is reached, reminding developers
+   to clean up the deprecated code.
 
-Note: @deprecation.fail_if_not_removed is not used here because our
-warnings are emitted via warnings.warn(DeprecatedWarning(...)) rather
-than the @deprecation.deprecated decorator. The latter automatically
-upgrades to UnsupportedWarning when removed_in is reached, which is
-what fail_if_not_removed catches. Our manual approach requires explicit
-version guards instead.
-
-In v5, remove the obsolete deprecation-warning tests and review the
-removal checks and their version guards.
+When a parameter is removed in v5, remove its tests from this module.
 """
 
 from contextlib import ExitStack

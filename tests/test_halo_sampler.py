@@ -169,7 +169,6 @@ def test_sampler(name, cond, cond_type, plt):
 #   calculate them in the backend and re-write them in the test for a few masses. This means that
 #   changes to any scaling relation model will result in a test fail
 # TODO add minihalo tests, upper turnovers. All 12 properties
-# Near-zero values at the low-mass end of the grid can trigger these diagnostics.
 @pytest.mark.filterwarnings("ignore:invalid value encountered in divide:RuntimeWarning")
 @pytest.mark.filterwarnings(
     "ignore:divide by zero encountered in divide:RuntimeWarning"
@@ -392,6 +391,8 @@ def test_halo_buffer_overflow_error_message(default_input_struct):
 
 
 def test_perturb_halos(default_input_struct_ts):
+    # inputs which get all the fields
+    # TODO: this test seems to pass only when USE_REIONIZATION_PHOTOHEATING_FEEDBACK is True, and it fails with False, I am not sure why
     # M_TURN_STELLAR_FEEDBACK=5 gives nonzero MCG stellar masses. A homogeneous
     # vcb field makes both code paths sample the same velocity.
     with pytest.warns(UserWarning, match="R_BUBBLE_MAX"):
