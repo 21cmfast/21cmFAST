@@ -11,7 +11,28 @@ jobs:
       - uses: bencherdev/bencher@main
       - name: Archive closed fork PR branch with Bencher
         run: |
-          bencher archive \
-          --project 21cmfast \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch "$GITHUB_HEAD_REF"
+          # The bencher CLI's `archive` subcommand has no flag to tolerate a
+          # branch that doesn't exist in the project (see its `ArchiveError::NotFound`
+          # variant: https://github.com/bencherdev/bencher/blob/main/services/cli/src/bencher/sub/project/archive/mod.rs)
+          # -- it always exits non-zero with "Could not find an entry with
+          # name ... in project ...". A fork PR branch can legitimately never
+          # have been tracked in Bencher (e.g. its "Track Benchmarks" run
+          # never completed successfully, or the PR was closed before any
+          # benchmark run happened), so treat that specific, known error as a
+          # no-op instead of failing the whole job. Any other failure still
+          # fails the job normally.
+          set +e
+          output=$(bencher archive \
+            --project 21cmfast \
+            --token '${{ secrets.BENCHER_API_TOKEN }}' \
+            --branch "$GITHUB_HEAD_REF" 2>&1)
+          status=$?
+          set -e
+          echo "$output"
+          if [ "$status" -ne 0 ]; then
+            if echo "$output" | grep -q 'Could not find an entry with name'; then
+              echo "Branch '$GITHUB_HEAD_REF' was never tracked in Bencher; nothing to archive. Skipping."
+              exit 0
+            fi
+            exit "$status"
+          fi
