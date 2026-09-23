@@ -1192,10 +1192,7 @@ class EmissivityFields(OutputStructZ):
             ):
                 required += ["lowres_vcb"]
         else:
-            # Kept as ValueError (not TypeError): part of the public API contract,
-            # asserted verbatim by
-            # tests/test_output_structs.py::test_bad_required_array.
-            raise ValueError(  # noqa: TRY004
+            raise TypeError(
                 f"{type(input_box)} is not an input required for EmissivityFields!"
             )
 
@@ -1679,10 +1676,7 @@ class RadiationFieldsSetup(OutputStructZ):
         if isinstance(input_box, TsBox):
             required += ["xray_ionised_fraction"]
         else:
-            # Kept as ValueError (not TypeError): part of the public API contract,
-            # asserted verbatim by
-            # tests/test_output_structs.py::test_bad_required_array.
-            raise ValueError(  # noqa: TRY004
+            raise TypeError(
                 f"{type(input_box)} is not an input required for RadiationFieldsSetup!"
             )
 
@@ -1820,10 +1814,7 @@ class RadiationFields(OutputStructZ):
             if self.astro_options.USE_MCGS:
                 required += ["ave_log10_MturnLW"]
         else:
-            # Kept as ValueError (not TypeError): part of the public API contract,
-            # asserted verbatim by
-            # tests/test_output_structs.py::test_bad_required_array.
-            raise ValueError(  # noqa: TRY004
+            raise TypeError(
                 f"{type(input_box)} is not an input required for RadiationFields!"
             )
 
@@ -1962,12 +1953,7 @@ class TsBox(OutputStructZ):
             else:
                 required += ["lya_flux_continuum_injected"]
         else:
-            # Kept as ValueError (not TypeError): part of the public API contract,
-            # asserted verbatim by
-            # tests/test_output_structs.py::test_bad_required_array.
-            raise ValueError(  # noqa: TRY004
-                f"{type(input_box)} is not an input required for TsBox!"
-            )
+            raise TypeError(f"{type(input_box)} is not an input required for TsBox!")
 
         return required
 

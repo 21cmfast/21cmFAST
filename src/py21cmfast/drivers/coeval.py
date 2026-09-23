@@ -778,17 +778,7 @@ def _redshift_loop_generator(
     # Iterate through redshift from top to bottom
     emissivity_fields_list = []
 
-    # When resuming partway through the redshift scroll (start_idx > 0), the
-    # emissivity-field history for the skipped (already-completed) redshifts is
-    # not otherwise available to us, but compute_radiation_fields() needs the
-    # *entire* halo history within astro_params.R_MAX_TS of each new redshift
-    # to build its filtered source shells (see emissivity_fields_list usage
-    # below). Without reloading these from cache, the radiation fields -- and
-    # therefore the spin temperature and brightness temperature -- computed at the first
-    # several redshifts after a resume would silently be wrong, missing
-    # contributions from the earlier, skipped HaloBoxes. We only need to read
-    # these back (not recompute them), since write.halobox must have been True
-    # for these redshifts to have registered as complete in the first place.
+    # If a cache is provided, check if we can resume from a previous run
     resume_cache = None
     if iokw.get("cache") is not None:
         resume_cache = RunCache.from_inputs(inputs, iokw["cache"])
@@ -821,11 +811,7 @@ def _redshift_loop_generator(
                     f"Computing Redshift {z} ({iz + 1}/{len(all_redshifts)}) iterations."
                 )
             if iz < start_idx:
-                if (
-                    resume_cache is not None
-                    and z in inputs.node_redshifts
-                    and inputs.matter_options.lagrangian_source_grid
-                ):
+                if resume_cache is not None and z in inputs.node_redshifts:
                     cached_emissivity_fields = resume_cache.get_output_struct_at_z(
                         "EmissivityFields", z=z
                     )
@@ -850,20 +836,8 @@ def _redshift_loop_generator(
             )
 
             if inputs.astro_options.USE_TS_FLUCT:
-                # RadiationFields is never itself cached to disk by default (it's
-                # enormous -- see write.radiation_fields and
-                # RunCache.get_required_fields), so compute_radiation_fields() is
-                # always a cache miss and always re-does its full (expensive)
-                # shell-filtering loop. That's wasted work whenever the
-                # *downstream* TsBox for this redshift is already cached, since
-                # compute_spin_temperature() would just load the cached TsBox and
-                # throw the freshly-built RadiationFields away unused. Skip
-                # building it in that case -- but only when we wouldn't have
-                # written it to cache anyway: if the caller has explicitly asked
-                # for RadiationFields to be written
-                # (write.radiation_fields=True), we must still build and write
-                # it even though it won't be used downstream, otherwise we'd
-                # silently violate the requested write config.
+                # No need to compute radiation fields if we have cached spin temperature
+                # and the user does not want to write radiation fields to cache
                 ts_cached = (
                     resume_cache is not None
                     and not iokw.get("regenerate")
