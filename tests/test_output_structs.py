@@ -139,7 +139,7 @@ def test_repr_of_purged_struct_array_does_not_load_it(ic: InitialConditions):
     _ = repr(ic.lowres_density)
 
     assert not ic.lowres_density.state.computed_in_mem
-    assert ic.lowres_density.value is None
+    assert ic.lowres_density._value is None
 
     ic.load_all()
 

@@ -235,7 +235,7 @@ class OutputStruct(ABC):
             ary = ary.loaded_from_disk()
             setattr(self, name, ary)
 
-        return ary.value
+        return ary._value
 
     def set(self, name: str, value: Any):
         """Set the value of an array."""
@@ -906,12 +906,12 @@ class HaloCatalog(OutputStructZ):
         if not isinstance(index, int) or index < 0 or index >= self.n_halos:
             raise IndexError(f"Halo index {index} out of range [0, {self.n_halos})")
         return Halo(
-            mass=float(self.halo_masses.value[index]),
-            coords=self.halo_coords.value[index].copy(),
+            mass=float(self.halo_masses._value[index]),
+            coords=self.halo_coords._value[index].copy(),
             redshift=self.redshift,
-            star_rng=float(self.star_rng.value[index]),
-            sfr_rng=float(self.sfr_rng.value[index]),
-            xray_rng=float(self.xray_rng.value[index]),
+            star_rng=float(self.star_rng._value[index]),
+            sfr_rng=float(self.sfr_rng._value[index]),
+            xray_rng=float(self.xray_rng._value[index]),
         )
 
     def __iter__(self):
@@ -1066,8 +1066,8 @@ class PerturbedHaloCatalog(OutputStructZ):
         if not isinstance(index, int) or index < 0 or index >= self.n_halos:
             raise IndexError(f"Halo index {index} out of range [0, {self.n_halos})")
         return Halo(
-            mass=float(self.halo_masses.value[index]),
-            coords=self.halo_coords.value[index].copy(),
+            mass=float(self.halo_masses._value[index]),
+            coords=self.halo_coords._value[index].copy(),
             redshift=self.redshift,
         )
 
@@ -1654,7 +1654,7 @@ class RadiationFieldsSetup(OutputStructZ):
             R_steps / inputs.astro_params.N_STEP_TS
         )
         self.set("R_values", R_min * R_factor)
-        cmd_edges = cmd_zp + self.R_values.value * un.Mpc  # comoving distance edges
+        cmd_edges = cmd_zp + self.R_values._value * un.Mpc  # comoving distance edges
         # Get the edges of the shells (redshift)
         zmin = z_at_value(cosmo_ap.comoving_distance, cmd_edges.min()).value
         zmax = z_at_value(cosmo_ap.comoving_distance, cmd_edges.max()).value
@@ -1665,8 +1665,8 @@ class RadiationFieldsSetup(OutputStructZ):
         # inner and outer redshifts (following the C code)
         self.set(
             "zpp_avg",
-            self.zpp_edges.value
-            - np.diff(np.insert(self.zpp_edges.value, 0, redshift)) / 2,
+            self.zpp_edges._value
+            - np.diff(np.insert(self.zpp_edges._value, 0, redshift)) / 2,
         )
         return self
 

@@ -120,8 +120,8 @@ def test_deepcopy_of_uncomputed_array_does_not_raise(uncomputed_array):
 # ---------------------------------------------------------------------------
 
 
-def test_purged_array_value_is_none(purged_array):
-    assert purged_array.value is None
+def test_purged_array_raw_slot_is_none(purged_array):
+    assert purged_array._value is None
     assert purged_array.state.on_disk
     assert not purged_array.state.computed_in_mem
 
@@ -131,7 +131,7 @@ def test_purged_array_method_call_loads_and_caches(purged_array, backend, raw_va
     assert result == pytest.approx(raw_value.mean())
 
     # Cached directly onto the instance as a side effect of the access above.
-    assert purged_array.value is not None
+    assert purged_array._value is not None
     assert purged_array.state.computed_in_mem
     assert backend.read_count == 1
 
@@ -142,7 +142,7 @@ def test_purged_array_method_call_loads_and_caches(purged_array, backend, raw_va
 
 def test_purged_array_numpy_protocol_loads_and_caches(purged_array, backend, raw_value):
     assert np.allclose(np.asarray(purged_array), raw_value)
-    assert purged_array.value is not None
+    assert purged_array._value is not None
     assert backend.read_count == 1
 
 
@@ -152,7 +152,7 @@ def test_config_flag_disables_auto_caching(purged_array, backend, raw_value):
         assert result == pytest.approx(raw_value.mean())
 
         # Must NOT be cached onto the instance.
-        assert purged_array.value is None
+        assert purged_array._value is None
         assert not purged_array.state.computed_in_mem
 
         # A second access re-reads from disk.
@@ -161,7 +161,7 @@ def test_config_flag_disables_auto_caching(purged_array, backend, raw_value):
 
     # Default (caching) behavior resumes outside the context.
     _ = purged_array.mean()
-    assert purged_array.value is not None
+    assert purged_array._value is not None
     assert backend.read_count == 3
 
 
@@ -172,7 +172,7 @@ def test_cache_arrays_on_access_defaults_true():
 def test_repr_of_purged_array_does_not_read_disk(purged_array, backend):
     _ = repr(purged_array)
     assert backend.read_count == 0
-    assert purged_array.value is None
+    assert purged_array._value is None
 
 
 def test_dunder_probe_on_purged_array_does_not_read_disk(purged_array, backend):
@@ -188,5 +188,5 @@ def test_deepcopy_of_purged_array_does_not_read_disk(purged_array, backend):
 def test_pickle_of_purged_array_does_not_read_disk(purged_array, backend):
     unpickled = pickle.loads(pickle.dumps(purged_array))
     assert backend.read_count == 0
-    assert unpickled.value is None
+    assert unpickled._value is None
     assert unpickled.state.on_disk

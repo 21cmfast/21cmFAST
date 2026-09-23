@@ -81,7 +81,7 @@ def compute_global_reionization_at_z(
     else:
         Q_HI = spin_temp.Q_HI
         J_LW_21 = (
-            np.squeeze(spin_temp.J_21_LW.value)
+            np.squeeze(spin_temp.J_21_LW._value)
             if spin_temp.J_21_LW is not None
             else 0.0
         )
@@ -91,7 +91,7 @@ def compute_global_reionization_at_z(
 
     # A crude way to estimate the global photoionization rate
     try:
-        dQdz = (Q_HI - previous_ionized_box.neutral_fraction.value) / (
+        dQdz = (Q_HI - previous_ionized_box.neutral_fraction._value) / (
             redshift - previous_ionized_box.redshift
         )
     except TypeError:

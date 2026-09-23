@@ -591,7 +591,7 @@ def setup_radiation_fields(
             for emissivity_fields in emissivity_fields_list
         ]
     )
-    lowest_shell_above_zmax = rad_setup.zpp_avg.value.min() >= rad_setup.source_z_max
+    lowest_shell_above_zmax = rad_setup.zpp_avg._value.min() >= rad_setup.source_z_max
     need_c = not (sfr_allzero or lowest_shell_above_zmax)
 
     if need_c:
@@ -615,28 +615,28 @@ def setup_radiation_fields(
             #       https://github.com/21cmfast/21cmFAST/issues/659, where the global x_HI at zpp is taken from its history, as was evaluated by the reionization
             #       code.
             for i in range(inputs.astro_params.N_STEP_TS):
-                if rad_setup.zpp_avg.value[i] >= rad_setup.source_z_max:
+                if rad_setup.zpp_avg._value[i] >= rad_setup.source_z_max:
                     # If the shell is beyond source_z_max, we compute the mean log10_Mcrit_MCG
                     # under the assumption of zero LW flux a constant v_cb, and no reionization feedback
                     from ..wrapper import cfuncs
 
                     mturn_MCG = cfuncs.get_molecular_cooling_threshold_with_feedbacks(
                         inputs=inputs,
-                        redshifts=rad_setup.zpp_avg.value[i],
+                        redshifts=rad_setup.zpp_avg._value[i],
                         J_LW_21=0.0,
                         v_cb=inputs.cosmo_tables.V_CB_AVG,
                     )
-                    rad_setup.ave_log10_MturnLW.value[i] = np.log10(
+                    rad_setup.ave_log10_MturnLW._value[i] = np.log10(
                         np.max([mturn_MCG, inputs.astro_params.M_TURN_STELLAR_FEEDBACK])
                     )
                 else:
                     emissivity_fields_interp = interp_emissivity_fields(
                         emissivity_fields_list=emissivity_fields_list[::-1],
                         interp_fields=["log10_mturn_mcg_ave"],
-                        redshift=rad_setup.zpp_avg.value[i],
+                        redshift=rad_setup.zpp_avg._value[i],
                         need_c=False,
                     )
-                    rad_setup.ave_log10_MturnLW.value[i] = (
+                    rad_setup.ave_log10_MturnLW._value[i] = (
                         emissivity_fields_interp.log10_mturn_mcg_ave
                     )
 
@@ -741,7 +741,7 @@ def compute_radiation_fields(
             for emissivity_fields in emissivity_fields_list
         ]
     )
-    lowest_shell_above_zmax = rad_setup.zpp_avg.value.min() >= rad_setup.source_z_max
+    lowest_shell_above_zmax = rad_setup.zpp_avg._value.min() >= rad_setup.source_z_max
     need_c = not (sfr_allzero or lowest_shell_above_zmax or rad_setup.NO_LIGHT)
 
     if need_c:
@@ -752,7 +752,7 @@ def compute_radiation_fields(
             if previous_ionize_box is None:
                 x_HI = 1.0
             else:
-                x_HI = previous_ionize_box.neutral_fraction.value.mean()
+                x_HI = previous_ionize_box.neutral_fraction._value.mean()
             A_alpha = 6.25e8 * un.Hz
             nu_Lya = 2.46606727e15 * un.Hz
             n_H_z0 = (
@@ -787,13 +787,13 @@ def compute_radiation_fields(
         # Note that we always enter the C code at the smallest shell, since if z_avg.min would have been larger than source_z_max,
         # this would have been caught earlier by the need_c logic.
         for i in range(inputs.astro_params.N_STEP_TS)[::-1]:
-            if rad_setup.zpp_avg.value[i] >= rad_setup.source_z_max:
+            if rad_setup.zpp_avg._value[i] >= rad_setup.source_z_max:
                 logger.debug(f"ignoring Radius {i} which is above Z_HEAT_MAX")
             else:
                 emissivity_fields_interp = interp_emissivity_fields(
                     emissivity_fields_list=emissivity_fields_list[::-1],
                     interp_fields=interp_fields,
-                    redshift=rad_setup.zpp_avg.value[i],
+                    redshift=rad_setup.zpp_avg._value[i],
                     need_c=True,
                 )
                 radiation_fields = radiation_fields.compute(

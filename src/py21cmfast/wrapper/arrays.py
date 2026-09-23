@@ -1,12 +1,14 @@
 """Module for dealing with arrays that are input/output to C functions."""
 
 import itertools
+import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Self
 
 import attrs
+import deprecation
 import h5py
 import numpy as np
 from attrs.validators import instance_of, optional
@@ -96,7 +98,7 @@ class Array:
               other attribute not defined on this class) - rather than through
               `OutputStruct.get()` - transparently loads it from disk and, unless
               `config["CACHE_ARRAYS_ON_ACCESS"]` is set to False, caches the result
-              by mutating `value`, `state` and `cache_backend` on this instance in
+              by mutating `_value`, `state` and `cache_backend` on this instance in
               place (bypassing `frozen=True`). Any other reference to the same
               `Array` object will observe that mutation. All other methods on this
               class remain purely functional, returning a new instance rather than
@@ -112,8 +114,10 @@ class Array:
         Current state of the array.
     initfunc
         Function used for array initialization (default is np.zeros).
-    value
-        Actual array data.
+    _value
+        Actual array data, or `None` if it is not currently in memory (e.g. it has
+        been purged to disk). Private: read the data off the `Array` itself, or via
+        `OutputStruct.get()`, so that a purged array is transparently reloaded.
     cache_backend
         Optional backend for disk caching.
 
@@ -124,7 +128,7 @@ class Array:
     initialized_arr = arr.initialize()
 
     # Set a value and write to disk
-    arr = arr.set_value(np.random.rand(10, 10))
+    arr = arr.with_value(np.random.rand(10, 10))
     arr = arr.written_to_disk(backend)
 
     """
@@ -133,7 +137,7 @@ class Array:
     dtype = attrs.field(default=float, kw_only=True)
     state = attrs.field(factory=ArrayState, kw_only=True)
     initfunc = attrs.field(default=np.zeros, kw_only=True)
-    value = attrs.field(
+    _value = attrs.field(
         converter=attrs.converters.optional(np.asarray),
         default=None,
         kw_only=True,
@@ -143,7 +147,7 @@ class Array:
         default=None, validator=optional(instance_of(CacheBackend)), kw_only=True
     )
 
-    @value.validator
+    @_value.validator
     def _value_validator(self, att, val):
         if val is None:
             return
@@ -195,7 +199,7 @@ class Array:
         if backend is None:
             raise ValueError("backend must be specified")
 
-        backend.write(self.value)
+        backend.write(self._value)
         return attrs.evolve(self, cache_backend=backend, state=self.state.written())
 
     def purged_to_disk(self, backend: CacheBackend | None) -> Self:
@@ -204,7 +208,7 @@ class Array:
 
     def loaded_from_disk(self, backend: CacheBackend | None = None) -> Self:
         """Load values for the array from a cache backend, and return a new instance."""
-        if self.value is not None:
+        if self._value is not None:
             return attrs.evolve(self, cache_backend=backend)
 
         backend = backend or self.cache_backend
@@ -223,7 +227,7 @@ class Array:
     def trimmed(self, trimmed_shape: tuple[int]) -> Self:
         """Return a new Array with the same data but a different shape, by slicing the original array."""
         slc = tuple(slice(0, n) for n in trimmed_shape)
-        trimmed_value = self.value[slc]
+        trimmed_value = self._value[slc]
         return attrs.evolve(self, shape=trimmed_shape, value=trimmed_value)
 
     def _resolve_value(self) -> np.ndarray:
@@ -237,8 +241,8 @@ class Array:
         that repeated access doesn't keep re-reading from disk. Otherwise, this
         instance is left untouched, and every access re-reads from disk.
         """
-        if self.value is not None:
-            return self.value
+        if self._value is not None:
+            return self._value
 
         if not self.state.on_disk and not self.state.initialized:
             raise ValueError("Array is not on disk and not initialized.")
@@ -248,11 +252,36 @@ class Array:
         loaded = self.loaded_from_disk()
 
         if config["CACHE_ARRAYS_ON_ACCESS"]:
-            object.__setattr__(self, "value", loaded.value)
+            object.__setattr__(self, "_value", loaded._value)
             object.__setattr__(self, "state", loaded.state)
             object.__setattr__(self, "cache_backend", loaded.cache_backend)
 
-        return loaded.value
+        return loaded._value
+
+    @property
+    def value(self) -> np.ndarray:
+        """Deprecated alias for the array's data; use the `Array` itself instead.
+
+        `.value` used to be the raw in-memory slot, which meant it was `None` for an
+        array that had been purged to disk - a silent wrong answer, since the data
+        was still perfectly available. It now resolves like every other access does,
+        loading from disk when necessary.
+
+        Prefer using the `Array` directly (`arr.mean()`, `np.asarray(arr)`) or
+        `OutputStruct.get()`, both of which do the same thing without the warning.
+        """
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "value",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details="Array.value is deprecated and will be removed in a future "
+                "version. Use the Array itself (e.g. np.asarray(arr), arr.mean()) "
+                "or OutputStruct.get() instead.",
+            ),
+            stacklevel=2,
+        )
+        return self._resolve_value()
 
     def __array__(self, dtype=None, copy=None) -> np.ndarray:
         """Support `np.asarray(array)` and other numpy-protocol consumers."""
