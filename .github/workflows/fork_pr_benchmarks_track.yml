@@ -12,12 +12,9 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     env:
-      # This must match the artifact `name` used by the "Upload Benchmark
-      # Results" step in fork_pr_benchmarks_run.yml.
+      # Must match `name` in fork_pr_benchmarks_run.yml.
       BENCHMARK_ARTIFACT_NAME: benchmark_results.json
-      # This must match the local `path` that same step uploaded (i.e. the
-      # filename the artifact actually unpacks to), since that's what the
-      # `bencher run --file` argument below reads.
+      # Must match `path` in fork_pr_benchmarks_run.yml.
       BENCHMARK_RESULTS: results.json
       PR_EVENT: event.json
     steps:
