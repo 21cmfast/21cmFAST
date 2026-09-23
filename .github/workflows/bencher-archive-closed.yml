@@ -11,7 +11,21 @@ jobs:
       - uses: bencherdev/bencher@main
       - name: Archive closed fork PR branch with Bencher
         run: |
-          bencher archive \
-          --project 21cmfast \
-          --token '${{ secrets.BENCHER_API_TOKEN }}' \
-          --branch "$GITHUB_HEAD_REF"
+          # The bencher CLI's `archive` command fails if the branch doesn't
+          # exist. Catch that and return normally with a message, in case
+          # the branch never reported.
+          set +e
+          output=$(bencher archive \
+            --project 21cmfast \
+            --token '${{ secrets.BENCHER_API_TOKEN }}' \
+            --branch "$GITHUB_HEAD_REF" 2>&1)
+          status=$?
+          set -e
+          echo "$output"
+          if [ "$status" -ne 0 ]; then
+            if echo "$output" | grep -q 'Could not find an entry with name'; then
+              echo "Branch '$GITHUB_HEAD_REF' was never tracked in Bencher; nothing to archive. Skipping."
+              exit 0
+            fi
+            exit "$status"
+          fi

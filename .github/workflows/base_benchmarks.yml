@@ -7,8 +7,6 @@ on:
 jobs:
   benchmark_base_branch:
     name: Continuous Benchmarking
-    permissions:
-      checks: write
     runs-on: ubuntu-latest
     defaults:
         run:
@@ -49,5 +47,4 @@ jobs:
           --err \
           --adapter python_pytest \
           --file results.json \
-          --github-actions '${{ secrets.GITHUB_TOKEN }}' \
           "pytest --benchmark-json results.json tests/test_integration_features.py"

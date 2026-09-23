@@ -12,13 +12,16 @@ jobs:
       pull-requests: write
     runs-on: ubuntu-latest
     env:
+      # Must match `name` in fork_pr_benchmarks_run.yml.
+      BENCHMARK_ARTIFACT_NAME: benchmark_results.json
+      # Must match `path` in fork_pr_benchmarks_run.yml.
       BENCHMARK_RESULTS: results.json
       PR_EVENT: event.json
     steps:
       - name: Download Benchmark Results
         uses: dawidd6/action-download-artifact@v24
         with:
-          name: ${{ env.BENCHMARK_RESULTS }}
+          name: ${{ env.BENCHMARK_ARTIFACT_NAME }}
           run_id: ${{ github.event.workflow_run.id }}
       - name: Download PR Event
         uses: dawidd6/action-download-artifact@v24
