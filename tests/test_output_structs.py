@@ -361,7 +361,7 @@ def test_bad_required_array(default_input_struct, struct):
         kwargs["buffer_size"] = 1
     output = struct.new(**kwargs)
 
-    with pytest.raises(ValueError, match="is not an input required for"):
+    with pytest.raises((ValueError, TypeError), match="is not an input required for"):
         _ = output.get_required_input_arrays(bt)
 
 

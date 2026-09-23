@@ -1192,7 +1192,7 @@ class EmissivityFields(OutputStructZ):
             ):
                 required += ["lowres_vcb"]
         else:
-            raise ValueError(
+            raise TypeError(
                 f"{type(input_box)} is not an input required for EmissivityFields!"
             )
 
@@ -1676,7 +1676,7 @@ class RadiationFieldsSetup(OutputStructZ):
         if isinstance(input_box, TsBox):
             required += ["xray_ionised_fraction"]
         else:
-            raise ValueError(
+            raise TypeError(
                 f"{type(input_box)} is not an input required for RadiationFieldsSetup!"
             )
 
@@ -1814,7 +1814,7 @@ class RadiationFields(OutputStructZ):
             if self.astro_options.USE_MCGS:
                 required += ["ave_log10_MturnLW"]
         else:
-            raise ValueError(
+            raise TypeError(
                 f"{type(input_box)} is not an input required for RadiationFields!"
             )
 
@@ -1953,7 +1953,7 @@ class TsBox(OutputStructZ):
             else:
                 required += ["lya_flux_continuum_injected"]
         else:
-            raise ValueError(f"{type(input_box)} is not an input required for TsBox!")
+            raise TypeError(f"{type(input_box)} is not an input required for TsBox!")
 
         return required
 
