@@ -89,15 +89,16 @@ def test_coeval_resume_reconstructs_hbox_history(tmp_path_factory):
 
     When resuming a coeval run partway through the redshift scroll (e.g. across
     separate ``run_coeval``/job invocations sharing a cache), the generator used to
-    skip both computing *and* loading ``HaloBox`` for the already-completed
-    redshifts. But ``compute_xray_source_field`` needs the *entire* HaloBox history
-    within ``R_MAX_TS`` of each new redshift (via the accumulated ``hbox_arr``) to
-    build its filtered source shells. Without reloading the skipped HaloBoxes from
-    cache, the X-ray source field -- and therefore spin temperature and brightness
-    temperature -- computed after a resume would silently be wrong.
+    skip both computing *and* loading ``EmissivityFields`` for the already-completed
+    redshifts. But ``compute_radiation_fields`` needs the *entire* emissivity history
+    within ``R_MAX_TS`` of each new redshift (via the accumulated
+    ``emissivity_fields_list``) to build its filtered source shells. Without reloading
+    the skipped EmissivityFields from cache, the radiation fields -- and therefore
+    spin temperature and brightness temperature -- computed after a resume would
+    silently be wrong.
 
-    This is exercised together with ``write=CacheConfig(xray_source_box=False)``,
-    matching production usage where XraySourceBox is not cached (it is never read
+    This is exercised together with ``write=CacheConfig(radiation_fields=False)``,
+    matching production usage where RadiationFields is not cached (it is never read
     back as an input, so this must not affect resumability -- see
     ``RunCache.is_complete_at``).
 
@@ -165,8 +166,8 @@ def test_obtain_starting_point_carries_cached_halobox(tmp_path_factory):
     field was always ``None``, even when a HaloBox was cached on disk.
 
     This currently has no effect on simulated physics -- ``_redshift_loop_generator``
-    never reads ``prev_coeval.halobox`` (the X-ray source integral is instead
-    reconstructed from cache into ``hbox_arr``, see
+    never reads ``prev_coeval.emissivity_fields`` (the radiation-field integral is
+    instead reconstructed from cache into ``emissivity_fields_list``, see
     ``test_coeval_resume_reconstructs_hbox_history`` above) -- but it is still a
     real bug that silently discards cached data, and would reintroduce ``None``
     for any future code relying on ``prev_coeval.halobox``, analogous to how

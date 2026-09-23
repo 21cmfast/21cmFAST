@@ -779,13 +779,12 @@ def _redshift_loop_generator(
     emissivity_fields_list = []
 
     # When resuming partway through the redshift scroll (start_idx > 0), the
-    # HaloBox history for the skipped (already-completed) redshifts is not
-    # otherwise available to us, but compute_xray_source_field() needs the
+    # emissivity-field history for the skipped (already-completed) redshifts is
+    # not otherwise available to us, but compute_radiation_fields() needs the
     # *entire* halo history within astro_params.R_MAX_TS of each new redshift
-    # to build its filtered source shells (see emissivity_fields_list usage below).
-    # Without
-    # reloading these from cache, the X-ray source field -- and therefore the
-    # spin temperature and brightness temperature -- computed at the first
+    # to build its filtered source shells (see emissivity_fields_list usage
+    # below). Without reloading these from cache, the radiation fields -- and
+    # therefore the spin temperature and brightness temperature -- computed at the first
     # several redshifts after a resume would silently be wrong, missing
     # contributions from the earlier, skipped HaloBoxes. We only need to read
     # these back (not recompute them), since write.halobox must have been True
@@ -851,17 +850,18 @@ def _redshift_loop_generator(
             )
 
             if inputs.astro_options.USE_TS_FLUCT:
-                # XraySourceBox is never itself cached to disk by default (it's
-                # enormous -- see write.xray_source_box and RunCache.get_required_fields),
-                # so compute_xray_source_field() is always a cache miss and always
-                # re-does its full (expensive) shell-filtering loop. That's wasted
-                # work whenever the *downstream* TsBox for this redshift is already
-                # cached, since compute_spin_temperature() would just load the
-                # cached TsBox and throw the freshly-built XraySourceBox away
-                # unused. Skip building it in that case -- but only when we
-                # wouldn't have written it to cache anyway: if the caller has
-                # explicitly asked for XraySourceBox to be written
-                # (write.xray_source_box=True), we must still build and write
+                # RadiationFields is never itself cached to disk by default (it's
+                # enormous -- see write.radiation_fields and
+                # RunCache.get_required_fields), so compute_radiation_fields() is
+                # always a cache miss and always re-does its full (expensive)
+                # shell-filtering loop. That's wasted work whenever the
+                # *downstream* TsBox for this redshift is already cached, since
+                # compute_spin_temperature() would just load the cached TsBox and
+                # throw the freshly-built RadiationFields away unused. Skip
+                # building it in that case -- but only when we wouldn't have
+                # written it to cache anyway: if the caller has explicitly asked
+                # for RadiationFields to be written
+                # (write.radiation_fields=True), we must still build and write
                 # it even though it won't be used downstream, otherwise we'd
                 # silently violate the requested write config.
                 ts_cached = (

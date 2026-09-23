@@ -303,7 +303,7 @@ class RunCache:
     HaloCatalog: dict[float, Path] | None = _dict_of_paths_field()
     RadiationFields: dict[float, Path] | None = _dict_of_paths_field()
     inputs: InputParameters | None = attrs.field(default=None)
-    _optional_fields: ClassVar[set[str]] = {"XraySourceBox"}
+    _optional_fields: ClassVar[set[str]] = {"RadiationFields"}
 
     @classmethod
     def from_inputs(cls, inputs: InputParameters, cache: OutputCache) -> Self:
@@ -396,13 +396,13 @@ class RunCache:
     def get_required_fields(self) -> dict[str, dict]:
         """Return the dict-typed cache fields that matter for completeness checks.
 
-        This excludes XraySourceBox, which is never read back as an input
+        This excludes RadiationFields, which is never read back as an input
         anywhere -- it is recomputed from scratch at every redshift from the
-        accumulated HaloBox history and immediately purged (see
+        accumulated EmissivityFields history and immediately purged (see
         _redshift_loop_generator in drivers/coeval.py). Treating it as
         required would force a full simulation restart (or a crash when
         reconstructing a cached Coeval) whenever it isn't cached (e.g.
-        write.xray_source_box=False to save disk space, since it can be
+        write.radiation_fields=False to save disk space, since it can be
         extremely large), even though nothing downstream actually depends on
         it existing.
         """
@@ -504,6 +504,8 @@ class RunCache:
         -------
         dict[str, Box]
             A dictionary mapping box names to their corresponding Box instances.
+            Optional fields (see :attr:`_optional_fields`) are never included,
+            since they may legitimately be absent from the cache.
         """
         kinds = self.get_required_fields().keys()
 
