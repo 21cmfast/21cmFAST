@@ -20,6 +20,7 @@ from ..wrapper.outputs import (
     PerturbedField,
     TsBox,
 )
+from ._global_initialization import c_state
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
 
 
@@ -377,47 +378,52 @@ def run_global_evolution(
         "regenerate": True,
     }
 
-    (
-        initial_conditions,
-        perturbed_fields,
-        halofield_list,
-        photon_nonconservation_data,
-    ) = _setup_ics_and_pfs_for_scrolling(
-        all_redshifts=inputs_one_cell.node_redshifts,
-        inputs=inputs_one_cell,
-        initial_conditions=None,
-        write=CacheConfig.off(),
-        progressbar=progressbar,
-        overdensity_z0=overdensity_z0,
-        **iokw,
-    )
+    # The one-cell inputs are deliberately different to those we were given, so hold
+    # them open for the whole scrolling calculation: the calls below then share a
+    # single scope instead of each rebuilding the backend, and the caller's own
+    # backend state is handed back when we're done.
+    with c_state(inputs_one_cell):
+        (
+            initial_conditions,
+            perturbed_fields,
+            halofield_list,
+            photon_nonconservation_data,
+        ) = _setup_ics_and_pfs_for_scrolling(
+            all_redshifts=inputs_one_cell.node_redshifts,
+            inputs=inputs_one_cell,
+            initial_conditions=None,
+            write=CacheConfig.off(),
+            progressbar=progressbar,
+            overdensity_z0=overdensity_z0,
+            **iokw,
+        )
 
-    for iz, coeval in _redshift_loop_generator(
-        inputs=inputs_one_cell,
-        initial_conditions=initial_conditions,
-        all_redshifts=inputs_one_cell.node_redshifts,
-        perturbed_field=perturbed_fields,
-        halofield_list=halofield_list,
-        write=CacheConfig.off(),
-        progressbar=progressbar,
-        photon_nonconservation_data=photon_nonconservation_data,
-        init_coeval=prev_coeval,
-        iokw=iokw,
-    ):
-        for quantity in global_evolution.quantities:
-            if quantity == "log10_mturn_acg":
-                global_evolution.quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_mturn_ave_acg
-                )
-            elif quantity == "log10_mturn_mcg":
-                global_evolution.quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_mturn_ave_mcg
-                )
-            else:
-                global_evolution.quantities[quantity][iz] = np.mean(
-                    getattr(coeval, quantity)
-                )
+        for iz, coeval in _redshift_loop_generator(
+            inputs=inputs_one_cell,
+            initial_conditions=initial_conditions,
+            all_redshifts=inputs_one_cell.node_redshifts,
+            perturbed_field=perturbed_fields,
+            halofield_list=halofield_list,
+            write=CacheConfig.off(),
+            progressbar=progressbar,
+            photon_nonconservation_data=photon_nonconservation_data,
+            init_coeval=prev_coeval,
+            iokw=iokw,
+        ):
+            for quantity in global_evolution.quantities:
+                if quantity == "log10_mturn_acg":
+                    global_evolution.quantities[quantity][iz] = (
+                        coeval.ionized_box.log10_mturn_ave_acg
+                    )
+                elif quantity == "log10_mturn_mcg":
+                    global_evolution.quantities[quantity][iz] = (
+                        coeval.ionized_box.log10_mturn_ave_mcg
+                    )
+                else:
+                    global_evolution.quantities[quantity][iz] = np.mean(
+                        getattr(coeval, quantity)
+                    )
 
-        prev_coeval = coeval
+            prev_coeval = coeval
 
     return global_evolution
