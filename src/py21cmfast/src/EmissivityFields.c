@@ -961,8 +961,7 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
     int lo_dim[3] = {simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
                      HII_D_PARA};  // always output to lowres grid
 
-    double box_to_lores_factor =
-        simulation_options_global->HII_DIM / (double)simulation_options_global->DIM;
+    double cell_length = simulation_options_global->BOX_LEN / simulation_options_global->HII_DIM;
 #pragma omp parallel num_threads(simulation_options_global->N_THREADS)
     {
         index_huge i_halo;
@@ -987,9 +986,9 @@ int convert_halo_props(double redshift, InitialConditions *ics, TsBox *prev_ts,
             }
 
             // the coordinates are already done in PerturbedHaloCatalog
-            halo_pos[0] = halo_catalog_out->halo_coords[3 * i_halo + 0] * box_to_lores_factor;
-            halo_pos[1] = halo_catalog_out->halo_coords[3 * i_halo + 1] * box_to_lores_factor;
-            halo_pos[2] = halo_catalog_out->halo_coords[3 * i_halo + 2] * box_to_lores_factor;
+            for (int i = 0; i < 3; i++) {
+                halo_pos[i] = halo_catalog_out->halo_coords[i + 3 * i_halo] / cell_length;
+            }
 
             LOG_ULTRA_DEBUG("getting mturns for halo at (%.2f, %.2f, %.2f)", halo_pos[0],
                             halo_pos[1], halo_pos[2]);
