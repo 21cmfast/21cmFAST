@@ -175,6 +175,14 @@ def test_direct_initializations_for_heat_and_recomb():
     # Ensure we start with a clean slate
     _GlobalInitManagerSingleton.free()
 
+    # Now let's change the inputs to ones that will allow the initialization of the recombination
+    # rate tables, and check that it works as expected
+    _GlobalInitManagerSingleton.inputs = (
+        InputParameters(random_seed=0)
+        .with_logspaced_redshifts()
+        .evolve_input_structs(RECOMB_MODEL="inhomogeneous")
+    )
+
     # Let's begin with a direct initialization of the heating tables
     _GlobalInitManagerSingleton._initialize_heat()
     assert _GlobalInitManagerSingleton.inputs_are_broadcast
