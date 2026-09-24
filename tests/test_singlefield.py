@@ -661,7 +661,7 @@ def test_radiation_fields_with_zero_sfr(
     fields = ["sfrd_acg", "xray_emissivity"]
     if use_mcgs:
         fields += ["sfrd_mcg", "log10_mturn_mcg_ave"]
-    shape = emissivity_fields1.sfrd_acg.shape
+    shape = emissivity_fields1.arrays["sfrd_acg"].shape
     array = (
         Array(shape=shape, dtype=np.float32)
         .initialize()
