@@ -274,6 +274,22 @@ def test_top_level_calls_keep_their_initializations():
     assert _GlobalInitManagerSingleton.ps_inited
 
 
+def test_outermost_scope_leaves_its_state_in_place():
+    """The outermost scope has nothing to return into, so it keeps what it set up.
+
+    The state it would otherwise wind back to is itself just a leftover of whatever ran
+    before it, and winding back would throw away tables that the next call would only
+    have to build again.
+    """
+    inputs, _ = _two_differing_inputs()
+
+    with c_state(inputs, ps=True):
+        pass
+
+    assert _GlobalInitManagerSingleton.inputs == inputs
+    assert _GlobalInitManagerSingleton.ps_inited
+
+
 @pytest.mark.parametrize("n_calls", [2, 5])
 def test_scope_is_not_rebuilt_per_call(monkeypatch, n_calls):
     """Calls sharing a scope must set the backend up once, not once each.
