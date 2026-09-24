@@ -122,9 +122,12 @@ def test_direct_initializations(_run):
         inputs_no_tables.with_logspaced_redshifts().evolve_input_structs(
             POWER_SPECTRUM="CLASS",
             V_CB_MODEL="FLUCTS",
+            USE_MCGS=True,
+            USE_TS_FLUCT=True,
             K_MAX_FOR_CLASS=1.0,
             USE_INTERPOLATION_TABLES="sigma-interpolation",
             RECOMB_MODEL="inhomogeneous",
+            M_TURN_STELLAR_FEEDBACK=5.0,
         )
     )
 

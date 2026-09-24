@@ -14,7 +14,7 @@ should hold them open with :func:`c_state`, so that the calls it makes share one
 import atexit
 import functools
 import logging
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator
 from contextlib import AbstractContextManager, contextmanager
 
 import attrs
@@ -126,7 +126,7 @@ class GlobalInitializationManager:
         sigma: bool = False,
         heat: bool = False,
         recomb: bool = False,
-    ) -> Iterator[None]:
+    ) -> Generator[None, None, None]:
         """Initialize the global state for a set of inputs, and hand it back on exit."""
         self._scopes.append(self._snapshot())
         try:
