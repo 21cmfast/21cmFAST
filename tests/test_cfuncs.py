@@ -195,6 +195,86 @@ def test_bad_integral_inputs(default_input_struct):
             xray_rng=np.zeros(10),
         )
 
+    with pytest.raises(
+        ValueError,
+        match="vcb_grid must be provided if USE_MCGS is True and V_CB_MODEL is 'FLUCTS'",
+    ):
+        cf.convert_halo_properties(
+            inputs=default_input_struct.with_logspaced_redshifts().evolve_input_structs(
+                USE_MCGS=True,
+                RECOMB_MODEL="inhomogeneous",
+                USE_TS_FLUCT=True,
+                V_CB_MODEL="FLUCTS",
+                POWER_SPECTRUM="CLASS",
+                K_MAX_FOR_CLASS=1.0,
+                M_TURN_STELLAR_FEEDBACK=5.0,
+            ),
+            redshift=redshifts[0],
+            halo_masses=np.zeros(10),
+            halo_coords=np.zeros((10, 3)),
+            star_rng=np.zeros(10),
+            sfr_rng=np.zeros(10),
+            xray_rng=np.zeros(10),
+            J_21_LW_grid=np.zeros((35, 35, 35)),
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="J_21_LW_grid must be provided if USE_MCGS is True",
+    ):
+        cf.convert_halo_properties(
+            inputs=default_input_struct.with_logspaced_redshifts().evolve_input_structs(
+                USE_MCGS=True,
+                RECOMB_MODEL="inhomogeneous",
+                USE_TS_FLUCT=True,
+                V_CB_MODEL="FLUCTS",
+                POWER_SPECTRUM="CLASS",
+                K_MAX_FOR_CLASS=1.0,
+                M_TURN_STELLAR_FEEDBACK=5.0,
+            ),
+            redshift=redshifts[0],
+            halo_masses=np.zeros(10),
+            halo_coords=np.zeros((10, 3)),
+            star_rng=np.zeros(10),
+            sfr_rng=np.zeros(10),
+            xray_rng=np.zeros(10),
+            vcb_grid=np.zeros((35, 35, 35)),
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="Gamma12_grid must be provided if USE_REIONIZATION_PHOTOHEATING_FEEDBACK is True",
+    ):
+        cf.convert_halo_properties(
+            inputs=default_input_struct.evolve_input_structs(
+                USE_REIONIZATION_PHOTOHEATING_FEEDBACK=True,
+            ),
+            redshift=redshifts[0],
+            halo_masses=np.zeros(10),
+            halo_coords=np.zeros((10, 3)),
+            star_rng=np.zeros(10),
+            sfr_rng=np.zeros(10),
+            xray_rng=np.zeros(10),
+            z_re_grid=np.zeros((35, 35, 35)),
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="z_re_grid must be provided if USE_REIONIZATION_PHOTOHEATING_FEEDBACK is True",
+    ):
+        cf.convert_halo_properties(
+            inputs=default_input_struct.evolve_input_structs(
+                USE_REIONIZATION_PHOTOHEATING_FEEDBACK=True,
+            ),
+            redshift=redshifts[0],
+            halo_masses=np.zeros(10),
+            halo_coords=np.zeros((10, 3)),
+            star_rng=np.zeros(10),
+            sfr_rng=np.zeros(10),
+            xray_rng=np.zeros(10),
+            Gamma12_grid=np.zeros((35, 35, 35)),
+        )
+
 
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])
 @pytest.mark.parametrize("ps_model", ["EH", "BBKS"])
