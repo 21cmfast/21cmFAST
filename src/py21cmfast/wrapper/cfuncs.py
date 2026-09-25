@@ -1205,15 +1205,64 @@ def convert_halo_properties(
     lo_dim = (inputs.simulation_options.HII_DIM,) * 3
 
     if halo_coords is None:
-        halo_coords = np.zeros(3 * n_halos)
+        if (
+            inputs.astro_options.USE_MCGS
+            or inputs.astro_options.USE_REIONIZATION_PHOTOHEATING_FEEDBACK
+        ):
+            raise ValueError(
+                "halo_coords must be provided if USE_MCGS or USE_REIONIZATION_PHOTOHEATING_FEEDBACK is True."
+            )
+        else:
+            halo_coords = np.zeros((n_halos, 3))
     if vcb_grid is None:
-        vcb_grid = np.zeros(lo_dim)
+        if (
+            inputs.astro_options.USE_MCGS
+            and inputs.matter_options.V_CB_MODEL == "FLUCTS"
+        ):
+            raise ValueError(
+                "vcb_grid must be provided if USE_MCGS is True and V_CB_MODEL is 'FLUCTS'."
+            )
+        else:
+            vcb_grid = np.zeros(lo_dim)
     if J_21_LW_grid is None:
-        J_21_LW_grid = np.zeros(lo_dim)
+        if inputs.astro_options.USE_MCGS:
+            raise ValueError("J_21_LW_grid must be provided if USE_MCGS is True.")
+        else:
+            J_21_LW_grid = np.zeros(lo_dim)
     if z_re_grid is None:
-        z_re_grid = np.zeros(lo_dim)
+        if inputs.astro_options.USE_REIONIZATION_PHOTOHEATING_FEEDBACK:
+            raise ValueError(
+                "z_re_grid must be provided if USE_REIONIZATION_PHOTOHEATING_FEEDBACK is True."
+            )
+        else:
+            z_re_grid = np.zeros(lo_dim)
     if Gamma12_grid is None:
-        Gamma12_grid = np.zeros(lo_dim)
+        if inputs.astro_options.USE_REIONIZATION_PHOTOHEATING_FEEDBACK:
+            raise ValueError(
+                "Gamma12_grid must be provided if USE_REIONIZATION_PHOTOHEATING_FEEDBACK is True."
+            )
+        else:
+            Gamma12_grid = np.zeros(lo_dim)
+
+    if halo_coords.shape != (n_halos, 3):
+        raise ValueError(
+            f"halo_coords must be of shape (n_halos, 3)={(n_halos, 3)}, got {halo_coords.shape}."
+        )
+
+    inputs_to_check = {
+        "J_21_LW_grid": J_21_LW_grid,
+        "vcb_grid": vcb_grid,
+        "Gamma12_grid": Gamma12_grid,
+        "z_re_grid": z_re_grid,
+    }
+
+    for name, value in inputs_to_check.items():
+        current_shape = np.asarray(value).shape
+        if current_shape != lo_dim:
+            raise ValueError(
+                f"The shape of {name} is inconsistent with HII_DIM^3! "
+                f"Got {current_shape} and {lo_dim}."
+            )
 
     vcb_grid = vcb_grid.astype("f4")
     J_21_LW_grid = J_21_LW_grid.astype("f4")

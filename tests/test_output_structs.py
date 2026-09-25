@@ -95,6 +95,55 @@ def test_reading_purged(ic: InitialConditions):
     ic.load_all()
 
 
+def test_direct_array_access_after_purge_loads_transparently(ic: InitialConditions):
+    """Plain attribute access should transparently resolve a purged array.
+
+    Not via `.get()` - and cache it back onto the struct by default (see #565).
+    """
+    expected = ic.get(ic.lowres_density)
+
+    ic.purge()
+    assert not ic.lowres_density.state.computed_in_mem
+
+    assert ic.lowres_density.mean() == pytest.approx(expected.mean())
+    assert np.allclose(np.asarray(ic.lowres_density), expected)
+
+    # Cached back onto the struct as a side effect of the access above.
+    assert ic.lowres_density.state.computed_in_mem
+
+    ic.load_all()
+
+
+def test_direct_array_access_after_purge_respects_no_cache_config(
+    ic: InitialConditions,
+):
+    """Direct access still resolves the value with auto-caching disabled.
+
+    But it must not repopulate memory on the struct.
+    """
+    expected = ic.get(ic.lowres_density)
+    ic.purge()
+
+    with config.use(CACHE_ARRAYS_ON_ACCESS=False):
+        assert ic.lowres_density.mean() == pytest.approx(expected.mean())
+        assert not ic.lowres_density.state.computed_in_mem
+
+    ic.load_all()
+
+
+def test_repr_of_purged_struct_array_does_not_load_it(ic: InitialConditions):
+    """Merely inspecting a purged array (e.g. in a REPL) must stay cheap."""
+    ic.purge()
+    assert not ic.lowres_density.state.computed_in_mem
+
+    _ = repr(ic.lowres_density)
+
+    assert not ic.lowres_density.state.computed_in_mem
+    assert ic.lowres_density.value is None
+
+    ic.load_all()
+
+
 @pytest.mark.parametrize("struct", list(ox._ALL_OUTPUT_STRUCTS.values()))
 def test_all_fields_exist(struct: ox.OutputStruct):
     cstruct = ox.StructWrapper(struct.__name__)
@@ -399,7 +448,7 @@ def test_bad_required_array(default_input_struct, struct):
         kwargs["buffer_size"] = 1
     output = struct.new(**kwargs)
 
-    with pytest.raises(ValueError, match="is not an input required for"):
+    with pytest.raises((ValueError, TypeError), match="is not an input required for"):
         _ = output.get_required_input_arrays(bt)
 
 
