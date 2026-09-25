@@ -263,7 +263,7 @@ def test_optional_field_ic(default_input_struct_lc: InputParameters):
                 POWER_SPECTRUM="CLASS",
             )
         )
-    )
+
     assert "lowres_vx" in ic.arrays
     assert "lowres_vx_2LPT" in ic.arrays
     assert "hires_vx" not in ic.arrays
@@ -319,10 +319,10 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
     )
     assert "fesc_weighted_sfr" in pert_halo_cat.arrays
     inputs = inputs.evolve_input_structs(
-      USE_MCGS=True,
-      V_CB_MODEL="FLUCTS",
-      POWER_SPECTRUM="CLASS",
-      M_TURN_STELLAR_FEEDBACK=5.0,
+        USE_MCGS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        M_TURN_STELLAR_FEEDBACK=5.0,
     )
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
