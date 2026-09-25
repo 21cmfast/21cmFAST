@@ -86,7 +86,7 @@ OPTIONS_TESTRUNS = {
     "simple": [18, {}],
     "no-mdz": [
         18,
-        {"SOURCE_MODEL": "CONST-ION-EFF", "HMF": "PS"},
+        {"SOURCE_MODEL": "CONST-ION-EFF"},
     ],
     "mcgs": [
         18,
@@ -118,7 +118,6 @@ OPTIONS_TESTRUNS = {
             "N_THREADS": 4,
             "INTEGRATION_METHOD_MCGS": "GAMMA-APPROX",
             "INTEGRATION_METHOD_ACGS": "GAMMA-APPROX",
-            "HMF": "PS",
             "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
             "K_MAX_FOR_CLASS": 1.0,
@@ -131,7 +130,7 @@ OPTIONS_TESTRUNS = {
     ],
     "ts_nomdz": [
         18,
-        {"USE_TS_FLUCT": True, "SOURCE_MODEL": "CONST-ION-EFF", "HMF": "PS"},
+        {"USE_TS_FLUCT": True, "SOURCE_MODEL": "CONST-ION-EFF"},
     ],
     "homo": [
         18,
