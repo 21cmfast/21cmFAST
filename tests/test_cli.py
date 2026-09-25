@@ -607,8 +607,8 @@ class TestPlot:
             "--plot" in flags
         )
 
-    def test_no_plot_or_show_gives_hint(self, capsys, tmp_path: Path):
-        """With neither flag we should tell the user how to plot later."""
+    def test_no_plot_gives_hint(self, capsys, tmp_path: Path):
+        """Without --plot we should tell the user how to plot later."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
             f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
@@ -617,3 +617,64 @@ class TestPlot:
 
         assert "21cmfast plot" in capsys.readouterr().out
         assert not list(tmp_path.glob("*.png"))
+
+    def test_saved_plot_path_is_a_link(self, capsys, tmp_path: Path):
+        """The saved-plot message carries a clickable file:// URL."""
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out} --plot",
+        )
+
+        png = tmp_path / "global-evolution_summary.png"
+        assert cli._as_url(png) == png.as_uri()
+        assert "Saved summary plot" in capsys.readouterr().out
+
+
+class TestCanShowPlots:
+    """Tests of the auto-detection behind a bare (unspecified) --show."""
+
+    def test_not_a_tty(self, monkeypatch):
+        """Never show when stdout isn't a terminal -- plt.show() would block."""
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
+        monkeypatch.setattr(cli.matplotlib, "get_backend", lambda: "TkAgg")
+        assert cli._can_show_plots()
+
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: False, raising=False)
+        assert not cli._can_show_plots()
+
+    def test_non_gui_backend(self, monkeypatch):
+        """Never show on a backend that can't open a window."""
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
+
+        for backend in ("agg", "Agg", "pdf", "svg", "template"):
+            monkeypatch.setattr(cli.matplotlib, "get_backend", lambda b=backend: b)
+            assert not cli._can_show_plots(), backend
+
+    def test_auto_show_is_used_when_show_unset(self, tmp_path, monkeypatch):
+        """A bare run consults _can_show_plots rather than defaulting to False."""
+        shown = []
+        monkeypatch.setattr(cli.plt, "show", lambda *a, **kw: shown.append(True))
+        monkeypatch.setattr(cli, "_can_show_plots", lambda: True)
+
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out}",
+        )
+
+        assert shown
+
+    def test_explicit_no_show_beats_auto(self, tmp_path, monkeypatch):
+        """--no-show wins even where we could have shown it."""
+        shown = []
+        monkeypatch.setattr(cli.plt, "show", lambda *a, **kw: shown.append(True))
+        monkeypatch.setattr(cli, "_can_show_plots", lambda: True)
+
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out} --no-show",
+        )
+
+        assert not shown

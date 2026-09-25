@@ -1,6 +1,7 @@
 """Module that contains the command line app."""
 
 import logging
+import sys
 import uuid
 import warnings
 from dataclasses import dataclass, field, fields
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import attrs
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from cyclopts import App, Group, Parameter
@@ -556,7 +558,7 @@ def coeval(
     ] = False,
     nodez_params: NodeRedshiftParameters | None = None,
     plot: bool = False,
-    show: bool = False,
+    show: bool | None = None,
 ):
     """Generate coeval cubes at given redshifts.
 
@@ -578,8 +580,9 @@ def coeval(
     plot
         Whether to write a simple summary plot alongside each saved coeval box.
     show
-        Whether to open a simple summary plot of each coeval box in an interactive
-        matplotlib window. Can be combined with ``--plot`` to both write and show it.
+        Whether to open the summary plot in an interactive window. By default,
+        shown only if you're at a terminal with a GUI matplotlib backend -- never
+        in a batch job or a pipeline, where it would block the run.
     min_evolved_redshift
         The minimum redshift down to which to evolve the simulation. For some simulation
         configurations, this is not used at all, while for others it will subtly change
@@ -611,7 +614,7 @@ def coeval(
             coeval, _summary_plot_path(outfile) if plot else None, show=show
         )
 
-    if not (plot or show) and outfile is not None:
+    if not plot and outfile is not None:
         _plot_hint(outfile)
 
 
@@ -629,7 +632,7 @@ def lightcone(
     ),
     nodez_params: NodeRedshiftParameters | None = None,
     plot: bool = False,
-    show: bool = False,
+    show: bool | None = None,
 ):
     """Generate a lightcone between given redshifts.
 
@@ -649,8 +652,9 @@ def lightcone(
     plot
         Whether to write a simple summary plot alongside the saved lightcone.
     show
-        Whether to open a simple summary plot in an interactive matplotlib window.
-        Can be combined with ``--plot`` to both write and show it.
+        Whether to open the summary plot in an interactive window. By default,
+        shown only if you're at a terminal with a GUI matplotlib backend -- never
+        in a batch job or a pipeline, where it would block the run.
     """
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -683,7 +687,7 @@ def lightcone(
 
     _make_summary_plot(lc, _summary_plot_path(out) if plot else None, show=show)
 
-    if not (plot or show):
+    if not plot:
         _plot_hint(out)
 
 
@@ -703,7 +707,7 @@ def global_evolution(
         Parameter(validator=(vld.Path(dir_okay=False, file_okay=False, ext=("h5",)),)),
     ] = Path("global-evolution.h5"),
     plot: bool = False,
-    show: bool = False,
+    show: bool | None = None,
 ):
     """Generate the global evolution between given redshifts.
 
@@ -721,8 +725,9 @@ def global_evolution(
     plot
         Whether to write a simple summary plot alongside the saved data.
     show
-        Whether to open a simple summary plot in an interactive matplotlib window.
-        Can be combined with ``--plot`` to both write and show it.
+        Whether to open the summary plot in an interactive window. By default,
+        shown only if you're at a terminal with a GUI matplotlib backend -- never
+        in a batch job or a pipeline, where it would block the run.
     """
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -756,15 +761,48 @@ def global_evolution(
 
     _make_summary_plot(lc, _summary_plot_path(out) if plot else None, show=show)
 
-    if not (plot or show):
+    if not plot:
         _plot_hint(out)
 
 
-def _make_summary_plot(obj, out: Path | None = None, show: bool = False):
+def _can_show_plots() -> bool:
+    """Whether it makes sense to pop a plot up in a window right now.
+
+    ``plt.show()`` *blocks* until the window is closed, so showing a plot in a
+    batch job (or a pipeline, or CI) would hang the run -- holding the whole
+    simulation in memory -- until something killed it. And with a non-GUI
+    backend it can't show anything anyway, it just warns. So we only show when
+    we're plausibly sitting in front of a terminal with a GUI available.
+    """
+    if not sys.stdout.isatty():
+        return False
+
+    # Non-GUI backends ("agg", "pdf", "svg", ...) can't open a window; asking
+    # them to just produces a warning.
+    try:
+        from matplotlib.backends import BackendFilter, backend_registry
+
+        interactive = backend_registry.list_builtin(BackendFilter.INTERACTIVE)
+    except ImportError:  # pragma: no cover - matplotlib < 3.9
+        interactive = matplotlib.rcsetup.interactive_bk
+
+    return matplotlib.get_backend().lower() in {b.lower() for b in interactive}
+
+
+def _as_url(path: Path) -> str:
+    """Render a path as a file:// URL, which most terminals make clickable."""
+    return path.resolve().as_uri()
+
+
+def _make_summary_plot(obj, out: Path | None = None, show: bool | None = None):
     """Make a default summary plot of ``obj``, writing it to ``out`` and/or showing it.
 
-    Does nothing at all if neither ``out`` nor ``show`` is given.
+    ``show=None`` (the default) means "show it if we can" -- see
+    :func:`_can_show_plots`. Does nothing at all if neither is wanted.
     """
+    if show is None:
+        show = _can_show_plots()
+
     if out is None and not show:
         return
 
@@ -773,7 +811,10 @@ def _make_summary_plot(obj, out: Path | None = None, show: bool = False):
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
         fig.savefig(out, bbox_inches="tight", dpi=150)
-        cns.print(f"[spring_green3]:duck: Saved summary plot to [purple]{out}")
+        cns.print(
+            f"[spring_green3]:duck: Saved summary plot to [link={_as_url(out)}]"
+            f"[purple]{out}[/purple][/link]"
+        )
 
     if show:
         plt.show()
@@ -798,7 +839,7 @@ def _plot_hint(datafile: Path):
 def plot_output(
     filename: cyctp.ExistingFile,
     out: Annotated[Path | None, Parameter(name=("--out", "-o"))] = None,
-    show: bool = False,
+    show: bool | None = None,
 ):
     """Make a default summary plot of a saved 21cmFAST simulation output.
 
@@ -815,7 +856,8 @@ def plot_output(
         Where to write the plot. By default, written alongside `filename` with a
         "_summary.png" suffix.
     show
-        Whether to open the plot in an interactive matplotlib window.
+        Whether to open the plot in an interactive window. By default, shown only
+        if you're at a terminal with a GUI matplotlib backend.
     """
     obj = load_high_level_simulation(filename)
 
