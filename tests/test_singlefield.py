@@ -412,6 +412,10 @@ def test_incompatible_redshifts(default_input_struct, ic):
 
 def test_photoncons_backend_error(redshift, default_input_struct, ic):
     """Test whether the error is raised when you try a photoncons run without proper setup."""
+    from py21cmfast.wrapper.photoncons import _photoncons_state
+
+    _photoncons_state.calibration_inputs = None
+
     inputs = default_input_struct.evolve_input_structs(PHOTON_CONS_TYPE="z-photoncons")
 
     # first test if the error occurs with no inputs
