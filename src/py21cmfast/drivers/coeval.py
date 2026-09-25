@@ -19,7 +19,6 @@ from ..c_21cmfast import lib
 from ..io import h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..rsds import apply_rsds, include_dvdr_in_tau21
-from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -157,9 +156,7 @@ class Coeval:
 
         pointer_fields = []
         for struct in output_structs:
-            pointer_fields += [
-                k for k, v in attrs.fields_dict(struct).items() if v.type == Array
-            ]
+            pointer_fields += list(struct._array_field_names)
 
         return pointer_fields
 

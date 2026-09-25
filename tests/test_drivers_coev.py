@@ -131,8 +131,8 @@ def test_coeval_resume_reconstructs_radiation_fields_history(tmp_path_factory):
     )[0]
 
     np.testing.assert_array_equal(
-        coeval_full.brightness_temperature.brightness_temp.value,
-        coeval_resumed.brightness_temperature.brightness_temp.value,
+        coeval_full.brightness_temperature.brightness_temp,
+        coeval_resumed.brightness_temperature.brightness_temp,
     )
 
 
