@@ -390,6 +390,9 @@ def test_halo_buffer_overflow_error_message(default_input_struct):
         stderr_path.unlink()
 
 
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 @pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize("use_reionization_feedback", [True, False])
 def test_perturb_halos(default_input_struct_ts, use_mcgs, use_reionization_feedback):
@@ -411,8 +414,13 @@ def test_perturb_halos(default_input_struct_ts, use_mcgs, use_reionization_feedb
     )
 
     lo_dim = (inputs_test.simulation_options.HII_DIM,) * 3
-    vcb_homogeneous = np.full(lo_dim, ics.get("lowres_vcb").mean(), dtype=np.float32)
-    ics.set("lowres_vcb", vcb_homogeneous)
+    if use_mcgs:
+        vcb_homogeneous = np.full(
+            lo_dim, ics.get("lowres_vcb").mean(), dtype=np.float32
+        )
+        ics.set("lowres_vcb", vcb_homogeneous)
+    else:
+        vcb_homogeneous = None
 
     halofield = determine_halo_catalog(
         redshift=10.0, initial_conditions=ics, inputs=inputs_test
@@ -448,7 +456,6 @@ def test_perturb_halos(default_input_struct_ts, use_mcgs, use_reionization_feedb
         star_rng=halofield.get("star_rng"),
         sfr_rng=halofield.get("sfr_rng"),
         xray_rng=halofield.get("xray_rng"),
-        halo_coords=halofield.get("halo_coords").flatten(),
         J_21_LW_grid=prev_ts_box.get("J_21_LW"),
         vcb_grid=vcb_homogeneous,
         z_re_grid=prev_ion_box.get("z_reion"),

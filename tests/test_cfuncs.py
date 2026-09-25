@@ -123,6 +123,9 @@ def test_bad_input_for_expected_nhalo(default_input_struct):
         cf.get_expected_nhalo(redshift=8.0, inputs=default_input_struct)
 
 
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 def test_bad_integral_inputs(default_input_struct):
     # make arrays with different shapes
     redshifts = np.linspace(6, 35, num=20)
@@ -717,6 +720,9 @@ def test_functions_with_and_without_lightcone(
         assert len(output) == len(densities)
 
 
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 def test_nested_global_evolution_does_not_corrupt_the_backend(
     default_input_struct_lc_mcgs, default_global_evolution
 ):
