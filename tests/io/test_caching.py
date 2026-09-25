@@ -40,7 +40,7 @@ def create_full_run_cache(
                 # Go through each array and set it to be "computed" so we can trick
                 # the writer into writing it out to file.
                 for k, v in o.arrays.items():
-                    setattr(o, k, v.with_value(v.value))
+                    setattr(o, k, v.with_value(v._value))
 
                 # Mock the primitive fields as well...
                 for fld in o._struct.primitive_fields:
@@ -51,7 +51,7 @@ def create_full_run_cache(
     o = outputs.InitialConditions.new(inputs=inputs)
     o._init_arrays()
     for k, v in o.arrays.items():
-        setattr(o, k, v.with_value(v.value))
+        setattr(o, k, v.with_value(v._value))
     h5.write_output_to_hdf5(o, cache.InitialConditions)
     return cache
 
