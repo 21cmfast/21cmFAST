@@ -44,7 +44,6 @@ from py21cmfast import (
 from py21cmfast import lightconers as lcn
 from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import cfuncs as cf
-from py21cmfast.wrapper.arrays import Array
 from py21cmfast.wrapper.inputs import MatterOptions
 
 _MAJOR_VERSION = int(p21c.__version__.split(".")[0])
