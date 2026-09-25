@@ -40,7 +40,7 @@ def create_full_run_cache(
                 # Go through each array and set it to be "computed" so we can trick
                 # the writer into writing it out to file.
                 for k, v in o.arrays.items():
-                    setattr(o, k, v.with_value(v.value))
+                    setattr(o, k, v.with_value(v._value))
 
                 # Mock the primitive fields as well...
                 for fld in o._struct.primitive_fields:
@@ -51,7 +51,7 @@ def create_full_run_cache(
     o = outputs.InitialConditions.new(inputs=inputs)
     o._init_arrays()
     for k, v in o.arrays.items():
-        setattr(o, k, v.with_value(v.value))
+        setattr(o, k, v.with_value(v._value))
     h5.write_output_to_hdf5(o, cache.InitialConditions)
     return cache
 
@@ -70,13 +70,7 @@ def partial_run_cache(tmp_path_factory):
 
 @pytest.fixture(scope="module")
 def no_radiation_fields_run_cache(tmp_path_factory):
-    """A cache with RadiationFields missing at every redshift.
-
-    This mirrors production usage, where ``write=CacheConfig(radiation_fields=False)``
-    is used to avoid the (potentially enormous) disk footprint of RadiationFields.
-    Uses the "latest-dhalos" template since RadiationFields is only ever cached when
-    ``matter_options.lagrangian_source_grid`` is True.
-    """
+    """A cache with RadiationFields missing at every redshift."""
     cache = create_full_run_cache(
         tmp_path_factory.mktemp("no_radiation_fields_run_cache"),
         template="latest-dhalos",
@@ -186,16 +180,7 @@ class TestRunCache:
     def test_is_complete_at_ignores_missing_radiation_fields(
         self, no_radiation_fields_run_cache
     ):
-        """Regression test: absence of RadiationFields must not block completeness.
-
-        RadiationFields is recomputed from scratch at every redshift from the
-        accumulated EmissivityFields history and immediately purged (see
-        ``_redshift_loop_generator`` in ``drivers/coeval.py``) -- it is never
-        read back as an input anywhere (``compute_radiation_fields`` has no
-        parameter for a previous RadiationFields, and ``Coeval`` has no field for
-        it either). So its absence on disk must not prevent a run from being
-        considered complete/resumable at a given redshift.
-        """
+        """Regression test: absence of RadiationFields must not block completeness."""
         cache = no_radiation_fields_run_cache
         assert not any(p.exists() for p in cache.RadiationFields.values())
         for idx in range(len(cache.inputs.node_redshifts)):
@@ -254,8 +239,8 @@ class TestRunCache:
             )
             assert "PerturbedField" in boxes
             assert "EmissivityFields" in boxes
-            # RadiationFields is an optional field -- it may legitimately be
-            # absent from a cache, so it is never returned here.
+            # RadiationFields is optional (see RunCache._optional_fields) and is
+            # never read back as an input, so get_all_boxes_at_z excludes it.
             assert "RadiationFields" not in boxes
             assert "TsBox" in boxes
             assert "IonizedBox" in boxes
@@ -282,12 +267,7 @@ class TestRunCache:
     def test_is_complete_ignores_missing_radiation_fields(
         self, no_radiation_fields_run_cache
     ):
-        """Regression test: is_complete() must not require RadiationFields either.
-
-        See test_is_complete_at_ignores_missing_radiation_fields for the rationale;
-        the same logic applies here since both methods share
-        ``get_required_fields``.
-        """
+        """Regression test: is_complete() must not require RadiationFields either."""
         assert no_radiation_fields_run_cache.is_complete()
 
 

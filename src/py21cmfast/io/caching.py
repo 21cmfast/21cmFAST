@@ -394,18 +394,7 @@ class RunCache:
         return cls.from_inputs(inputs, OutputCache(parent))
 
     def get_required_fields(self) -> dict[str, dict]:
-        """Return the dict-typed cache fields that matter for completeness checks.
-
-        This excludes RadiationFields, which is never read back as an input
-        anywhere -- it is recomputed from scratch at every redshift from the
-        accumulated EmissivityFields history and immediately purged (see
-        _redshift_loop_generator in drivers/coeval.py). Treating it as
-        required would force a full simulation restart (or a crash when
-        reconstructing a cached Coeval) whenever it isn't cached (e.g.
-        write.radiation_fields=False to save disk space, since it can be
-        extremely large), even though nothing downstream actually depends on
-        it existing.
-        """
+        """Return the dict-typed cache fields that matter for completeness checks."""
         return {
             name: kind
             for name, kind in attrs.asdict(self, recurse=False).items()
@@ -504,8 +493,6 @@ class RunCache:
         -------
         dict[str, Box]
             A dictionary mapping box names to their corresponding Box instances.
-            Optional fields (see :attr:`_optional_fields`) are never included,
-            since they may legitimately be absent from the cache.
         """
         kinds = self.get_required_fields().keys()
 

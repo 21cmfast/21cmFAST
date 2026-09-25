@@ -19,7 +19,7 @@ def ic_hires(default_input_struct) -> p21c.InitialConditions:
 def ic_from_ic(default_input_struct, ic) -> p21c.InitialConditions:
     """Make initial conditions, given the hires density of an initial condition instance."""
     return p21c.compute_initial_conditions(
-        inputs=default_input_struct, initial_density=ic.hires_density.value
+        inputs=default_input_struct, initial_density=ic.hires_density
     )
 
 
@@ -103,8 +103,8 @@ def test_transfer_function(
     """Test using a modified transfer function."""
     inputs = default_input_struct.evolve_input_structs(POWER_SPECTRUM="CLASS")
     ic2 = p21c.compute_initial_conditions(inputs=inputs, cache=cache)
-    hrd2 = ic2.hires_density.value
-    hrd = ic.hires_density.value
+    hrd2 = ic2.hires_density
+    hrd = ic.hires_density
 
     rmsnew = np.sqrt(np.mean(hrd2**2))
     rmsdelta = np.sqrt(np.mean((hrd2 - hrd) ** 2))
@@ -125,8 +125,8 @@ def test_relvels():
     )
     ic = p21c.compute_initial_conditions(inputs=inputs)
 
-    vcbrms_lowres = np.sqrt(np.mean(ic.lowres_vcb.value**2))
-    vcbavg_lowres = np.mean(ic.lowres_vcb.value)
+    vcbrms_lowres = np.sqrt(np.mean(ic.lowres_vcb**2))
+    vcbavg_lowres = np.mean(ic.lowres_vcb)
 
     # we test the lowres box
     # rms should be about 30 km/s for LCDM, so we check it is finite and not far off
@@ -159,22 +159,22 @@ def test_initial_density_array(
 ):
     """Test the functionality with the initial_density argument."""
     # Test that the hires_density arrays are exactly the same (by definition)
-    assert np.all(ic_from_ic.hires_density.value == ic.hires_density.value)
+    assert np.all(ic_from_ic.hires_density == ic.hires_density)
 
     # Test that the other arrays are close (numerical differences exist due to FFT-IFFT)
     np.testing.assert_allclose(
-        getattr(ic, name).value, getattr(ic_from_ic, name).value, atol=1e-5, rtol=0.0
+        getattr(ic, name), getattr(ic_from_ic, name), atol=1e-5, rtol=0.0
     )
 
     # Test the array we use actually has mean zero
     assert single_pxl_array_mean_zero.mean() == 0.0
 
     # Test that the hires_density array is exactly our single pixel array input
-    assert np.all(ic_from_array.hires_density.value == single_pxl_array_mean_zero)
+    assert np.all(ic_from_array.hires_density == single_pxl_array_mean_zero)
 
     # Test that the arrays are different between the original ic and the ic we got from array
     assert not np.allclose(
-        getattr(ic, name).value, getattr(ic_from_array, name).value, atol=1e-5, rtol=0.0
+        getattr(ic, name), getattr(ic_from_array, name), atol=1e-5, rtol=0.0
     )
 
 

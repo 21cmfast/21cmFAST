@@ -157,7 +157,7 @@ def test_new_seeds(
     # we didn't write it, and this has a different seed
     assert cache.find_existing(pf) is None
     assert pf.random_seed != perturb_field_lowz.random_seed
-    assert not np.all(pf.density.value == perturb_field_lowz.density.value)
+    assert not np.all(pf.density == perturb_field_lowz.density)
 
     # Ionization Box
     with pytest.raises(
@@ -177,9 +177,7 @@ def test_new_seeds(
     # we didn't write it, and this has a different seed
     assert cache.find_existing(ib) is None
     assert ib.random_seed != ionize_box_lowz.random_seed
-    assert not np.all(
-        ib.neutral_fraction.value == ionize_box_lowz.neutral_fraction.value
-    )
+    assert not np.all(ib.neutral_fraction == ionize_box_lowz.neutral_fraction)
 
 
 def test_ib_from_pf(perturbed_field, ic, cache):
@@ -360,12 +358,8 @@ def test_using_cached_halo_catalog(ic_with_halos, test_direc):
         regenerate=False,
     )
 
-    np.testing.assert_allclose(
-        new_halo_catalog.halo_masses.value, halo_catalog.halo_masses.value
-    )
-    np.testing.assert_allclose(
-        pt_halos.halo_coords.value, new_pt_halos.halo_coords.value
-    )
+    np.testing.assert_allclose(new_halo_catalog.halo_masses, halo_catalog.halo_masses)
+    np.testing.assert_allclose(pt_halos.halo_coords, new_pt_halos.halo_coords)
 
 
 def test_incompatible_redshifts(default_input_struct, ic):
@@ -665,7 +659,7 @@ def test_radiation_fields_with_zero_sfr(
     fields = ["sfrd_acg", "xray_emissivity"]
     if use_mcgs:
         fields += ["sfrd_mcg", "log10_mturn_mcg_ave"]
-    shape = emissivity_fields1.sfrd_acg.shape
+    shape = emissivity_fields1.arrays["sfrd_acg"].shape
     array = (
         Array(shape=shape, dtype=np.float32)
         .initialize()
@@ -695,4 +689,4 @@ def test_radiation_fields_with_zero_sfr(
         ]
 
     for field in output_fields:
-        assert np.all(getattr(radiation_fields, field).value == 0.0)
+        assert np.all(getattr(radiation_fields, field) == 0.0)
