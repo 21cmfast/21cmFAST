@@ -289,9 +289,6 @@ def test_optional_field_perturb(default_input_struct_lc: InputParameters):
     assert "velocity_y" not in pt.arrays
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParameters):
     """Ensure that the correct EmissivityFields fields are set based on the parameters."""
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
@@ -313,7 +310,7 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
         redshift=0.0, inputs=inputs, buffer_size=1
     )
     assert "xray_luminosity" in pert_halo_cat.arrays
-    inputs = inputs.evolve_input_structs(RECOMB_MODEL="inhomogeneous")
+    inputs = inputs.evolve_input_structs(RECOMB_MODEL="inhomogeneous", R_BUBBLE_MAX=50.0)
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
@@ -390,9 +387,6 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
     assert "sfrd_mcg" in emissivity_fields.arrays
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameters):
     """Ensure that the correct fields of RadiationFieldsSetup are set based on the parameters."""
     rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=default_input_struct_lc)
@@ -406,15 +400,13 @@ def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameter
         V_CB_MODEL="FLUCTS",
         POWER_SPECTRUM="CLASS",
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         M_TURN_STELLAR_FEEDBACK=5.0,
     )
     rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=inputs)
     assert "filtered_sfrd_mcg_for_lya" in rfs.arrays
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 def test_optional_field_ts(default_input_struct_lc: InputParameters):
     """Ensure that the correct TsBox fields are set based on the parameters."""
     ts = ox.TsBox.new(redshift=0.0, inputs=default_input_struct_lc)
@@ -426,6 +418,7 @@ def test_optional_field_ts(default_input_struct_lc: InputParameters):
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_MCGS=True,
         V_CB_MODEL="FLUCTS",
         POWER_SPECTRUM="CLASS",
@@ -435,9 +428,6 @@ def test_optional_field_ts(default_input_struct_lc: InputParameters):
     assert "J_21_LW" in ts.arrays
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 def test_optional_field_ion(default_input_struct_lc: InputParameters):
     """Ensure that the correct IonizedBox fields are set based on the parameters."""
     ion = ox.IonizedBox.new(redshift=0.0, inputs=default_input_struct_lc)
@@ -447,6 +437,7 @@ def test_optional_field_ion(default_input_struct_lc: InputParameters):
 
     inputs = default_input_struct_lc.evolve_input_structs(
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
     )
     ion = ox.IonizedBox.new(redshift=0.0, inputs=inputs)
     assert "cumulative_recombinations" in ion.arrays

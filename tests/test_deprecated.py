@@ -542,6 +542,7 @@ def test_extra_halobox_fields_is_removed(default_input_struct_lc):
             inputs=default_input_struct_lc.evolve_input_structs(
                 USE_TS_FLUCT=True,
                 RECOMB_MODEL="inhomogeneous",
+                R_BUBBLE_MAX=50.0,
                 USE_MCGS=True,
                 V_CB_MODEL="AVG-DEBUG",
                 M_TURN_STELLAR_FEEDBACK=5.0,
@@ -550,7 +551,7 @@ def test_extra_halobox_fields_is_removed(default_input_struct_lc):
         assert "stellar_mass_density_mcg" in emissivity_fields.arrays
 
     inputs = default_input_struct_lc.evolve_input_structs(
-        RECOMB_MODEL="inhomogeneous", SOURCE_MODEL="L-INTEGRAL"
+        RECOMB_MODEL="inhomogeneous", R_BUBBLE_MAX=50.0, SOURCE_MODEL="L-INTEGRAL"
     )
     emissivity_fields = EmissivityFields.new(redshift=0.0, inputs=inputs)
     assert "fesc_weighted_sfrd" in emissivity_fields.arrays

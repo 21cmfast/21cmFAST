@@ -170,12 +170,6 @@ def test_sampler(name, cond, cond_type, plt):
 #   changes to any scaling relation model will result in a test fail
 # TODO add minihalo tests, upper turnovers. All 12 properties
 @pytest.mark.filterwarnings("ignore:invalid value encountered in divide:RuntimeWarning")
-@pytest.mark.filterwarnings(
-    "ignore:divide by zero encountered in divide:RuntimeWarning"
-)
-@pytest.mark.filterwarnings("ignore:^SHMR:UserWarning")
-@pytest.mark.filterwarnings("ignore:^SSFR:UserWarning")
-@pytest.mark.filterwarnings("ignore:^LX:UserWarning")
 def test_halo_prop_sampling(default_input_struct_ts, plt):
     # specify parameters to use for this test
     redshift = 10.0
@@ -390,9 +384,6 @@ def test_halo_buffer_overflow_error_message(default_input_struct):
         stderr_path.unlink()
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 @pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize("use_reionization_feedback", [True, False])
 def test_perturb_halos(default_input_struct_ts, use_mcgs, use_reionization_feedback):
@@ -402,6 +393,7 @@ def test_perturb_halos(default_input_struct_ts, use_mcgs, use_reionization_feedb
         SAMPLER_MIN_MASS=5e9,
         PERTURB_ON_HIGH_RES=True,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_MCGS=use_mcgs,
         V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
         POWER_SPECTRUM="CLASS" if use_mcgs else "EH",

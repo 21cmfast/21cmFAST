@@ -472,9 +472,6 @@ def test_global_properties(
     assert bt.global_Tb == np.mean(bt.get("brightness_temp"))
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     """Test that we raise errors when required input structs are omitted."""
     # setting parameters for the maximum number of fields required
@@ -482,8 +479,10 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
         USE_MCGS=True,
         SOURCE_MODEL="CHMF-SAMPLER",
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         V_CB_MODEL="FLUCTS",
         POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
         M_TURN_STELLAR_FEEDBACK=5.0,
     ).clone(node_redshifts=(35.0, 11.0, 10.0))
 
@@ -650,9 +649,6 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
         )
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 @pytest.mark.parametrize("lya_multiple_scattering", [False, True])
 @pytest.mark.parametrize("use_mcgs", [False, True])
 def test_radiation_fields_with_zero_sfr(
@@ -662,9 +658,11 @@ def test_radiation_fields_with_zero_sfr(
     inputs = default_input_struct_ts.evolve_input_structs(
         USE_MCGS=use_mcgs,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
         V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
         POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
+        K_MAX_FOR_CLASS=1.0,
         M_TURN_STELLAR_FEEDBACK=(
             5.0
             if use_mcgs

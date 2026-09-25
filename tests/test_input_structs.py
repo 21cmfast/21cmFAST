@@ -559,13 +559,12 @@ class TestInputParameters:
                 ),
             },
         ),
-        (
+        pytest.param(
             NotImplementedError,
             "USE_REIONIZATION_PHOTOHEATING_FEEDBACK is not yet compatible with SOURCE_MODEL == CONST-ION-EFF",
             {
                 "matter_options": MatterOptions(
                     SOURCE_MODEL="CONST-ION-EFF",
-                    HMF="PS",
                 ),
                 "astro_options": AstroOptions(
                     USE_REIONIZATION_PHOTOHEATING_FEEDBACK=True,
@@ -573,14 +572,16 @@ class TestInputParameters:
                     USE_EXP_FILTER=False,
                 ),
             },
+            marks=pytest.mark.filterwarnings(
+                "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+            ),
         ),
-        (
+        pytest.param(
             NotImplementedError,
             "USE_METALLICITY is not yet compatible with SOURCE_MODEL == CONST-ION-EFF",
             {
                 "matter_options": MatterOptions(
                     SOURCE_MODEL="CONST-ION-EFF",
-                    HMF="PS",
                 ),
                 "astro_options": AstroOptions(
                     USE_METALLICITY=True,
@@ -588,6 +589,9 @@ class TestInputParameters:
                     USE_EXP_FILTER=False,
                 ),
             },
+            marks=pytest.mark.filterwarnings(
+                "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+            ),
         ),
     ]
 

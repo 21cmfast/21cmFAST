@@ -131,9 +131,6 @@ def test_global_evolution_bad_inputs(default_input_struct_ts, source_model):
 
 # The stored database file uses MCGs without a V_CB_MODEL.
 @pytest.mark.filterwarnings(
-    r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
-)
-@pytest.mark.filterwarnings(
     "ignore:^USE_MCGS needs a non-trivial V_CB_MODEL:UserWarning"
 )
 @pytest.mark.filterwarnings(

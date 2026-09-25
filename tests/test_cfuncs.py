@@ -21,6 +21,7 @@ def default_input_struct_lc_mcgs(default_input_struct_lc):
         V_CB_MODEL="FLUCTS",
         POWER_SPECTRUM="CLASS",
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -34,9 +35,6 @@ def default_global_evolution(default_input_struct_lc_mcgs):
     return p21c.run_global_evolution(inputs=default_input_struct_lc_mcgs)
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 @pytest.mark.parametrize("what_to_use", ["lightcone", "global_evolution", "nothing"])
 def test_run_lf(
     default_input_struct_lc,
@@ -123,9 +121,6 @@ def test_bad_input_for_expected_nhalo(default_input_struct):
         cf.get_expected_nhalo(redshift=8.0, inputs=default_input_struct)
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 def test_bad_integral_inputs(default_input_struct):
     # make arrays with different shapes
     redshifts = np.linspace(6, 35, num=20)
@@ -213,6 +208,7 @@ def test_bad_integral_inputs(default_input_struct):
             inputs=default_input_struct.with_logspaced_redshifts().evolve_input_structs(
                 USE_MCGS=True,
                 RECOMB_MODEL="inhomogeneous",
+                R_BUBBLE_MAX=50.0,
                 USE_TS_FLUCT=True,
                 V_CB_MODEL="AVG-DEBUG",
                 M_TURN_STELLAR_FEEDBACK=5.0,
@@ -232,6 +228,7 @@ def test_bad_integral_inputs(default_input_struct):
             inputs=default_input_struct.with_logspaced_redshifts().evolve_input_structs(
                 USE_MCGS=True,
                 RECOMB_MODEL="inhomogeneous",
+                R_BUBBLE_MAX=50.0,
                 USE_TS_FLUCT=True,
                 V_CB_MODEL="FLUCTS",
                 POWER_SPECTRUM="CLASS",
@@ -255,6 +252,7 @@ def test_bad_integral_inputs(default_input_struct):
             inputs=default_input_struct.with_logspaced_redshifts().evolve_input_structs(
                 USE_MCGS=True,
                 RECOMB_MODEL="inhomogeneous",
+                R_BUBBLE_MAX=50.0,
                 USE_TS_FLUCT=True,
                 V_CB_MODEL="FLUCTS",
                 POWER_SPECTRUM="CLASS",
@@ -650,9 +648,6 @@ def make_matterfield_comparison_plot(
         cf.evaluate_Xray_cond,
     ],
 )
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 def test_functions_with_and_without_lightcone(
     default_input_struct_lc,
     default_input_struct_lc_mcgs,
@@ -720,9 +715,6 @@ def test_functions_with_and_without_lightcone(
         assert len(output) == len(densities)
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 def test_nested_global_evolution_does_not_corrupt_the_backend(
     default_input_struct_lc_mcgs, default_global_evolution
 ):
@@ -919,9 +911,6 @@ def test_compute_mturns_model(
         np.testing.assert_allclose(M_turn_mcg_test, M_turn_mcg, rtol=1e-4)
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 @pytest.mark.parametrize(
     "v_cb_model",
     [
@@ -941,6 +930,7 @@ def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     inputs = default_input_struct_ts.evolve_input_structs(
         USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         K_MAX_FOR_CLASS=1.0,
         V_CB_MODEL=v_cb_model,
         M_TURN_STELLAR_FEEDBACK=5.0,

@@ -12,15 +12,6 @@ from py21cmfast.drivers._global_initialization import (
 
 N_REPEAT = 10
 
-# These tests set RECOMB_MODEL without R_BUBBLE_MAX=50, and V_CB_MODEL="FLUCTS"
-# without MCGs (pairing it with MCGs is blocked by #743).
-pytestmark = [
-    pytest.mark.filterwarnings(
-        "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-    ),
-    pytest.mark.filterwarnings("ignore:^USE_MCGS is False but V_CB_MODEL:UserWarning"),
-]
-
 
 @pytest.fixture(autouse=True)
 def _isolate_backend_state():
@@ -136,6 +127,7 @@ def test_direct_initializations(_run):
             K_MAX_FOR_CLASS=1.0,
             USE_INTERPOLATION_TABLES="sigma-interpolation",
             RECOMB_MODEL="inhomogeneous",
+            R_BUBBLE_MAX=50.0,
             M_TURN_STELLAR_FEEDBACK=5.0,
         )
     )
@@ -189,7 +181,7 @@ def test_direct_initializations_for_heat_and_recomb():
     _GlobalInitManagerSingleton.inputs = (
         InputParameters(random_seed=0)
         .with_logspaced_redshifts()
-        .evolve_input_structs(RECOMB_MODEL="inhomogeneous")
+        .evolve_input_structs(RECOMB_MODEL="inhomogeneous", R_BUBBLE_MAX=50.0)
     )
 
     # Let's begin with a direct initialization of the heating tables
@@ -205,7 +197,8 @@ def test_direct_initializations_for_heat_and_recomb():
 
     # Now let's change the inputs to ones that will allow the initialization of the recombination rate, and check that it works as expected
     _GlobalInitManagerSingleton.inputs = _GlobalInitManagerSingleton.inputs.with_logspaced_redshifts().evolve_input_structs(
-        RECOMB_MODEL="inhomogeneous"
+        RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
     )
     _GlobalInitManagerSingleton._initialize_recombination_rate()
     assert _GlobalInitManagerSingleton.inputs_are_broadcast

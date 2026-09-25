@@ -77,6 +77,7 @@ def default_input_struct_mcgs(default_input_struct_lc):
         V_CB_MODEL="FLUCTS",
         POWER_SPECTRUM="CLASS",
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -376,9 +377,6 @@ def test_FgtrM_conditional_tables(R, delta_range, plt):
     )
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 @pytest.mark.parametrize("name", options_hmf)
 def test_SFRD_z_tables(name, z_range, default_global_evolution_mcgs, plt):
     redshift, kwargs = OPTIONS_HMF[name]
@@ -390,6 +388,7 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution_mcgs, plt):
         POWER_SPECTRUM="CLASS",
         K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -452,9 +451,6 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution_mcgs, plt):
     )
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 @pytest.mark.parametrize("name", options_hmf)
 def test_Nion_z_tables(name, z_range, default_global_evolution_mcgs, plt):
     redshift, kwargs = OPTIONS_HMF[name]
@@ -466,6 +462,7 @@ def test_Nion_z_tables(name, z_range, default_global_evolution_mcgs, plt):
         POWER_SPECTRUM="CLASS",
         K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -537,9 +534,6 @@ def test_Nion_z_tables(name, z_range, default_global_evolution_mcgs, plt):
 #       I do not use them here fully, instead calling the integrals directly to avoid parameter changes
 #       Mostly since if we set simulation_options.USE_INTERPOLATION_TABLES=False then the sigma tables aren't used
 #       and it takes forever
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 @pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
@@ -572,6 +566,7 @@ def test_Nion_conditional_tables(
         POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
         K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -673,9 +668,6 @@ def test_Nion_conditional_tables(
         )
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 @pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
@@ -708,6 +700,7 @@ def test_Xray_conditional_tables(
         POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
         K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -772,9 +765,6 @@ def test_Xray_conditional_tables(
     )
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 @pytest.mark.parametrize("use_mcgs", [True, False])
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
@@ -805,6 +795,7 @@ def test_SFRD_conditional_table(
         POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
         K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -909,9 +900,6 @@ def test_SFRD_conditional_table(
 INTEGRAND_OPTIONS = ["sfrd", "n_ion"]
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-)
 @pytest.mark.parametrize("R", R_PARAM_LIST)
 @pytest.mark.parametrize("name", options_hmf)
 @pytest.mark.parametrize("integrand", INTEGRAND_OPTIONS)
@@ -927,6 +915,7 @@ def test_conditional_integral_methods(
         POWER_SPECTRUM="CLASS",
         K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
