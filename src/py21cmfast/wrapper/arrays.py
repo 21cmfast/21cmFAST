@@ -274,15 +274,17 @@ class Array:
 
     @property
     def value(self) -> np.ndarray:
-        """Deprecated alias for the array's data; use the `Array` itself instead.
+        """Deprecated accessor for the array's data.
 
-        `.value` used to be the raw in-memory slot, which meant it was `None` for an
-        array that had been purged to disk - a silent wrong answer, since the data
-        was still perfectly available. It now resolves like every other access does,
-        loading from disk when necessary.
+        `.value` used to be the raw in-memory slot, which meant it read as `None` for
+        an array that had been purged to disk - a silent wrong answer, since the data
+        was still perfectly available. It now resolves, loading from disk if needed.
 
-        Prefer using the `Array` directly (`arr.mean()`, `np.asarray(arr)`) or
-        `OutputStruct.get()`, both of which do the same thing without the warning.
+        It is deprecated because it no longer has a job to do: an `OutputStruct`'s
+        field attribute (or `OutputStruct.get()`) already gives you the data as a
+        plain numpy array, so `ic.hires_density` is what you want. This class is the
+        *manager* for that data, reached via `OutputStruct.arrays[...]`, and is only
+        of interest when you care about where the data lives rather than what it is.
         """
         warnings.warn(
             deprecation.DeprecatedWarning(
@@ -290,8 +292,9 @@ class Array:
                 deprecated_in="4.3.0",
                 removed_in="5.0.0",
                 details="Array.value is deprecated and will be removed in a future "
-                "version. Use the Array itself (e.g. np.asarray(arr), arr.mean()) "
-                "or OutputStruct.get() instead.",
+                "version. Read the field off the OutputStruct instead (e.g. "
+                "`ic.hires_density`, or `ic.get('hires_density')`), which gives you "
+                "the data as a plain numpy array.",
             ),
             stacklevel=2,
         )

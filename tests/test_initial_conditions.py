@@ -103,8 +103,8 @@ def test_transfer_function(
     """Test using a modified transfer function."""
     inputs = default_input_struct.evolve_input_structs(POWER_SPECTRUM="CLASS")
     ic2 = p21c.compute_initial_conditions(inputs=inputs, cache=cache)
-    hrd2 = np.asarray(ic2.hires_density)
-    hrd = np.asarray(ic.hires_density)
+    hrd2 = ic2.hires_density
+    hrd = ic.hires_density
 
     rmsnew = np.sqrt(np.mean(hrd2**2))
     rmsdelta = np.sqrt(np.mean((hrd2 - hrd) ** 2))
@@ -125,7 +125,7 @@ def test_relvels():
     )
     ic = p21c.compute_initial_conditions(inputs=inputs)
 
-    vcbrms_lowres = np.sqrt(np.mean(np.asarray(ic.lowres_vcb) ** 2))
+    vcbrms_lowres = np.sqrt(np.mean(ic.lowres_vcb**2))
     vcbavg_lowres = np.mean(ic.lowres_vcb)
 
     # we test the lowres box
@@ -159,7 +159,7 @@ def test_initial_density_array(
 ):
     """Test the functionality with the initial_density argument."""
     # Test that the hires_density arrays are exactly the same (by definition)
-    assert np.all(ic_from_ic.hires_density == np.asarray(ic.hires_density))
+    assert np.all(ic_from_ic.hires_density == ic.hires_density)
 
     # Test that the other arrays are close (numerical differences exist due to FFT-IFFT)
     np.testing.assert_allclose(
