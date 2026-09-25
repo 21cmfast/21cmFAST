@@ -536,6 +536,24 @@ _FIELD_LABELS = {
     "ionisation_rate_G12": r"$\Gamma_{12}$",
     "log10_mturn_acg": r"$\log_{10}(M_{\rm turn}^{\rm ACG}/M_\odot)$",
     "log10_mturn_mcg": r"$\log_{10}(M_{\rm turn}^{\rm MCG}/M_\odot)$",
+    # EmissivityFields
+    "n_ion": r"$n_{\rm ion}$",
+    "fesc_weighted_sfrd": r"$f_{\rm esc}\,\dot{\rho}_\star$",
+    "xray_emissivity": r"$\epsilon_X$",
+    "sfrd_acg": r"$\dot{\rho}_\star^{\rm ACG}$",
+    "sfrd_mcg": r"$\dot{\rho}_\star^{\rm MCG}$",
+    "halo_number": r"$N_{\rm halo}$",
+    "halo_mass_density": r"$\rho_{\rm halo}$",
+    "stellar_mass_density_acg": r"$\rho_\star^{\rm ACG}$",
+    "stellar_mass_density_mcg": r"$\rho_\star^{\rm MCG}$",
+    # RadiationFields
+    "xray_heating_rate": r"$\epsilon_X^{\rm heat}$",
+    "xray_ionization_rate": r"$\Gamma_X$",
+    "xray_lya_flux": r"$J_{\alpha,X}$",
+    "lya_flux_continuum": r"$J_\alpha^{\rm cont}$",
+    "lya_flux_injected": r"$J_\alpha^{\rm inj}$",
+    "lya_flux_continuum_injected": r"$J_\alpha^{\rm cont+inj}$",
+    "lyw_flux": r"$J_{\rm LW}$",
 }
 
 # Panels used by the "default" global-evolution summary plot. Each panel is only
@@ -570,7 +588,10 @@ _DEFAULT_COEVAL_FIELDS = (
 )
 
 # Fields whose dynamic range is large enough that they are best shown on a log scale.
-_LOG_FIELDS = ("spin_temperature", "kinetic_temp_neutral", "J_21_LW")
+# Only the temperatures qualify: fields like the LW flux or the emissivities fall to
+# (near) zero at high redshift, so a log scale says more about the floor than the
+# structure. Pass log=True explicitly if you want one anyway.
+_LOG_FIELDS = ("spin_temperature", "kinetic_temp_neutral")
 
 
 def _field_label(kind: str) -> str:
