@@ -777,16 +777,26 @@ def _can_show_plots() -> bool:
     if not sys.stdout.isatty():
         return False
 
-    # Non-GUI backends ("agg", "pdf", "svg", ...) can't open a window; asking
-    # them to just produces a warning.
+    # Non-GUI backends ("agg", "pdf", "svg", the notebook-inline one, ...) can't
+    # open a window; asking them to just produces a warning. Ask matplotlib which
+    # GUI framework the current backend drives -- None means there isn't one.
+    # (We resolve the backend rather than matching it against the list of
+    # *builtin* interactive backends, so that third-party and "module://"
+    # backends are classified correctly too.)
+    backend = matplotlib.get_backend()
     try:
-        from matplotlib.backends import BackendFilter, backend_registry
+        from matplotlib.backends import backend_registry
 
-        interactive = backend_registry.list_builtin(BackendFilter.INTERACTIVE)
-    except ImportError:  # pragma: no cover - matplotlib < 3.9
-        interactive = matplotlib.rcsetup.interactive_bk
+        _, gui_framework = backend_registry.resolve_backend(backend)
+    except (ImportError, AttributeError):  # pragma: no cover - matplotlib < 3.9
+        gui_framework = (
+            backend
+            if backend.lower() in {b.lower() for b in matplotlib.rcsetup.interactive_bk}
+            else None
+        )
 
-    return matplotlib.get_backend().lower() in {b.lower() for b in interactive}
+    logger.debug(f"Backend {backend!r} -> GUI framework {gui_framework!r}")
+    return gui_framework is not None
 
 
 def _as_url(path: Path) -> str:

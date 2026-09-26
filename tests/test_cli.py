@@ -637,7 +637,7 @@ class TestCanShowPlots:
     def test_not_a_tty(self, monkeypatch):
         """Never show when stdout isn't a terminal -- plt.show() would block."""
         monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
-        monkeypatch.setattr(cli.matplotlib, "get_backend", lambda: "TkAgg")
+        monkeypatch.setattr(cli.matplotlib, "get_backend", lambda **kw: "TkAgg")
         assert cli._can_show_plots()
 
         monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: False, raising=False)
@@ -647,9 +647,38 @@ class TestCanShowPlots:
         """Never show on a backend that can't open a window."""
         monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
 
-        for backend in ("agg", "Agg", "pdf", "svg", "template"):
-            monkeypatch.setattr(cli.matplotlib, "get_backend", lambda b=backend: b)
+        for backend in ("agg", "Agg", "pdf", "svg"):
+            monkeypatch.setattr(
+                cli.matplotlib, "get_backend", lambda b=backend, **kw: b
+            )
             assert not cli._can_show_plots(), backend
+
+    def test_gui_backends(self, monkeypatch):
+        """Backends that drive a GUI toolkit are showable, whatever the platform."""
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
+
+        for backend in ("TkAgg", "macosx", "QtAgg", "GTK4Agg"):
+            monkeypatch.setattr(
+                cli.matplotlib, "get_backend", lambda b=backend, **kw: b
+            )
+            assert cli._can_show_plots(), backend
+
+    def test_module_backend_without_gui(self, monkeypatch):
+        """A "module://" backend with no GUI must not be treated as showable.
+
+        These aren't in matplotlib's list of *builtin* interactive backends, so a
+        membership test against that list misclassifies them as showable. The
+        notebook-inline backend is the one users are most likely to hit, since it
+        arrives with IPython.
+        """
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
+        monkeypatch.setattr(
+            cli.matplotlib,
+            "get_backend",
+            lambda **kw: "module://matplotlib_inline.backend_inline",
+        )
+
+        assert not cli._can_show_plots()
 
     def test_auto_show_is_used_when_show_unset(self, tmp_path, monkeypatch):
         """A bare run consults _can_show_plots rather than defaulting to False."""
