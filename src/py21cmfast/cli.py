@@ -777,26 +777,16 @@ def _can_show_plots() -> bool:
     if not sys.stdout.isatty():
         return False
 
-    # Non-GUI backends ("agg", "pdf", "svg", the notebook-inline one, ...) can't
-    # open a window; asking them to just produces a warning. Ask matplotlib which
-    # GUI framework the current backend drives -- None means there isn't one.
-    # (We resolve the backend rather than matching against the list of *builtin*
-    # interactive backends, so that third-party and "module://" backends are
-    # classified correctly too.)
-    backend = matplotlib.get_backend()
+    # Non-GUI backends ("agg", "pdf", "svg", ...) can't open a window; asking
+    # them to just produces a warning.
     try:
-        from matplotlib.backends import backend_registry
+        from matplotlib.backends import BackendFilter, backend_registry
 
-        _, gui_framework = backend_registry.resolve_backend(backend)
-    except (ImportError, AttributeError):  # pragma: no cover - matplotlib < 3.9
-        gui_framework = (
-            backend
-            if backend.lower() in {b.lower() for b in matplotlib.rcsetup.interactive_bk}
-            else None
-        )
+        interactive = backend_registry.list_builtin(BackendFilter.INTERACTIVE)
+    except ImportError:  # pragma: no cover - matplotlib < 3.9
+        interactive = matplotlib.rcsetup.interactive_bk
 
-    logger.debug(f"Backend {backend!r} -> GUI framework {gui_framework!r}")
-    return gui_framework is not None
+    return matplotlib.get_backend().lower() in {b.lower() for b in interactive}
 
 
 def _as_url(path: Path) -> str:
@@ -816,25 +806,18 @@ def _make_summary_plot(obj, out: Path | None = None, show: bool | None = None):
     if out is None and not show:
         return
 
-    # Build the figure with matplotlib's interactive mode off. If it's on (it
-    # isn't by default, but a user's matplotlibrc may turn it on) then merely
-    # *creating* a figure pops a window up, which would then flash open and shut
-    # when we close it below.
-    with plt.ioff():
-        fig, _ = plotting.summary_plot(obj)
+    fig, _ = plotting.summary_plot(obj)
 
-        if out is not None:
-            out.parent.mkdir(parents=True, exist_ok=True)
-            fig.savefig(out, bbox_inches="tight", dpi=150)
-            cns.print(
-                f"[spring_green3]:duck: Saved summary plot to [link={_as_url(out)}]"
-                f"[purple]{out}[/purple][/link]"
-            )
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out, bbox_inches="tight", dpi=150)
+        cns.print(
+            f"[spring_green3]:duck: Saved summary plot to [link={_as_url(out)}]"
+            f"[purple]{out}[/purple][/link]"
+        )
 
     if show:
-        # block=True explicitly: in interactive mode show() returns immediately,
-        # and the window would then die along with this (about to exit) process.
-        plt.show(block=True)
+        plt.show()
 
     plt.close(fig)
 
