@@ -637,7 +637,7 @@ class TestCanShowPlots:
     def test_not_a_tty(self, monkeypatch):
         """Never show when stdout isn't a terminal -- plt.show() would block."""
         monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
-        monkeypatch.setattr(cli.matplotlib, "get_backend", lambda: "TkAgg")
+        monkeypatch.setattr(cli.matplotlib, "get_backend", lambda **kw: "TkAgg")
         assert cli._can_show_plots()
 
         monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: False, raising=False)
@@ -647,9 +647,36 @@ class TestCanShowPlots:
         """Never show on a backend that can't open a window."""
         monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
 
-        for backend in ("agg", "Agg", "pdf", "svg", "template"):
-            monkeypatch.setattr(cli.matplotlib, "get_backend", lambda b=backend: b)
+        for backend in ("agg", "Agg", "pdf", "svg"):
+            monkeypatch.setattr(
+                cli.matplotlib, "get_backend", lambda b=backend, **kw: b
+            )
             assert not cli._can_show_plots(), backend
+
+    def test_gui_backends(self, monkeypatch):
+        """Backends that drive a GUI toolkit are showable, whatever the platform."""
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
+
+        for backend in ("TkAgg", "macosx", "QtAgg", "GTK4Agg"):
+            monkeypatch.setattr(
+                cli.matplotlib, "get_backend", lambda b=backend, **kw: b
+            )
+            assert cli._can_show_plots(), backend
+
+    def test_module_backend_without_gui(self, monkeypatch):
+        """A "module://" backend with no GUI must not be treated as showable.
+
+        These aren't in matplotlib's list of *builtin* interactive backends, so a
+        membership test against that list misclassifies them.
+        """
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
+        monkeypatch.setattr(
+            cli.matplotlib,
+            "get_backend",
+            lambda **kw: "module://matplotlib_inline.backend_inline",
+        )
+
+        assert not cli._can_show_plots()
 
     def test_auto_show_is_used_when_show_unset(self, tmp_path, monkeypatch):
         """A bare run consults _can_show_plots rather than defaulting to False."""
@@ -664,6 +691,42 @@ class TestCanShowPlots:
         )
 
         assert shown
+
+    def test_show_blocks_and_figure_built_non_interactively(
+        self, tmp_path, monkeypatch
+    ):
+        """Regression test for the plot window flashing open and shut.
+
+        Two things have to hold. The figure must be built with matplotlib's
+        interactive mode off, or creating it pops a window that we then close.
+        And ``show()`` must be told to block, or in interactive mode it returns
+        straight away and the window dies with the process.
+        """
+        calls = {}
+        interactive_while_building = []
+
+        real_summary_plot = cli.plotting.summary_plot
+
+        def spy_summary_plot(obj, **kw):
+            interactive_while_building.append(cli.plt.isinteractive())
+            return real_summary_plot(obj, **kw)
+
+        monkeypatch.setattr(cli.plotting, "summary_plot", spy_summary_plot)
+        monkeypatch.setattr(cli.plt, "show", lambda **kw: calls.update(kw))
+        monkeypatch.setattr(cli, "_can_show_plots", lambda: True)
+
+        cli.plt.ion()
+        try:
+            out = tmp_path / "global-evolution.h5"
+            app_noexit(
+                f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+                f"--out {out} --plot",
+            )
+        finally:
+            cli.plt.ioff()
+
+        assert interactive_while_building == [False]
+        assert calls == {"block": True}
 
     def test_explicit_no_show_beats_auto(self, tmp_path, monkeypatch):
         """--no-show wins even where we could have shown it."""
