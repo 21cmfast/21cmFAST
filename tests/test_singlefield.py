@@ -406,6 +406,10 @@ def test_incompatible_redshifts(default_input_struct, ic):
 
 def test_photoncons_backend_error(redshift, default_input_struct, ic):
     """Test whether the error is raised when you try a photoncons run without proper setup."""
+    from py21cmfast.wrapper.photoncons import _photoncons_state
+
+    _photoncons_state.calibration_inputs = None
+
     inputs = default_input_struct.evolve_input_structs(PHOTON_CONS_TYPE="z-photoncons")
 
     # first test if the error occurs with no inputs
@@ -475,6 +479,11 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
         USE_MCGS=True,
         SOURCE_MODEL="CHMF-SAMPLER",
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
+        M_TURN_STELLAR_FEEDBACK=5.0,
     ).clone(node_redshifts=(35.0, 11.0, 10.0))
 
     test_inputs_eulerian = test_inputs.evolve_input_structs(
@@ -649,7 +658,16 @@ def test_radiation_fields_with_zero_sfr(
     inputs = default_input_struct_ts.evolve_input_structs(
         USE_MCGS=use_mcgs,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
+        V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
+        POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
+        K_MAX_FOR_CLASS=1.0,
+        M_TURN_STELLAR_FEEDBACK=(
+            5.0
+            if use_mcgs
+            else default_input_struct_ts.astro_params.M_TURN_STELLAR_FEEDBACK
+        ),
     )
 
     emissivity_fields1 = EmissivityFields.new(redshift=redshift + 1, inputs=inputs)

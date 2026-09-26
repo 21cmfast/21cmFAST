@@ -71,10 +71,13 @@ def z_range():
 
 @pytest.fixture(scope="module")
 def default_input_struct_mcgs(default_input_struct_lc):
-    """A default input struct with mcgs turned on."""
+    """A default input struct with MCGs (FLUCTS requires CLASS)."""
     return default_input_struct_lc.evolve_input_structs(
         USE_MCGS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         K_MAX_FOR_CLASS=1.0,
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -381,7 +384,11 @@ def test_SFRD_z_tables(name, z_range, default_global_evolution_mcgs, plt):
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -451,7 +458,11 @@ def test_Nion_z_tables(name, z_range, default_global_evolution_mcgs, plt):
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -551,7 +562,11 @@ def test_Nion_conditional_tables(
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=use_mcgs,
+        V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
+        POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -681,7 +696,11 @@ def test_Xray_conditional_tables(
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=use_mcgs,
+        V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
+        POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -772,7 +791,11 @@ def test_SFRD_conditional_table(
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=use_mcgs,
+        V_CB_MODEL="FLUCTS" if use_mcgs else "NONE",
+        POWER_SPECTRUM="CLASS" if use_mcgs else "EH",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,
@@ -888,7 +911,11 @@ def test_conditional_integral_methods(
     inputs = get_all_options_struct(
         redshift,
         USE_MCGS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
         ZPRIME_STEP_FACTOR=1.2,  # needed because we need inputs.node_redshifts == global_evolution.node_redshifts
         M_TURN_STELLAR_FEEDBACK=5.0,

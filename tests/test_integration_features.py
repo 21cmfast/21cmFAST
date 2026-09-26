@@ -38,10 +38,19 @@ logger = logging.getLogger("py21cmfast")
 logger.setLevel(logging.INFO)
 
 options = list(prd.OPTIONS_TESTRUNS.keys())
+# These configs test CONST-ION-EFF / GAMMA-APPROX with the default HMF,
+# which intentionally triggers the EPS conditional mass function advisory.
+_EPS_CONFIGS = ("no-mdz", "ts_nomdz", "mcgs_gamma_approx")
+_EPS_FILTER = pytest.mark.filterwarnings(
+    "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+)
+options_marked = [
+    pytest.param(n, marks=_EPS_FILTER if n in _EPS_CONFIGS else ()) for n in options
+]
 options_pt = list(prd.OPTIONS_PT.keys())
 
 
-@pytest.mark.parametrize("name", options)
+@pytest.mark.parametrize("name", options_marked)
 def test_power_spectra_coeval(name, module_direc, plt):
     redshift, kwargs = prd.OPTIONS_TESTRUNS[name]
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
@@ -84,7 +93,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
         make_coeval_comparison_plot(true_k, test_k, true_powers, test_powers, plt)
 
 
-@pytest.mark.parametrize("name", options)
+@pytest.mark.parametrize("name", options_marked)
 def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
     redshift, kwargs = prd.OPTIONS_TESTRUNS[name]
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
@@ -150,7 +159,6 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
             name=key,
         )
 
-    any_failed = True  # TODO:remove this testing line
     if plt == mpl.pyplot and any_failed:
         make_lightcone_comparison_plot(
             true_k,

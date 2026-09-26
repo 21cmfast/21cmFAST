@@ -256,12 +256,14 @@ def test_optional_field_ic(default_input_struct_lc: InputParameters):
     assert "hires_vz" in ic.arrays
     assert "hires_vz_2LPT" in ic.arrays
 
-    ic = ox.InitialConditions.new(
-        inputs=default_input_struct_lc.evolve_input_structs(
-            V_CB_MODEL="FLUCTS",
-            POWER_SPECTRUM="CLASS",
+    with pytest.warns(UserWarning, match="USE_MCGS is False but V_CB_MODEL"):
+        ic = ox.InitialConditions.new(
+            inputs=default_input_struct_lc.evolve_input_structs(
+                V_CB_MODEL="FLUCTS",
+                POWER_SPECTRUM="CLASS",
+            )
         )
-    )
+
     assert "lowres_vx" in ic.arrays
     assert "lowres_vx_2LPT" in ic.arrays
     assert "hires_vx" not in ic.arrays
@@ -308,12 +310,19 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
         redshift=0.0, inputs=inputs, buffer_size=1
     )
     assert "xray_luminosity" in pert_halo_cat.arrays
-    inputs = inputs.evolve_input_structs(RECOMB_MODEL="inhomogeneous")
+    inputs = inputs.evolve_input_structs(
+        RECOMB_MODEL="inhomogeneous", R_BUBBLE_MAX=50.0
+    )
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
     assert "fesc_weighted_sfr" in pert_halo_cat.arrays
-    inputs = inputs.evolve_input_structs(USE_MCGS=True)
+    inputs = inputs.evolve_input_structs(
+        USE_MCGS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        M_TURN_STELLAR_FEEDBACK=5.0,
+    )
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
@@ -348,13 +357,19 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
         emissivity_fields = ox.EmissivityFields.new(
             redshift=0.0,
             inputs=default_input_struct_lc.evolve_input_structs(
-                USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous", USE_MCGS=True
+                USE_TS_FLUCT=True,
+                RECOMB_MODEL="inhomogeneous",
+                R_BUBBLE_MAX=50.0,
+                USE_MCGS=True,
+                V_CB_MODEL="FLUCTS",
+                POWER_SPECTRUM="CLASS",
+                M_TURN_STELLAR_FEEDBACK=5.0,
             ),
         )
         assert "stellar_mass_density_mcg" in emissivity_fields.arrays
 
     inputs = default_input_struct_lc.evolve_input_structs(
-        RECOMB_MODEL="inhomogeneous", SOURCE_MODEL="L-INTEGRAL"
+        RECOMB_MODEL="inhomogeneous", R_BUBBLE_MAX=50.0, SOURCE_MODEL="L-INTEGRAL"
     )
     emissivity_fields = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
     assert "fesc_weighted_sfrd" in emissivity_fields.arrays
@@ -364,7 +379,12 @@ def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
     assert "sfrd_acg" in emissivity_fields.arrays
     assert "xray_emissivity" in emissivity_fields.arrays
 
-    inputs = inputs.evolve_input_structs(USE_MCGS=True)
+    inputs = inputs.evolve_input_structs(
+        USE_MCGS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        M_TURN_STELLAR_FEEDBACK=5.0,
+    )
     emissivity_fields = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
     assert "sfrd_mcg" in emissivity_fields.arrays
 
@@ -379,7 +399,11 @@ def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameter
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
         USE_MCGS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
+        M_TURN_STELLAR_FEEDBACK=5.0,
     )
     rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=inputs)
     assert "filtered_sfrd_mcg_for_lya" in rfs.arrays
@@ -396,7 +420,11 @@ def test_optional_field_ts(default_input_struct_lc: InputParameters):
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
         USE_MCGS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        M_TURN_STELLAR_FEEDBACK=5.0,
     )
     ts = ox.TsBox.new(redshift=0.0, inputs=inputs)
     assert "J_21_LW" in ts.arrays
@@ -411,6 +439,7 @@ def test_optional_field_ion(default_input_struct_lc: InputParameters):
 
     inputs = default_input_struct_lc.evolve_input_structs(
         RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
     )
     ion = ox.IonizedBox.new(redshift=0.0, inputs=inputs)
     assert "cumulative_recombinations" in ion.arrays
@@ -418,6 +447,9 @@ def test_optional_field_ion(default_input_struct_lc: InputParameters):
     inputs = inputs.evolve_input_structs(
         USE_TS_FLUCT=True,
         USE_MCGS=True,
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        M_TURN_STELLAR_FEEDBACK=5.0,
     )
     ion = ox.IonizedBox.new(redshift=0.0, inputs=inputs)
     assert "nion_conditional_filtered_mcg" in ion.arrays
