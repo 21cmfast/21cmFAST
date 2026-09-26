@@ -10,6 +10,7 @@ jobs:
     if: github.event.workflow_run.conclusion == 'success'
     permissions:
       pull-requests: write
+      checks: write
     runs-on: ubuntu-latest
     env:
       # Must match `name` in fork_pr_benchmarks_run.yml.
@@ -58,7 +59,7 @@ jobs:
           --threshold-upper-boundary 0.1 \
           --thresholds-reset \
           --err \
-          --adapter json \
+          --adapter python_pytest \
           --github-actions '${{ secrets.GITHUB_TOKEN }}' \
           --ci-number "$PR_NUMBER" \
           --file "$BENCHMARK_RESULTS"
