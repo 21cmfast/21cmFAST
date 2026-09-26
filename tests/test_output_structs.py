@@ -310,7 +310,9 @@ def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParamete
         redshift=0.0, inputs=inputs, buffer_size=1
     )
     assert "xray_luminosity" in pert_halo_cat.arrays
-    inputs = inputs.evolve_input_structs(RECOMB_MODEL="inhomogeneous", R_BUBBLE_MAX=50.0)
+    inputs = inputs.evolve_input_structs(
+        RECOMB_MODEL="inhomogeneous", R_BUBBLE_MAX=50.0
+    )
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
