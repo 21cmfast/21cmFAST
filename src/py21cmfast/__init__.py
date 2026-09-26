@@ -57,6 +57,7 @@ __all__ = [
     "get_logspaced_redshifts",
     "lightconers",
     "list_templates",
+    "load_high_level_simulation",
     "perturb_field",
     "perturb_halo_catalog",
     "plotting",
@@ -93,7 +94,12 @@ from .drivers.single_field import (
     perturb_halo_catalog,
 )
 from .io.caching import CacheConfig, OutputCache, RunCache
-from .io.h5 import read_inputs, read_output_struct, write_output_to_hdf5
+from .io.h5 import (
+    load_high_level_simulation,
+    read_inputs,
+    read_output_struct,
+    write_output_to_hdf5,
+)
 from .lightconers import AngularLightconer, RectilinearLightconer
 from .wrapper.cfuncs import (
     compute_luminosity_function,
