@@ -363,13 +363,14 @@ void setup_z_edges(double zp) {
 
 void calculate_spectral_factors(double zp) {
     double nuprime;
+    double redshift_ratio;
     bool first_radii = true, first_zero = true;
     double trial_zpp;
     int counter, ii;
     int n_pts_radii = 1000;
     double weight = 0.;
     int R_ct, n_ct;
-    double zpp, zpp_integrand;
+    double zpp, lya_integrand_prefactor, lw_integrand_prefactor;
 
     double sum_lyn_val, sum_lyn_val_MINI;
     double sum_lyLW_val, sum_lyLW_val_MINI;
@@ -382,6 +383,7 @@ void calculate_spectral_factors(double zp) {
     double prev_zpp = 0;
     for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
         zpp = zpp_for_evolve_list[R_ct];
+        redshift_ratio = (1. + zpp) / (1. + zp);
         // We need to set up prefactors for how much of Lyman-N radiation is recycled to Lyman-alpha
         sum_lyLW_val = 0.;
         sum_lyLW_val_MINI = 0.;
@@ -391,35 +393,32 @@ void calculate_spectral_factors(double zp) {
         sum_ly2_val_MINI = 0.;
 
         // in case we use LYA_HEATING, we separate the ==2 and >2 cases
-        nuprime = nu_n(2) * (1. + zpp) / (1. + zp);
+        nuprime = nu_n(2) * redshift_ratio;
         if (zpp < zmax(zp, 2)) {
             sum_ly2_val = frecycle(2) * spectral_emissivity(nuprime, 0, 2);
             if (astro_options_global->USE_MINI_HALOS) {
                 sum_ly2_val_MINI = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
 
-                if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
-                    nuprime = physconst.nu_LW_thresh / physconst.nu_ion_HI;
-                // NOTE: are we comparing nuprime at z' and z'' correctly here?
-                //   currently: emitted frequency >= received frequency of next n
-                if (nuprime >= nu_n(2 + 1)) continue;
-
-                sum_lyLW_val +=
-                    (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
-                sum_lyLW_val_MINI +=
-                    (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 3);
+                // The 11.2 eV lower edge is defined in the target frame, so redshift it
+                // to the emission frame before integrating the lowest LW interval.
+                nuprime = physconst.nu_LW_thresh / physconst.nu_Ly_alpha * redshift_ratio;
+                if (nuprime < nu_n(3)) {
+                    sum_lyLW_val += (1. - astro_params_global->F_H2_SHIELD) *
+                                    spectral_emissivity(nuprime, 2, 2);
+                    sum_lyLW_val_MINI += (1. - astro_params_global->F_H2_SHIELD) *
+                                         spectral_emissivity(nuprime, 2, 3);
+                }
             }
         }
 
         for (n_ct = NSPEC_MAX; n_ct >= 3; n_ct--) {
             if (zpp > zmax(zp, n_ct)) continue;
 
-            nuprime = nu_n(n_ct) * (1 + zpp) / (1.0 + zp);
+            nuprime = nu_n(n_ct) * redshift_ratio;
             sum_lynto2_val += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
             if (astro_options_global->USE_MINI_HALOS) {
                 sum_lynto2_val_MINI += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 
-                if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
-                    nuprime = physconst.nu_LW_thresh / physconst.nu_ion_HI;
                 if (nuprime >= nu_n(n_ct + 1)) continue;
                 sum_lyLW_val +=
                     (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
@@ -461,24 +460,26 @@ void calculate_spectral_factors(double zp) {
             }
             first_radii = false;
         }
-        zpp_integrand = (pow(1 + zp, 2) * (1 + zpp));
-        dstarlya_dt_prefactor[R_ct] = zpp_integrand * sum_lyn_val;
+        lya_integrand_prefactor = (pow(1 + zp, 2) * (1 + zpp));
+        dstarlya_dt_prefactor[R_ct] = lya_integrand_prefactor * sum_lyn_val;
         LOG_ULTRA_DEBUG("z: %.2e R: %.2e int %.2e starlya: %.4e", zpp, R_values[R_ct],
-                        zpp_integrand, dstarlya_dt_prefactor[R_ct]);
+                        lya_integrand_prefactor, dstarlya_dt_prefactor[R_ct]);
 
         if (astro_options_global->USE_LYA_HEATING) {
-            dstarlya_cont_dt_prefactor[R_ct] = zpp_integrand * sum_ly2_val;
-            dstarlya_inj_dt_prefactor[R_ct] = zpp_integrand * sum_lynto2_val;
+            dstarlya_cont_dt_prefactor[R_ct] = lya_integrand_prefactor * sum_ly2_val;
+            dstarlya_inj_dt_prefactor[R_ct] = lya_integrand_prefactor * sum_lynto2_val;
             LOG_ULTRA_DEBUG("cont %.2e inj %.2e", dstarlya_cont_dt_prefactor[R_ct],
                             dstarlya_inj_dt_prefactor[R_ct]);
         }
         if (astro_options_global->USE_MINI_HALOS) {
-            dstarlya_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_lyn_val_MINI;
-            dstarlyLW_dt_prefactor[R_ct] = zpp_integrand * sum_lyLW_val;
-            dstarlyLW_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_lyLW_val_MINI;
+            lw_integrand_prefactor = pow(1 + zp, 3);
+            dstarlya_dt_prefactor_MINI[R_ct] = lya_integrand_prefactor * sum_lyn_val_MINI;
+            dstarlyLW_dt_prefactor[R_ct] = lw_integrand_prefactor * sum_lyLW_val;
+            dstarlyLW_dt_prefactor_MINI[R_ct] = lw_integrand_prefactor * sum_lyLW_val_MINI;
             if (astro_options_global->USE_LYA_HEATING) {
-                dstarlya_cont_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_ly2_val_MINI;
-                dstarlya_inj_dt_prefactor_MINI[R_ct] = zpp_integrand * sum_lynto2_val_MINI;
+                dstarlya_cont_dt_prefactor_MINI[R_ct] = lya_integrand_prefactor * sum_ly2_val_MINI;
+                dstarlya_inj_dt_prefactor_MINI[R_ct] =
+                    lya_integrand_prefactor * sum_lynto2_val_MINI;
             }
 
             LOG_ULTRA_DEBUG("starmini: %.2e LW: %.2e LWmini: %.2e",
@@ -1840,8 +1841,11 @@ void ts_main(float redshift, float prev_redshift, float perturbed_field_redshift
                 dstarlya_dt_box[box_ct] * zp_consts.lya_star_prefactor * zp_consts.volunit_inv;
             rad.delta = curr_delta;
             if (astro_options_global->USE_MINI_HALOS) {
+                // Convert the energy-weighted dimensionless spectrum to an intensity per unit
+                // LW-band frequency, in units of 1e-21 erg s^-1 Hz^-1 cm^-2 sr^-1.
                 rad.dstarLW_dt = dstarlyLW_dt_box[box_ct] * zp_consts.lya_star_prefactor *
-                                 zp_consts.volunit_inv * physconst.h_p * 1e21;
+                                 zp_consts.volunit_inv * physconst.h_p * physconst.nu_Ly_alpha /
+                                 (physconst.nu_ion_HI - physconst.nu_LW_thresh) * 1e21;
             }
             if (astro_options_global->USE_LYA_HEATING) {
                 rad.dstarlya_cont_dt = dstarlya_cont_dt_box[box_ct] * zp_consts.lya_star_prefactor *
