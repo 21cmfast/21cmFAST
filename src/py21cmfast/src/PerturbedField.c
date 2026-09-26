@@ -152,7 +152,7 @@ void assign_to_lowres_grid(fftwf_complex *hires_grid, fftwf_complex *lowres_grid
     memcpy(saved_grid, hires_grid, sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
     // Now filter the box
-    filter_box(hires_grid, hi_dim, 0,
+    filter_box(hires_grid, hi_dim, FILTER_TOPHAT,
                physconst.l_factor * simulation_options_global->BOX_LEN / (lo_dim[0] + 0.0), 0., 0.);
 
     // FFT back to real space
@@ -219,7 +219,7 @@ void smooth_and_clip_density(fftwf_complex *lowres_grid, fftwf_complex *density_
 
     // smooth the field
     if (matter_options_global->SMOOTH_EVOLVED_DENSITY_FIELD) {
-        filter_box(lowres_grid, box_dim, 2,
+        filter_box(lowres_grid, box_dim, FILTER_GAUSSIAN,
                    simulation_options_global->DENSITY_SMOOTH_RADIUS *
                        simulation_options_global->BOX_LEN /
                        (float)simulation_options_global->HII_DIM,
@@ -355,7 +355,7 @@ void compute_perturbed_velocities(unsigned short axis, double redshift,
 
     if (matter_options_global->PERTURB_ON_HIGH_RES &&
         simulation_options_global->DIM != simulation_options_global->HII_DIM) {
-        filter_box(velocity_fft_grid, box_dim, 0,
+        filter_box(velocity_fft_grid, box_dim, FILTER_TOPHAT,
                    physconst.l_factor * simulation_options_global->BOX_LEN /
                        (simulation_options_global->HII_DIM + 0.0),
                    0., 0.);

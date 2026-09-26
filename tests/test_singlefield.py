@@ -12,7 +12,7 @@ import pytest
 import py21cmfast as p21c
 from py21cmfast import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
     HaloCatalog,
     InitialConditions,
     IonizedBox,
@@ -20,6 +20,7 @@ from py21cmfast import (
     PerturbedField,
     TsBox,
 )
+from py21cmfast.drivers.single_field import setup_radiation_fields
 from py21cmfast.wrapper.arrays import Array
 
 
@@ -78,10 +79,25 @@ def spin_temp_evolution(ic: InitialConditions, default_input_struct_ts: TsBox, c
             inputs=default_input_struct_ts,
             cache=cache,
         )
+        emissivity_fields = p21c.compute_emissivity_fields(
+            redshift=z,
+            initial_conditions=ic,
+            perturbed_field=pt,
+            inputs=default_input_struct_ts,
+            cache=cache,
+        )
+
+        rf = p21c.compute_radiation_fields(
+            emissivity_fields_list=[emissivity_fields],
+            redshift=z,
+            cache=cache,
+        )
+
         st = p21c.compute_spin_temperature(
             initial_conditions=ic,
             perturbed_field=pt,
             previous_spin_temp=st_prev,
+            radiation_fields=rf,
             inputs=default_input_struct_ts,
             cache=cache,
         )
@@ -89,6 +105,8 @@ def spin_temp_evolution(ic: InitialConditions, default_input_struct_ts: TsBox, c
             {
                 "redshift": z,
                 "perturbed_field": pt,
+                "emissivity_fields": emissivity_fields,
+                "radiation_fields": rf,
                 "spin_temp": st,
             }
         )
@@ -139,7 +157,7 @@ def test_new_seeds(
     # we didn't write it, and this has a different seed
     assert cache.find_existing(pf) is None
     assert pf.random_seed != perturb_field_lowz.random_seed
-    assert not np.all(pf.density.value == perturb_field_lowz.density.value)
+    assert not np.all(pf.density == perturb_field_lowz.density)
 
     # Ionization Box
     with pytest.raises(
@@ -159,9 +177,7 @@ def test_new_seeds(
     # we didn't write it, and this has a different seed
     assert cache.find_existing(ib) is None
     assert ib.random_seed != ionize_box_lowz.random_seed
-    assert not np.all(
-        ib.neutral_fraction.value == ionize_box_lowz.neutral_fraction.value
-    )
+    assert not np.all(ib.neutral_fraction == ionize_box_lowz.neutral_fraction)
 
 
 def test_ib_from_pf(perturbed_field, ic, cache):
@@ -244,7 +260,7 @@ def test_parameter_override(
     assert pf.inputs != ic.inputs
     assert pf != perturbed_field
 
-    inputs_changeastro = inputs_changenodes.evolve_input_structs(F_STAR10=-3.0)
+    inputs_changeastro = inputs_changenodes.evolve_input_structs(F_STAR10_ACG=-3.0)
 
     ib = p21c.compute_ionization_field(
         initial_conditions=ic,
@@ -342,12 +358,8 @@ def test_using_cached_halo_catalog(ic_with_halos, test_direc):
         regenerate=False,
     )
 
-    np.testing.assert_allclose(
-        new_halo_catalog.halo_masses.value, halo_catalog.halo_masses.value
-    )
-    np.testing.assert_allclose(
-        pt_halos.halo_coords.value, new_pt_halos.halo_coords.value
-    )
+    np.testing.assert_allclose(new_halo_catalog.halo_masses, halo_catalog.halo_masses)
+    np.testing.assert_allclose(pt_halos.halo_coords, new_pt_halos.halo_coords)
 
 
 def test_incompatible_redshifts(default_input_struct, ic):
@@ -456,19 +468,27 @@ def test_global_properties(
     assert bt.global_Tb == np.mean(bt.get("brightness_temp"))
 
 
-def test_bad_input_structs(default_input_struct_ts):
+def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
     """Test that we raise errors when required input structs are omitted."""
     # setting parameters for the maximum number of fields required
     test_inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         SOURCE_MODEL="CHMF-SAMPLER",
         RECOMB_MODEL="inhomogeneous",
     ).clone(node_redshifts=(35.0, 11.0, 10.0))
 
+    test_inputs_eulerian = test_inputs.evolve_input_structs(
+        SOURCE_MODEL="E-INTEGRAL",
+        V_CB_MODEL="FLUCTS",
+        POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
+    )
+
     # We don't need to compute since we arent testing a successful run
     ic = InitialConditions.new(inputs=test_inputs)
+    ic_eulerian = InitialConditions.new(inputs=test_inputs_eulerian)
     hf = HaloCatalog.new(redshift=10.0, inputs=test_inputs, buffer_size=1)
-    hb = HaloBox.new(redshift=10.0, inputs=test_inputs)
+    emissivity_fields = EmissivityFields.new(redshift=10.0, inputs=test_inputs)
     pt = PerturbedField.new(redshift=10.0, inputs=test_inputs)
     pt_p = PerturbedField.new(redshift=11.0, inputs=test_inputs)
     st = TsBox.new(redshift=10.0, inputs=test_inputs)
@@ -493,11 +513,37 @@ def test_bad_input_structs(default_input_struct_ts):
             previous_spin_temp=st_p,
         )
 
-    # HaloBox
+    # EmissivityFields
+    with pytest.raises(
+        ValueError, match="You must provide initial_conditions for SOURCE_MODEL"
+    ):
+        p21c.compute_emissivity_fields(
+            redshift=10.0, initial_conditions=None, inputs=test_inputs, halo_catalog=hf
+        )
+
+    with pytest.raises(
+        ValueError, match="You must provide initial_conditions for SOURCE_MODEL"
+    ):
+        p21c.compute_emissivity_fields(
+            redshift=10.0,
+            initial_conditions=None,
+            inputs=test_inputs_eulerian,
+        )
+
+    with pytest.raises(
+        ValueError, match="You must provide perturbed_field for SOURCE_MODEL"
+    ):
+        p21c.compute_emissivity_fields(
+            redshift=10.0,
+            initial_conditions=ic_eulerian,
+            perturbed_field=None,
+            inputs=test_inputs_eulerian,
+        )
+
     with pytest.raises(
         ValueError, match="You must provide halo_catalog for SOURCE_MODEL"
     ):
-        p21c.compute_halo_grid(
+        p21c.compute_emissivity_fields(
             redshift=10.0,
             initial_conditions=ic,
             previous_ionize_box=ib_p,
@@ -506,7 +552,7 @@ def test_bad_input_structs(default_input_struct_ts):
     with pytest.raises(
         ValueError, match="Below Z_HEAT_MAX you must specify the previous_spin_temp"
     ):
-        p21c.compute_halo_grid(
+        p21c.compute_emissivity_fields(
             redshift=10.0,
             initial_conditions=ic,
             halo_catalog=hf,
@@ -515,20 +561,17 @@ def test_bad_input_structs(default_input_struct_ts):
     with pytest.raises(
         ValueError, match="Below Z_HEAT_MAX you must specify the previous_spin_temp"
     ):
-        p21c.compute_halo_grid(
+        p21c.compute_emissivity_fields(
             redshift=10.0,
             initial_conditions=ic,
             halo_catalog=hf,
         )
 
-    # TsBox
-    with pytest.raises(
-        ValueError,
-        match="xray_source_box is required for SOURCE_MODEL",
-    ):
-        p21c.compute_spin_temperature(
-            initial_conditions=ic,
-            perturbed_field=pt,
+    # RadiationFields
+    with pytest.raises(ValueError, match="emissivity_fields_list must be provided"):
+        p21c.compute_radiation_fields(
+            redshift=10.0,
+            previous_ionize_box=ib_p,
             previous_spin_temp=st_p,
         )
 
@@ -541,7 +584,7 @@ def test_bad_input_structs(default_input_struct_ts):
             initial_conditions=ic,
             perturbed_field=pt,
             previous_perturbed_field=pt_p,
-            halobox=hb,
+            emissivity_fields=emissivity_fields,
             spin_temp=st,
         )
     with pytest.raises(
@@ -551,11 +594,13 @@ def test_bad_input_structs(default_input_struct_ts):
         p21c.compute_ionization_field(
             initial_conditions=ic,
             perturbed_field=pt,
-            halobox=hb,
+            emissivity_fields=emissivity_fields,
             previous_ionized_box=ib_p,
             spin_temp=st,
         )
-    with pytest.raises(ValueError, match="A HaloBox must be provided for SOURCE_MODEL"):
+    with pytest.raises(
+        ValueError, match="EmissivityFields must be provided for SOURCE_MODEL"
+    ):
         p21c.compute_ionization_field(
             initial_conditions=ic,
             perturbed_field=pt,
@@ -570,57 +615,78 @@ def test_bad_input_structs(default_input_struct_ts):
             initial_conditions=ic,
             perturbed_field=pt,
             previous_perturbed_field=pt_p,
-            halobox=hb,
+            emissivity_fields=emissivity_fields,
             previous_ionized_box=ib_p,
+        )
+
+    prev_st = spin_temp_evolution[-2]["spin_temp"]
+    emissivity_fields1 = spin_temp_evolution[-1]["emissivity_fields"]
+    emissivity_fields2 = spin_temp_evolution[-2]["emissivity_fields"]
+    emissivity_fields3 = spin_temp_evolution[-3]["emissivity_fields"]
+
+    rad_setup = setup_radiation_fields(
+        redshift=default_input_struct_ts.node_redshifts[-1],
+        previous_spin_temp=prev_st,
+        emissivity_fields_list=[emissivity_fields1, emissivity_fields2],
+    )
+    with pytest.raises(
+        ValueError,
+        match="The redshifts of the input emissivity_fields do not match those of the input rad_setup!",
+    ):
+        p21c.compute_radiation_fields(
+            emissivity_fields_list=[emissivity_fields1, emissivity_fields3],
+            redshift=default_input_struct_ts.node_redshifts[-1],
+            rad_setup=rad_setup,
         )
 
 
 @pytest.mark.parametrize("lya_multiple_scattering", [False, True])
-@pytest.mark.parametrize("use_mini_halos", [False, True])
-def test_xray_source_field_with_zero_sfr(
-    default_input_struct_ts, redshift, use_mini_halos, lya_multiple_scattering
+@pytest.mark.parametrize("use_mcgs", [False, True])
+def test_radiation_fields_with_zero_sfr(
+    default_input_struct_ts, redshift, use_mcgs, lya_multiple_scattering
 ):
-    """Test compute_xray_source_field with zero sfr boxes."""
+    """Test compute_radiation_fields with zero sfr boxes."""
     inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MINI_HALOS=use_mini_halos,
+        USE_MCGS=use_mcgs,
         RECOMB_MODEL="inhomogeneous",
         LYA_MULTIPLE_SCATTERING=lya_multiple_scattering,
-        SOURCE_MODEL="L-INTEGRAL",
     )
-    ics = p21c.InitialConditions.new(inputs=inputs)
 
-    hbox1 = HaloBox.new(redshift=redshift + 1, inputs=inputs)
-    hbox2 = HaloBox.new(redshift=redshift, inputs=inputs)
+    emissivity_fields1 = EmissivityFields.new(redshift=redshift + 1, inputs=inputs)
+    emissivity_fields2 = EmissivityFields.new(redshift=redshift, inputs=inputs)
 
     # This is needed because the input arrays must be in a computed state.
-    fields = ["halo_sfr", "halo_xray"]
-    if use_mini_halos:
-        fields += ["halo_sfr_mini", "log10_Mcrit_MCG_ave"]
-    shape = hbox1.halo_sfr.shape
+    fields = ["sfrd_acg", "xray_emissivity"]
+    if use_mcgs:
+        fields += ["sfrd_mcg", "log10_mturn_mcg_ave"]
+    shape = emissivity_fields1.arrays["sfrd_acg"].shape
     array = (
         Array(shape=shape, dtype=np.float32)
         .initialize()
         .with_value(val=np.zeros(shape))
     )
-    for hbox in [hbox1, hbox2]:
+    for emissivity_fields in [emissivity_fields1, emissivity_fields2]:
         for name in fields:
-            setattr(hbox, name, array.computed())
-        if use_mini_halos:
-            hbox.log10_Mcrit_MCG_ave = 5.0
+            setattr(emissivity_fields, name, array.computed())
+        if use_mcgs:
+            emissivity_fields.log10_mturn_mcg_ave = 5.0
 
-    xraysource = p21c.compute_xray_source_field(
-        initial_conditions=ics,
-        hboxes=[hbox1, hbox2],
+    radiation_fields = p21c.compute_radiation_fields(
+        emissivity_fields_list=[emissivity_fields1, emissivity_fields2],
         redshift=redshift,
     )
 
-    output_fields = ["filtered_sfr", "filtered_xray"]
-    if use_mini_halos:
+    output_fields = [
+        "xray_heating_rate",
+        "xray_ionization_rate",
+        "xray_lya_flux",
+        "lya_flux_continuum",
+        "lya_flux_injected",
+    ]
+    if use_mcgs:
         output_fields += [
-            "filtered_sfr_mini",
+            "lyw_flux",
         ]
-        if lya_multiple_scattering:
-            output_fields += ["filtered_sfr_lw", "filtered_sfr_mini_lw"]
 
     for field in output_fields:
-        assert np.all(getattr(xraysource, field).value == 0.0)
+        assert np.all(getattr(radiation_fields, field) == 0.0)

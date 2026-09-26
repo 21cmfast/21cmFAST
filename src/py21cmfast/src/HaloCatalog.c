@@ -99,7 +99,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         density_field_saved =
             (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * KSPACE_NUM_PIXELS);
 
-        // allocate memory for the boolean in_halo box
+        // allocate memory for the boolean in_halo array
         in_halo = (char *)malloc(sizeof(char) * TOT_NUM_PIXELS);
 
         // initialize
@@ -119,8 +119,8 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         // simulation_options_global->N_THREADS;
 
 #if LOG_LEVEL >= DEBUG_LEVEL
-        double nhalo_debug = Nhalo_General(redshift, log(M_MIN), log(M_MAX_INTEGRAL)) * VOLUME *
-                             cosmo_params_global->OMm * RHOcrit;
+        double nhalo_debug =
+            nhalo_unconditional(redshift, log(M_MIN), log(M_MAX_INTEGRAL)) * VOLUME;
         // expected halos above minimum filter mass
         LOG_DEBUG("DexM: We expect %.2f Halos between Masses [%.2e,%.2e] D %.3e", nhalo_debug,
                   M_MIN, M_MAX_INTEGRAL, growth_factor);
@@ -258,7 +258,8 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
                         idx_f = grid_index_fftw_r(x, y, z, box_dim);
                         delta_m =
                             *((float *)density_field + idx_f) * growth_factor / TOT_NUM_PIXELS;
-                        // if not within a larger halo, and radii don't overlap, update in_halo box
+                        // if not within a larger halo, and radii don't overlap, update in_halo
+                        // array
                         // *****************  BEGIN OPTIMIZATION ***************** //
                         if (matter_options_global->DEXM_OPTIMIZE &&
                             (M > simulation_options_global->DEXM_OPTIMIZE_MINMASS)) {
@@ -383,7 +384,7 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
                          simulation_options_global->N_THREADS, density_field);
             if (simulation_options_global->DIM != simulation_options_global->HII_DIM) {
                 // the tophat filter here will smoothe the grid to HII_DIM
-                filter_box(density_field, box_dim, 0,
+                filter_box(density_field, box_dim, FILTER_TOPHAT,
                            physconst.l_factor * simulation_options_global->BOX_LEN /
                                (simulation_options_global->HII_DIM + 0.0),
                            0., 0.);

@@ -355,6 +355,65 @@ for example::
     ``node_redshifts``.
 
 
+Making Plots
+------------
+
+A simulation that writes everything into a (rather hidden) cache directory can feel a
+bit like it did nothing at all. To get a quick look at a simulation you just made
+(whether a lightcone, coeval or global signal), use::
+
+    $ 21cmfast plot lightcone.h5
+
+This writes a simple summary plot (here, ``lightcone_summary.png``) next to the data
+file, and produces a plot appropriate to the kind of file you give it.
+
+A **lightcone** file gives a slice through the lightcone, with the global signal and
+ionization/temperature histories lined up beneath it on the same line-of-sight axis:
+
+.. image:: ../images/summary_plots/lightcone.png
+    :width: 100%
+    :alt: Summary plot of a lightcone.
+
+A **coeval** file gives slices through the box for the brightness temperature, neutral
+fraction, density and (if computed) spin temperature:
+
+.. image:: ../images/summary_plots/coeval.png
+    :width: 100%
+    :alt: Summary plot of a coeval box.
+
+A **global evolution** file gives the global signal (with a frequency axis), the
+ionization history and the temperature history:
+
+.. image:: ../images/summary_plots/global_evolution.png
+    :width: 80%
+    :alt: Summary plot of a global evolution run.
+
+Use ``--out`` to write the plot somewhere else, and ``--show`` to pop it up in an
+interactive window.
+
+You can also get the plot directly as part of the run. ``--plot`` writes it next to
+the simulation output, and ``--show`` opens it in an interactive window::
+
+    $ 21cmfast run lightcone --param-file custom.toml --redshift-range 6 12 --plot
+    $ 21cmfast run coeval --param-file custom.toml -z 8 --show
+    $ 21cmfast run global --param-file custom.toml --plot --show
+
+If you don't say either way, the plot is shown whenever that's sensible: when you're
+sitting at a terminal and matplotlib has a GUI backend to draw into. It is *not* shown
+in a batch job, over a pipe, or under a headless backend -- ``plt.show()`` blocks until
+you close the window, so doing it there would hang the run (holding the whole
+simulation in memory) until something killed it. Pass ``--show`` to insist, or
+``--no-show`` to suppress it.
+
+.. note:: ``--plot`` and ``--show`` are independent: ``--plot`` controls whether the
+    PNG is written, ``--show`` whether a window opens. The path of a saved plot is
+    printed as a ``file://`` link, which most terminals let you click.
+
+These plots are deliberately simple -- they're meant as a sanity check that the
+simulation ran and looks sensible, not as publication-quality figures. For that, use
+the functions in :mod:`py21cmfast.plotting` directly.
+
+
 Common Options when Running Simulations
 ---------------------------------------
 
@@ -371,6 +430,11 @@ already discussed above (all are optional, with defaults):
 * ``--verbosity``: set how much info is printed to screen by the simulator. The options
   here are the standard logging levels (INFO, DEBUG, WARNING, etc).
 * ``--progress/--no-progress``: turn the progress bar on and off.
+* ``--plot``: write a simple summary plot of the output alongside the data file
+  (not available for ``run ics``). See `Making Plots`_.
+* ``--show``/``--no-show``: force the summary plot to be opened in a window, or
+  force it not to be. Left unset, it is shown only when you're at a terminal with a
+  GUI matplotlib backend. See `Making Plots`_.
 
 Cookbook
 --------

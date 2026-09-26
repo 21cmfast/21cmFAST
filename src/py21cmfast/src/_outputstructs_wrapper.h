@@ -34,47 +34,84 @@ typedef struct PerturbedHaloCatalog {
     float *halo_coords;
 
     // Halo properties
-    float *sfr;
-    float *stellar_masses;
-    float *ion_emissivity;
-    float *xray_emissivity;
-    float *fesc_sfr;
+    float *sfr_acg;
+    float *stellar_masses_acg;
+    float *n_ion;
+    float *xray_luminosity;
+    float *fesc_weighted_sfr;
 
-    float *stellar_mini;
-    float *sfr_mini;
+    float *stellar_masses_mcg;
+    float *sfr_mcg;
 } PerturbedHaloCatalog;
 
-typedef struct HaloBox {
+typedef struct EmissivityFields {
     // Things that aren't used in radiation fields but useful outputs
-    float *halo_mass;
-    float *halo_stars;
-    float *halo_stars_mini;
-    float *count;
+    float *halo_mass_density;
+    float *stellar_mass_density_acg;
+    float *stellar_mass_density_mcg;
+    float *halo_number;
 
     // For IonisationBox.c and SpinTemperatureBox.c
-    float *n_ion;     // weighted by F_ESC*PopN_ion
-    float *halo_sfr;  // for x-rays and Ts stuff
-    float *halo_xray;
-    float *halo_sfr_mini;  // for x-rays and Ts stuff
-    float *whalo_sfr;      // SFR weighted by PopN_ion and F_ESC, used for Gamma12
+    float *n_ion;               // weighted by F_ESC*PopN_ion
+    float *sfrd_acg;            // for x-rays and Ts stuff
+    float *xray_emissivity;     // for x-rays and Ts stuff
+    float *sfrd_mcg;            // for x-rays and Ts stuff
+    float *fesc_weighted_sfrd;  // SFR weighted by PopN_ion and F_ESC, used for Gamma12
 
     // Average volume-weighted log10 Turnover masses are kept in order to compare with the expected
     // MF integrals
-    double log10_Mcrit_ACG_ave;
-    double log10_Mcrit_MCG_ave;
-} HaloBox;
+    double log10_mturn_acg_ave;
+    double log10_mturn_mcg_ave;
+} EmissivityFields;
 
-typedef struct XraySourceBox {
-    float *filtered_sfr;
-    float *filtered_xray;
-    float *filtered_sfr_mini;
-    float *filtered_sfr_lw;
-    float *filtered_sfr_mini_lw;
+typedef struct RadiationFieldsSetup {
+    // R-dependent arrays which are set once
+    double *R_values, *zpp_avg, *zpp_edges;
 
-    double *mean_log10_Mcrit_LW;
-    double *mean_sfr;
-    double *mean_sfr_mini;
-} XraySourceBox;
+    // Arrays for the filtered emissivity fields
+    float *filtered_sfrd_acg_for_lya;
+    float *filtered_xray_emissivity;
+    float *filtered_sfrd_mcg_for_lya;
+    float *filtered_sfrd_acg_for_lw;
+    float *filtered_sfrd_mcg_for_lw;
+
+    // frequency integral tables
+    double *freq_int_heat_tbl, *freq_int_ion_tbl, *freq_int_lya_tbl, *freq_int_heat_tbl_diff;
+    double *freq_int_ion_tbl_diff, *freq_int_lya_tbl_diff;
+
+    // helpers for the interpolation
+    float *inverse_diff;
+    float *inverse_val_box;
+    int *m_xHII_low_box;
+
+    // arrays for R-dependent prefactors
+    double *lya_flux_continuum_injected_prefactor_acg, *lya_flux_continuum_injected_prefactor_mcg;
+    double *lyw_flux_prefactor_acg, *lyw_flux_prefactor_mcg;
+    double *lya_flux_continuum_prefactor_acg, *lya_flux_injected_prefactor_acg;
+    double *lya_flux_continuum_prefactor_mcg, *lya_flux_injected_prefactor_mcg;
+
+    // array and floats required for the X-ray optical depth calculation
+    double *ave_log10_MturnLW;
+    double x_e_ave_zp;
+    double Q_HI_zp;
+
+    // boolean to indicate whether there's enough light
+    int NO_LIGHT;
+} RadiationFieldsSetup;
+
+typedef struct RadiationFields {
+    // TODO: these arrays are defined as double, but should be float - see
+    // https://github.com/21cmfast/21cmFAST/issues/744
+    double *xray_heating_rate;
+    double *xray_ionization_rate;
+    double *xray_lya_flux;
+    double *lya_flux_continuum_injected;
+    double *lya_flux_continuum;
+    double *lya_flux_injected;
+    double *lyw_flux;
+
+    double Q_HI;
+} RadiationFields;
 
 typedef struct TsBox {
     float *spin_temperature;
@@ -85,18 +122,18 @@ typedef struct TsBox {
 } TsBox;
 
 typedef struct IonizedBox {
-    double mean_f_coll;
-    double mean_f_coll_MINI;
-    double log10_Mturnover_ave;
-    double log10_Mturnover_MINI_ave;
+    double nion_unconditional_acg;
+    double nion_unconditional_mcg;
+    double log10_mturn_ave_acg;
+    double log10_mturn_ave_mcg;
     float *neutral_fraction;
     float *ionisation_rate_G12;
     float *mean_free_path;
     float *z_reion;
     float *cumulative_recombinations;
     float *kinetic_temperature;
-    float *unnormalised_nion;
-    float *unnormalised_nion_mini;
+    float *nion_conditional_filtered_acg;
+    float *nion_conditional_filtered_mcg;
 } IonizedBox;
 
 typedef struct BrightnessTemp {
