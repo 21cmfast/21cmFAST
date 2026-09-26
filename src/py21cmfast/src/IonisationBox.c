@@ -1627,7 +1627,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
 
             fftwf_cleanup_threads();
             fftwf_cleanup();
-            fftwf_forget_wisdom();
         }
 
         LOG_DEBUG("global_xH = %e", global_xH);

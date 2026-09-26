@@ -478,7 +478,6 @@ int ComputePerturbedField(float redshift, InitialConditions *boxes,
 
         fftwf_cleanup_threads();
         fftwf_cleanup();
-        fftwf_forget_wisdom();
 
         // deallocate
         fftwf_free(LOWRES_density_perturb);

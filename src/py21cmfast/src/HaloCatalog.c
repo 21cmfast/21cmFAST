@@ -443,7 +443,6 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
 
         fftwf_cleanup_threads();
         fftwf_cleanup();
-        fftwf_forget_wisdom();
 
         LOG_DEBUG("Finished halo cleanup.");
         LOG_DEBUG("Found %llu Halos", halos->n_halos);
