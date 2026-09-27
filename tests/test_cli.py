@@ -600,6 +600,9 @@ class TestPlot:
         app_noexit(f"plot {tmp_path / 'coeval_z7.00.h5'} --out {out}")
         assert out.exists()
 
+    @pytest.mark.filterwarnings(
+        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
+    )
     def test_run_global_with_plot(self, tmp_path: Path):
         """Test that `run global --plot` writes a plot next to the data."""
         out = tmp_path / "global-evolution.h5"
@@ -619,6 +622,9 @@ class TestPlot:
         with pytest.raises(ValueError, match="not a recognized 21cmFAST output"):
             load_high_level_simulation(bad)
 
+    @pytest.mark.filterwarnings(
+        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
+    )
     @pytest.mark.parametrize("flags", ["--show", "--plot --show"])
     def test_run_with_show(self, tmp_path: Path, monkeypatch, flags: str):
         """`--show` displays the plot; only `--plot` also writes it to file."""
@@ -636,6 +642,9 @@ class TestPlot:
             "--plot" in flags
         )
 
+    @pytest.mark.filterwarnings(
+        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
+    )
     def test_no_plot_gives_hint(self, capsys, tmp_path: Path):
         """Without --plot we should tell the user how to plot later."""
         out = tmp_path / "global-evolution.h5"
@@ -647,6 +656,9 @@ class TestPlot:
         assert "21cmfast plot" in capsys.readouterr().out
         assert not list(tmp_path.glob("*.png"))
 
+    @pytest.mark.filterwarnings(
+        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
+    )
     def test_saved_plot_path_is_a_link(self, capsys, tmp_path: Path):
         """The saved-plot message carries a clickable file:// URL."""
         out = tmp_path / "global-evolution.h5"
@@ -709,6 +721,9 @@ class TestCanShowPlots:
 
         assert not cli._can_show_plots()
 
+    @pytest.mark.filterwarnings(
+        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
+    )
     def test_auto_show_is_used_when_show_unset(self, tmp_path, monkeypatch):
         """A bare run consults _can_show_plots rather than defaulting to False."""
         shown = []
@@ -723,6 +738,9 @@ class TestCanShowPlots:
 
         assert shown
 
+    @pytest.mark.filterwarnings(
+        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
+    )
     def test_explicit_no_show_beats_auto(self, tmp_path, monkeypatch):
         """--no-show wins even where we could have shown it."""
         shown = []
