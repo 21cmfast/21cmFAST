@@ -145,6 +145,8 @@ int test_filter(float *input_box, double R, double R_param, double R_star, int f
 double compute_mu_for_multiple_scattering(double x_em);
 double compute_eta_for_multiple_scattering(double x_em);
 double hyper_2F3(double kR, double alpha, double beta);
+double test_alpha_for_multiple_scattering(double x_em);
+double test_beta_for_multiple_scattering(double x_em);
 
 /* Functions required to access cosmology & mass functions directly */
 double dicke(double z);

@@ -325,7 +325,7 @@ def filter_plot(
 
 @pytest.mark.parametrize("R_inner", R_PARAM_LIST)
 @pytest.mark.parametrize("n", [2, 4, 6, 8])
-@pytest.mark.parametrize("R_star", [1e-6, 5, 10, 20])
+@pytest.mark.parametrize("R_star", [0, 1e-3, 5, 10, 20])
 def test_MS_filter(R_inner, n, R_star):
     """Test the multiple scattering filter."""
     opts = prd.get_all_options_struct(redshift=10.0)
@@ -366,19 +366,21 @@ def test_MS_filter(R_inner, n, R_star):
         assert not np.allclose(output_box_SL, output_box_MS, atol=1e-4)
 
 
-@pytest.mark.parametrize("x_em", [0.0, 0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0, 500.0])
+@pytest.mark.parametrize("x_em", [0.1, 0.5, 1.0, 5.0, 10.0, 50.0, 100.0, 500.0])
 def test_hyper_2F3(x_em):
-    """Test the implementation of the hypergeometric function in the C code."""
+    """
+    Test the implementation of the hypergeometric function in the C code.
+
+    This test is more comprehensive than really needed, because x_em = R / R_star, so
+    R is actually determined from x_em and R_star (which is basically a function of only redshift).
+    Yet, we check the implementation of the hypergeometric function for a wide range of kR values.
+    """
     mu = lib.compute_mu_for_multiple_scattering(x_em)
     eta = lib.compute_eta_for_multiple_scattering(x_em)
 
     # Eq. (28) in arxiv: 2601.14360 (mu = alpha/(alpha+beta), eta = alpha/(alpha+beta^2))
-    if mu == 0.0 and eta == 0.0:
-        alpha = np.inf
-        beta = 0.0
-    else:
-        alpha = (1.0 / eta - 1.0) / pow(1.0 / mu - 1.0, 2)
-        beta = (1.0 / eta - 1.0) / (1.0 / mu - 1.0)
+    alpha = (1.0 / eta - 1.0) / pow(1.0 / mu - 1.0, 2)
+    beta = (1.0 / eta - 1.0) / (1.0 / mu - 1.0)
 
     kR_array = np.logspace(-1, 3, 100)
     hyper_python = np.array(
@@ -395,3 +397,45 @@ def test_hyper_2F3(x_em):
     )
     hyper_C = np.array([lib.hyper_2F3(kR, alpha, beta) for kR in kR_array])
     np.testing.assert_allclose(hyper_python, hyper_C, rtol=0.0, atol=2e-3)
+
+
+def test_hyper_2F3_for_zero_x_em():
+    """
+    Test the implementation of the hypergeometric function in the C code for x_em = 0.
+
+    Since x_em = R / R_star, this corresponds to the limit of R -> 0, which is a special case for the hypergeometric function.
+    In this limit, the hypergeometric function should return 1.0.
+
+    NOTE: x_em = 0 corresponds to R_inner = 0, which happens at the innermost shell ("at the cell level").
+    However, in practice, the code doesn't filter the emissivity box at the cell level, so the computed
+    hypergeometic function in the C code is never actually computed for x_em = 0. Still, it is good to test this anyways.
+    """
+    # For x_em = 0, we have mu = eta = 0, but since eta goes to 0 faster than mu,
+    # we have alpha -> inf and beta -> inf (but still with beta >> alpha, which corresponds
+    # to the diffusion limit).
+    alpha = np.inf
+    beta = np.inf
+
+    kR = 0.0
+    hyper_C = lib.hyper_2F3(kR, alpha, beta)
+    assert hyper_C == 1.0, "The hypergeometric function should return 1 for x_em = 0."
+
+
+def test_alpha_and_beta_for_multiple_scattering():
+    """
+    Test the implementation of the alpha and beta parameters for multiple scattering in the C code.
+
+    We test the behavior of alpha and beta for x_em = 0 and x_em = inf, which are special cases.
+    """
+    assert lib.test_alpha_for_multiple_scattering(0.0) == np.inf, (
+        "alpha should be infinite for x_em = 0."
+    )
+    assert lib.test_beta_for_multiple_scattering(0.0) == np.inf, (
+        "beta should be infinite for x_em = 0."
+    )
+    assert lib.test_alpha_for_multiple_scattering(np.inf) == np.inf, (
+        "alpha should be infinite for x_em = inf."
+    )
+    assert lib.test_beta_for_multiple_scattering(np.inf) == 0.0, (
+        "beta should be zero for x_em = inf."
+    )
