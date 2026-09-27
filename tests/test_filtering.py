@@ -427,15 +427,17 @@ def test_alpha_and_beta_for_multiple_scattering():
 
     We test the behavior of alpha and beta for x_em = 0 and x_em = inf, which are special cases.
     """
-    assert lib.test_alpha_for_multiple_scattering(0.0) == np.inf, (
+    big_number = 1e300
+
+    assert lib.test_alpha_for_multiple_scattering(0.0) > big_number, (
         "alpha should be infinite for x_em = 0."
     )
-    assert lib.test_beta_for_multiple_scattering(0.0) == np.inf, (
+    assert lib.test_beta_for_multiple_scattering(0.0) > big_number, (
         "beta should be infinite for x_em = 0."
     )
-    assert lib.test_alpha_for_multiple_scattering(np.inf) == np.inf, (
+    assert lib.test_alpha_for_multiple_scattering_straight_line_limit() > big_number, (
         "alpha should be infinite for x_em = inf."
     )
-    assert lib.test_beta_for_multiple_scattering(np.inf) == 0.0, (
+    assert lib.test_beta_for_multiple_scattering_straight_line_limit() == 0.0, (
         "beta should be zero for x_em = inf."
     )

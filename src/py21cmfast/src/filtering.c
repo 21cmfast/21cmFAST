@@ -1,6 +1,7 @@
 
 #include <complex.h>
 #include <fftw3.h>
+#include <float.h>
 #include <gsl/gsl_sf_gamma.h>
 #include <math.h>
 #include <omp.h>
@@ -165,8 +166,8 @@ void initialize_alphas_and_betas_for_multiple_scattering(
         // R_star == 0 could happen after reionization since R_star is proportional to x_HI
         // In this limit, x_em goes to infinity, and thus alpha goes to infinity while beta goes to
         // zero (this corresponds to the straight-line limit)
-        consts->alpha_inner = INFINITY;
-        consts->alpha_outer = INFINITY;
+        consts->alpha_inner = DBL_MAX;  // inifinity-like
+        consts->alpha_outer = DBL_MAX;  // inifinity-like
         consts->beta_inner = 0.;
         consts->beta_outer = 0.;
     } else {
@@ -183,8 +184,8 @@ void initialize_alphas_and_betas_for_multiple_scattering(
         if (R_inner == 0.) {
             // For R_inner = 0 (innermost shell), alpha_inner and beta_inner should be infinity,
             // (though still with beta_inner >> alpha_inner, corresponding to the diffusion limit)
-            consts->alpha_inner = INFINITY;
-            consts->beta_inner = INFINITY;
+            consts->alpha_inner = DBL_MAX;  // inifinity-like
+            consts->beta_inner = DBL_MAX;   // inifinity-like
         } else {
             consts->alpha_inner = (1. / eta_inner - 1.) / pow(1. / mu_inner - 1., 2);
             consts->beta_inner = (1. / eta_inner - 1.) / (1. / mu_inner - 1.);
@@ -463,25 +464,28 @@ int test_filter(float *input_box, double R, double R_param, double R_star, int f
 
 double test_alpha_for_multiple_scattering(double x_em) {
     struct multiple_scattering_params consts_for_ms;
-    if (isinf(x_em)) {
-        // If x_em = inf, then we can set R_star = 0, without caring for R_inner and R_outer
-        initialize_alphas_and_betas_for_multiple_scattering(1., 0., 0., &consts_for_ms);
-    } else {
-        // x_em = R / R_star, so we can set R_inner to be x_em while R_star is 1.
-        // R_outer is irrelevant since we take the output to be alpha_inner
-        initialize_alphas_and_betas_for_multiple_scattering(x_em, 0., 1., &consts_for_ms);
-    }
+    // x_em = R / R_star, so we can set R_inner to be x_em while R_star is 1.
+    // R_outer is irrelevant since we take the output to be alpha_inner
+    initialize_alphas_and_betas_for_multiple_scattering(x_em, 0., 1., &consts_for_ms);
     return consts_for_ms.alpha_inner;
 }
 double test_beta_for_multiple_scattering(double x_em) {
     struct multiple_scattering_params consts_for_ms;
-    if (isinf(x_em)) {
-        // If x_em = inf, then we can set R_star = 0, without caring for R_inner and R_outer
-        initialize_alphas_and_betas_for_multiple_scattering(1., 0., 0., &consts_for_ms);
-    } else {
-        // x_em = R / R_star, so we can set R_inner to be x_em while R_star is 1.
-        // R_outer is irrelevant since we take the output to be beta_inner
-        initialize_alphas_and_betas_for_multiple_scattering(x_em, 0., 1., &consts_for_ms);
-    }
+    // x_em = R / R_star, so we can set R_inner to be x_em while R_star is 1.
+    // R_outer is irrelevant since we take the output to be beta_inner
+    initialize_alphas_and_betas_for_multiple_scattering(x_em, 0., 1., &consts_for_ms);
+    return consts_for_ms.beta_inner;
+}
+
+double test_alpha_for_multiple_scattering_straight_line_limit(void) {
+    struct multiple_scattering_params consts_for_ms;
+    // If x_em = inf, then we can set R_star = 0, without caring for R_inner and R_outer
+    initialize_alphas_and_betas_for_multiple_scattering(1., 0., 0., &consts_for_ms);
+    return consts_for_ms.alpha_inner;
+}
+double test_beta_for_multiple_scattering_straight_line_limit(void) {
+    struct multiple_scattering_params consts_for_ms;
+    // If x_em = inf, then we can set R_star = 0, without caring for R_inner and R_outer
+    initialize_alphas_and_betas_for_multiple_scattering(1., 0., 0., &consts_for_ms);
     return consts_for_ms.beta_inner;
 }
