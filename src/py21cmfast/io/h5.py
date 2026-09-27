@@ -426,3 +426,54 @@ def _read_outputs_v4(
         )
 
     return obj
+
+
+def load_high_level_simulation(path: str | Path, safe: bool = True):
+    """Read a saved high-level simulation output, determining its type automatically.
+
+    This is a convenience wrapper around the ``from_file`` methods of the high-level
+    simulation outputs, for when you don't know (or don't care) which kind of output
+    a file holds. To read the lower-level cache files instead, use
+    :func:`read_output_struct`.
+
+    Parameters
+    ----------
+    path
+        The path to a saved coeval, lightcone or global-evolution file.
+    safe
+        Whether to raise an error if the input parameters in the file are not
+        readable by this version of 21cmFAST.
+
+    Returns
+    -------
+    :class:`~py21cmfast.drivers.coeval.Coeval`, :class:`~py21cmfast.drivers.lightcone.LightCone` or :class:`~py21cmfast.drivers.global_evolution.GlobalEvolution`
+        The object stored in the file.
+
+    Raises
+    ------
+    ValueError
+        If the file is not a recognized 21cmFAST high-level output.
+    """
+    # Imported here to avoid a circular import: the drivers use this module to do
+    # their own reading and writing.
+    from ..drivers.coeval import Coeval
+    from ..drivers.global_evolution import GlobalEvolution
+    from ..drivers.lightcone import LightCone
+
+    path = Path(path)
+
+    with h5py.File(path, "r") as fl:
+        file_attrs = dict(fl.attrs)
+
+    for marker, cls in (
+        ("lightcone", LightCone),
+        ("coeval", Coeval),
+        ("global_evolution", GlobalEvolution),
+    ):
+        if file_attrs.get(marker, False):
+            return cls.from_file(path, safe=safe)
+
+    raise ValueError(
+        f"The file {path} is not a recognized 21cmFAST output file "
+        "(expected a coeval, lightcone or global-evolution file)."
+    )
