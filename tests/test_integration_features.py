@@ -34,6 +34,10 @@ from py21cmfast.wrapper.inputs import Table1D
 
 from . import produce_integration_test_data as prd
 
+# Comparisons against the reference data only warn: they are sensitive to platform
+# and dependency versions, so they are shown but don't fail the test (see #450).
+pytestmark = pytest.mark.filterwarnings(r"default:.* rtol \S+ failed:UserWarning")
+
 logger = logging.getLogger("py21cmfast")
 logger.setLevel(logging.INFO)
 
@@ -77,6 +81,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
 
     any_failed = False
     # We don't assert that all the fields are identical, but print the differences
+    # Only warns, doesn't fail (see pytestmark above and #450).
     for key in prd.COEVAL_FIELDS:
         if key not in true_powers:
             continue
@@ -147,6 +152,7 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
 
     # We don't assert that all the fields are identical, but print the differences
     any_failed = False
+    # Only warns, doesn't fail (see pytestmark above and #450).
     for key in prd.LIGHTCONE_FIELDS:
         if key not in true_powers:
             continue
@@ -202,9 +208,7 @@ def make_lightcone_comparison_plot(
         2,
         n,
         figsize=(4 * n, 6),
-        constrained_layout=True,
         sharex="col",
-        gridspec_kw={"hspace": 0.1, "wspace": 0.1},
     )
 
     for i, (key, val) in enumerate(test_powers.items()):
@@ -240,7 +244,6 @@ def make_coeval_comparison_plot(true_k, k, true_powers, test_powers, plt):
         len(true_powers),
         figsize=(4 * len(true_powers), 6),
         sharex=True,
-        constrained_layout=True,
     )
 
     for i, (key, val) in enumerate(test_powers.items()):
@@ -272,7 +275,9 @@ def make_comparison_plot(
     ax[0].plot(x, test, label="Test")
     if logx:
         ax[0].set_xscale("log")
-    if logy:
+    # Fields a config doesn't evolve (e.g. ionisation_rate_G12) have zero power,
+    # which can't be log-scaled.
+    if logy and (np.any(true > 0) or np.any(test > 0)):
         ax[0].set_yscale("log")
     if xlab:
         ax[1].set_xlabel(xlab)
@@ -281,7 +286,15 @@ def make_comparison_plot(
 
     ax[0].legend()
 
-    ax[1].plot(x, (test - true) / true)
+    ax[1].plot(
+        x,
+        np.divide(
+            test - true,
+            true,
+            out=np.full_like(test, np.nan, dtype=float),
+            where=true != 0,
+        ),
+    )
 
     if make_lower_ylab:
         ax[1].set_ylabel("Fractional Difference")
