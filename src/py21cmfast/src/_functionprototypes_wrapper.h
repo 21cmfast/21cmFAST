@@ -76,6 +76,7 @@ void init_ps();
 int init_heat();
 void init_MHR();
 int CreateFFTWWisdoms();
+int test_dft_cube(int dim, int n_threads, int n_repeat);
 void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
                                      MatterOptions *matter_options, CosmoParams *cosmo_params);
 void Broadcast_struct_global_all(SimulationOptions *simulation_options,
@@ -145,6 +146,10 @@ int test_filter(float *input_box, double R, double R_param, double R_star, int f
 double compute_mu_for_multiple_scattering(double x_em);
 double compute_eta_for_multiple_scattering(double x_em);
 double hyper_2F3(double kR, double alpha, double beta);
+double test_alpha_for_multiple_scattering(double x_em);
+double test_beta_for_multiple_scattering(double x_em);
+double test_alpha_for_multiple_scattering_straight_line_limit(void);
+double test_beta_for_multiple_scattering_straight_line_limit(void);
 
 /* Functions required to access cosmology & mass functions directly */
 double dicke(double z);

@@ -91,7 +91,8 @@ setup(
         "cosmotile>=0.2.5",
         "attrs",
         "tqdm",
-        "classy>=3.3.4",
+        # classy 3.4.0.0 on PyPI is a broken sdist (missing the C sources), so cap it
+        "classy>=3.3.4,<3.4",
         "cyclopts",
         "tomlkit",
         HMF_REQ,

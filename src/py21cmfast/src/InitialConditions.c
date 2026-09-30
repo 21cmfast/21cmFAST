@@ -757,7 +757,6 @@ int ComputeInitialConditions(random_huge random_seed, InitialConditions *boxes) 
         // * *********************************************** * //
         fftwf_cleanup_threads();
         fftwf_cleanup();
-        fftwf_forget_wisdom();
 
         // deallocate
         fftwf_free(HIRES_box);
