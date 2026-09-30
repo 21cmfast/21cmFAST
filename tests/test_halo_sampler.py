@@ -128,7 +128,7 @@ def test_sampler(name, cond, cond_type, plt):
         rtol=RELATIVE_TOLERANCE,
     )
 
-    # The extreme underdensity grid case can give zero-valued CMF entries.
+    # The extreme underdensity grid case can give zero-valued CMF entries (see #779).
     if cond == 0 and cond_type == "grid":
         with warnings.catch_warnings():
             warnings.filterwarnings(
@@ -169,7 +169,6 @@ def test_sampler(name, cond, cond_type, plt):
 #   calculate them in the backend and re-write them in the test for a few masses. This means that
 #   changes to any scaling relation model will result in a test fail
 # TODO add minihalo tests, upper turnovers. All 12 properties
-@pytest.mark.filterwarnings("ignore:invalid value encountered in divide:RuntimeWarning")
 def test_halo_prop_sampling(default_input_struct_ts, plt):
     # specify parameters to use for this test
     redshift = 10.0

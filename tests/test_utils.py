@@ -8,9 +8,6 @@ from py21cmfast.utils import recursive_difference, show_references
 from py21cmfast.wrapper._utils import _ffi, asarray
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
-)
 def test_ref_printing():
     inputs = InputParameters.from_template("latest", random_seed=1234)
     ref_str = show_references(inputs, lightcone=True, print_to_stdout=False)
@@ -40,7 +37,10 @@ def test_ref_printing():
     assert "10.1051/0004-6361/202554951" in ref_str  # LAGRANGIAN_SOURCE_MODEL
     assert "10.1103/5r5v-nk5j" not in ref_str  # LYA_MULTIPLE_SCATTERING
 
-    inputs = InputParameters.from_template("const-zeta", random_seed=1234)
+    with pytest.warns(
+        UserWarning, match=r"^Your model .*uses the EPS conditional mass function"
+    ):
+        inputs = InputParameters.from_template("const-zeta", random_seed=1234)
     ref_str = show_references(inputs, lightcone=True, print_to_stdout=True)
 
     assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper

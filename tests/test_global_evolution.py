@@ -12,10 +12,20 @@ from py21cmfast import GlobalEvolution
 DATA_PATH = Path(__file__).parent / "test_data"
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
-)
-@pytest.mark.parametrize("source_model", ["CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL"])
+# CONST-ION-EFF uses the EPS conditional mass function with the default HMF.
+_SOURCE_MODELS = [
+    pytest.param(
+        "CONST-ION-EFF",
+        marks=pytest.mark.filterwarnings(
+            "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+        ),
+    ),
+    "E-INTEGRAL",
+    "L-INTEGRAL",
+]
+
+
+@pytest.mark.parametrize("source_model", _SOURCE_MODELS)
 def test_global_quantities(default_input_struct_ts, source_model):
     """Test that global quantities behave as expected."""
     global_evolution = p21c.run_global_evolution(
@@ -62,10 +72,7 @@ def test_global_quantities(default_input_struct_ts, source_model):
     assert np.all(x_HI[local_minima_indices[1] + 1 :] == 0.0)
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
-)
-@pytest.mark.parametrize("source_model", ["CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL"])
+@pytest.mark.parametrize("source_model", _SOURCE_MODELS)
 def test_run_global_evolution_without_source_model(
     default_input_struct_ts, source_model
 ):
@@ -76,24 +83,21 @@ def test_run_global_evolution_without_source_model(
     assert isinstance(global_evolution, GlobalEvolution)
 
 
-@pytest.mark.filterwarnings(
-    r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
-)
 def test_run_global_evolution_without_Ts(default_input_struct):
     """Test that run_global_evolution doesn't crash when USE_TS_FLUCT=False."""
-    global_evolution = p21c.run_global_evolution(
-        inputs=default_input_struct.evolve_input_structs(USE_TS_FLUCT=False)
-    )
+    with pytest.warns(
+        UserWarning, match=r"^Your inputs\.astro_options\.USE_TS_FLUCT = False"
+    ):
+        global_evolution = p21c.run_global_evolution(
+            inputs=default_input_struct.evolve_input_structs(USE_TS_FLUCT=False)
+        )
     assert isinstance(global_evolution, GlobalEvolution)
 
 
-@pytest.mark.filterwarnings(
-    r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
-)
 def test_run_global_evolution_from_template():
     """Test that run_global_evolution doesn't crash when using a template."""
     global_evolution = p21c.run_global_evolution(
-        inputs=p21c.InputParameters.from_template("simple", random_seed=1234)
+        inputs=p21c.InputParameters.from_template("latest", random_seed=1234)
     )
     assert isinstance(global_evolution, GlobalEvolution)
 
@@ -129,12 +133,12 @@ def test_global_evolution_bad_inputs(default_input_struct_ts, source_model):
             )
 
 
-# The stored database file uses MCGs without a V_CB_MODEL.
+# The stored file uses MCGs without a V_CB_MODEL, and A_s with POWER_SPECTRUM=EH.
 @pytest.mark.filterwarnings(
     "ignore:^USE_MCGS needs a non-trivial V_CB_MODEL:UserWarning"
 )
 @pytest.mark.filterwarnings(
-    "ignore:^You have chosen to work with POWER_SPECTRUM:UserWarning"
+    "ignore:^You have chosen to work with POWER_SPECTRUM=EH, but at the same time you work with A_s:UserWarning"
 )
 def test_compatability_with_database():
     """
@@ -147,7 +151,9 @@ def test_compatability_with_database():
     are absolutely sure of what you are doing.
     """
     fname = DATA_PATH / "global_evolution.h5"
-    with pytest.warns(deprecation.DeprecatedWarning):
+    # The file uses old parameter names (e.g. USE_MINI_HALOS, F_STAR10, M_TURN), and
+    # loading it emits one DeprecatedWarning per old name.
+    with pytest.warns(deprecation.DeprecatedWarning, match="is deprecated as of"):
         global_evolution = GlobalEvolution.from_file(fname)
     assert isinstance(global_evolution, GlobalEvolution)
 
@@ -185,6 +191,7 @@ def test_linear_perturbation_theory(default_input_struct_ts):
         np.testing.assert_allclose(contrast1, contrast2, atol=0, rtol=1e-5)
 
 
+# The default inputs don't evolve the spin temperature, which warns; only density matters here.
 @pytest.mark.filterwarnings(
     r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
 )

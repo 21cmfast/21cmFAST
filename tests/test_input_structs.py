@@ -559,6 +559,7 @@ class TestInputParameters:
                 ),
             },
         ),
+        # CONST-ION-EFF with the default HMF also triggers the EPS advisory.
         pytest.param(
             NotImplementedError,
             "USE_REIONIZATION_PHOTOHEATING_FEEDBACK is not yet compatible with SOURCE_MODEL == CONST-ION-EFF",
@@ -576,6 +577,7 @@ class TestInputParameters:
                 "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
             ),
         ),
+        # CONST-ION-EFF with the default HMF also triggers the EPS advisory.
         pytest.param(
             NotImplementedError,
             "USE_METALLICITY is not yet compatible with SOURCE_MODEL == CONST-ION-EFF",
@@ -664,7 +666,7 @@ class TestInputParameters:
         # Retain EH with A_s to test its documented normalization fallback.
         with pytest.warns(
             UserWarning,
-            match=r"^You have chosen to work with POWER_SPECTRUM=EH",
+            match=r"^You have chosen to work with POWER_SPECTRUM=EH, but at the same time you work with A_s",
         ):
             self.default_A_s = InputParameters(
                 random_seed=1,
@@ -720,7 +722,7 @@ class TestInputParameters:
 
         with pytest.warns(
             UserWarning,
-            match=r"^You have chosen to work with POWER_SPECTRUM=EH",
+            match=r"^You have chosen to work with POWER_SPECTRUM=EH, but at the same time you work with A_s",
         ):
             altered_struct = self.default.evolve_input_structs(A_s=3.0e-9)
         assert altered_struct.cosmo_params.A_s == 3.0e-9
@@ -740,7 +742,7 @@ class TestInputParameters:
 
         with pytest.warns(
             UserWarning,
-            match=r"^You have chosen to work with POWER_SPECTRUM=EH",
+            match=r"^You have chosen to work with POWER_SPECTRUM=EH, but at the same time you work with A_s",
         ):
             altered_struct = self.default_A_s.evolve_input_structs(A_s=3.0e-9)
         assert altered_struct.cosmo_params.A_s == 3.0e-9
@@ -779,7 +781,7 @@ class TestInputParameters:
         # Check that we can change normalization parameter if we set the other parameter to None
         with pytest.warns(
             UserWarning,
-            match=r"^You have chosen to work with POWER_SPECTRUM=EH",
+            match=r"^You have chosen to work with POWER_SPECTRUM=EH, but at the same time you work with A_s",
         ):
             altered_struct = self.default_sigma8.evolve_input_structs(
                 A_s=3.0e-9,
@@ -798,7 +800,7 @@ class TestInputParameters:
         )
         assert altered_struct.cosmo_tables.USE_SIGMA_8
 
-    # Qin20 and the EPS-based templates intentionally trigger advisories.
+    # Qin20 and the EPS-based templates trigger advisories (to be removed with #778).
     @pytest.mark.parametrize(
         "template",
         [

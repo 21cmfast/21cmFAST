@@ -256,13 +256,18 @@ def test_optional_field_ic(default_input_struct_lc: InputParameters):
     assert "hires_vz" in ic.arrays
     assert "hires_vz_2LPT" in ic.arrays
 
-    with pytest.warns(UserWarning, match="USE_MCGS is False but V_CB_MODEL"):
-        ic = ox.InitialConditions.new(
-            inputs=default_input_struct_lc.evolve_input_structs(
-                V_CB_MODEL="FLUCTS",
-                POWER_SPECTRUM="CLASS",
-            )
+    ic = ox.InitialConditions.new(
+        inputs=default_input_struct_lc.evolve_input_structs(
+            V_CB_MODEL="FLUCTS",
+            POWER_SPECTRUM="CLASS",
+            USE_MCGS=True,
+            USE_TS_FLUCT=True,
+            RECOMB_MODEL="inhomogeneous",
+            R_BUBBLE_MAX=50.0,
+            M_TURN_STELLAR_FEEDBACK=5.0,
+            K_MAX_FOR_CLASS=1.0,
         )
+    )
 
     assert "lowres_vx" in ic.arrays
     assert "lowres_vx_2LPT" in ic.arrays

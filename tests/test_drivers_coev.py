@@ -5,6 +5,8 @@ They do not test for correctness of simulations, but whether different parameter
 work/don't work as intended.
 """
 
+import warnings
+
 import attrs
 import numpy as np
 import pytest
@@ -47,20 +49,28 @@ def test_coeval_lowerz_than_photon_cons(
         )
 
 
-@pytest.mark.filterwarnings("ignore:^Trying to purge array:UserWarning")
 def test_coeval_warnings(default_input_struct_lc, cache):
     # test for no caching with halo fields
     inputs = default_input_struct_lc.evolve_input_structs(
         SOURCE_MODEL="CHMF-SAMPLER",
     )
 
-    with pytest.warns(UserWarning, match="You have turned off caching"):
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
         run_coeval(
             out_redshifts=16.0,
             inputs=inputs,
             write=False,
             cache=cache,
         )
+    messages = [str(w.message) for w in record]
+    assert any("You have turned off caching" in m for m in messages)
+    assert any(m.startswith("Trying to purge array") for m in messages)
+    # The run also emits purge warnings; nothing else should warn.
+    assert all(
+        "You have turned off caching" in m or m.startswith("Trying to purge array")
+        for m in messages
+    ), messages
 
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,

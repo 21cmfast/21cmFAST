@@ -74,6 +74,7 @@ class TestHDF5ToDict:
 _ALL_TEMPLATE_NAMES = [t["name"] for t in list_templates()]
 
 
+# Marks for the advisories that some templates trigger (to be removed with #778).
 def _h5_roundtrip_marks(model, size):
     marks = []
     if model == "Qin20":
@@ -138,7 +139,6 @@ class TestInputsIO:
             assert "InputParameters" in fl
             assert "sentinel" in fl
 
-    # Only these template and size combinations trigger each advisory.
     @pytest.mark.parametrize(
         "inputs",
         [

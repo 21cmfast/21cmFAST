@@ -71,7 +71,7 @@ def z_range():
 
 @pytest.fixture(scope="module")
 def default_input_struct_mcgs(default_input_struct_lc):
-    """A default input struct with MCGs (FLUCTS requires CLASS)."""
+    """A default input struct with mcgs turned on."""
     return default_input_struct_lc.evolve_input_structs(
         USE_MCGS=True,
         V_CB_MODEL="FLUCTS",

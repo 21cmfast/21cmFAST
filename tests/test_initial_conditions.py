@@ -115,15 +115,24 @@ def test_transfer_function(
 
 def test_relvels():
     """Test for relative velocity initial conditions."""
-    with pytest.warns(UserWarning, match="USE_MCGS is False but V_CB_MODEL"):
-        inputs = p21c.InputParameters(random_seed=1).evolve_input_structs(
+    inputs = (
+        p21c.InputParameters(random_seed=1)
+        .with_logspaced_redshifts()
+        .evolve_input_structs(
             HII_DIM=100,
             DIM=300,
             BOX_LEN=300,
             POWER_SPECTRUM="CLASS",
             V_CB_MODEL="FLUCTS",
+            USE_MCGS=True,
+            USE_TS_FLUCT=True,
+            RECOMB_MODEL="inhomogeneous",
+            R_BUBBLE_MAX=50.0,
+            M_TURN_STELLAR_FEEDBACK=5.0,
+            K_MAX_FOR_CLASS=1.0,
             N_THREADS=cpu_count(),  # To make this one a bit faster.
         )
+    )
     ic = p21c.compute_initial_conditions(inputs=inputs)
 
     vcbrms_lowres = np.sqrt(np.mean(ic.lowres_vcb**2))

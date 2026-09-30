@@ -15,7 +15,7 @@ from py21cmfast.wrapper import cfuncs as cf
 
 @pytest.fixture(scope="module")
 def default_input_struct_lc_mcgs(default_input_struct_lc):
-    """A default input struct with MCGs."""
+    """A default input struct with mcgs turned on."""
     return default_input_struct_lc.evolve_input_structs(
         USE_MCGS=True,
         V_CB_MODEL="FLUCTS",
@@ -48,10 +48,9 @@ def test_run_lf(
     global_evolution = (
         default_global_evolution if what_to_use == "global_evolution" else None
     )
-    # Without MCGs, component="both" warns and falls back to ACGs.
+    # Without MCGs, the default component="both" warns and falls back to ACGs.
     with pytest.warns(
-        UserWarning,
-        match=r"^USE_MCGS is False, so only ACG LFs are computed\.",
+        UserWarning, match=r"^USE_MCGS is False, so only ACG LFs are computed\."
     ):
         *_, lf = p21c.compute_luminosity_function(
             inputs=inputs,
@@ -63,17 +62,15 @@ def test_run_lf(
     assert np.all(lf[~np.isnan(lf)] > -30)
     assert lf.shape == (3, 100)
 
-    with pytest.warns(
-        UserWarning,
-        match=r"^USE_MCGS is False, so only ACG LFs are computed\.",
-    ):
-        _muv, _mhalo, lf2 = p21c.compute_luminosity_function(
-            inputs=inputs,
-            redshifts=[7, 8, 9],
-            nbins=100,
-            lightcone=lightcone,
-            global_evolution=global_evolution,
-        )
+    # Check that memory is in-tact and a second run also works:
+    _muv, _mhalo, lf2 = p21c.compute_luminosity_function(
+        inputs=inputs,
+        redshifts=[7, 8, 9],
+        nbins=100,
+        lightcone=lightcone,
+        global_evolution=global_evolution,
+        component="acg",
+    )
     assert lf2.shape == (3, 100)
     assert np.allclose(lf2[~np.isnan(lf2)], lf[~np.isnan(lf)])
 
@@ -407,9 +404,20 @@ def test_matterfield_statistics(default_input_struct, hmf_model, ps_model, plt):
     )
 
 
-@pytest.mark.parametrize("hmf_model", ["PS", "ST", "REED07", "YUNG24"])
-@pytest.mark.filterwarnings(
+# REED07 and YUNG24 trigger the advisory for mass functions other than PS/ST/Delos.
+_NON_STANDARD_HMF = pytest.mark.filterwarnings(
     "ignore:^A selection of a mass function other than:UserWarning"
+)
+
+
+@pytest.mark.parametrize(
+    "hmf_model",
+    [
+        "PS",
+        "ST",
+        pytest.param("REED07", marks=_NON_STANDARD_HMF),
+        pytest.param("YUNG24", marks=_NON_STANDARD_HMF),
+    ],
 )
 @pytest.mark.parametrize(
     "ps_model", ["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
@@ -433,9 +441,7 @@ def test_hmf_runs(default_input_struct, hmf_model, ps_model):
     assert np.all(~np.isnan(hmf_vals))
 
 
-@pytest.mark.filterwarnings(
-    "ignore:^A selection of a mass function other than:UserWarning"
-)
+@_NON_STANDARD_HMF
 @pytest.mark.parametrize("hmf_model", ["REED07", "YUNG24"])
 @pytest.mark.parametrize("ps_model", ["EH", "BBKS"])
 def test_new_hmf_matches_reference(default_input_struct, hmf_model, ps_model):
@@ -543,19 +549,17 @@ def test_ps_runs(default_input_struct):
             k_values=k_values,
         )
 
-    # FLUCTS without MCGs intentionally warns.
-    with pytest.warns(
-        UserWarning,
-        match=r"^USE_MCGS is False but V_CB_MODEL",
-    ):
-        vcb_inputs = default_input_struct.evolve_input_structs(
+    ps = cf.get_vcb_power_values(
+        inputs=default_input_struct.with_logspaced_redshifts().evolve_input_structs(
             POWER_SPECTRUM="CLASS",
             V_CB_MODEL="FLUCTS",
             K_MAX_FOR_CLASS=1.0,
-        )
-
-    ps = cf.get_vcb_power_values(
-        inputs=vcb_inputs,
+            USE_MCGS=True,
+            USE_TS_FLUCT=True,
+            RECOMB_MODEL="inhomogeneous",
+            R_BUBBLE_MAX=50.0,
+            M_TURN_STELLAR_FEEDBACK=5.0,
+        ),
         k_values=k_values,
     )
 
@@ -911,36 +915,28 @@ def test_compute_mturns_model(
         np.testing.assert_allclose(M_turn_mcg_test, M_turn_mcg, rtol=1e-4)
 
 
-@pytest.mark.parametrize(
-    "v_cb_model",
-    [
-        pytest.param(
-            "NONE",
-            marks=pytest.mark.filterwarnings(
-                "ignore:^USE_MCGS needs a non-trivial V_CB_MODEL:UserWarning"
-            ),
-        ),
-        "AVG-AUTO",
-        "FLUCTS",
-        "AVG-DEBUG",
-    ],
-)
+@pytest.mark.parametrize("v_cb_model", ["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"])
 def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
     """Test that the mturns computed in the global evolution can be used to compute the same mturns through the compute_mturns function."""
     inputs = default_input_struct_ts.evolve_input_structs(
-        USE_MCGS=True,
+        USE_MCGS=v_cb_model != "NONE",
         RECOMB_MODEL="inhomogeneous",
         R_BUBBLE_MAX=50.0,
         K_MAX_FOR_CLASS=1.0,
         V_CB_MODEL=v_cb_model,
-        M_TURN_STELLAR_FEEDBACK=5.0,
+        M_TURN_STELLAR_FEEDBACK=8.0 if v_cb_model == "NONE" else 5.0,
         POWER_SPECTRUM="CLASS" if v_cb_model == "FLUCTS" else "EH",
     )
     # Run global evolution and extract global fields
     global_evolution = p21c.run_global_evolution(inputs=inputs)
     log10_mturn_acg_global = global_evolution.quantities["log10_mturn_acg"]
     log10_mturn_mcg_global = global_evolution.quantities["log10_mturn_mcg"]
-    J_21_LW_global = global_evolution.quantities["J_21_LW"]
+    # Without MCGs there is no Lyman-Werner feedback, so no J_21_LW field.
+    J_21_LW_global = (
+        global_evolution.quantities["J_21_LW"]
+        if inputs.astro_options.USE_MCGS
+        else np.zeros_like(global_evolution.node_redshifts)
+    )
     z_reion_global = global_evolution.quantities["z_reion"]
     ionisation_rate_G12_global = global_evolution.quantities["ionisation_rate_G12"]
     # Global v_cb is determined according to V_CB_MODEL
@@ -967,8 +963,9 @@ def test_roundtrip_mturns(default_input_struct_ts, v_cb_model):
         np.log10(Mturn_acg_global),
         rtol=1e-4,
     )
-    np.testing.assert_allclose(
-        log10_mturn_mcg_global,
-        np.log10(M_turn_mcg_global),
-        rtol=1e-4,
-    )
+    if inputs.astro_options.USE_MCGS:
+        np.testing.assert_allclose(
+            log10_mturn_mcg_global,
+            np.log10(M_turn_mcg_global),
+            rtol=1e-4,
+        )

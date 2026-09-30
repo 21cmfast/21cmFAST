@@ -4,9 +4,9 @@ Tests for deprecated parameters and APIs.
 This module consolidates all deprecation warning tests in one place.
 Each deprecated parameter should have:
 1. A test verifying the deprecation warning fires correctly.
-2. A test decorated with @deprecation.fail_if_not_removed that will
-   fail when the removed_in version is reached, reminding developers
-   to clean up the deprecated code.
+2. A removal check: a test gated on the package version, or
+   @deprecation.fail_if_not_removed (only effective for APIs that use
+   @deprecation.deprecated).
 
 When a parameter is removed in v5, remove its tests from this module.
 """
@@ -190,32 +190,37 @@ def test_v_cb_model_conflict(v_cb_model):
         )
 
 
-@pytest.mark.filterwarnings("ignore:^USE_MCGS is False but V_CB_MODEL:UserWarning")
-def test_fix_vcb_avg_conflict():
+# AVG-DEBUG without MCGs also triggers the V_CB_MODEL advisory.
+_VCB_WITHOUT_MCGS = pytest.mark.filterwarnings(
+    "ignore:^USE_MCGS is False but V_CB_MODEL:UserWarning"
+)
+
+
+@pytest.mark.parametrize(
+    "fix_vcb_avg", [True, pytest.param(False, marks=_VCB_WITHOUT_MCGS)]
+)
+def test_fix_vcb_avg_conflict(fix_vcb_avg):
     """Test error when FIX_VCB_AVG conflicts with V_CB_MODEL."""
-    for fix_vcb_avg in [True, False]:
-        v_cb_model_wrong = "NONE" if fix_vcb_avg else "AVG-DEBUG"
-        with (
-            pytest.warns(
-                deprecation.DeprecatedWarning, match="FIX_VCB_AVG is deprecated"
-            ),
-            pytest.raises(
-                ValueError,
-                match=f"FIX_VCB_AVG={fix_vcb_avg} is not compatible with ",
-            ),
-        ):
-            InputParameters(
-                random_seed=1,
-                astro_options=AstroOptions(FIX_VCB_AVG=fix_vcb_avg),
-                matter_options=MatterOptions(V_CB_MODEL=v_cb_model_wrong),
-            )
+    v_cb_model_wrong = "NONE" if fix_vcb_avg else "AVG-DEBUG"
+    with (
+        pytest.warns(deprecation.DeprecatedWarning, match="FIX_VCB_AVG is deprecated"),
+        pytest.raises(
+            ValueError, match=f"FIX_VCB_AVG={fix_vcb_avg} is not compatible with "
+        ),
+    ):
+        InputParameters(
+            random_seed=1,
+            astro_options=AstroOptions(FIX_VCB_AVG=fix_vcb_avg),
+            matter_options=MatterOptions(V_CB_MODEL=v_cb_model_wrong),
+        )
 
 
 # ── AstroParams ──────────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("fix_vcb_avg", [True, False])
-@pytest.mark.filterwarnings("ignore:^USE_MCGS is False but V_CB_MODEL:UserWarning")
+@pytest.mark.parametrize(
+    "fix_vcb_avg", [pytest.param(True, marks=_VCB_WITHOUT_MCGS), False]
+)
 def test_fix_vcb_avg_deprecated_warning(fix_vcb_avg):
     """Test that using FIX_VCB_AVG shows deprecation warning."""
     v_cb_model = "AVG-DEBUG" if fix_vcb_avg else "NONE"

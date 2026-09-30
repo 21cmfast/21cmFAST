@@ -183,6 +183,7 @@ class TestTemplateCreate:
 class TestTemplateShow:
     """Tests of the `template show` command."""
 
+    # EOS21 triggers the EPS advisory (to be removed with #778).
     @pytest.mark.filterwarnings(
         "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
     )
@@ -305,13 +306,12 @@ class TestRunICS:
         out = capsys.readouterr().out
         assert "skipping computation" in out
 
-    @pytest.mark.filterwarnings(
-        "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-    )
     def test_passing_nodez_overwriting_template(self, capsys, tmp_path):
         """Test that passing nodez parameters does overwrite the template node redshifts."""
         app_noexit(
-            f"template create --template latest tiny --nodez.min 5.0 --nodez.n 10 --out {tmp_path / 'latest.toml'}"
+            f"template create --template latest --hii-dim 32 --hires-to-lowres-factor 2 "
+            f"--zprime-step-factor 1.2 --z-heat-max 20 --box-len 50 --r-bubble-max 50 "
+            f"--nodez.min 5.0 --nodez.n 10 --out {tmp_path / 'latest.toml'}"
         )
 
         with (tmp_path / "latest.toml").open("rb") as f:
@@ -354,14 +354,12 @@ class TestRunCoeval:
         cv = Coeval.from_file(cfile)
         assert cv.redshift == 6.0
 
-    @pytest.mark.filterwarnings(
-        "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-    )
     def test_node_redshifts(self, capsys, tmp_path):
         """Test that having nodez in addition to --redshifts works."""
         # We have other node redshifts, but we don't do anything with them.
         app_noexit(
-            f"run coeval --template Park19 tiny --zprime-step-factor 1.4 --z-heat-max 15 "
+            f"run coeval --template Park19 --hii-dim 32 --hires-to-lowres-factor 2 "
+            f"--box-len 50 --r-bubble-max 50 --zprime-step-factor 1.4 --z-heat-max 15 "
             f"--cachedir {tmp_path} "
             f"--no-save-all-redshifts "
             f"--redshifts 6.0 --out {tmp_path}",
@@ -373,7 +371,9 @@ class TestRunCoeval:
         new = tmp_path / "new"
         new.mkdir()
         app_noexit(
-            f"run coeval --template Park19 tiny --cachedir {new} "
+            f"run coeval --template Park19 --hii-dim 32 --hires-to-lowres-factor 2 "
+            f"--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--box-len 50 --r-bubble-max 50 --cachedir {new} "
             f"--save-all-redshifts "
             f"--redshifts 6.0 --out {new}",
         )
@@ -470,15 +470,9 @@ class TestPredictStructSize:
 class TestPredictTotalStorageSize:
     """Test the predict total storage-size command."""
 
-    @pytest.mark.filterwarnings(
-        "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-    )
-    @pytest.mark.filterwarnings(
-        "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
-    )
     @pytest.mark.parametrize(
         "template",
-        ["simple tiny", "Park19 small", "Munoz21 small", "latest-dhalos large"],
+        ["simple tiny", "Park19 medium", "minihalos medium", "latest-dhalos large"],
     )
     def test_relevant_text_is_printed(self, capsys, template: str):
         """Test that running the total storage size CLI prints relevant text."""
@@ -489,15 +483,9 @@ class TestPredictTotalStorageSize:
         out = capsys.readouterr().out
         assert "Storage Sizes" in out
 
-    @pytest.mark.filterwarnings(
-        "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
-    )
-    @pytest.mark.filterwarnings(
-        "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
-    )
     @pytest.mark.parametrize(
         "template",
-        ["simple tiny", "Park19 small", "Munoz21 small", "latest-dhalos large"],
+        ["simple tiny", "Park19 medium", "minihalos medium", "latest-dhalos large"],
     )
     def test_cache_off(self, capsys, template: str):
         """Test that running with cache off affects the predicted total storage size."""
@@ -515,14 +503,11 @@ class TestPredictTotalStorageSize:
 class TestGlobalEvolution:
     """Tests of the global evolution CLI command."""
 
-    @pytest.mark.filterwarnings(
-        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
-    )
     def test_basic_run(self, capsys, tmp_path: Path):
         """Test that a basic run produces a lightcone.h5 file."""
         lcfile = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} "
+            f"run global --template latest --cachedir {tmp_path} "
             f"--zmin 12.0 --out {lcfile}",
         )
 
@@ -532,14 +517,11 @@ class TestGlobalEvolution:
         assert lcfile.exists()
         GlobalEvolution.from_file(lcfile)
 
-    @pytest.mark.filterwarnings(
-        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
-    )
     def test_non_existent_path(self, tmp_path):
         """Test that a non-existent output path is OK."""
         lcfile = tmp_path / "new" / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple tiny --cachedir {tmp_path} "
+            f"run global --template latest --cachedir {tmp_path} "
             f"--zmin 10.0 --out {lcfile}",
         )
 
@@ -600,14 +582,11 @@ class TestPlot:
         app_noexit(f"plot {tmp_path / 'coeval_z7.00.h5'} --out {out}")
         assert out.exists()
 
-    @pytest.mark.filterwarnings(
-        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
-    )
     def test_run_global_with_plot(self, tmp_path: Path):
         """Test that `run global --plot` writes a plot next to the data."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --plot",
         )
 
@@ -622,9 +601,6 @@ class TestPlot:
         with pytest.raises(ValueError, match="not a recognized 21cmFAST output"):
             load_high_level_simulation(bad)
 
-    @pytest.mark.filterwarnings(
-        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
-    )
     @pytest.mark.parametrize("flags", ["--show", "--plot --show"])
     def test_run_with_show(self, tmp_path: Path, monkeypatch, flags: str):
         """`--show` displays the plot; only `--plot` also writes it to file."""
@@ -633,7 +609,7 @@ class TestPlot:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} {flags}",
         )
 
@@ -642,28 +618,22 @@ class TestPlot:
             "--plot" in flags
         )
 
-    @pytest.mark.filterwarnings(
-        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
-    )
     def test_no_plot_gives_hint(self, capsys, tmp_path: Path):
         """Without --plot we should tell the user how to plot later."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out}",
         )
 
         assert "21cmfast plot" in capsys.readouterr().out
         assert not list(tmp_path.glob("*.png"))
 
-    @pytest.mark.filterwarnings(
-        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
-    )
     def test_saved_plot_path_is_a_link(self, capsys, tmp_path: Path):
         """The saved-plot message carries a clickable file:// URL."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --plot",
         )
 
@@ -721,9 +691,6 @@ class TestCanShowPlots:
 
         assert not cli._can_show_plots()
 
-    @pytest.mark.filterwarnings(
-        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
-    )
     def test_auto_show_is_used_when_show_unset(self, tmp_path, monkeypatch):
         """A bare run consults _can_show_plots rather than defaulting to False."""
         shown = []
@@ -732,15 +699,12 @@ class TestCanShowPlots:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out}",
         )
 
         assert shown
 
-    @pytest.mark.filterwarnings(
-        r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
-    )
     def test_explicit_no_show_beats_auto(self, tmp_path, monkeypatch):
         """--no-show wins even where we could have shown it."""
         shown = []
@@ -749,7 +713,7 @@ class TestCanShowPlots:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --no-show",
         )
 
