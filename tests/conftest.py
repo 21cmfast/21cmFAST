@@ -40,12 +40,10 @@ SMALL_BOX_WARNING_FILTERS = (
 
 
 def pytest_collection_modifyitems(items):
-    """Add shared warning filters to every collected test item.
+    """Add the small-box filters to every test.
 
-    Uses append=False so shared filters are inserted before each item's
-    existing marks, allowing test-specific overrides to retain precedence.
-    Warning marks take precedence over CLI -W error, and pytest applies
-    them before fixture setup, test body, and teardown.
+    As marks, they take precedence over ``-W error``; ``append=False`` lets
+    each test's own marks still override them.
     """
     for item in items:
         for warning_filter in SMALL_BOX_WARNING_FILTERS:
@@ -356,3 +354,27 @@ def tiny_inputs():
 @pytest.fixture(scope="session")
 def tiny_ics(tiny_inputs):
     return compute_initial_conditions(inputs=tiny_inputs)
+
+
+_REFERENCE_MISMATCHES = {}
+
+
+def pytest_runtest_logreport(report):
+    """Collect reference-data mismatches recorded by the integration tests."""
+    if report.when != "call":
+        return
+    fields = [v for k, v in report.user_properties if k == "reference_mismatch_summary"]
+    if fields:
+        _REFERENCE_MISMATCHES[report.nodeid] = fields
+
+
+def pytest_terminal_summary(terminalreporter):
+    """Print one line per integration test whose output differs from the reference data."""
+    if not _REFERENCE_MISMATCHES:
+        return
+    terminalreporter.write_sep(
+        "=", "reference data mismatches (not failures; see GitHub issue #450)"
+    )
+    for nodeid, fields in sorted(_REFERENCE_MISMATCHES.items()):
+        test = nodeid.split("::")[-1]
+        terminalreporter.write_line(f"{test}: {', '.join(fields)}")

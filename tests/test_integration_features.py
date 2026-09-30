@@ -34,10 +34,6 @@ from py21cmfast.wrapper.inputs import Table1D
 
 from . import produce_integration_test_data as prd
 
-# Comparisons against the reference data only warn: they are sensitive to platform
-# and dependency versions, so they are shown but don't fail the test (see #450).
-pytestmark = pytest.mark.filterwarnings(r"default:.* rtol \S+ failed:UserWarning")
-
 logger = logging.getLogger("py21cmfast")
 logger.setLevel(logging.INFO)
 
@@ -54,8 +50,19 @@ options_marked = [
 options_pt = list(prd.OPTIONS_PT.keys())
 
 
+def _record_mismatch(request, *args, **kwargs):
+    """Record a reference-data mismatch on the test report (summarised in conftest.py)."""
+    stats = prd.failure_stats(*args, **kwargs)
+    if stats is None:
+        return False
+    summary, message = stats
+    request.node.user_properties.append(("reference_mismatch", message))
+    request.node.user_properties.append(("reference_mismatch_summary", summary))
+    return True
+
+
 @pytest.mark.parametrize("name", options_marked)
-def test_power_spectra_coeval(name, module_direc, plt):
+def test_power_spectra_coeval(request, name, module_direc, plt):
     redshift, kwargs = prd.OPTIONS_TESTRUNS[name]
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
 
@@ -80,12 +87,13 @@ def test_power_spectra_coeval(name, module_direc, plt):
     assert np.allclose(true_k, test_k)
 
     any_failed = False
-    # We don't assert that all the fields are identical, but print the differences
-    # Only warns, doesn't fail (see pytestmark above and #450).
+    # Differences from the reference data are recorded rather than asserted, and
+    # summarised at the end of the run (see issue #450 on making these checks robust).
     for key in prd.COEVAL_FIELDS:
         if key not in true_powers:
             continue
-        any_failed |= prd.print_failure_stats(
+        any_failed |= _record_mismatch(
+            request,
             test_powers[key],
             true_powers[key],
             [test_k],
@@ -99,7 +107,7 @@ def test_power_spectra_coeval(name, module_direc, plt):
 
 
 @pytest.mark.parametrize("name", options_marked)
-def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
+def test_power_spectra_lightcone(request, name, module_direc, plt, benchmark):
     redshift, kwargs = prd.OPTIONS_TESTRUNS[name]
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
 
@@ -150,13 +158,14 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
     test_global = {k: lc.global_quantities[k] for k in true_global}
     assert np.allclose(true_k, test_k)
 
-    # We don't assert that all the fields are identical, but print the differences
     any_failed = False
-    # Only warns, doesn't fail (see pytestmark above and #450).
+    # Differences from the reference data are recorded rather than asserted, and
+    # summarised at the end of the run (see issue #450 on making these checks robust).
     for key in prd.LIGHTCONE_FIELDS:
         if key not in true_powers:
             continue
-        any_failed |= prd.print_failure_stats(
+        any_failed |= _record_mismatch(
+            request,
             test_powers[key],
             true_powers[key],
             [test_k],

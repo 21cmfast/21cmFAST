@@ -593,11 +593,16 @@ def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
     return fname
 
 
-def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
+def failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
+    """Compare test with truth.
+
+    Return (summary, message) describing where they differ beyond tolerance,
+    or None if they agree.
+    """
     sel_failed = np.fabs(truth - test) > (abs_tol + np.fabs(truth) * rel_tol)
 
     if not np.any(sel_failed):
-        return False
+        return None
 
     failed_idx = np.where(sel_failed)
     abs_diff = np.fabs(truth - test)
@@ -629,7 +634,19 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
             + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}\n"
         )
 
-    warnings.warn(message, stacklevel=2)
+    summary = (
+        f"{name} {sel_failed.sum()}/{sel_failed.size} "
+        f"(max rel {rel_diff[sel_failed].max():.4e})"
+    )
+    return summary, message
+
+
+def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
+    """Warn with the failure details if test and truth differ; return whether they do."""
+    stats = failure_stats(test, truth, inputs, abs_tol, rel_tol, name)
+    if stats is None:
+        return False
+    warnings.warn(stats[1], stacklevel=2)
     return True
 
 
