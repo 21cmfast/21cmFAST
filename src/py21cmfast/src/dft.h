@@ -11,5 +11,6 @@
 int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex *box);
 int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex *box);
 int CreateFFTWWisdoms();
+int test_dft_cube(int dim, int n_threads, int n_repeat);
 
 #endif
