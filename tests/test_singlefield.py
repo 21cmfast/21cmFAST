@@ -619,6 +619,15 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
             previous_ionized_box=ib_p,
         )
 
+    # TsBox
+    with pytest.raises(ValueError, match="radiation_fields is required"):
+        p21c.compute_spin_temperature(
+            initial_conditions=ic,
+            perturbed_field=pt,
+            inputs=test_inputs,
+            previous_spin_temp=st_p,
+        )
+
     prev_st = spin_temp_evolution[-2]["spin_temp"]
     emissivity_fields1 = spin_temp_evolution[-1]["emissivity_fields"]
     emissivity_fields2 = spin_temp_evolution[-2]["emissivity_fields"]
