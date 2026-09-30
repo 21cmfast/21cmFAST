@@ -843,6 +843,10 @@ def _redshift_loop_generator(
                 )
                 skip_radfields = ts_cached and not write.radiation_fields
 
+                # Never hand a previous redshift's RadiationFields (or the
+                # initial None) to compute_spin_temperature by accident.
+                this_radiation_fields = None
+
                 if not skip_radfields:
                     this_rad_setup = sf.setup_radiation_fields(
                         redshift=z,
