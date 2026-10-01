@@ -830,7 +830,7 @@ def compute_spin_temperature(
     initial_conditions: InitialConditions,
     perturbed_field: PerturbedField,
     inputs: InputParameters | None = None,
-    radiation_fields: RadiationFields,
+    radiation_fields: RadiationFields | None = None,
     previous_spin_temp: TsBox | None = None,
 ) -> TsBox:
     r"""
@@ -847,8 +847,9 @@ def compute_spin_temperature(
         to use the astro params/flags when SOURCE_MODEL='E-INTEGRAL' and USE_TS_FLUCT=True.
     perturbed_field : :class:`~PerturbedField`
         The perturbed density field.
-    radiation_fields : :class:`RadiationFields`
+    radiation_fields : :class:`RadiationFields` or None
         This input specifies radiation fields, i.e. X-ray heating rate, photoionization rate, and Lyman-alpha flux.
+        Required to compute the box, but may be None if the TsBox is read from the cache.
     previous_spin_temp : :class:`TsBox` or None
         The previous spin temperature box. Needed when we are beyond the first snapshot
 
@@ -863,6 +864,13 @@ def compute_spin_temperature(
         See docs of :func:`initial_conditions` for more information.
     """
     redshift = perturbed_field.redshift
+
+    if radiation_fields is None:
+        # Only allowed when the TsBox is read from the cache (the decorator
+        # returns before we get here); computing it needs the radiation fields.
+        raise ValueError(
+            f"radiation_fields is required to compute the spin temperature at z={redshift}"
+        )
 
     if redshift >= inputs.simulation_options.Z_HEAT_MAX:
         previous_spin_temp = TsBox.dummy()

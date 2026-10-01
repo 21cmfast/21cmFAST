@@ -63,6 +63,9 @@ def test_coeval_warnings(default_input_struct_lc, cache):
             write=False,
             cache=cache,
         )
+    assert all(issubclass(w.category, UserWarning) for w in record), [
+        (w.category.__name__, str(w.message)) for w in record
+    ]
     messages = [str(w.message) for w in record]
     assert any("You have turned off caching" in m for m in messages)
     assert any(m.startswith("Trying to purge array") for m in messages)
@@ -144,6 +147,30 @@ def test_coeval_resume_reconstructs_radiation_fields_history(tmp_path_factory):
         coeval_full.brightness_temperature.brightness_temp,
         coeval_resumed.brightness_temperature.brightness_temp,
     )
+
+
+def test_coeval_resume_cached_ts_without_radiation_fields(tmp_path):
+    """Resuming with cached TsBox but uncached RadiationFields must not crash (#791)."""
+    inputs = InputParameters.from_template(
+        ["latest-discrete", "size-tiny"],
+        random_seed=1,
+        BOX_LEN=50.0,
+        R_BUBBLE_MAX=50.0,
+    )
+    cache = OutputCache(tmp_path)
+    write = CacheConfig(radiation_fields=False)
+    zs = inputs.node_redshifts
+
+    for out_z in (zs[:2], zs[2:4]):
+        # The second call restarts the loop with the first nodes' TsBox cached.
+        out = [
+            c
+            for c, is_output in p21c.generate_coeval(
+                inputs=inputs, out_redshifts=out_z, cache=cache, write=write
+            )
+            if is_output
+        ]
+        assert len(out) == len(out_z)
 
 
 def test_obtain_starting_point_carries_cached_emissivity_fields(tmp_path_factory):

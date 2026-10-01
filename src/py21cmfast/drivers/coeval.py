@@ -786,7 +786,6 @@ def _redshift_loop_generator(
     this_emissivity_fields = None
     this_spin_temp = None
     this_halofield = None
-    this_radiation_fields = None
     if inputs.astro_options.USE_TS_FLUCT:
         this_rad_setup = RadiationFieldsSetup.new(redshift=-1.0, inputs=inputs)
         # For efficiency, allocate memory once per simulation
@@ -842,6 +841,8 @@ def _redshift_loop_generator(
                     and resume_cache.TsBox[z].exists()
                 )
                 skip_radfields = ts_cached and not write.radiation_fields
+
+                this_radiation_fields = None
 
                 if not skip_radfields:
                     this_rad_setup = sf.setup_radiation_fields(

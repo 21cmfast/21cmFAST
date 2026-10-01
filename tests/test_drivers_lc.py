@@ -130,9 +130,10 @@ def test_run_lc_bad_inputs(
         )
 
 
-# generate_lightcone yields an already-complete lightcone without returning, so the
-# second run below still reaches the cache check, which warns.
-@pytest.mark.filterwarnings("ignore:^The cache at OutputCache:UserWarning")
+# Loading an already-complete lightcone still reaches the cache check, which warns.
+@pytest.mark.filterwarnings(
+    r"ignore:^The cache at OutputCache.* only contains complete coeval boxes for:UserWarning"
+)
 def test_lc_with_lightcone_filename(
     ic, rectlcn, default_input_struct_lc, tmpdirec, cache
 ):

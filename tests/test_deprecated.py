@@ -4,9 +4,9 @@ Tests for deprecated parameters and APIs.
 This module consolidates all deprecation warning tests in one place.
 Each deprecated parameter should have:
 1. A test verifying the deprecation warning fires correctly.
-2. A removal check: a test gated on the package version, or
-   @deprecation.fail_if_not_removed (only effective for APIs that use
-   @deprecation.deprecated).
+2. A removal check gated on the package version, or
+   @deprecation.fail_if_not_removed where the API emits UnsupportedWarning
+   at the removal version.
 
 When a parameter is removed in v5, remove its tests from this module.
 """
