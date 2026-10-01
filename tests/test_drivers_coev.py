@@ -5,12 +5,16 @@ They do not test for correctness of simulations, but whether different parameter
 work/don't work as intended.
 """
 
+import gc
+from collections import Counter
+
 import attrs
 import numpy as np
 import pytest
 
 import py21cmfast as p21c
 from py21cmfast import CacheConfig, Coeval, InputParameters, OutputCache, run_coeval
+from py21cmfast.io.caching import RunCache
 from py21cmfast.wrapper.arrays import Array
 from py21cmfast.wrapper.outputs import OutputStruct
 
@@ -154,6 +158,56 @@ def test_coeval_resume_cached_ts_without_radiation_fields(tmp_path):
             if is_output
         ]
         assert len(out) == len(out_z)
+
+
+def _collect_cyclic_garbage() -> Counter:
+    """Collect all garbage reference cycles, returning the types of the objects in them."""
+    gc.set_debug(gc.DEBUG_SAVEALL)
+    try:
+        gc.collect()
+        garbage = Counter(type(obj).__name__ for obj in gc.garbage)
+    finally:
+        gc.set_debug(0)
+        gc.garbage.clear()
+    # The cycles are still there after clearing gc.garbage; now really free them.
+    gc.collect()
+    return garbage
+
+
+@pytest.mark.filterwarnings("ignore:The maximum halo mass:UserWarning")
+@pytest.mark.filterwarnings("ignore:You are setting R_BUBBLE_MAX:UserWarning")
+def test_coeval_redshift_steps_create_no_reference_cycles(tmp_path):
+    """Test that no redshift step of a coeval run leaves reference cycles behind (#796).
+
+    The high-level drivers run with the garbage collector disabled, so anything caught
+    in a reference cycle -- along with everything it references, e.g. the boxes held by
+    the frames that a cycle keeps alive -- stays in memory until the run ends. A cycle
+    created at every redshift therefore makes memory grow with the length of the run,
+    whatever creates it. This checks both a run that computes every box and one that
+    replays them all from the cache.
+    """
+    inputs = InputParameters.from_template(
+        ["latest-discrete", "size-tiny"], random_seed=1
+    )
+    cache = OutputCache(tmp_path)
+    redshifts = inputs.node_redshifts[:4]
+
+    for run in ("computed", "replayed from cache"):
+        if run == "replayed from cache":
+            # With discrete halos, the run is replayed from the first node redshift.
+            rc = RunCache.from_inputs(inputs, cache)
+            assert all(rc.is_complete_at(z=z) for z in redshifts)
+
+        garbage = [
+            _collect_cyclic_garbage()
+            for _ in p21c.generate_coeval(
+                inputs=inputs, out_redshifts=redshifts, cache=cache
+            )
+        ]
+
+        # The first step also contains the one-off set-up of the run.
+        cyclic = {i: g.most_common(5) for i, g in enumerate(garbage) if i and g}
+        assert not cyclic, f"Steps of the {run} run left reference cycles: {cyclic}"
 
 
 def test_obtain_starting_point_carries_cached_emissivity_fields(tmp_path_factory):
