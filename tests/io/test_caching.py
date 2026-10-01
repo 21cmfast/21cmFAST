@@ -18,15 +18,20 @@ from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import outputs
 
 
-def create_full_run_cache(cachedir: Path) -> caching.RunCache:
+def create_full_run_cache(
+    cachedir: Path, template: str = "latest", save_optional: bool = True
+) -> caching.RunCache:
     inputs = InputParameters.from_template(
-        "latest",
+        template,
         random_seed=12345,
         node_redshifts=np.arange(12, 38, 3.0)[::-1],
     ).evolve_input_structs(HII_DIM=10, DIM=20, BOX_LEN=75.0, ZPRIME_STEP_FACTOR=1.3)
     cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(cachedir))
-
-    for fldname, fld in attrs.asdict(cache, recurse=False).items():
+    if save_optional:
+        all_fields = attrs.asdict(cache, recurse=False).items()
+    else:
+        all_fields = cache.get_required_fields().items()
+    for fldname, fld in all_fields:
         if isinstance(fld, dict):
             for z, fname in fld.items():
                 o = getattr(outputs, fldname).new(redshift=z, inputs=inputs)
@@ -35,19 +40,19 @@ def create_full_run_cache(cachedir: Path) -> caching.RunCache:
                 # Go through each array and set it to be "computed" so we can trick
                 # the writer into writing it out to file.
                 for k, v in o.arrays.items():
-                    setattr(o, k, v.with_value(v.value))
+                    setattr(o, k, v.with_value(v._value))
 
                 # Mock the primitive fields as well...
                 for fld in o._struct.primitive_fields:
                     setattr(o, fld, 0.0)
 
                 h5.write_output_to_hdf5(o, fname)
-        elif fldname == "InitialConditions":
-            o = outputs.InitialConditions.new(inputs=inputs)
-            o._init_arrays()
-            for k, v in o.arrays.items():
-                setattr(o, k, v.with_value(v.value))
-            h5.write_output_to_hdf5(o, fld)
+    # manually write the ICs to disk
+    o = outputs.InitialConditions.new(inputs=inputs)
+    o._init_arrays()
+    for k, v in o.arrays.items():
+        setattr(o, k, v.with_value(v._value))
+    h5.write_output_to_hdf5(o, cache.InitialConditions)
     return cache
 
 
@@ -60,6 +65,17 @@ def full_run_cache(tmp_path_factory):
 def partial_run_cache(tmp_path_factory):
     cache = create_full_run_cache(tmp_path_factory.mktemp("partial_run_cache"))
     cache.PerturbedField[cache.inputs.node_redshifts[-1]].unlink()
+    return cache
+
+
+@pytest.fixture(scope="module")
+def no_radiation_fields_run_cache(tmp_path_factory):
+    """A cache with RadiationFields missing at every redshift."""
+    cache = create_full_run_cache(
+        tmp_path_factory.mktemp("no_radiation_fields_run_cache"),
+        template="latest-dhalos",
+        save_optional=False,
+    )
     return cache
 
 
@@ -161,6 +177,15 @@ class TestRunCache:
         )
         assert partial_run_cache.is_complete_at(index=0)
 
+    def test_is_complete_at_ignores_missing_radiation_fields(
+        self, no_radiation_fields_run_cache
+    ):
+        """Regression test: absence of RadiationFields must not block completeness."""
+        cache = no_radiation_fields_run_cache
+        assert not any(p.exists() for p in cache.RadiationFields.values())
+        for idx in range(len(cache.inputs.node_redshifts)):
+            assert cache.is_complete_at(index=idx)
+
     def test_get_output_struct_at_z(self, full_run_cache):
         """Test that get_output_struct_at_z works as expected."""
         cache = full_run_cache
@@ -214,7 +239,9 @@ class TestRunCache:
             )
             assert "PerturbedField" in boxes
             assert "EmissivityFields" in boxes
-            assert "RadiationFields" in boxes
+            # RadiationFields is optional (see RunCache._optional_fields) and is
+            # never read back as an input, so get_all_boxes_at_z excludes it.
+            assert "RadiationFields" not in boxes
             assert "TsBox" in boxes
             assert "IonizedBox" in boxes
             assert "BrightnessTemp" in boxes
@@ -236,6 +263,12 @@ class TestRunCache:
         assert full_run_cache.is_complete()
 
         assert not partial_run_cache.is_complete()
+
+    def test_is_complete_ignores_missing_radiation_fields(
+        self, no_radiation_fields_run_cache
+    ):
+        """Regression test: is_complete() must not require RadiationFields either."""
+        assert no_radiation_fields_run_cache.is_complete()
 
 
 class TestOutputCache:

@@ -1768,7 +1768,7 @@ class AstroParams(InputStruct):
         transformer=logtransformer,
     )
     F_STAR7_MCG: float = field(converter=float, transformer=logtransformer)
-    _ALPHA_STAR_MINI: None | float = field(
+    _ALPHA_STAR_MINI: float | None = field(
         default=None, converter=attrs.converters.optional(float)
     )
     ALPHA_STAR_MCG: float = field(converter=float)

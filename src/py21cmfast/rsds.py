@@ -214,7 +214,10 @@ def rsds_shift(
             "field must be an array with the same shape as los_displacement"
         )
     if not isinstance(n_rsd_subcells, int):
-        raise ValueError("n_rsd_subcells must be an integer")
+        # Kept as ValueError (not TypeError): part of the public API contract,
+        # asserted verbatim by tests/test_rsds.py (the class holding
+        # test_integer_shift and friends).
+        raise ValueError("n_rsd_subcells must be an integer")  # noqa: TRY004
 
     ang_coords = np.arange(field.shape[1])
 

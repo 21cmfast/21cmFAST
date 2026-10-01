@@ -303,6 +303,7 @@ class RunCache:
     HaloCatalog: dict[float, Path] | None = _dict_of_paths_field()
     RadiationFields: dict[float, Path] | None = _dict_of_paths_field()
     inputs: InputParameters | None = attrs.field(default=None)
+    _optional_fields: ClassVar[set[str]] = {"RadiationFields"}
 
     @classmethod
     def from_inputs(cls, inputs: InputParameters, cache: OutputCache) -> Self:
@@ -392,6 +393,14 @@ class RunCache:
 
         return cls.from_inputs(inputs, OutputCache(parent))
 
+    def get_required_fields(self) -> dict[str, dict]:
+        """Return the dict-typed cache fields that matter for completeness checks."""
+        return {
+            name: kind
+            for name, kind in attrs.asdict(self, recurse=False).items()
+            if isinstance(kind, dict) and name not in self._optional_fields
+        }
+
     def is_complete_at(
         self, z: float | None = None, index: float | None = None
     ) -> bool:
@@ -401,12 +410,7 @@ class RunCache:
         if index is not None:
             z = self.inputs.node_redshifts[index]
 
-        for kind in attrs.asdict(self, recurse=False).values():
-            if not isinstance(kind, dict):
-                continue
-            if not kind[z].exists():
-                return False
-        return True
+        return all(kind[z].exists() for kind in self.get_required_fields().values())
 
     def get_output_struct_at_z(
         self,
@@ -490,11 +494,7 @@ class RunCache:
         dict[str, Box]
             A dictionary mapping box names to their corresponding Box instances.
         """
-        kinds = [
-            k
-            for k, v in attrs.asdict(self, recurse=False).items()
-            if isinstance(v, dict)
-        ]
+        kinds = self.get_required_fields().keys()
 
         out = {
             k: self.get_output_struct_at_z(k, z, index, match_z_within) for k in kinds
@@ -542,10 +542,7 @@ class RunCache:
         if not self.InitialConditions.exists():
             return False
 
-        for kind in attrs.asdict(self, recurse=False).values():
-            if not isinstance(kind, dict):
-                continue
-
+        for kind in self.get_required_fields().values():
             for fl in kind.values():
                 if not fl.exists():
                     return False

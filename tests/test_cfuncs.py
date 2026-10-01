@@ -1,30 +1,15 @@
 """Test the wrapper functions which access the C-backend, but not though an OutputStruct compute() method."""
 
+import re
 from collections.abc import Callable
 
 import matplotlib as mpl
 import numpy as np
 import pytest
 from hmf import MassFunction
-from scipy import optimize
 
 import py21cmfast as p21c
 from py21cmfast.wrapper import cfuncs as cf
-
-YUNG24_PHYSICAL_PARAMS = {
-    "A_0": 0.13765772,
-    "A_1": -0.01003821,
-    "A_2": 0.00102964,
-    "a_0": 1.06641384,
-    "a_1": 0.02475576,
-    "a_2": -0.00283342,
-    "b_0": 4.86693806,
-    "b_1": 0.09212356,
-    "b_2": -0.01426283,
-    "c_0": 1.19837952,
-    "c_1": -0.00142967,
-    "c_2": -0.00033074,
-}
 
 
 @pytest.fixture(scope="module")
@@ -165,6 +150,131 @@ def test_bad_integral_inputs(default_input_struct):
             xray_rng=np.zeros(11),
         )
 
+    with pytest.raises(ValueError, match="halo_coords must be of shape"):
+        cf.convert_halo_properties(
+            inputs=default_input_struct,
+            redshift=redshifts[0],
+            halo_masses=np.zeros(10),
+            halo_coords=np.zeros((10, 2)),
+            star_rng=np.zeros(10),
+            sfr_rng=np.zeros(10),
+            xray_rng=np.zeros(10),
+        )
+
+    with pytest.raises(
+        ValueError,
+        match=re.escape("The shape of vcb_grid is inconsistent with HII_DIM^3!"),
+    ):
+        cf.convert_halo_properties(
+            inputs=default_input_struct,
+            redshift=redshifts[0],
+            halo_masses=np.zeros(10),
+            halo_coords=np.zeros((10, 3)),
+            star_rng=np.zeros(10),
+            sfr_rng=np.zeros(10),
+            xray_rng=np.zeros(10),
+            vcb_grid=np.zeros((10, 10, 10)),
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="halo_coords must be provided if USE_MCGS or USE_REIONIZATION_PHOTOHEATING_FEEDBACK is True",
+    ):
+        cf.convert_halo_properties(
+            inputs=default_input_struct.with_logspaced_redshifts().evolve_input_structs(
+                USE_MCGS=True,
+                RECOMB_MODEL="inhomogeneous",
+                USE_TS_FLUCT=True,
+                V_CB_MODEL="AVG-DEBUG",
+                M_TURN_STELLAR_FEEDBACK=5.0,
+            ),
+            redshift=redshifts[0],
+            halo_masses=np.zeros(10),
+            star_rng=np.zeros(10),
+            sfr_rng=np.zeros(10),
+            xray_rng=np.zeros(10),
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="vcb_grid must be provided if USE_MCGS is True and V_CB_MODEL is 'FLUCTS'",
+    ):
+        cf.convert_halo_properties(
+            inputs=default_input_struct.with_logspaced_redshifts().evolve_input_structs(
+                USE_MCGS=True,
+                RECOMB_MODEL="inhomogeneous",
+                USE_TS_FLUCT=True,
+                V_CB_MODEL="FLUCTS",
+                POWER_SPECTRUM="CLASS",
+                K_MAX_FOR_CLASS=1.0,
+                M_TURN_STELLAR_FEEDBACK=5.0,
+            ),
+            redshift=redshifts[0],
+            halo_masses=np.zeros(10),
+            halo_coords=np.zeros((10, 3)),
+            star_rng=np.zeros(10),
+            sfr_rng=np.zeros(10),
+            xray_rng=np.zeros(10),
+            J_21_LW_grid=np.zeros((35, 35, 35)),
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="J_21_LW_grid must be provided if USE_MCGS is True",
+    ):
+        cf.convert_halo_properties(
+            inputs=default_input_struct.with_logspaced_redshifts().evolve_input_structs(
+                USE_MCGS=True,
+                RECOMB_MODEL="inhomogeneous",
+                USE_TS_FLUCT=True,
+                V_CB_MODEL="FLUCTS",
+                POWER_SPECTRUM="CLASS",
+                K_MAX_FOR_CLASS=1.0,
+                M_TURN_STELLAR_FEEDBACK=5.0,
+            ),
+            redshift=redshifts[0],
+            halo_masses=np.zeros(10),
+            halo_coords=np.zeros((10, 3)),
+            star_rng=np.zeros(10),
+            sfr_rng=np.zeros(10),
+            xray_rng=np.zeros(10),
+            vcb_grid=np.zeros((35, 35, 35)),
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="Gamma12_grid must be provided if USE_REIONIZATION_PHOTOHEATING_FEEDBACK is True",
+    ):
+        cf.convert_halo_properties(
+            inputs=default_input_struct.evolve_input_structs(
+                USE_REIONIZATION_PHOTOHEATING_FEEDBACK=True,
+            ),
+            redshift=redshifts[0],
+            halo_masses=np.zeros(10),
+            halo_coords=np.zeros((10, 3)),
+            star_rng=np.zeros(10),
+            sfr_rng=np.zeros(10),
+            xray_rng=np.zeros(10),
+            z_re_grid=np.zeros((35, 35, 35)),
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="z_re_grid must be provided if USE_REIONIZATION_PHOTOHEATING_FEEDBACK is True",
+    ):
+        cf.convert_halo_properties(
+            inputs=default_input_struct.evolve_input_structs(
+                USE_REIONIZATION_PHOTOHEATING_FEEDBACK=True,
+            ),
+            redshift=redshifts[0],
+            halo_masses=np.zeros(10),
+            halo_coords=np.zeros((10, 3)),
+            star_rng=np.zeros(10),
+            sfr_rng=np.zeros(10),
+            xray_rng=np.zeros(10),
+            Gamma12_grid=np.zeros((35, 35, 35)),
+        )
+
 
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])
 @pytest.mark.parametrize("ps_model", ["EH", "BBKS"])
@@ -297,118 +407,60 @@ def test_hmf_runs(default_input_struct, hmf_model, ps_model):
 @pytest.mark.parametrize("ps_model", ["EH", "BBKS"])
 def test_new_hmf_matches_reference(default_input_struct, hmf_model, ps_model):
     redshift = 8.0
-    if hmf_model == "REED07":
-        transfer_map = {
-            "EH": "EH_NoBAO",
-            "BBKS": "BBKS",
+    transfer_map = {
+        "EH": "EH_NoBAO",
+        "BBKS": "BBKS",
+    }
+    if ps_model == "BBKS":
+        transfer_params = {
+            "use_sugiyama_baryons": True,
+            "use_liddle_baryons": False,
         }
-        if ps_model == "BBKS":
-            transfer_params = {
-                "use_sugiyama_baryons": True,
-                "use_liddle_baryons": False,
-            }
-        else:
-            transfer_params = {}
-
-        comparison_mf = MassFunction(
-            z=redshift,
-            Mmin=7,
-            Mmax=12,
-            hmf_model="Reed07",
-            transfer_model=transfer_map[ps_model],
-            transfer_params=transfer_params,
-            growth_model="GenMFGrowth",
-            delta_c=1.686,
-        )
-        inputs = default_input_struct.clone(
-            cosmo_params=p21c.CosmoParams.from_astropy(
-                comparison_mf.cosmo,
-                SIGMA_8=comparison_mf.sigma_8,
-                POWER_INDEX=comparison_mf.n,
-            ),
-        ).evolve_input_structs(
-            POWER_SPECTRUM=ps_model,
-            HMF=hmf_model,
-            USE_INTERPOLATION_TABLES="no-interpolation",
-        )
-        h = inputs.cosmo_params.cosmo.h
-        masses = comparison_mf.m / h
-        hmf_vals = cf.return_uhmf_value(
-            inputs=inputs,
-            redshift=redshift,
-            mass_values=masses,
-        )
-        mass_dens = (
-            inputs.cosmo_params.cosmo.critical_density(0).to("M_sun Mpc^-3").value
-            * inputs.cosmo_params.cosmo.Om0
-        )
-
-        np.testing.assert_allclose(
-            mass_dens * hmf_vals,
-            comparison_mf.dndlnm * (h**3),
-            rtol=2e-2,
-        )
     else:
-        masses = np.logspace(7, 12, num=64)
-        inputs = default_input_struct.evolve_input_structs(
-            POWER_SPECTRUM=ps_model,
-            HMF=hmf_model,
-            USE_INTERPOLATION_TABLES="no-interpolation",
-        )
-        hmf_vals = cf.return_uhmf_value(
-            inputs=inputs, redshift=redshift, mass_values=masses
-        )
-        sigma0, dsigmasqdm = cf.evaluate_sigma(inputs=inputs, masses=masses)
+        transfer_params = {}
 
-        ps_inputs = inputs.evolve_input_structs(HMF="PS")
-        ps_hmf_vals = cf.return_uhmf_value(
-            inputs=ps_inputs, redshift=redshift, mass_values=masses
-        )
-        test_idx = len(masses) // 2
-        delta_c = 1.686
+    hmf_model_map = {"REED07": "Reed07", "YUNG24": "Yung24"}
+    hmf_params_map = {"REED07": {}, "YUNG24": {"units": "physical"}}
 
-        def ps_difference(growth):
-            sigma_z = sigma0[test_idx] * growth
-            dsigmadm = dsigmasqdm[test_idx] * growth / (2 * sigma0[test_idx])
-            expected = (
-                -np.sqrt(2 / np.pi)
-                * (delta_c / sigma_z**2)
-                * dsigmadm
-                * np.exp(-(delta_c**2) / (2 * sigma_z**2))
-            )
-            return expected - ps_hmf_vals[test_idx]
+    comparison_mf = MassFunction(
+        z=redshift,
+        Mmin=7,
+        Mmax=12,
+        hmf_model=hmf_model_map[hmf_model],
+        hmf_params=hmf_params_map[hmf_model],
+        transfer_model=transfer_map[ps_model],
+        transfer_params=transfer_params,
+        growth_model="GenMFGrowth",
+        delta_c=1.686,
+    )
+    inputs = default_input_struct.clone(
+        cosmo_params=p21c.CosmoParams.from_astropy(
+            comparison_mf.cosmo,
+            SIGMA_8=comparison_mf.sigma_8,
+            POWER_INDEX=comparison_mf.n,
+        ),
+    ).evolve_input_structs(
+        POWER_SPECTRUM=ps_model,
+        HMF=hmf_model,
+        USE_INTERPOLATION_TABLES="no-interpolation",
+    )
+    h = inputs.cosmo_params.cosmo.h
+    masses = comparison_mf.m / h
+    hmf_vals = cf.return_uhmf_value(
+        inputs=inputs,
+        redshift=redshift,
+        mass_values=masses,
+    )
+    mass_dens = (
+        inputs.cosmo_params.cosmo.critical_density(0).to("M_sun Mpc^-3").value
+        * inputs.cosmo_params.cosmo.Om0
+    )
 
-        growth = optimize.brentq(ps_difference, 1e-4, 1.0)
-        sigma = sigma0 * growth
-        dlnsdlnm = -masses * dsigmasqdm / (2 * sigma0**2)
-
-        # TODO: Switch this branch to using hmf once Yung24 is merged there.
-        z = redshift
-        a_z = (
-            YUNG24_PHYSICAL_PARAMS["a_0"]
-            + YUNG24_PHYSICAL_PARAMS["a_1"] * z
-            + YUNG24_PHYSICAL_PARAMS["a_2"] * z**2
-        )
-        b_z = (
-            YUNG24_PHYSICAL_PARAMS["b_0"]
-            + YUNG24_PHYSICAL_PARAMS["b_1"] * z
-            + YUNG24_PHYSICAL_PARAMS["b_2"] * z**2
-        )
-        c_z = (
-            YUNG24_PHYSICAL_PARAMS["c_0"]
-            + YUNG24_PHYSICAL_PARAMS["c_1"] * z
-            + YUNG24_PHYSICAL_PARAMS["c_2"] * z**2
-        )
-        A_z = (
-            YUNG24_PHYSICAL_PARAMS["A_0"]
-            + YUNG24_PHYSICAL_PARAMS["A_1"] * z
-            + YUNG24_PHYSICAL_PARAMS["A_2"] * z**2
-        )
-        f_sigma = A_z * ((sigma / b_z) ** (-a_z) + 1) * np.exp(-c_z / sigma**2)
-
-        expected = f_sigma * dlnsdlnm / masses
-
-        np.testing.assert_allclose(hmf_vals, expected, rtol=1e-6)
+    np.testing.assert_allclose(
+        mass_dens * hmf_vals,
+        comparison_mf.dndlnm * (h**3),
+        rtol=2e-2,
+    )
 
 
 @pytest.mark.parametrize("hmf_model", ["PS", "ST"])
@@ -621,6 +673,31 @@ def test_functions_with_and_without_lightcone(
             assert output[1] is None  # output_mcg should be None if not using mcgs
     elif func == cf.evaluate_Xray_cond:
         assert len(output) == len(densities)
+
+
+def test_nested_global_evolution_does_not_corrupt_the_backend(
+    default_input_struct_lc_mcgs, default_global_evolution
+):
+    """Computing the global evolution internally must give the same answer as passing it in.
+
+    ``evaluate_Nion_z`` runs a global evolution when it isn't given one, and that runs
+    with one-cell inputs of its own. The backend has to be set up for the function's own
+    inputs again by the time it calls into C, or the two paths disagree.
+    """
+    redshifts = [7, 8, 9]
+
+    nion_given, nion_mcg_given = cf.evaluate_Nion_z(
+        inputs=default_input_struct_lc_mcgs,
+        redshifts=redshifts,
+        global_evolution=default_global_evolution,
+    )
+    nion_internal, nion_mcg_internal = cf.evaluate_Nion_z(
+        inputs=default_input_struct_lc_mcgs,
+        redshifts=redshifts,
+    )
+
+    np.testing.assert_allclose(nion_internal, nion_given, rtol=1e-10)
+    np.testing.assert_allclose(nion_mcg_internal, nion_mcg_given, rtol=1e-10)
 
 
 def test_removed_log10mturns_argument(default_input_struct):

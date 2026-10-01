@@ -6,10 +6,11 @@ work/don't work as intended.
 """
 
 import attrs
+import numpy as np
 import pytest
 
 import py21cmfast as p21c
-from py21cmfast import Coeval, run_coeval
+from py21cmfast import CacheConfig, Coeval, InputParameters, OutputCache, run_coeval
 from py21cmfast.wrapper.arrays import Array
 from py21cmfast.wrapper.outputs import OutputStruct
 
@@ -81,3 +82,115 @@ def test_coeval_fields():
         for field in attrs.fields(kls):
             if isinstance(field, Array):
                 assert field.name in fields
+
+
+def test_coeval_resume_reconstructs_radiation_fields_history(tmp_path_factory):
+    """Test that a coeval run can be resumed from a previous run, and that the resumed run produces the same results as a full run."""
+    inputs = InputParameters.from_template(
+        "tiny", random_seed=1234, node_redshifts=np.arange(12, 24, 2.0)[::-1]
+    ).evolve_input_structs(
+        ZPRIME_STEP_FACTOR=1.5,
+        SOURCE_MODEL="L-INTEGRAL",
+        USE_TS_FLUCT=True,
+        USE_UPPER_STELLAR_TURNOVER=False,
+        USE_EXP_FILTER=False,
+        CELL_RECOMB=False,
+    )
+    assert inputs.matter_options.lagrangian_source_grid
+    assert not inputs.matter_options.has_discrete_halos
+
+    cache_full = OutputCache(tmp_path_factory.mktemp("resume_full"))
+    coeval_full = run_coeval(
+        inputs=inputs,
+        out_redshifts=inputs.node_redshifts[-1],
+        cache=cache_full,
+        write=True,
+        regenerate=True,
+    )[0]
+
+    cache_resume = OutputCache(tmp_path_factory.mktemp("resume_partial"))
+    write_no_radfields = CacheConfig(radiation_fields=False)
+    mid_z = inputs.node_redshifts[len(inputs.node_redshifts) // 2]
+
+    # First run only partway (up to and including a middle node), matching
+    # production usage of not writing RadiationFields to disk.
+    run_coeval(
+        inputs=inputs,
+        out_redshifts=mid_z,
+        cache=cache_resume,
+        write=write_no_radfields,
+        regenerate=True,
+    )
+    # Now request the final redshift; this should trigger a resume from cache.
+    coeval_resumed = run_coeval(
+        inputs=inputs,
+        out_redshifts=inputs.node_redshifts[-1],
+        cache=cache_resume,
+        write=write_no_radfields,
+    )[0]
+
+    np.testing.assert_array_equal(
+        coeval_full.brightness_temperature.brightness_temp,
+        coeval_resumed.brightness_temperature.brightness_temp,
+    )
+
+
+def test_coeval_resume_cached_ts_without_radiation_fields(tmp_path):
+    """Resuming with cached TsBox but uncached RadiationFields must not crash (#791)."""
+    inputs = InputParameters.from_template(
+        ["latest-discrete", "size-tiny"], random_seed=1
+    )
+    cache = OutputCache(tmp_path)
+    write = CacheConfig(radiation_fields=False)
+    zs = inputs.node_redshifts
+
+    for out_z in (zs[:2], zs[2:4]):
+        # The second call restarts the loop with the first nodes' TsBox cached.
+        out = [
+            c
+            for c, is_output in p21c.generate_coeval(
+                inputs=inputs, out_redshifts=out_z, cache=cache, write=write
+            )
+            if is_output
+        ]
+        assert len(out) == len(out_z)
+
+
+def test_obtain_starting_point_carries_cached_emissivity_fields(tmp_path_factory):
+    """Test that the _obtain_starting_point_for_scrolling function correctly carries over cached EmissivityFields data when resuming a run."""
+    from py21cmfast.drivers.coeval import _obtain_starting_point_for_scrolling
+    from py21cmfast.io.caching import RunCache
+
+    inputs = InputParameters.from_template(
+        "tiny", random_seed=1234, node_redshifts=np.arange(12, 24, 2.0)[::-1]
+    ).evolve_input_structs(
+        ZPRIME_STEP_FACTOR=1.5,
+        SOURCE_MODEL="L-INTEGRAL",
+        USE_TS_FLUCT=True,
+        USE_UPPER_STELLAR_TURNOVER=False,
+        USE_EXP_FILTER=False,
+        CELL_RECOMB=False,
+    )
+    assert inputs.matter_options.lagrangian_source_grid
+
+    cache = OutputCache(tmp_path_factory.mktemp("resume_emissivity_fields_casing"))
+    run_coeval(
+        inputs=inputs,
+        out_redshifts=inputs.node_redshifts[-1],
+        cache=cache,
+        write=True,
+        regenerate=True,
+    )
+
+    rc = RunCache.from_inputs(inputs, cache)
+    idx, coeval = _obtain_starting_point_for_scrolling(
+        inputs=inputs,
+        initial_conditions=rc.get_ics(),
+        photon_nonconservation_data={},
+        cache=cache,
+        regenerate=False,
+    )
+
+    assert idx >= 0
+    assert coeval is not None
+    assert coeval.emissivity_fields is not None

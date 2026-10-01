@@ -30,6 +30,7 @@ class Config(dict):
         "HALO_CATALOG_MEM_FACTOR": 1.2,
         "EXTRA_EMISSIVITY_FIELDS": False,
         "safe_read": True,
+        "CACHE_ARRAYS_ON_ACCESS": True,
     }
     _defaults["wisdoms_path"] = Path(_defaults["direc"]) / "wisdoms"
 

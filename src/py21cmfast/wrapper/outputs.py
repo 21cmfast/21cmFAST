@@ -20,7 +20,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from enum import Enum
 from functools import cached_property
-from typing import Any, Self
+from typing import Any, ClassVar, Self
 
 import attrs
 import deprecation
@@ -31,7 +31,7 @@ from bidict import bidict
 
 from .._cfg import config
 from ..c_21cmfast import lib
-from .arrays import Array
+from .arrays import Array, expose_arrays
 from .exceptions import _process_exitcode
 from .inputs import (
     AstroOptions,
@@ -148,11 +148,25 @@ class OutputStruct(ABC):
             other.inputs, f"_{min_req.name}_hash"
         )
 
+    #: Public names of this class's Array fields, filled in by `expose_arrays`.
+    #: ClassVar, so that attrs treats it as a plain class attribute rather than a field.
+    _array_field_names: ClassVar[tuple[str, ...]] = ()
+
     @property
     def arrays(self) -> dict[str, Array]:
-        """A dictionary of Array objects whose memory is shared between this object and the C backend."""
-        me = attrs.asdict(self, recurse=False)
-        return {k: x for k, x in me.items() if isinstance(x, Array)}
+        """A dictionary of Array objects whose memory is shared between this object and the C backend.
+
+        This is the handle for anything to do with an array's *memory* - its state,
+        its cache backend, and the functional transitions between them. Reading the
+        attribute of the same name off this object gives you the array's *data*, as a
+        plain numpy array.
+        """
+        out = {}
+        for name in self._array_field_names:
+            array = getattr(self, f"_{name}")
+            if array is not None:
+                out[name] = array
+        return out
 
     @cached_property
     def _struct(self) -> StructWrapper:
@@ -235,7 +249,7 @@ class OutputStruct(ABC):
             ary = ary.loaded_from_disk()
             setattr(self, name, ary)
 
-        return ary.value
+        return ary._value
 
     def set(self, name: str, value: Any):
         """Set the value of an array."""
@@ -326,6 +340,20 @@ class OutputStruct(ABC):
             Whether to force the purge even if no disk storage exists.
         """
         self.prepare(keep=[], force=force)
+
+    def has(self, name: str) -> bool:
+        """Whether the named array currently has data available, in memory or on disk.
+
+        Reading the attribute of the same name is only meaningful when this is true;
+        otherwise it raises, because there is no data anywhere to give you. Use this
+        rather than testing the attribute against None: an array that exists but has
+        never been computed is not the same thing as an optional array that this set
+        of inputs doesn't produce (for which the attribute *is* None).
+        """
+        array = self.arrays.get(name)
+        return array is not None and (
+            array.state.computed_in_mem or array.state.on_disk
+        )
 
     def load_all(self):
         """Load all possible arrays into memory."""
@@ -476,9 +504,9 @@ class OutputStruct(ABC):
         # Perform the C computation
         try:
             exitcode = self._c_compute_function(*inputs, self._cstruct)
-        except TypeError as e:
+        except TypeError:
             logger.error(f"Arguments to {self._c_compute_function.__name__}: {inputs}")
-            raise e
+            raise
 
         _process_exitcode(exitcode, self._c_compute_function, args)
 
@@ -505,6 +533,7 @@ class OutputStruct(ABC):
         return size
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class InitialConditions(OutputStruct):
     """A class representing an InitialConditions C-struct."""
@@ -513,23 +542,23 @@ class InitialConditions(OutputStruct):
     _meta = False
     _compat_hash = _HashType.user_cosmo
 
-    lowres_density = _arrayfield()
-    lowres_vx = _arrayfield(optional=True)
-    lowres_vy = _arrayfield(optional=True)
-    lowres_vz = _arrayfield(optional=True)
-    hires_density = _arrayfield()
-    hires_vx = _arrayfield(optional=True)
-    hires_vy = _arrayfield(optional=True)
-    hires_vz = _arrayfield(optional=True)
+    _lowres_density = _arrayfield()
+    _lowres_vx = _arrayfield(optional=True)
+    _lowres_vy = _arrayfield(optional=True)
+    _lowres_vz = _arrayfield(optional=True)
+    _hires_density = _arrayfield()
+    _hires_vx = _arrayfield(optional=True)
+    _hires_vy = _arrayfield(optional=True)
+    _hires_vz = _arrayfield(optional=True)
 
-    lowres_vx_2LPT = _arrayfield(optional=True)
-    lowres_vy_2LPT = _arrayfield(optional=True)
-    lowres_vz_2LPT = _arrayfield(optional=True)
-    hires_vx_2LPT = _arrayfield(optional=True)
-    hires_vy_2LPT = _arrayfield(optional=True)
-    hires_vz_2LPT = _arrayfield(optional=True)
+    _lowres_vx_2LPT = _arrayfield(optional=True)
+    _lowres_vy_2LPT = _arrayfield(optional=True)
+    _lowres_vz_2LPT = _arrayfield(optional=True)
+    _hires_vx_2LPT = _arrayfield(optional=True)
+    _hires_vy_2LPT = _arrayfield(optional=True)
+    _hires_vz_2LPT = _arrayfield(optional=True)
 
-    lowres_vcb = _arrayfield(optional=True)
+    _lowres_vcb = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, **kw) -> Self:
@@ -655,6 +684,7 @@ class InitialConditions(OutputStruct):
         )
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class OutputStructZ(OutputStruct):
     """The same as an OutputStruct, but containing a redshift."""
@@ -673,6 +703,7 @@ class OutputStructZ(OutputStruct):
         return cls.new(inputs=inputs, redshift=-1.0, initial=True)
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class PerturbedField(OutputStructZ):
     """A class containing all perturbed field boxes."""
@@ -681,10 +712,10 @@ class PerturbedField(OutputStructZ):
     _meta = False
     _compat_hash = _HashType.zgrid
 
-    density = _arrayfield()
-    velocity_z = _arrayfield(optional=True)
-    velocity_x = _arrayfield(optional=True)
-    velocity_y = _arrayfield(optional=True)
+    _density = _arrayfield()
+    _velocity_z = _arrayfield(optional=True)
+    _velocity_x = _arrayfield(optional=True)
+    _velocity_y = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -724,7 +755,10 @@ class PerturbedField(OutputStructZ):
         required = []
 
         if not isinstance(input_box, InitialConditions):
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for PerturbedField!"
             )
 
@@ -782,6 +816,7 @@ class Halo:
     xray_rng: float | None = None
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class HaloCatalog(OutputStructZ):
     """A class containing all fields related to halos."""
@@ -791,11 +826,11 @@ class HaloCatalog(OutputStructZ):
     desc_redshift: float | None = attrs.field(default=None)
     _compat_hash = _HashType.zgrid
 
-    halo_masses = _arrayfield()
-    star_rng = _arrayfield()
-    sfr_rng = _arrayfield()
-    xray_rng = _arrayfield()
-    halo_coords = _arrayfield()
+    _halo_masses = _arrayfield()
+    _star_rng = _arrayfield()
+    _sfr_rng = _arrayfield()
+    _xray_rng = _arrayfield()
+    _halo_coords = _arrayfield()
     n_halos: int = attrs.field(default=None)
     buffer_size: int = attrs.field(default=None)
 
@@ -873,7 +908,10 @@ class HaloCatalog(OutputStructZ):
                     "xray_rng",
                 ]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for HaloCatalog!"
             )
         return required
@@ -900,12 +938,12 @@ class HaloCatalog(OutputStructZ):
         if not isinstance(index, int) or index < 0 or index >= self.n_halos:
             raise IndexError(f"Halo index {index} out of range [0, {self.n_halos})")
         return Halo(
-            mass=float(self.halo_masses.value[index]),
-            coords=self.halo_coords.value[index].copy(),
+            mass=float(self.halo_masses[index]),
+            coords=self.halo_coords[index].copy(),
             redshift=self.redshift,
-            star_rng=float(self.star_rng.value[index]),
-            sfr_rng=float(self.sfr_rng.value[index]),
-            xray_rng=float(self.xray_rng.value[index]),
+            star_rng=float(self.star_rng[index]),
+            sfr_rng=float(self.sfr_rng[index]),
+            xray_rng=float(self.xray_rng[index]),
         )
 
     def __iter__(self):
@@ -918,6 +956,7 @@ class HaloCatalog(OutputStructZ):
         return self.n_halos
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class PerturbedHaloCatalog(OutputStructZ):
     """A class to hold a HaloCatalog whose coordinates are in real (Eulerian) space."""
@@ -927,17 +966,17 @@ class PerturbedHaloCatalog(OutputStructZ):
     desc_redshift: float | None = attrs.field(default=None)
     _compat_hash = _HashType.zgrid
 
-    halo_masses = _arrayfield()
-    halo_coords = _arrayfield()
+    _halo_masses = _arrayfield()
+    _halo_coords = _arrayfield()
 
-    sfr_acg = _arrayfield()
-    stellar_masses_acg = _arrayfield()
-    n_ion = _arrayfield()
-    xray_luminosity = _arrayfield(optional=True)
-    fesc_weighted_sfr = _arrayfield(optional=True)
+    _sfr_acg = _arrayfield()
+    _stellar_masses_acg = _arrayfield()
+    _n_ion = _arrayfield()
+    _xray_luminosity = _arrayfield(optional=True)
+    _fesc_weighted_sfr = _arrayfield(optional=True)
 
-    stellar_masses_mcg = _arrayfield(optional=True)
-    sfr_mcg = _arrayfield(optional=True)
+    _stellar_masses_mcg = _arrayfield(optional=True)
+    _sfr_mcg = _arrayfield(optional=True)
 
     n_halos: int = attrs.field(default=None)
     buffer_size: int = attrs.field(default=None)
@@ -1027,7 +1066,10 @@ class PerturbedHaloCatalog(OutputStructZ):
                 "xray_rng",
             ]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for PerturbedHaloCatalog!"
             )
 
@@ -1057,8 +1099,8 @@ class PerturbedHaloCatalog(OutputStructZ):
         if not isinstance(index, int) or index < 0 or index >= self.n_halos:
             raise IndexError(f"Halo index {index} out of range [0, {self.n_halos})")
         return Halo(
-            mass=float(self.halo_masses.value[index]),
-            coords=self.halo_coords.value[index].copy(),
+            mass=float(self.halo_masses[index]),
+            coords=self.halo_coords[index].copy(),
             redshift=self.redshift,
         )
 
@@ -1072,6 +1114,7 @@ class PerturbedHaloCatalog(OutputStructZ):
         return self.n_halos
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class EmissivityFields(OutputStructZ):
     """A class containing all gridded halo properties."""
@@ -1079,15 +1122,15 @@ class EmissivityFields(OutputStructZ):
     _meta = False
     _c_compute_function = lib.ComputeEmissivityFields
 
-    halo_number = _arrayfield(optional=True)
-    halo_mass_density = _arrayfield(optional=True)
-    stellar_mass_density_acg = _arrayfield(optional=True)
-    stellar_mass_density_mcg = _arrayfield(optional=True)
-    sfrd_acg = _arrayfield(optional=True)
-    sfrd_mcg = _arrayfield(optional=True)
-    xray_emissivity = _arrayfield(optional=True)
-    n_ion = _arrayfield()
-    fesc_weighted_sfrd = _arrayfield(optional=True)
+    _halo_number = _arrayfield(optional=True)
+    _halo_mass_density = _arrayfield(optional=True)
+    _stellar_mass_density_acg = _arrayfield(optional=True)
+    _stellar_mass_density_mcg = _arrayfield(optional=True)
+    _sfrd_acg = _arrayfield(optional=True)
+    _sfrd_mcg = _arrayfield(optional=True)
+    _xray_emissivity = _arrayfield(optional=True)
+    _n_ion = _arrayfield()
+    _fesc_weighted_sfrd = _arrayfield(optional=True)
 
     log10_mturn_acg_ave: float = attrs.field(default=None)
     log10_mturn_mcg_ave: float = attrs.field(default=None)
@@ -1183,7 +1226,7 @@ class EmissivityFields(OutputStructZ):
             ):
                 required += ["lowres_vcb"]
         else:
-            raise ValueError(
+            raise TypeError(
                 f"{type(input_box)} is not an input required for EmissivityFields!"
             )
 
@@ -1430,6 +1473,7 @@ class EmissivityFields(OutputStructZ):
         return self.log10_mturn_mcg_ave
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class HaloBox(EmissivityFields):
     """Deprecated alias for :class:`EmissivityFields`.
@@ -1460,6 +1504,7 @@ class HaloBox(EmissivityFields):
         )
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class RadiationFieldsSetup(OutputStructZ):
     """A class containing the fields that are neccesary for setting up the radiation fields."""
@@ -1468,37 +1513,37 @@ class RadiationFieldsSetup(OutputStructZ):
     _c_compute_function = lib.SetupRadiationFields
 
     # R-dependent arrays which are set once
-    zpp_avg = _arrayfield()
-    R_values = _arrayfield()
-    zpp_edges = _arrayfield()
+    _zpp_avg = _arrayfield()
+    _R_values = _arrayfield()
+    _zpp_edges = _arrayfield()
     # Arrays for the filtered emissivity fields
-    filtered_sfrd_acg_for_lya = _arrayfield()
-    filtered_sfrd_mcg_for_lya = _arrayfield(optional=True)
-    filtered_xray_emissivity = _arrayfield()
-    filtered_sfrd_acg_for_lw = _arrayfield(optional=True)
-    filtered_sfrd_mcg_for_lw = _arrayfield(optional=True)
+    _filtered_sfrd_acg_for_lya = _arrayfield()
+    _filtered_sfrd_mcg_for_lya = _arrayfield(optional=True)
+    _filtered_xray_emissivity = _arrayfield()
+    _filtered_sfrd_acg_for_lw = _arrayfield(optional=True)
+    _filtered_sfrd_mcg_for_lw = _arrayfield(optional=True)
     # Frequency integral tables
-    freq_int_heat_tbl = _arrayfield()
-    freq_int_ion_tbl = _arrayfield()
-    freq_int_lya_tbl = _arrayfield()
-    freq_int_heat_tbl_diff = _arrayfield()
-    freq_int_ion_tbl_diff = _arrayfield()
-    freq_int_lya_tbl_diff = _arrayfield()
+    _freq_int_heat_tbl = _arrayfield()
+    _freq_int_ion_tbl = _arrayfield()
+    _freq_int_lya_tbl = _arrayfield()
+    _freq_int_heat_tbl_diff = _arrayfield()
+    _freq_int_ion_tbl_diff = _arrayfield()
+    _freq_int_lya_tbl_diff = _arrayfield()
     # helpers for the interpolation
-    inverse_diff = _arrayfield()
-    m_xHII_low_box = _arrayfield()
-    inverse_val_box = _arrayfield()
+    _inverse_diff = _arrayfield()
+    _m_xHII_low_box = _arrayfield()
+    _inverse_val_box = _arrayfield()
     # arrays for R-dependent prefactors
-    lya_flux_continuum_prefactor_acg = _arrayfield(optional=True)
-    lya_flux_injected_prefactor_acg = _arrayfield(optional=True)
-    lya_flux_continuum_injected_prefactor_acg = _arrayfield(optional=True)
-    lyw_flux_prefactor_acg = _arrayfield(optional=True)
-    lyw_flux_prefactor_mcg = _arrayfield(optional=True)
-    lya_flux_continuum_prefactor_mcg = _arrayfield(optional=True)
-    lya_flux_injected_prefactor_mcg = _arrayfield(optional=True)
-    lya_flux_continuum_injected_prefactor_mcg = _arrayfield(optional=True)
+    _lya_flux_continuum_prefactor_acg = _arrayfield(optional=True)
+    _lya_flux_injected_prefactor_acg = _arrayfield(optional=True)
+    _lya_flux_continuum_injected_prefactor_acg = _arrayfield(optional=True)
+    _lyw_flux_prefactor_acg = _arrayfield(optional=True)
+    _lyw_flux_prefactor_mcg = _arrayfield(optional=True)
+    _lya_flux_continuum_prefactor_mcg = _arrayfield(optional=True)
+    _lya_flux_injected_prefactor_mcg = _arrayfield(optional=True)
+    _lya_flux_continuum_injected_prefactor_mcg = _arrayfield(optional=True)
     # array and floats required for the X-ray optical depth calculation
-    ave_log10_MturnLW = _arrayfield(optional=True)
+    _ave_log10_MturnLW = _arrayfield(optional=True)
     Q_HI_zp: float = attrs.field(default=1.0)
     x_e_ave_zp: float = attrs.field(default=0.0)
     # boolean to indicate whether there's enough light
@@ -1645,7 +1690,7 @@ class RadiationFieldsSetup(OutputStructZ):
             R_steps / inputs.astro_params.N_STEP_TS
         )
         self.set("R_values", R_min * R_factor)
-        cmd_edges = cmd_zp + self.R_values.value * un.Mpc  # comoving distance edges
+        cmd_edges = cmd_zp + self.R_values * un.Mpc  # comoving distance edges
         # Get the edges of the shells (redshift)
         zmin = z_at_value(cosmo_ap.comoving_distance, cmd_edges.min()).value
         zmax = z_at_value(cosmo_ap.comoving_distance, cmd_edges.max()).value
@@ -1656,8 +1701,7 @@ class RadiationFieldsSetup(OutputStructZ):
         # inner and outer redshifts (following the C code)
         self.set(
             "zpp_avg",
-            self.zpp_edges.value
-            - np.diff(np.insert(self.zpp_edges.value, 0, redshift)) / 2,
+            self.zpp_edges - np.diff(np.insert(self.zpp_edges, 0, redshift)) / 2,
         )
         return self
 
@@ -1667,7 +1711,7 @@ class RadiationFieldsSetup(OutputStructZ):
         if isinstance(input_box, TsBox):
             required += ["xray_ionised_fraction"]
         else:
-            raise ValueError(
+            raise TypeError(
                 f"{type(input_box)} is not an input required for RadiationFieldsSetup!"
             )
 
@@ -1688,6 +1732,7 @@ class RadiationFieldsSetup(OutputStructZ):
         )
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class RadiationFields(OutputStructZ):
     """A class containing the radiation fields."""
@@ -1695,13 +1740,13 @@ class RadiationFields(OutputStructZ):
     _meta = False
     _c_compute_function = lib.UpdateRadiationFields
 
-    xray_heating_rate = _arrayfield(optional=True)
-    xray_ionization_rate = _arrayfield()
-    xray_lya_flux = _arrayfield()
-    lya_flux_continuum_injected = _arrayfield(optional=True)
-    lyw_flux = _arrayfield(optional=True)
-    lya_flux_continuum = _arrayfield(optional=True)
-    lya_flux_injected = _arrayfield(optional=True)
+    _xray_heating_rate = _arrayfield(optional=True)
+    _xray_ionization_rate = _arrayfield()
+    _xray_lya_flux = _arrayfield()
+    _lya_flux_continuum_injected = _arrayfield(optional=True)
+    _lyw_flux = _arrayfield(optional=True)
+    _lya_flux_continuum = _arrayfield(optional=True)
+    _lya_flux_injected = _arrayfield(optional=True)
     Q_HI: float = attrs.field(default=1.0)
 
     @classmethod
@@ -1805,7 +1850,7 @@ class RadiationFields(OutputStructZ):
             if self.astro_options.USE_MCGS:
                 required += ["ave_log10_MturnLW"]
         else:
-            raise ValueError(
+            raise TypeError(
                 f"{type(input_box)} is not an input required for RadiationFields!"
             )
 
@@ -1836,6 +1881,7 @@ class RadiationFields(OutputStructZ):
         )
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class TsBox(OutputStructZ):
     """A class containing all spin temperature boxes."""
@@ -1843,10 +1889,10 @@ class TsBox(OutputStructZ):
     _c_compute_function = lib.ComputeTsBox
     _meta = False
 
-    spin_temperature = _arrayfield()
-    xray_ionised_fraction = _arrayfield()
-    kinetic_temp_neutral = _arrayfield()
-    J_21_LW = _arrayfield(optional=True)
+    _spin_temperature = _arrayfield()
+    _xray_ionised_fraction = _arrayfield()
+    _kinetic_temp_neutral = _arrayfield()
+    _J_21_LW = _arrayfield(optional=True)
     Q_HI: float = attrs.field(default=1.0)
 
     @classmethod
@@ -1944,7 +1990,7 @@ class TsBox(OutputStructZ):
             else:
                 required += ["lya_flux_continuum_injected"]
         else:
-            raise ValueError(f"{type(input_box)} is not an input required for TsBox!")
+            raise TypeError(f"{type(input_box)} is not an input required for TsBox!")
 
         return required
 
@@ -1969,6 +2015,7 @@ class TsBox(OutputStructZ):
         )
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class IonizedBox(OutputStructZ):
     """A class containing all ionized boxes."""
@@ -1976,14 +2023,14 @@ class IonizedBox(OutputStructZ):
     _meta = False
     _c_compute_function = lib.ComputeIonizedBox
 
-    neutral_fraction = _arrayfield()
-    ionisation_rate_G12 = _arrayfield()
-    z_reion = _arrayfield()
-    mean_free_path = _arrayfield(optional=True)
-    cumulative_recombinations = _arrayfield(optional=True)
-    kinetic_temperature = _arrayfield(optional=True)
-    nion_conditional_filtered_acg = _arrayfield(optional=True)
-    nion_conditional_filtered_mcg = _arrayfield(optional=True)
+    _neutral_fraction = _arrayfield()
+    _ionisation_rate_G12 = _arrayfield()
+    _z_reion = _arrayfield()
+    _mean_free_path = _arrayfield(optional=True)
+    _cumulative_recombinations = _arrayfield(optional=True)
+    _kinetic_temperature = _arrayfield(optional=True)
+    _nion_conditional_filtered_acg = _arrayfield(optional=True)
+    _nion_conditional_filtered_mcg = _arrayfield(optional=True)
     log10_mturn_ave_acg: float = attrs.field(default=None)
     log10_mturn_ave_mcg: float = attrs.field(default=None)
     nion_unconditional_acg: float = attrs.field(default=None)
@@ -2110,7 +2157,10 @@ class IonizedBox(OutputStructZ):
                 if self.astro_options.RECOMB_MODEL != "none":
                     required += ["fesc_weighted_sfrd"]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for IonizedBox!"
             )
 
@@ -2179,6 +2229,7 @@ class IonizedBox(OutputStructZ):
         return self.log10_mturn_ave_mcg
 
 
+@expose_arrays
 @attrs.define(slots=False, kw_only=True)
 class BrightnessTemp(OutputStructZ):
     """A class containing the brightness temperature box."""
@@ -2186,8 +2237,8 @@ class BrightnessTemp(OutputStructZ):
     _c_compute_function = lib.ComputeBrightnessTemp
 
     _meta = False
-    brightness_temp = _arrayfield()
-    tau_21 = _arrayfield(optional=True)
+    _brightness_temp = _arrayfield()
+    _tau_21 = _arrayfield(optional=True)
 
     @classmethod
     def new(cls, inputs: InputParameters, redshift: float, **kw) -> Self:
@@ -2243,7 +2294,10 @@ class BrightnessTemp(OutputStructZ):
         elif isinstance(input_box, IonizedBox):
             required += ["neutral_fraction"]
         else:
-            raise ValueError(
+            # Kept as ValueError (not TypeError): part of the public API contract,
+            # asserted verbatim by
+            # tests/test_output_structs.py::test_bad_required_array.
+            raise ValueError(  # noqa: TRY004
                 f"{type(input_box)} is not an input required for BrightnessTemp!"
             )
 

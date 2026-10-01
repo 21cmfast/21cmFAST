@@ -370,11 +370,12 @@ def produce_coeval_power_spectra(redshift: float, cache: OutputCache, **kwargs):
 
     for field in fields_to_compute:
         if hasattr(coeval, field):
-            p[field], k = get_power(
+            result = get_power(
                 getattr(coeval, field),
                 boxlength=coeval.simulation_options.BOX_LEN,
                 bins_upto_boxlen=True,
-            )[:2]
+            )
+            p[field], k = result.power, result.bin_avg
 
     return k, p, coeval
 
@@ -384,11 +385,11 @@ def get_lc_fields(inputs):
     if not inputs.astro_options.USE_TS_FLUCT:
         [
             quantities.remove(k)
-            for k in {
+            for k in (
                 "spin_temperature",
                 "xray_ionised_fraction",
                 "kinetic_temp_neutral",
-            }
+            )
         ]
     if not inputs.astro_options.USE_MCGS:
         quantities.remove("J_21_LW")
@@ -423,11 +424,12 @@ def produce_lc_power_spectra(redshift: float, cache: OutputCache, **kwargs):
     p = {}
     for field in LIGHTCONE_FIELDS:
         if field in lightcone.lightcones:
-            p[field], k = get_power(
+            result = get_power(
                 lightcone.lightcones[field],
                 boxlength=lightcone.lightcone_dimensions,
                 bins_upto_boxlen=True,
-            )[:2]
+            )
+            p[field], k = result.power, result.bin_avg
 
     return k, p, lightcone
 
@@ -441,16 +443,18 @@ def produce_perturb_field_data(redshift, **kwargs):
     init_box = compute_initial_conditions(**options)
     pt_box = perturb_field(redshift=redshift, initial_conditions=init_box)
 
-    p_dens, k_dens = get_power(
+    dens_result = get_power(
         pt_box.get("density"),
         boxlength=options["inputs"].simulation_options.BOX_LEN,
         bins_upto_boxlen=True,
-    )[:2]
-    p_vel, k_vel = get_power(
+    )
+    p_dens, k_dens = dens_result.power, dens_result.bin_avg
+    vel_result = get_power(
         pt_box.get("velocity_z") * velocity_normalisation,
         boxlength=options["inputs"].simulation_options.BOX_LEN,
         bins_upto_boxlen=True,
-    )[:2]
+    )
+    p_vel, k_vel = vel_result.power, vel_result.bin_avg
 
     def hist(kind, xmin, xmax, nbins):
         data = pt_box.get(kind)
@@ -611,7 +615,7 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
 
     message += "----- First 10 -----\n"
     for j in range(min(10, sel_failed.sum())):
-        input_arr = [f"{failed_inp[i][j]:.4e}" for i, finp in enumerate(failed_inp)]
+        input_arr = [f"{finp[j]:.4e}" for i, finp in enumerate(failed_inp)]
         message += (
             f"CRD {input_arr}"
             + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}\n"
