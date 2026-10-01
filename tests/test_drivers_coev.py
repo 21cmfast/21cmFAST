@@ -135,6 +135,27 @@ def test_coeval_resume_reconstructs_radiation_fields_history(tmp_path_factory):
     )
 
 
+def test_coeval_resume_cached_ts_without_radiation_fields(tmp_path):
+    """Resuming with cached TsBox but uncached RadiationFields must not crash (#791)."""
+    inputs = InputParameters.from_template(
+        ["latest-discrete", "size-tiny"], random_seed=1
+    )
+    cache = OutputCache(tmp_path)
+    write = CacheConfig(radiation_fields=False)
+    zs = inputs.node_redshifts
+
+    for out_z in (zs[:2], zs[2:4]):
+        # The second call restarts the loop with the first nodes' TsBox cached.
+        out = [
+            c
+            for c, is_output in p21c.generate_coeval(
+                inputs=inputs, out_redshifts=out_z, cache=cache, write=write
+            )
+            if is_output
+        ]
+        assert len(out) == len(out_z)
+
+
 def test_obtain_starting_point_carries_cached_emissivity_fields(tmp_path_factory):
     """Test that the _obtain_starting_point_for_scrolling function correctly carries over cached EmissivityFields data when resuming a run."""
     from py21cmfast.drivers.coeval import _obtain_starting_point_for_scrolling
