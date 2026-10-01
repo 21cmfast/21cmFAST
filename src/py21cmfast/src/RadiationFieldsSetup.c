@@ -154,6 +154,11 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
             }
             first_radii = false;
         }
+        // The reason for this redshift factor:
+        // 1. (1+zp)^2 comes from converting the flux units from per comoving area to per proper
+        // area
+        // 2. (1+zpp) comes from integrating over the comoving shell radii,
+        //     dR = (1+zpp) * c * dt = (1+zpp) * c * dt/dz(zpp) * dzpp
         lya_integrand_prefactor = (pow(1 + zp, 2) * (1 + zpp));
 
         if (astro_options_global->USE_LYA_HEATING) {
@@ -171,7 +176,20 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
                             rad_setup->lya_flux_continuum_injected_prefactor_acg[R_ct]);
         }
         if (astro_options_global->USE_MCGS) {
-            lw_integrand_prefactor = pow(1 + zp, 4) / (1 + zpp);
+            // The reason why the redshift factor is different for the LW flux is because the LW
+            // flux used in the code, unlike the Lyman-alpha flux, is an energy-integrated quantity
+            // of the LW number flux, i.e.
+            //
+            // [ \int_{\nu_LW}^{\nu_\infty} h_P \nu J_LW^N(\nu) d\nu ] / (\nu_\infty - \nu_LW),
+            //
+            // where \nu_LW and \nu_\infty are the frequencies that correspond to the LW threshold
+            // (11.2 eV) and the Lyman limit (13.6 eV), respectively. While this integral needs to
+            // be performed at the absorption frame, we compute it analytically at the emission
+            // frame, as the SEDs are given in the emission frame (see more details in
+            // spectral_emissivity). Thus, we need to redshift the frequencies in the integral (both
+            // \nu and d\nu) from the emission frame to the absorption frame, which gives rise to
+            // the extra factor of (1+zp)^2/(1+zpp)^2.
+            lw_integrand_prefactor = lya_integrand_prefactor * pow(1 + zp, 2) / pow(1 + zpp, 2);
 
             rad_setup->lyw_flux_prefactor_acg[R_ct] = lw_integrand_prefactor * sum_lyLW_val_acg;
             rad_setup->lyw_flux_prefactor_mcg[R_ct] = lw_integrand_prefactor * sum_lyLW_val_mcg;
