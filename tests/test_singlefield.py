@@ -619,6 +619,13 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
             previous_ionized_box=ib_p,
         )
 
+    # BrightnessTemp
+    with pytest.raises(ValueError, match="USE_TS_FLUCT=True, but have not provided"):
+        p21c.brightness_temperature(
+            ionized_box=IonizedBox.new(redshift=10.0, inputs=test_inputs),
+            perturbed_field=pt,
+        )
+
     # TsBox
     with pytest.raises(ValueError, match="radiation_fields is required"):
         p21c.compute_spin_temperature(
@@ -647,6 +654,55 @@ def test_bad_input_structs(default_input_struct_ts, spin_temp_evolution):
             redshift=default_input_struct_ts.node_redshifts[-1],
             rad_setup=rad_setup,
         )
+
+
+def test_none_struct_inputs_raise_before_c(ic, spin_temp_evolution):
+    """Test that boxes required by the C code cannot be passed as None (#795).
+
+    Previously these raised obscure cffi TypeErrors or AttributeErrors.
+    The generic fallback in compute() is tested in test_output_structs.
+    """
+    prev, curr = spin_temp_evolution[-2], spin_temp_evolution[-1]
+    z = curr["redshift"]
+    efs = [prev["emissivity_fields"], curr["emissivity_fields"]]
+    no_prev_ts = "You must specify the previous_spin_temp"
+
+    with pytest.raises(ValueError, match=no_prev_ts):
+        setup_radiation_fields(redshift=z, emissivity_fields_list=efs)
+
+    rad_setup = setup_radiation_fields(
+        redshift=z, emissivity_fields_list=efs, previous_spin_temp=prev["spin_temp"]
+    )
+    with pytest.raises(ValueError, match=no_prev_ts):
+        p21c.compute_radiation_fields(
+            redshift=z,
+            emissivity_fields_list=efs,
+            rad_setup=rad_setup,
+            perturbed_field=curr["perturbed_field"],
+        )
+    with pytest.raises(ValueError, match="You must specify the perturbed_field"):
+        p21c.compute_radiation_fields(
+            redshift=z,
+            emissivity_fields_list=efs,
+            rad_setup=rad_setup,
+            previous_spin_temp=prev["spin_temp"],
+        )
+    with pytest.raises(
+        ValueError, match="Below Z_HEAT_MAX you must specify the previous_spin_temp"
+    ):
+        p21c.compute_spin_temperature(
+            initial_conditions=ic,
+            perturbed_field=curr["perturbed_field"],
+            radiation_fields=curr["radiation_fields"],
+        )
+
+
+def test_eulerian_emissivity_fields_without_ics(perturbed_field):
+    """Test that Eulerian source models do not need the initial conditions."""
+    emissivity_fields = p21c.compute_emissivity_fields(
+        redshift=perturbed_field.redshift, perturbed_field=perturbed_field
+    )
+    assert emissivity_fields.is_computed
 
 
 @pytest.mark.parametrize("lya_multiple_scattering", [False, True])
