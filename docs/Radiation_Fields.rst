@@ -84,7 +84,7 @@ into a Lyman resonance) is computed in a similar manner,
 
 .. math::
 
-    J_\alpha(z, \mathbf{x}) = \frac{(1+z)^2}{4\pi}\sum_{n=2} f_{\rm recycle}(n)\int_z^{z_{\rm max}(n)} \frac{cdz''}{H(z'')} I_\alpha(\nu') \epsilon_\alpha^{\rm eff}(z', \mathbf{x}),
+    J_\alpha(z, \mathbf{x}) = \frac{(1+z)^2}{4\pi}\sum_{n=2} f_{\rm recycle}(n)\int_z^{z_{\rm max}(n)} \frac{cdz''}{H(z'')} I_\alpha(\nu'_n) \epsilon_\alpha^{\rm eff}(z', \mathbf{x}),
 
 where :math:`f_{\rm recycle}(n)` is the probability that a photon from Lyman resonance :math:`n` will atomically cascade into a Lyman-alpha
 photon, and :math:`1+z_{\rm max}(n)=(1+z)[1-(n-1)^{-2}]/(1-n^{-2})`. Note that there is no optical depth term in the Lyman-alpha flux,
@@ -242,16 +242,23 @@ In the third public release of ``21cmFAST`` (v3.0.0, see Qin et al. 2020,
 https://arxiv.org/pdf/2003.04442), a new population of molecular cooling galaxies (MCGs) that reside in mini-halos was introduced.
 The formation of such MCGs is susceptible to feedback from Lyman-Werner (LW) radiation, which can dissociate molecular hydrogen and suppress
 star formation in MCGs. Hence, the LW flux was a new radiation field that was introduced in ``21cmFAST`` v3.0.0, though still internally in
-the code as in previous versions. The LW flux is given by
+the code as in previous versions. The LW number flux is given by
 
 .. math::
 
-    J_{\rm LW}(z, \mathbf{x}) = h_{\rm P}\nu_\alpha(1-f_{\rm H_2}^{\rm shield})\frac{(1+z)^2}{4\pi}\sum_{n=2}\int_z^{z_{\rm max}(n)} \frac{cdz''}{H(z'')} I_\alpha(\nu') \epsilon_\alpha^{\rm eff}(z', \mathbf{x}),
+    J^N_{\rm LW}(z, \nu, \mathbf{x}) = (1-f_{\rm H_2}^{\rm shield})\frac{(1+z)^2}{4\pi}\sum_{n=2}\int_z^{z_{\rm max}(n)} \frac{cdz''}{H(z'')} I_\alpha(\nu') \epsilon_\alpha^{\rm eff}(z', \mathbf{x}),
 
-where :math:`\nu_\alpha` is the Lyman-alpha frequency and :math:`f_{\rm H_2}^{\rm shield}` accounting for self-shielding of star-forming regions
-by the ISM and the circumgalactic medium of the host galaxy. Several notes:
+where :math:`f_{\rm H_2}^{\rm shield}` accounts for self-shielding of star-forming regions by the ISM and the circumgalactic medium of the host galaxy.
+However, in order to determine the suppressions of star formation in MCGs, the following quantity was considered,
 
-* Note that unlike previous radiation fields, the LW flux contains units of energy, owned by the factor of :math:`h_{\rm P}\nu_\alpha`.
+.. math::
+
+    J^E_{\rm LW}(z, \mathbf{x}) = \int_{\nu_{\rm LW}}^{\nu_\infty} d\nu h_{\rm P} J^N_{\rm LW}(z, \nu, \mathbf{x}),
+
+where :math:`\nu_{\rm LW}` and :math:`\nu_\infty` are the frequencies that correspond to the LW threshold (11.2 eV) and the
+Lyman limit (13.6 eV), respectively. Several notes:
+
+* Note that unlike previous radiation fields, the LW flux contains units of energy.
 * The contribution to the LW flux came from both atomic cooling galaxies (ACGs) and MCGs, as the SFRD in both populations is modeled a bit
   differently, mostly in the modeling of the star formation efficiency, the turnover mass and the duty fraction (see more details on the
   latter two in :doc:`M_TURN`). Likewise, the contribution to the X-ray and Lyman-alpha fluxes also came from both ACGs and MCGs.
@@ -336,6 +343,15 @@ source models, namely
 The difference between "Eulerian" and "Lagrangian" source models in v4.3.0 (specifically, between ``"E-INTEGRAL"`` and ``"L-INTEGRAL"``) was
 that in the former, the emissivity fields were computed on the Eulerian density grid, while in the latter, the emissivity fields were
 computed on the Lagrangian density grid and then advected to the Eulerian grid.
+
+In addition, the quantity that was considered for suppressing star formation in MCGs was changed from the quantity that was used in previous versions,
+as it was now set to be the energy-weighted LW flux,
+
+.. math::
+
+    J^E_{\rm LW}(z, \mathbf{x}) = \frac{\int_{\nu_{\rm LW}}^{\nu_\infty} d\nu h_{\rm P}\nu J^N_{\rm LW}(z, \nu, \mathbf{x})}{\nu_\infty - \nu_{\rm LW}}.
+
+This change was made in order to be more consistent with the quantity that is used in the literature.
 
 Furthermore, in v4.3.0, the effect of Lyman-alpha multiple scattering could have been applied via a new flag called ``LYA_MULTIPLE_SCATTERING``,
 regardless if the simulated source model was "Eulerian" or "Lagrangian". When this flag was set to True, the effective emissivity for
