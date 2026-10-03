@@ -434,6 +434,22 @@ def test_optional_field_bt(default_input_struct_lc: InputParameters):
     assert "tau_21" in bt.arrays
 
 
+@pytest.mark.parametrize(
+    ("struct", "param"),
+    [
+        pytest.param(kls, param, id=f"{name}-{param}")
+        for name, kls in ox._ALL_OUTPUT_STRUCTS.items()
+        for param in ox._struct_params(kls.compute.__wrapped__)
+    ],
+)
+def test_compute_rejects_none_struct_inputs(struct: type[ox.OutputStruct], param: str):
+    """Test that every compute() raises a clear error if a struct input is None."""
+    with pytest.raises(
+        ValueError, match=rf"Cannot compute {struct.__name__} .* {param} \("
+    ):
+        struct.dummy().compute(**{param: None})
+
+
 @pytest.mark.parametrize("struct", list(ox.OutputStructZ.__subclasses__()))
 def test_bad_required_array(default_input_struct, struct):
     # no struct takes this input

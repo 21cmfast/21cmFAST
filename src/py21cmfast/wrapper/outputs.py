@@ -19,8 +19,8 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from enum import Enum
-from functools import cached_property
-from typing import Any, ClassVar, Self
+from functools import cache, cached_property, wraps
+from typing import Any, ClassVar, Self, get_type_hints
 
 import attrs
 import deprecation
@@ -71,6 +71,45 @@ class _HashType(Enum):
     full = 2
 
 
+@cache
+def _struct_params(compute: callable) -> dict[str, type[OutputStruct]]:
+    """Return the parameters of a ``compute`` method that are annotated as structs."""
+    return {
+        name: tp
+        for name, tp in get_type_hints(compute).items()
+        if isinstance(tp, type) and issubclass(tp, OutputStruct)
+    }
+
+
+def _require_struct_inputs(compute: callable) -> callable:
+    """Wrap a ``compute`` method so that None for any OutputStruct input raises.
+
+    Single-field functions accept None for boxes that are not needed when the output is
+    read from the cache, or not needed for the given redshift and parameters (in which
+    case they substitute a dummy). By the time ``compute`` is called, every struct input
+    must be a real (or dummy) box: passing None to the C code is never valid.
+    """
+
+    @wraps(compute)
+    def wrapper(self, *args, **kwargs):
+        params = _struct_params(compute)
+        if missing := [
+            f"{k} ({params[k].__name__})"
+            for k, v in kwargs.items()
+            if v is None and k in params
+        ]:
+            raise ValueError(
+                f"Cannot compute {self._name} at z={getattr(self, 'redshift', None)} "
+                f"(Z_HEAT_MAX={self.inputs.simulation_options.Z_HEAT_MAX}): required "
+                f"input(s) {', '.join(missing)} were None. Such boxes may only be "
+                "omitted when the output is read from the cache, or when they are not "
+                "needed for this redshift and set of parameters."
+            )
+        return compute(self, *args, **kwargs)
+
+    return wrapper
+
+
 @attrs.define(slots=False, kw_only=True)
 class OutputStruct(ABC):
     """Base class for any class that wraps a C struct meant to be output from a C function."""
@@ -93,9 +132,12 @@ class OutputStruct(ABC):
         return self.__class__.__name__
 
     def __init_subclass__(cls):
-        """Store subclasses for easy access."""
+        """Store subclasses for easy access, and guard their ``compute`` methods."""
         if not cls._meta:
             _ALL_OUTPUT_STRUCTS[cls.__name__] = cls
+
+        if "compute" in cls.__dict__:
+            cls.compute = _require_struct_inputs(cls.compute)
 
         return super().__init_subclass__()
 
@@ -610,6 +652,11 @@ class InitialConditions(OutputStruct):
             out["lowres_vcb"] = Array(shape, dtype=np.float32)
 
         return cls(inputs=inputs, **out, **kw)
+
+    @classmethod
+    def dummy(cls):
+        """Create a dummy instance, for passing to C when the ICs are not needed."""
+        return cls.new(inputs=InputParameters(random_seed=1), dummy=True)
 
     def prepare_for_perturb(self, force: bool = False):
         """Ensure the ICs have all the boxes loaded for perturb, but no extra."""
@@ -2171,7 +2218,7 @@ class IonizedBox(OutputStructZ):
         *,
         perturbed_field: PerturbedField,
         prev_perturbed_field: PerturbedField,
-        prev_ionize_box,
+        prev_ionize_box: IonizedBox,
         spin_temp: TsBox,
         emissivity_fields: EmissivityFields,
         ics: InitialConditions,

@@ -595,6 +595,12 @@ def setup_radiation_fields(
     need_c = not (sfr_allzero or lowest_shell_above_zmax)
 
     if need_c:
+        if previous_spin_temp is None:
+            raise ValueError(
+                f"You must specify the previous_spin_temp at z={redshift}, since "
+                "there are sources in the radiation-field shells (below Z_HEAT_MAX)."
+            )
+
         # TODO: the whole code below is only required if we use mini-halos. It could be removed though, see comment below
         if inputs.astro_options.USE_MCGS:
             # Get log10_mturn_mcg_ave for each shell
@@ -745,6 +751,16 @@ def compute_radiation_fields(
     need_c = not (sfr_allzero or lowest_shell_above_zmax or rad_setup.NO_LIGHT)
 
     if need_c:
+        for name, box in {
+            "perturbed_field": perturbed_field,
+            "previous_spin_temp": previous_spin_temp,
+        }.items():
+            if box is None:
+                raise ValueError(
+                    f"You must specify the {name} at z={redshift}, since there are "
+                    "sources in the radiation-field shells (below Z_HEAT_MAX)."
+                )
+
         # Compute the comoving diffusion scale in the case of Lyman alpha multiple scattering
         if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
             # TODO: In principle, the diffusion scale varies locally but for simplicty, we consider the global ionization value.
@@ -874,6 +890,8 @@ def compute_spin_temperature(
 
     if redshift >= inputs.simulation_options.Z_HEAT_MAX:
         previous_spin_temp = TsBox.dummy()
+    elif previous_spin_temp is None:
+        raise ValueError("Below Z_HEAT_MAX you must specify the previous_spin_temp")
 
     # Set up the box without computing anything.
     box = TsBox.new(
