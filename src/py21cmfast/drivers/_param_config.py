@@ -65,7 +65,7 @@ def check_redshift_consistency(
         the provided redshift value.
     """
     for struct in output_structs:
-        if struct is not None and struct.redshift != redshift:
+        if struct is not None and struct.redshift != redshift and not struct.dummy:
             raise ValueError(
                 f"Incompatible redshifts with inputs and {struct.__class__.__name__} in"
                 f" {funcname}: {redshift} != {struct.redshift}"

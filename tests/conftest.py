@@ -144,6 +144,7 @@ def default_astro_options():
         USE_EXP_FILTER=False,
         CELL_RECOMB=False,
         USE_UPPER_STELLAR_TURNOVER=False,
+        USE_METALLICITY=False,
     )
 
 
@@ -154,6 +155,7 @@ def default_astro_options_ts():
         CELL_RECOMB=False,
         USE_TS_FLUCT=True,
         USE_UPPER_STELLAR_TURNOVER=False,
+        USE_METALLICITY=False,
     )
 
 

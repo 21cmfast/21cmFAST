@@ -61,9 +61,12 @@ def choice_field(*, validator=None, **kwargs):
     return field(validator=vld, transformer=choice_transformer, converter=str, **kwargs)
 
 
-def logtransformer(x, att: attrs.Attribute):
+def logtransformer(x: float | None, att: attrs.Attribute):
     """Convert from log to linear space."""
-    return 10**x
+    if x is None:
+        return None
+    else:
+        return 10**x
 
 
 def dex2exp_transformer(x, att: attrs.Attribute):
@@ -670,7 +673,7 @@ class MatterOptions(InputStruct):
         * PEEBLES: Peebles 1980
         * WHITE: White 1985
         * CLASS: Runs the CLASS code to compute the power spectrum. This is the most precise, but also the slowest (can take ~30 seconds
-          at most and can be reduced if USE_MINI_HALOS=False or K_MAX_FOR_CLASS is set to a low value).
+          at most and can be reduced if USE_MCGS=False or K_MAX_FOR_CLASS is set to a low value).
     PERTURB_ON_HIGH_RES
         Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
         resolution grid.
@@ -1002,10 +1005,10 @@ class SimulationOptions(InputStruct):
     K_MAX_FOR_CLASS: float, optional
         Maximum wavenumber to run CLASS, in 1/Mpc. Becomes relevant only if
         ``matter_options.POWER_SPECTRUM = "CLASS"``.
-    MIN_XE_FOR_FCOLL_IN_TAUX: float, optional
-        Minimum global x_e value for which the collapsed fraction (f_coll) is evaluated
+    MIN_XE_FOR_NION_IN_TAUX: float, optional
+        Minimum global x_e value for which n_ion is evaluated
         in the tau_X integral (X-ray optical depth). When x_e is above this threshold
-        value, it is assumed that f_coll=0, in order to speed up the calculations.
+        value, it is assumed that n_ion=0, in order to speed up the calculations.
         For now, this parameter becomes relevant only when run_global_evolution is
         called, as it controls the runtime of this function (higher values reduce the
         runtime, in expense of degraded precision).
@@ -1055,7 +1058,7 @@ class SimulationOptions(InputStruct):
     PARKINSON_y2: float = field(default=0.0, converter=float)
     Z_HEAT_MAX: float = field(default=35.0, converter=float)
     ZPRIME_STEP_FACTOR: float = field(default=1.02, converter=float)
-    MIN_XE_FOR_FCOLL_IN_TAUX: float = field(default=1e-3, converter=float)
+    MIN_XE_FOR_NION_IN_TAUX: float = field(default=1e-3, converter=float)
 
     INITIAL_REDSHIFT: float = field(default=300.0, converter=float)
     DELTA_R_FACTOR: float = field(
@@ -1187,8 +1190,11 @@ class AstroOptions(InputStruct):
 
     Parameters
     ----------
-    USE_MINI_HALOS : bool, optional
-        Set to True if using mini-halos parameterization.
+    USE_MINI_HALOS: bool, optional
+        Set to True if including molecular cooling galaxies in the simulation
+        (which reside in mini-halos). This is a deprecated flag, see USE_MCGS.
+    USE_MCGS : bool, optional
+        Set to True if including molecular cooling galaxies in the simulation.
         If True, USE_TS_FLUCT must be True and RECOMB_MODEL must be not "none".
     USE_X_RAY_HEATING : bool, optional
         Whether to include X-ray heating (useful for debugging).
@@ -1230,6 +1236,8 @@ class AstroOptions(InputStruct):
         * f-photoncons: Adjustment to the escape fraction normalisation, runs one
           calibration simulation to find the adjustment as a function of xH where
           ``f'/f = xH_global/xH_calibration``
+    USE_REIONIZATION_PHOTOHEATING_FEEDBACK: bool, optional
+        Whether to apply the reionization photoheating feedback on the turnover mass, see Sobacchi and Mesinger 2013 (https://arxiv.org/pdf/1301.6776).
     FIX_VCB_AVG: bool or None, optional
         Whether to fix the amplitude of the relative velocity between (cold) dark matter and
         baryons on a constant mean value from linear perturbation theory. This parameter is
@@ -1259,13 +1267,18 @@ class AstroOptions(InputStruct):
         Whether to apply adiabatic fluctuations to the initial temperature box, see
         Munoz 2023. If set to False, the initial temperature box is completely
         homogeneous. Default is True.
+    USE_METALLICITY: bool, optional
+        Whether to use metallicity for determining the X-ray luminosity/emissivity. If set to True,
+        the X-ray luminosity depends on the metallicity via Eq. (13) in Davies, Mesinger and Murray 2025
+        (https://arxiv.org/pdf/2504.17254), otherwise the X-ray emissivity is proportional to the star
+        formation rate density.
     USE_UPPER_STELLAR_TURNOVER: bool, optional
         Whether to use an additional powerlaw in stellar mass fraction at high halo
         mass. The pivot mass scale and power-law index are controlled by two parameters,
         UPPER_STELLAR_TURNOVER_MASS and UPPER_STELLAR_TURNOVER_INDEX respectively.
         This is currently only implemented using the discrete halo model, and has no effect otherwise.
     HALO_SCALING_RELATIONS_MEDIAN: bool, optional
-        If True, halo scaling relation parameters (F_STAR10,t_STAR etc...) define the
+        If True, halo scaling relation parameters (F_STAR10_ACG,t_STAR etc...) define the
         median of their conditional distributions. If False, they describe the mean.
         This becomes important when using non-symmetric dristributions such as the log-normal.
     HII_FILTER : str
@@ -1277,9 +1290,8 @@ class AstroOptions(InputStruct):
     IONISE_ENTIRE_SPHERE: bool, optional
         If True, ionises the entire sphere on the filter scale when an ionised region is
         found in the excursion set.
-    INTEGRATION_METHOD_ATOMIC: str, optional
-        The integration method to use for conditional MF integrals of atomic halos in
-        the grids:
+    INTEGRATION_METHOD_ACGS: str, optional
+        The integration method to use for conditional MF integrals of atomic cooling galaxies:
 
         * 'GSL-QAG': GSL QAG adaptive integration,
         * 'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the
@@ -1288,18 +1300,26 @@ class AstroOptions(InputStruct):
           power-law for sigma(M) based on EPS
 
         .. note:: Global integrals will use GSL QAG adaptive integration
-    INTEGRATION_METHOD_MINI: str, optional
-        The integration method to use for conditional MF integrals of minihalos in the
-        grids:
+    INTEGRATION_METHOD_MCGS: str, optional
+        The integration method to use for conditional MF integrals for molecular cooling galaxies:
 
         * 'GSL-QAG': GSL QAG adaptive integration,
         * 'GAUSS-LEGENDRE': Gauss-Legendre integration, previously forced in the
           interpolation tables,
         * 'GAMMA-APPROX': Approximate integration, assuming sharp cutoffs and a triple
           power-law for sigma(M) based on EPS
+    INTEGRATION_METHOD_ATOMIC: str, optional
+        The integration method to use for conditional MF integrals for atomic cooling galaxies.
+        This is a deprecated parameter, please use INTEGRATION_METHOD_ACGS instead.
+    INTEGRATION_METHOD_MINI: str, optional
+        The integration method to use for conditional MF integrals for molecular cooling galaxies.
+        This is a deprecated parameter, please use INTEGRATION_METHOD_MCGS instead.
     """
 
-    USE_MINI_HALOS: bool = field(default=False, converter=bool)
+    _USE_MINI_HALOS: bool | None = field(
+        default=None, converter=attrs.converters.optional(bool)
+    )
+    USE_MCGS: bool = field(converter=bool)
     USE_X_RAY_HEATING: bool = field(default=True, converter=bool)
     USE_CMB_HEATING: bool = field(default=True, converter=bool)
     USE_LYA_HEATING: bool = field(default=True, converter=bool)
@@ -1319,6 +1339,7 @@ class AstroOptions(InputStruct):
     ] = choice_field(
         default="no-photoncons",
     )
+    USE_METALLICITY: bool = field(default=True, converter=bool)
     USE_UPPER_STELLAR_TURNOVER: bool = field(default=True, converter=bool)
     M_MIN_in_Mass: bool = field(default=True, converter=bool)
     HALO_SCALING_RELATIONS_MEDIAN: bool = field(default=False, converter=bool)
@@ -1326,8 +1347,26 @@ class AstroOptions(InputStruct):
     HEAT_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     IONISE_ENTIRE_SPHERE: bool = field(default=False, converter=bool)
     RECOMB_MODEL: Literal["none", "homogeneous", "inhomogeneous"] = choice_field()
-    INTEGRATION_METHOD_ATOMIC: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
-    INTEGRATION_METHOD_MINI: IntegralMethods = choice_field(default="GAUSS-LEGENDRE")
+    USE_REIONIZATION_PHOTOHEATING_FEEDBACK: bool = field(converter=bool)
+    _INTEGRATION_METHOD_ATOMIC: IntegralMethods | None = field(
+        default=None, converter=attrs.converters.optional(str)
+    )
+    _INTEGRATION_METHOD_MINI: IntegralMethods | None = field(
+        default=None, converter=attrs.converters.optional(str)
+    )
+    INTEGRATION_METHOD_ACGS: IntegralMethods = choice_field()
+    INTEGRATION_METHOD_MCGS: IntegralMethods = choice_field()
+
+    @cached_property
+    def USE_MINI_HALOS(self) -> bool:
+        """Whether to use molecular cooling galaxies (which reside in mini-halos) in the simulation.
+
+        This is a deprecated property, and will be removed in v5. Please use USE_MCGS instead.
+        """
+        if self._USE_MINI_HALOS is None:
+            return self.USE_MCGS
+        else:
+            return self._USE_MINI_HALOS
 
     @cached_property
     def FIX_VCB_AVG(self) -> bool:
@@ -1349,6 +1388,52 @@ class AstroOptions(InputStruct):
         else:
             return self._INHOMO_RECO
 
+    @cached_property
+    def INTEGRATION_METHOD_ATOMIC(self) -> IntegralMethods:
+        """The integration method to use for conditional MF integrals for atomic cooling galaxies.
+
+        This is a deprecated property, and will be removed in v5. Please use INTEGRATION_METHOD_ACGS instead.
+        """
+        if self._INTEGRATION_METHOD_ATOMIC is None:
+            return self.INTEGRATION_METHOD_ACGS
+        else:
+            return self._INTEGRATION_METHOD_ATOMIC
+
+    @cached_property
+    def INTEGRATION_METHOD_MINI(self) -> IntegralMethods:
+        """The integration method to use for conditional MF integrals for molecular cooling galaxies.
+
+        This is a deprecated property, and will be removed in v5. Please use INTEGRATION_METHOD_MCGS instead.
+        """
+        if self._INTEGRATION_METHOD_MINI is None:
+            return self.INTEGRATION_METHOD_MCGS
+        else:
+            return self._INTEGRATION_METHOD_MINI
+
+    @USE_REIONIZATION_PHOTOHEATING_FEEDBACK.default
+    def _default_use_reionization_photoheating_feedback(self):
+        return self.USE_MCGS
+
+    @USE_MCGS.default
+    def _default_use_mcgs(self):
+        if self._USE_MINI_HALOS is None:
+            return False
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "USE_MINI_HALOS",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "USE_MINI_HALOS is deprecated and will be removed in a future version. "
+                    "Please use USE_MCGS directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._USE_MINI_HALOS
+
     @RECOMB_MODEL.default
     def _default_recomb_model(self):
         if self._INHOMO_RECO is None:
@@ -1369,6 +1454,66 @@ class AstroOptions(InputStruct):
 
         return "inhomogeneous" if self._INHOMO_RECO else "none"
 
+    @INTEGRATION_METHOD_ACGS.default
+    def _default_integration_method_acgs(self):
+        if self._INTEGRATION_METHOD_ATOMIC is None:
+            return "GAUSS-LEGENDRE"
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "INTEGRATION_METHOD_ATOMIC",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "INTEGRATION_METHOD_ATOMIC is deprecated and will be removed in a future version. "
+                    "Please use INTEGRATION_METHOD_ACGS directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        return self._INTEGRATION_METHOD_ATOMIC
+
+    @INTEGRATION_METHOD_MCGS.default
+    def _default_integration_method_mcgs(self):
+        if self._INTEGRATION_METHOD_MINI is None:
+            return "GAUSS-LEGENDRE"
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "INTEGRATION_METHOD_MINI",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "INTEGRATION_METHOD_MINI is deprecated and will be removed in a future version. "
+                    "Please use INTEGRATION_METHOD_MCGS directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        return self._INTEGRATION_METHOD_MINI
+
+    @USE_MCGS.validator
+    def _use_mcgs_vld(self, att, val):
+        """
+        Raise an error USE_MCGS is True with incompatible flags.
+
+        This happens when RECOMB_MODEL='none' or USE_TS_FLUCT is False.
+        """
+        if val and self.RECOMB_MODEL == "none":
+            raise ValueError(
+                "You have set USE_MCGS to True but RECOMB_MODEL is 'none'! "
+            )
+        if val and not self.USE_TS_FLUCT:
+            raise ValueError(
+                "You have set USE_MCGS to True but USE_TS_FLUCT is False! "
+            )
+
+        if self._USE_MINI_HALOS is not None and val != self._USE_MINI_HALOS:
+            raise ValueError(
+                f"USE_MCGS is set to {val} but USE_MINI_HALOS is {self._USE_MINI_HALOS}! "
+                f"Either set USE_MINI_HALOS to {val} or change USE_MCGS to {self._USE_MINI_HALOS}."
+            )
+
     @RECOMB_MODEL.validator
     def _recomb_model_vld(self, att, val):
         if self._INHOMO_RECO is True and val == "none":
@@ -1386,28 +1531,12 @@ class AstroOptions(InputStruct):
                 "CELL_RECOMB cannot be False when RECOMB_MODEL is 'homogeneous'!"
             )
 
-    @USE_MINI_HALOS.validator
-    def _USE_MINI_HALOS_vald(self, att, val):
-        """
-        Raise an error USE_MINI_HALOS is True with incompatible flags.
-
-        This happens when RECOMB_MODEL='none' or USE_TS_FLUCT is False.
-        """
-        if val and self.RECOMB_MODEL == "none":
-            raise ValueError(
-                "You have set USE_MINI_HALOS to True but RECOMB_MODEL is 'none'! "
-            )
-        if val and not self.USE_TS_FLUCT:
-            raise ValueError(
-                "You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False! "
-            )
-
     @PHOTON_CONS_TYPE.validator
     def _PHOTON_CONS_TYPE_vld(self, att, val):
-        """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MINI_HALOS is True."""
-        if self.USE_MINI_HALOS and val == "z-photoncons":
+        """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MCGS is True."""
+        if self.USE_MCGS and val == "z-photoncons":
             raise ValueError(
-                "USE_MINI_HALOS is not compatible with the redshift-based"
+                "USE_MCGS is not compatible with the redshift-based"
                 " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
             )
 
@@ -1421,6 +1550,30 @@ class AstroOptions(InputStruct):
 
         if val and not self.CELL_RECOMB:
             raise ValueError("USE_EXP_FILTER is True but CELL_RECOMB is False")
+
+    @INTEGRATION_METHOD_ACGS.validator
+    def _integration_method_acgs_vld(self, att, val):
+        """Raise an error if INTEGRATION_METHOD_ACGS is set to a different value than INTEGRATION_METHOD_ATOMIC."""
+        if (
+            self._INTEGRATION_METHOD_ATOMIC is not None
+            and val != self._INTEGRATION_METHOD_ATOMIC
+        ):
+            raise ValueError(
+                f"INTEGRATION_METHOD_ACGS is set to {val} but INTEGRATION_METHOD_ATOMIC is {self._INTEGRATION_METHOD_ATOMIC}! "
+                f"Either set INTEGRATION_METHOD_ATOMIC to {val} or change INTEGRATION_METHOD_ACGS to {self._INTEGRATION_METHOD_ATOMIC}."
+            )
+
+    @INTEGRATION_METHOD_MCGS.validator
+    def _integration_method_mcgs_vld(self, att, val):
+        """Raise an error if INTEGRATION_METHOD_MCGS is set to a different value than INTEGRATION_METHOD_MINI."""
+        if (
+            self._INTEGRATION_METHOD_MINI is not None
+            and val != self._INTEGRATION_METHOD_MINI
+        ):
+            raise ValueError(
+                f"INTEGRATION_METHOD_MCGS is set to {val} but INTEGRATION_METHOD_MINI is {self._INTEGRATION_METHOD_MINI}! "
+                f"Either set INTEGRATION_METHOD_MINI to {val} or change INTEGRATION_METHOD_MCGS to {self._INTEGRATION_METHOD_MINI}."
+            )
 
 
 @attrs.define(frozen=True, kw_only=True)
@@ -1439,20 +1592,31 @@ class AstroParams(InputStruct):
         The ionizing efficiency of high-z galaxies (zeta, from Eq. 2 of Greig+2015).
         Higher values tend to speed up reionization.
     F_STAR10 : float, optional
+        The fraction of galactic gas in stars for 10^10 solar mass haloes. This is
+        a deprecated parameter, please use F_STAR10_ACG instead.
+    F_STAR10_ACG : float, optional
         The fraction of galactic gas in stars for 10^10 solar mass haloes.
-        Only used if ``MASS_DEPENDENT_ZETA`` is True in :class:`AstroOptions`.
         See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
         Given in log10 units.
     F_STAR7_MINI : float, optional
+        The fraction of galactic gas in stars for 10^7 solar mass minihaloes. This is
+        a deprecated parameter, please use F_STAR7_MCG instead.
+    F_STAR7_MCG : float, optional
         The fraction of galactic gas in stars for 10^7 solar mass minihaloes. Only used
-        in the "minihalo" parameterization, i.e. when `USE_MINI_HALOS` is set to True
+        in the MCGs parameterization, i.e. when `USE_MCGS` is set to True
         (in :class:`AstroOptions`).. See Eq. 8 of Qin+2020.
         If the MCG scaling relations are not provided explicitly, we extend the ACG
         ones by default. Given in log10 units.
     ALPHA_STAR : float, optional
-        Power-law index of fraction of galactic gas in stars as a function of halo mass.
-        See Sec 2.1 of Park+2018.
+        Power-law index of fraction of galactic gas in stars as a function of halo mass,
+        for ACGs. This is a deprecated parameter, please use ALPHA_STAR_ACG instead.
+    ALPHA_STAR_ACG : float, optional
+        Power-law index of fraction of galactic gas in stars as a function of halo mass,
+        for ACGs. See Sec 2.1 of Park+2018.
     ALPHA_STAR_MINI : float, optional
+        Power-law index of fraction of galactic gas in stars as a function of halo mass,
+        for MCGs. This is a deprecated parameter, please use ALPHA_STAR_MCG instead.
+    ALPHA_STAR_MCG : float, optional
         Power-law index of fraction of galactic gas in stars as a function of halo mass,
         for MCGs. See Sec 2 of Muñoz+21 (2110.13919). If the MCG scaling relations are
         not provided explicitly, we extend the ACG ones by default.
@@ -1465,22 +1629,32 @@ class AstroParams(InputStruct):
     SIGMA_SFR_INDEX : float, optional
         index of the power-law between SFMS scatter and stellar mass below 1e10 solar.
     F_ESC10 : float, optional
-        The "escape fraction", i.e. the fraction of ionizing photons escaping into the
-        IGM, for 10^10 solar mass haloes. Only used if ``MASS_DEPENDENT_ZETA`` is True
-        in :class:`AstroOptions`. This is used along with `F_STAR10` to determine
+        The "escape fraction" for ACGS, i.e. the fraction of ionizing photons escaping into the
+        IGM, for 10^10 solar mass haloes. This is a deprecated parameter, please use F_ESC10_ACG instead.
+    F_ESC10_ACG : float, optional
+        The "escape fraction" for ACGS, i.e. the fraction of ionizing photons escaping into the
+        IGM, for 10^10 solar mass haloes. Only used if ``SOURCE_MODEL`` is not "CONST-ION-EFF"
+        in :class:`AstroOptions`. This is used along with `F_STAR10_ACG` to determine
         ``HII_EFF_FACTOR`` (which
         is then unused). See Eq. 11 of Greig+2018 and Sec 2.1 of Park+2018.
-    F_ESC7_MINI: float, optional
-        The "escape fraction for minihalos", i.e. the fraction of ionizing photons escaping
-        into the IGM, for 10^7 solar mass minihaloes. Only used in the "minihalo"
-        parameterization, i.e. when `USE_MINI_HALOS` is set to True (in
+    F_ESC7_MINI : float, optional
+        The "escape fraction" for minihaloes. This is a deprecated parameter, please use F_ESC7_MCG instead.
+    F_ESC7_MCG: float, optional
+        The "escape fraction" for MCGs, i.e. the fraction of ionizing photons escaping
+        into the IGM, for 10^7 solar mass minihaloes. Only used in the MCGs
+        parameterization, i.e. when `USE_MCGS` is set to True (in
         :class:`AstroOptions`). See Eq. 17 of Qin+2020. If the MCG
         scaling relations are not provided explicitly, we extend the ACG ones by default.
         Given in log10 units.
     ALPHA_ESC : float, optional
         Power-law index of escape fraction as a function of halo mass. See Sec 2.1 of
         Park+2018.
-    M_TURN : float, optional
+    M_TURN : float or None, optional
+        Turnover mass (in log10 solar mass units) for quenching of star formation in
+        halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
+        This parameter is deprecated and will be removed in a future version, see M_TURN_STELLAR_FEEDBACK for the new way to directly
+        control this parameter.
+    M_TURN_STELLAR_FEEDBACK : float, optional
         Turnover mass (in log10 solar mass units) for quenching of star formation in
         halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
         See Sec 2.1 of Park+2018.
@@ -1491,12 +1665,18 @@ class AstroParams(InputStruct):
         Minimum virial temperature of star-forming haloes (Sec 2.1.3 of Greig+2015).
         Given in log10 units.
     L_X : float, optional
-        The specific X-ray luminosity per unit star formation escaping host galaxies.
+        The specific X-ray luminosity per unit star formation escaping host galaxies,
+        for ACGs. This is a deprecated parameter, please use LX_OVER_SFR_ACG instead.
+    LX_OVER_SFR_ACG : float, optional
+        The specific X-ray luminosity per unit star formation escaping host galaxies, for ACGs.
         Cf. Eq. 6 of Greig+2018. Given in log10 units. For the double power-law used in
         the Halo Model. This gives the low-z limit.
     L_X_MINI: float, optional
         The specific X-ray luminosity per unit star formation escaping host galaxies for
-        minihalos. Cf. Eq. 23 of Qin+2020. Given in log10 units. For the double
+        MCGs. This is a deprecated parameter, please use LX_OVER_SFR_MCG instead.
+    LX_OVER_SFR_MCG: float, optional
+        The specific X-ray luminosity per unit star formation escaping host galaxies for
+        MCGs. Cf. Eq. 23 of Qin+2020. Given in log10 units. For the double
         power-law used in the Halo Model. This gives the low-z limit. If the MCG
         scaling relations are not provided explicitly, we extend the ACG ones by default.
     NU_X_THRESH : float, optional
@@ -1569,34 +1749,53 @@ class AstroParams(InputStruct):
     HII_EFF_FACTOR: float = field(
         default=30.0, converter=float, validator=validators.gt(0)
     )
-    F_STAR10: float = field(
-        default=-1.3,
-        converter=float,
-        validator=between(-3.0, 0.0),
+    _F_STAR10: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
         transformer=logtransformer,
     )
-    ALPHA_STAR: float = field(
-        default=0.5,
-        converter=float,
+    F_STAR10_ACG: float = field(
+        converter=float, validator=between(-3.0, 0.0), transformer=logtransformer
     )
-    F_STAR7_MINI: float = field(converter=float, transformer=logtransformer)
-    ALPHA_STAR_MINI: float = field(converter=float)
-    F_ESC10: float = field(
-        default=-1.0,
-        converter=float,
+    _ALPHA_STAR: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+    )
+    ALPHA_STAR_ACG: float = field(converter=float)
+    _F_STAR7_MINI: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
         transformer=logtransformer,
     )
+    F_STAR7_MCG: float = field(converter=float, transformer=logtransformer)
+    _ALPHA_STAR_MINI: float | None = field(
+        default=None, converter=attrs.converters.optional(float)
+    )
+    ALPHA_STAR_MCG: float = field(converter=float)
+    _F_ESC10: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        transformer=logtransformer,
+    )
+    F_ESC10_ACG: float = field(converter=float, transformer=logtransformer)
+
     ALPHA_ESC: float = field(
         default=-0.5,
         converter=float,
     )
-    F_ESC7_MINI: float = field(
-        default=-2.0,
-        converter=float,
+    _F_ESC7_MINI: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
         transformer=logtransformer,
     )
-    M_TURN: float = field(
-        default=8.7,
+    F_ESC7_MCG: float = field(converter=float, transformer=logtransformer)
+    _M_TURN: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        validator=validators.optional(validators.gt(0)),
+        transformer=logtransformer,
+    )
+    M_TURN_STELLAR_FEEDBACK: float = field(
         converter=float,
         validator=validators.gt(0),
         transformer=logtransformer,
@@ -1613,13 +1812,23 @@ class AstroParams(InputStruct):
         validator=validators.gt(0),
         transformer=logtransformer,
     )
-    L_X: float = field(
-        default=40.5,
+
+    _L_X: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        transformer=logtransformer,
+    )
+    LX_OVER_SFR_ACG: float = field(
         converter=float,
         validator=validators.gt(0),
         transformer=logtransformer,
     )
-    L_X_MINI: float = field(
+    _L_X_MINI: float | None = field(
+        default=None,
+        converter=attrs.converters.optional(float),
+        transformer=logtransformer,
+    )
+    LX_OVER_SFR_MCG: float = field(
         converter=float, validator=validators.gt(0), transformer=logtransformer
     )
     NU_X_THRESH: float = field(
@@ -1681,19 +1890,6 @@ class AstroParams(InputStruct):
         default=10000.0, converter=float, validator=validators.gt(0)
     )
 
-    # set the default of the minihalo scalings to continue the same PL
-    @F_STAR7_MINI.default
-    def _F_STAR7_MINI_default(self):
-        return self.F_STAR10 - 3 * self.ALPHA_STAR  # -3*alpha since 1e7/1e10 = 1e-3
-
-    @ALPHA_STAR_MINI.default
-    def _ALPHA_STAR_MINI_default(self):
-        return self.ALPHA_STAR
-
-    @L_X_MINI.default
-    def _L_X_MINI_default(self):
-        return self.L_X
-
     @X_RAY_Tvir_MIN.default
     def _X_RAY_Tvir_MIN_default(self):
         return self.ION_Tvir_MIN
@@ -1750,6 +1946,357 @@ class AstroParams(InputStruct):
         )
 
         return self._FIXED_VAVG
+
+    @cached_property
+    def M_TURN(self) -> float | None:
+        """Turnover mass (in log10 solar mass units) for quenching of star formation in halos, due to SNe or photo-heating feedback, or inefficient gas accretion.
+
+        This is a deprecated property, and will be removed in v5. Please use M_TURN_STELLAR_FEEDBACK instead.
+        """
+        return self._M_TURN
+
+    @cached_property
+    def F_STAR10(self) -> float:
+        """
+        The fraction of baryons in the form of stars at a reference mass of 10^10 solar masses.
+
+        This is a deprecated property, and will be removed in v5. Please use F_STAR10_ACG instead.
+        """
+        if self._F_STAR10 is None:
+            return self.F_STAR10_ACG
+        else:
+            return self._F_STAR10
+
+    @cached_property
+    def F_STAR7_MINI(self) -> float:
+        """
+        The fraction of baryons in the form of stars at a reference mass of 10^7 solar masses.
+
+        This is a deprecated property, and will be removed in v5. Please use F_STAR7_MCG instead.
+        """
+        if self._F_STAR7_MINI is None:
+            return self.F_STAR7_MCG
+        else:
+            return self._F_STAR7_MINI
+
+    @cached_property
+    def F_ESC10(self) -> float:
+        """
+        The fraction of ionizing photons escaping into the IGM at a reference mass of 10^10 solar masses.
+
+        This is a deprecated property, and will be removed in v5. Please use F_ESC10_ACG instead.
+        """
+        if self._F_ESC10 is None:
+            return self.F_ESC10_ACG
+        else:
+            return self._F_ESC10
+
+    @cached_property
+    def F_ESC7_MINI(self) -> float:
+        """
+        The fraction of ionizing photons escaping into the IGM at a reference mass of 10^7 solar masses.
+
+        This is a deprecated property, and will be removed in v5. Please use F_ESC7_MCG instead.
+        """
+        if self._F_ESC7_MINI is None:
+            return self.F_ESC7_MCG
+        else:
+            return self._F_ESC7_MINI
+
+    @cached_property
+    def ALPHA_STAR(self) -> float:
+        """
+        Power-law index of fraction of galactic gas in stars as a function of halo mass, for ACGs.
+
+        This is a deprecated property, and will be removed in v5. Please use ALPHA_STAR_ACG instead.
+        """
+        if self._ALPHA_STAR is None:
+            return self.ALPHA_STAR_ACG
+        else:
+            return self._ALPHA_STAR
+
+    @cached_property
+    def ALPHA_STAR_MINI(self) -> float:
+        """
+        Power-law index of fraction of galactic gas in stars as a function of halo mass, for minihaloes.
+
+        This is a deprecated property, and will be removed in v5. Please use ALPHA_STAR_MCG instead.
+        """
+        if self._ALPHA_STAR_MINI is None:
+            return self.ALPHA_STAR_MCG
+        else:
+            return self._ALPHA_STAR_MINI
+
+    @cached_property
+    def L_X(self) -> float:
+        """
+        The specific X-ray luminosity per unit star formation escaping host galaxies for ACGs.
+
+        This is a deprecated property, and will be removed in v5. Please use LX_OVER_SFR_ACG instead.
+        """
+        if self._L_X is None:
+            return self.LX_OVER_SFR_ACG
+        else:
+            return self._L_X
+
+    @cached_property
+    def L_X_MINI(self) -> float:
+        """
+        The specific X-ray luminosity per unit star formation escaping host galaxies for minihaloes.
+
+        This is a deprecated property, and will be removed in v5. Please use LX_OVER_SFR_MCG instead.
+        """
+        if self._L_X_MINI is None:
+            return self.LX_OVER_SFR_MCG
+        else:
+            return self._L_X_MINI
+
+    @M_TURN_STELLAR_FEEDBACK.default
+    def _default_m_turn_stellar_feedback(self):
+        if self._M_TURN is None:
+            return 8.7
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "M_TURN",
+                deprecated_in="4.2.0",
+                removed_in="5.0.0",
+                details=(
+                    "M_TURN is deprecated and will be removed in a future version. "
+                    "Please use M_TURN_STELLAR_FEEDBACK directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._M_TURN
+
+    @F_STAR10_ACG.default
+    def _f_star10_acg_default(self):
+        if self._F_STAR10 is None:
+            return -1.3
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "F_STAR10",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "F_STAR10 is deprecated and will be removed in a future version. "
+                    "Please use F_STAR10_ACG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._F_STAR10
+
+    @F_STAR7_MCG.default
+    def _f_star7_mcg_default(self):
+        if self._F_STAR7_MINI is None:
+            # set the default of the MCGs scalings to continue the same PL
+            return (
+                self.F_STAR10_ACG - 3 * self.ALPHA_STAR_ACG
+            )  # -3*alpha since 1e7/1e10 = 1e-3
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "F_STAR7_MINI",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "F_STAR7_MINI is deprecated and will be removed in a future version. "
+                    "Please use F_STAR7_MCG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._F_STAR7_MINI
+
+    @F_ESC10_ACG.default
+    def _f_esc10_acg_default(self):
+        if self._F_ESC10 is None:
+            return -1.0
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "F_ESC10",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "F_ESC10 is deprecated and will be removed in a future version. "
+                    "Please use F_ESC10_ACG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._F_ESC10
+
+    @F_ESC7_MCG.default
+    def _f_esc7_mcg_default(self):
+        if self._F_ESC7_MINI is None:
+            return -2.0
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "F_ESC7_MINI",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "F_ESC7_MINI is deprecated and will be removed in a future version. "
+                    "Please use F_ESC7_MCG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._F_ESC7_MINI
+
+    @ALPHA_STAR_ACG.default
+    def _alpha_star_acg_default(self):
+        if self._ALPHA_STAR is None:
+            return 0.5
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "ALPHA_STAR",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "ALPHA_STAR is deprecated and will be removed in a future version. "
+                    "Please use ALPHA_STAR_ACG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._ALPHA_STAR
+
+    @ALPHA_STAR_MCG.default
+    def _alpha_star_mcg_default(self):
+        if self._ALPHA_STAR_MINI is None:
+            return self.ALPHA_STAR_ACG
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "ALPHA_STAR_MINI",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "ALPHA_STAR_MINI is deprecated and will be removed in a future version. "
+                    "Please use ALPHA_STAR_MCG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._ALPHA_STAR_MINI
+
+    @LX_OVER_SFR_ACG.default
+    def _lx_over_sfr_acg_default(self):
+        if self._L_X is None:
+            return 40.5
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "L_X",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "L_X is deprecated and will be removed in a future version. "
+                    "Please use LX_OVER_SFR_ACG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._L_X
+
+    @LX_OVER_SFR_MCG.default
+    def _lx_over_sfr_mcg_default(self):
+        if self._L_X_MINI is None:
+            return self.LX_OVER_SFR_ACG
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "L_X_MINI",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "L_X_MINI is deprecated and will be removed in a future version. "
+                    "Please use LX_OVER_SFR_MCG directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+
+        return self._L_X_MINI
+
+    @F_STAR10_ACG.validator
+    def _f_star10_acg_vld(self, att, val):
+        if self._F_STAR10 is not None and val != self._F_STAR10:
+            raise ValueError(
+                f"F_STAR10_ACG is set to {val} but F_STAR10 is {self._F_STAR10}! "
+                f"Either set F_STAR10 to {val} or change F_STAR10_ACG to {self._F_STAR10}."
+            )
+
+    @F_STAR7_MCG.validator
+    def _f_star7_mcg_vld(self, att, val):
+        if self._F_STAR7_MINI is not None and val != self._F_STAR7_MINI:
+            raise ValueError(
+                f"F_STAR7_MCG is set to {val} but F_STAR7_MINI is {self._F_STAR7_MINI}! "
+                f"Either set F_STAR7_MINI to {val} or change F_STAR7_MCG to {self._F_STAR7_MINI}."
+            )
+
+    @F_ESC10_ACG.validator
+    def _f_esc10_acg_vld(self, att, val):
+        if self._F_ESC10 is not None and val != self._F_ESC10:
+            raise ValueError(
+                f"F_ESC10_ACG is set to {val} but F_ESC10 is {self._F_ESC10}! "
+                f"Either set F_ESC10 to {val} or change F_ESC10_ACG to {self._F_ESC10}."
+            )
+
+    @F_ESC7_MCG.validator
+    def _f_esc7_mcg_vld(self, att, val):
+        if self._F_ESC7_MINI is not None and val != self._F_ESC7_MINI:
+            raise ValueError(
+                f"F_ESC7_MCG is set to {val} but F_ESC7_MINI is {self._F_ESC7_MINI}! "
+                f"Either set F_ESC7_MINI to {val} or change F_ESC7_MCG to {self._F_ESC7_MINI}."
+            )
+
+    @ALPHA_STAR_ACG.validator
+    def _alpha_star_acg_vld(self, att, val):
+        if self._ALPHA_STAR is not None and val != self._ALPHA_STAR:
+            raise ValueError(
+                f"ALPHA_STAR_ACG is set to {val} but ALPHA_STAR is {self._ALPHA_STAR}! "
+                f"Either set ALPHA_STAR to {val} or change ALPHA_STAR_ACG to {self._ALPHA_STAR}."
+            )
+
+    @ALPHA_STAR_MCG.validator
+    def _alpha_star_mcg_vld(self, att, val):
+        if self._ALPHA_STAR_MINI is not None and val != self._ALPHA_STAR_MINI:
+            raise ValueError(
+                f"ALPHA_STAR_MCG is set to {val} but ALPHA_STAR_MINI is {self._ALPHA_STAR_MINI}! "
+                f"Either set ALPHA_STAR_MINI to {val} or change ALPHA_STAR_MCG to {self._ALPHA_STAR_MINI}."
+            )
+
+    @LX_OVER_SFR_ACG.validator
+    def _lx_over_sfr_acg_vld(self, att, val):
+        if self._L_X is not None and val != self._L_X:
+            raise ValueError(
+                f"LX_OVER_SFR_ACG is set to {val} but L_X is {self._L_X}! "
+                f"Either set L_X to {val} or change LX_OVER_SFR_ACG to {self._L_X}."
+            )
+
+    @LX_OVER_SFR_MCG.validator
+    def _lx_over_sfr_mcg_vld(self, att, val):
+        if self._L_X_MINI is not None and val != self._L_X_MINI:
+            raise ValueError(
+                f"LX_OVER_SFR_MCG is set to {val} but L_X_MINI is {self._L_X_MINI}! "
+                f"Either set L_X_MINI to {val} or change LX_OVER_SFR_MCG to {self._L_X_MINI}."
+            )
 
 
 class InputCrossValidationError(ValueError):
@@ -1866,7 +2413,7 @@ class InputParameters:
             if self.simulation_options.K_MAX_FOR_CLASS is not None:
                 k_max = self.simulation_options.K_MAX_FOR_CLASS / un.Mpc
             else:
-                if self.astro_options.USE_MINI_HALOS:
+                if self.astro_options.USE_MCGS:
                     M_min = 1e5 * un.M_sun
                 else:
                     M_min = 1e9 * un.M_sun
@@ -1971,19 +2518,19 @@ class InputParameters:
     def _astro_options_validator(self, att, val):
         if self.matter_options is None:
             return
-        if val.USE_MINI_HALOS:
+        if val.USE_MCGS:
             if self.matter_options.V_CB_MODEL == "NONE":
                 warnings.warn(
-                    "USE_MINI_HALOS needs a non-trivial V_CB_MODEL to get the right evolution!",
+                    "USE_MCGS needs a non-trivial V_CB_MODEL to get the right evolution!",
                     stacklevel=2,
                 )
             if self.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
                 raise ValueError(
-                    "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True"
+                    "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MCGS=True"
                 )
         elif self.matter_options.V_CB_MODEL != "NONE":
             warnings.warn(
-                "USE_MINI_HALOS is False but V_CB_MODEL != 'NONE'. Note that the relative velocity between (cold) dark matter and baryons"
+                "USE_MCGS is False but V_CB_MODEL != 'NONE'. Note that the relative velocity between (cold) dark matter and baryons"
                 " is only relevant when mini-halos are present.",
                 stacklevel=2,
             )
@@ -2032,10 +2579,7 @@ class InputParameters:
                 raise ValueError(
                     f"USE_EXP_FILTER is not compatible with SOURCE_MODEL == {self.matter_options.SOURCE_MODEL}"
                 )
-            if val.LYA_MULTIPLE_SCATTERING:
-                raise ValueError(
-                    f"LYA_MULTIPLE_SCATTERING is not compatible with SOURCE_MODEL == {self.matter_options.SOURCE_MODEL}"
-                )
+
         if (
             not self.matter_options.has_discrete_halos
             and val.USE_UPPER_STELLAR_TURNOVER
@@ -2051,8 +2595,8 @@ class InputParameters:
                 stacklevel=2,
             )
         elif (
-            val.INTEGRATION_METHOD_ATOMIC == "GAMMA-APPROX"
-            or val.INTEGRATION_METHOD_MINI == "GAMMA-APPROX"
+            val.INTEGRATION_METHOD_ACGS == "GAMMA-APPROX"
+            or val.INTEGRATION_METHOD_MCGS == "GAMMA-APPROX"
             or self.matter_options.SOURCE_MODEL == "CONST-ION-EFF"
         ) and self.matter_options.HMF != "PS":
             warnings.warn(
@@ -2060,6 +2604,19 @@ class InputParameters:
                 "uses the EPS conditional mass function normalised to the unconditional mass"
                 "function provided by the user as matter_options.HMF",
                 stacklevel=2,
+            )
+
+        if (
+            val.USE_REIONIZATION_PHOTOHEATING_FEEDBACK
+            and self.matter_options.SOURCE_MODEL == "CONST-ION-EFF"
+        ):
+            raise NotImplementedError(
+                "USE_REIONIZATION_PHOTOHEATING_FEEDBACK is not yet compatible with SOURCE_MODEL == CONST-ION-EFF"
+            )
+
+        if val.USE_METALLICITY and self.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
+            raise NotImplementedError(
+                "USE_METALLICITY is not yet compatible with SOURCE_MODEL == CONST-ION-EFF"
             )
 
     @astro_params.validator
@@ -2077,11 +2634,11 @@ class InputParameters:
                 stacklevel=2,
             )
 
-        if val.M_TURN > 8 and self.astro_options.USE_MINI_HALOS:
+        if val.M_TURN_STELLAR_FEEDBACK > 8 and self.astro_options.USE_MCGS:
             warnings.warn(
-                "You are setting M_TURN > 8 when USE_MINI_HALOS=True. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of M_TURN",
+                "You are setting M_TURN_STELLAR_FEEDBACK > 8 when USE_MCGS=True. "
+                "The star formation in mini-halos with a mass smaller than M_TURN_STELLAR_FEEDBACK "
+                "is highly suppressed. Make sure you know what you are doing!",
                 stacklevel=2,
             )
 
@@ -2280,7 +2837,7 @@ class InputParameters:
         return (
             self.astro_options.USE_TS_FLUCT
             or self.astro_options.RECOMB_MODEL != "none"
-            or self.astro_options.USE_MINI_HALOS
+            or self.astro_options.USE_MCGS
         )
 
     def with_logspaced_redshifts(
@@ -2469,89 +3026,77 @@ class InputParameters:
 
 
 def check_halomass_range(inputs: InputParameters) -> None:
-    """Check that the halo mass range is sensible given the parameters.
+    """Check that the halo mass range is sensible given the parameters, when there are discrete halos in the simulation.
 
-    This function checks that the minimum halo mass set by the various resolutions
-    and flags does not have any gaps. We raise an error if there is a gap, and a warning
-    if it is above the turnover mass.
+    We raise an error if there is a gap in the simulated halo mass range,
+    and a warning if the largest halo mass is below the maximum integral mass (without discrete halos).
     """
     # There are no problems if we are not using halos
-    if not inputs.matter_options.lagrangian_source_grid:
+    if not inputs.matter_options.has_discrete_halos:
         return
 
-    # simplified behaviour of lib.minimum_source_mass()
-    if inputs.astro_options.USE_MINI_HALOS:
+    # Decide if we have sampled halos (not just dexm)
+    has_sampled_halos = inputs.matter_options.SOURCE_MODEL == "CHMF-SAMPLER"
+    min_sampler = inputs.simulation_options.SAMPLER_MIN_MASS * un.M_sun
+
+    # Simplified behaviour of lib.minimum_source_mass() for source models with discrete halos
+    if inputs.astro_options.USE_MCGS:
         min_integral_mass = 1e5 * un.M_sun
     else:
         min_integral_mass = (
-            max(inputs.astro_params.cdict["M_TURN"] / 50, 1e5) * un.M_sun
+            max(inputs.astro_params.cdict["M_TURN_STELLAR_FEEDBACK"] / 50, 1e5)
+            * un.M_sun
         )
-    max_integral_mass = 1e16 * un.M_sun  # define macro in hmf.h
+    # Set maximum integral mass
+    MAX_INTEGRAL_MASS = 1e16 * un.M_sun  # define macro in hmf.h
 
+    # Get lowres and hires cell mass: the former (latter) is only used with (without) the sampler
+    # Also set maximum integral mass, according to the C code in ComputeEmissivityFields
     massdens = inputs.cosmo_params.cosmo.critical_density(0) * inputs.cosmo_params.OMm
-    hires_cell_mass = (massdens * inputs.simulation_options.cell_size_hires**3).to(
+    if has_sampled_halos:
+        lowres_cell_mass = (massdens * inputs.simulation_options.cell_size**3).to(
+            un.M_sun
+        )
+        max_integral_mass = min_sampler
+
+    else:
+        hires_cell_mass = (massdens * inputs.simulation_options.cell_size_hires**3).to(
+            un.M_sun
+        )
+        max_integral_mass = hires_cell_mass
+
+    # Decide if we have integrals (not just dexm)
+    has_integrals = min_integral_mass < max_integral_mass
+
+    # Set dexm mass range
+    min_dexm = lowres_cell_mass if has_sampled_halos else hires_cell_mass
+    max_dexm = (massdens * (inputs.simulation_options.BOX_LEN * un.Mpc) ** 3).to(
         un.M_sun
     )
-    lores_cell_mass = (massdens * inputs.simulation_options.cell_size**3).to(un.M_sun)
-    pt_cell_mass = (
-        hires_cell_mass
-        if inputs.matter_options.PERTURB_ON_HIGH_RES
-        else lores_cell_mass
-    )
+    mass_limits = ((min_dexm, max_dexm),)
+    names = ("dexm",)
 
-    has_dexm_halos = inputs.matter_options.SOURCE_MODEL in ["DEXM-ESF", "CHMF-SAMPLER"]
-    has_sampled_halos = inputs.matter_options.SOURCE_MODEL == "CHMF-SAMPLER"
-    has_integrals = (
-        min_integral_mass / un.M_sun < inputs.simulation_options.SAMPLER_MIN_MASS
-    )
-
-    min_cellint = min_integral_mass
-    if inputs.matter_options.SOURCE_MODEL == "CHMF-SAMPLER":
-        max_cellint = inputs.simulation_options.SAMPLER_MIN_MASS * un.M_sun
-    elif inputs.matter_options.SOURCE_MODEL == "DEXM-ESF":
-        max_cellint = hires_cell_mass
-    else:
-        max_cellint = max_integral_mass
-
-    max_cellint = min(max_cellint, pt_cell_mass)
-
-    min_sampler = inputs.simulation_options.SAMPLER_MIN_MASS * un.M_sun
-    # if the cell is smaller, the sampler won't draw any halos
-    max_sampler = max(lores_cell_mass, min_sampler)
-
-    min_dexm = lores_cell_mass if has_sampled_halos else hires_cell_mass
-    # not the real maximum, (7 sigma), but sufficient for our checks here
-    max_dexm = 1e16 * un.M_sun
-
-    mass_limits = ()
-    names = ()
-    if has_integrals:
-        mass_limits += ((min_cellint, max_cellint),)
-        names += ("integrals",)
+    # Now add the other mass ranges, if relevant
     if has_sampled_halos:
+        # if the cell is smaller, the sampler won't draw any halos
+        max_sampler = max(lowres_cell_mass, min_sampler)
         mass_limits += ((min_sampler, max_sampler),)
         names += ("sampler",)
-    if has_dexm_halos:
-        mass_limits += ((min_dexm, max_dexm),)
-        names += ("dexm",)
+    if has_integrals:
+        mass_limits += ((min_integral_mass, max_integral_mass),)
+        names += ("integrals",)
 
     for i in range(len(mass_limits) - 1):
-        if mass_limits[i][1] != mass_limits[i + 1][0]:
+        if mass_limits[i][0] != mass_limits[i + 1][1]:
+            # NOTE: this should be triggered only if the sampler min mass is greater than lowres_cell_mass
             raise ValueError(
                 f"There is a gap/overlap in the halo mass ranges of {dict(zip(names, mass_limits, strict=False))}. "
                 "This will lead to unphysical results. Please adjust your parameters to remove this gap."
             )
 
-    if min(min(mass_limits)) > min_integral_mass:
+    if max_dexm < MAX_INTEGRAL_MASS:
         warnings.warn(
-            f"The minimum halo mass {min(min(mass_limits)):.2e} is high compared to the turnover {inputs.astro_params.cdict['M_TURN']:.2e}. "
-            f"Halos below {min(min(mass_limits)):.2e} will not be accounted for in the simulation.",
-            stacklevel=2,
-        )
-
-    if max(max(mass_limits)) < max_integral_mass:
-        warnings.warn(
-            f"The maximum halo mass {max(max(mass_limits)):.2e} is below the integral mass {max_integral_mass:.2e}. "
-            f"Halos above {max(max(mass_limits)):.2e} will not be accounted for in the simulation.",
+            f"The maximum halo mass {max_dexm:.2e} is below the maximum integral mass {MAX_INTEGRAL_MASS:.2e} (without halos). "
+            f"Halos above {max_dexm:.2e} will not be accounted for in the simulation.",
             stacklevel=2,
         )

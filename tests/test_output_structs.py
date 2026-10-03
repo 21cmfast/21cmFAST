@@ -16,7 +16,6 @@ from py21cmfast import (
     perturb_halo_catalog,
 )
 from py21cmfast.wrapper import outputs as ox
-from py21cmfast.wrapper.arrays import Array
 
 
 @pytest.fixture
@@ -76,19 +75,19 @@ def test_pickleability(default_input_struct: InputParameters):
 
 
 def test_reading_purged(ic: InitialConditions):
-    lowres_density = ic.get(ic.lowres_density)
+    lowres_density = ic.get("lowres_density")
 
     # Remove it from memory
     ic.purge()
 
-    assert not ic.lowres_density.state.computed_in_mem
-    assert ic.lowres_density.state.on_disk
+    assert not ic.arrays["lowres_density"].state.computed_in_mem
+    assert ic.arrays["lowres_density"].state.on_disk
 
     # But we can still get it.
-    lowres_density_2 = ic.get(ic.lowres_density)
+    lowres_density_2 = ic.get("lowres_density")
 
-    assert ic.lowres_density.state.on_disk
-    assert ic.lowres_density.state.computed_in_mem
+    assert ic.arrays["lowres_density"].state.on_disk
+    assert ic.arrays["lowres_density"].state.computed_in_mem
 
     assert np.allclose(lowres_density_2, lowres_density)
 
@@ -96,22 +95,35 @@ def test_reading_purged(ic: InitialConditions):
 
 
 def test_direct_array_access_after_purge_loads_transparently(ic: InitialConditions):
-    """Plain attribute access should transparently resolve a purged array.
-
-    Not via `.get()` - and cache it back onto the struct by default (see #565).
-    """
-    expected = ic.get(ic.lowres_density)
+    """Plain attribute access resolves a purged array, and caches it back (see #565)."""
+    expected = ic.get("lowres_density")
 
     ic.purge()
-    assert not ic.lowres_density.state.computed_in_mem
+    assert not ic.arrays["lowres_density"].state.computed_in_mem
 
     assert ic.lowres_density.mean() == pytest.approx(expected.mean())
-    assert np.allclose(np.asarray(ic.lowres_density), expected)
+    assert np.allclose(ic.lowres_density, expected)
 
     # Cached back onto the struct as a side effect of the access above.
-    assert ic.lowres_density.state.computed_in_mem
+    assert ic.arrays["lowres_density"].state.computed_in_mem
 
     ic.load_all()
+
+
+def test_direct_array_access_gives_a_real_ndarray(ic: InitialConditions):
+    """The attribute must behave as an array in *every* respect, not just some.
+
+    Half duck-typing was the original problem: methods worked but operators didn't.
+    """
+    density = ic.lowres_density
+
+    assert isinstance(density, np.ndarray)
+    assert np.all((density - density) == 0.0)
+    assert (density**2).mean() >= 0.0
+    # `Array == <scalar>` used to silently evaluate to False.
+    assert np.all(np.zeros_like(density) == 0.0)
+    assert density[0].shape == density.shape[1:]
+    assert len(density) == density.shape[0]
 
 
 def test_direct_array_access_after_purge_respects_no_cache_config(
@@ -121,27 +133,48 @@ def test_direct_array_access_after_purge_respects_no_cache_config(
 
     But it must not repopulate memory on the struct.
     """
-    expected = ic.get(ic.lowres_density)
+    expected = ic.get("lowres_density")
     ic.purge()
 
     with config.use(CACHE_ARRAYS_ON_ACCESS=False):
         assert ic.lowres_density.mean() == pytest.approx(expected.mean())
-        assert not ic.lowres_density.state.computed_in_mem
+        assert not ic.arrays["lowres_density"].state.computed_in_mem
 
     ic.load_all()
 
 
-def test_repr_of_purged_struct_array_does_not_load_it(ic: InitialConditions):
-    """Merely inspecting a purged array (e.g. in a REPL) must stay cheap."""
+def test_repr_of_purged_struct_does_not_load_it(ic: InitialConditions):
+    """Merely inspecting a purged struct (e.g. in a REPL) must stay cheap.
+
+    The `Array` lives in a private attrs field, so the generated `__repr__` never
+    goes through the descriptor and so never touches the disk.
+    """
     ic.purge()
-    assert not ic.lowres_density.state.computed_in_mem
+    assert not ic.arrays["lowres_density"].state.computed_in_mem
 
-    _ = repr(ic.lowres_density)
+    _ = repr(ic)
+    _ = repr(ic.arrays["lowres_density"])
 
-    assert not ic.lowres_density.state.computed_in_mem
-    assert ic.lowres_density.value is None
+    assert not ic.arrays["lowres_density"].state.computed_in_mem
+    assert ic.arrays["lowres_density"]._value is None
 
     ic.load_all()
+
+
+def test_has(ic: InitialConditions):
+    """`has()` distinguishes "no data yet" from "this field does not exist"."""
+    assert ic.has("lowres_density")
+    assert not ic.has("lowres_vcb")  # not produced by these inputs
+
+    ic.purge()
+    # Still available: it is on disk, and reading the attribute will load it.
+    assert ic.has("lowres_density")
+    ic.load_all()
+
+    fresh = ox.InitialConditions.new(inputs=ic.inputs)
+    assert not fresh.has("lowres_density")
+    with pytest.raises(ValueError, match="not on disk and not initialized"):
+        _ = fresh.lowres_density
 
 
 @pytest.mark.parametrize("struct", list(ox._ALL_OUTPUT_STRUCTS.values()))
@@ -150,10 +183,11 @@ def test_all_fields_exist(struct: ox.OutputStruct):
 
     this = attrs.fields_dict(struct)
 
-    # Ensure that all fields in the cstruct are also defined on this class.
+    # Ensure that all fields in the cstruct are also defined on this class. Array
+    # fields are declared privately and exposed under the public name by a descriptor.
     for name in cstruct.pointer_fields:
-        assert name in this
-        assert this[name].type == ox.Array
+        assert name in struct._array_field_names
+        assert this[f"_{name}"].type == ox.Array
 
     for name in cstruct.primitive_fields:
         assert name in this
@@ -198,29 +232,29 @@ def test_halocatalogs(default_input_struct_lc: InputParameters):
 def test_optional_field_ic(default_input_struct_lc: InputParameters):
     """Ensure that the correct InitialConditions fields are set based on the parameters."""
     ic = ox.InitialConditions.new(inputs=default_input_struct_lc)
-    assert isinstance(ic.lowres_vx, Array)
-    assert isinstance(ic.lowres_vx_2LPT, Array)
-    assert ic.hires_vx is None
-    assert isinstance(ic.hires_vx_2LPT, Array)  # Python requires it, check the C
-    assert ic.lowres_vcb is None
+    assert "lowres_vx" in ic.arrays
+    assert "lowres_vx_2LPT" in ic.arrays
+    assert "hires_vx" not in ic.arrays
+    assert "hires_vx_2LPT" in ic.arrays  # Python requires it, check the C
+    assert "lowres_vcb" not in ic.arrays
 
     ic = ox.InitialConditions.new(
         inputs=default_input_struct_lc.evolve_input_structs(
             PERTURB_ALGORITHM="ZELDOVICH"
         )
     )
-    assert isinstance(ic.lowres_vy, Array)
-    assert ic.lowres_vy_2LPT is None
-    assert ic.hires_vy is None
-    assert ic.hires_vy_2LPT is None
+    assert "lowres_vy" in ic.arrays
+    assert "lowres_vy_2LPT" not in ic.arrays
+    assert "hires_vy" not in ic.arrays
+    assert "hires_vy_2LPT" not in ic.arrays
 
     ic = ox.InitialConditions.new(
         inputs=default_input_struct_lc.evolve_input_structs(PERTURB_ON_HIGH_RES=True)
     )
-    assert ic.lowres_vz is None
-    assert ic.lowres_vz_2LPT is None
-    assert isinstance(ic.hires_vz, Array)
-    assert isinstance(ic.hires_vz_2LPT, Array)
+    assert "lowres_vz" not in ic.arrays
+    assert "lowres_vz_2LPT" not in ic.arrays
+    assert "hires_vz" in ic.arrays
+    assert "hires_vz_2LPT" in ic.arrays
 
     ic = ox.InitialConditions.new(
         inputs=default_input_struct_lc.evolve_input_structs(
@@ -228,158 +262,176 @@ def test_optional_field_ic(default_input_struct_lc: InputParameters):
             POWER_SPECTRUM="CLASS",
         )
     )
-    assert isinstance(ic.lowres_vx, Array)
-    assert isinstance(ic.lowres_vx_2LPT, Array)
-    assert ic.hires_vx is None
-    assert isinstance(ic.hires_vx_2LPT, Array)
-    assert isinstance(ic.lowres_vcb, Array)
+    assert "lowres_vx" in ic.arrays
+    assert "lowres_vx_2LPT" in ic.arrays
+    assert "hires_vx" not in ic.arrays
+    assert "hires_vx_2LPT" in ic.arrays
+    assert "lowres_vcb" in ic.arrays
 
 
 def test_optional_field_perturb(default_input_struct_lc: InputParameters):
     """Ensure that the correct PerturbedField fields are set based on the parameters."""
     pt = ox.PerturbedField.new(redshift=0.0, inputs=default_input_struct_lc)
-    assert isinstance(pt.density, Array)
-    assert isinstance(pt.velocity_z, Array)
-    assert isinstance(pt.velocity_x, Array)
-    assert isinstance(pt.velocity_y, Array)
+    assert "density" in pt.arrays
+    assert "velocity_z" in pt.arrays
+    assert "velocity_x" in pt.arrays
+    assert "velocity_y" in pt.arrays
 
     pt = ox.PerturbedField.new(
         redshift=0.0,
         inputs=default_input_struct_lc.evolve_input_structs(KEEP_3D_VELOCITIES=False),
     )
-    assert isinstance(pt.density, Array)
-    assert isinstance(pt.velocity_z, Array)
-    assert pt.velocity_x is None
-    assert pt.velocity_y is None
+    assert "density" in pt.arrays
+    assert "velocity_z" in pt.arrays
+    assert "velocity_x" not in pt.arrays
+    assert "velocity_y" not in pt.arrays
 
 
 def test_optional_field_perturbed_halocat(default_input_struct_lc: InputParameters):
-    """Ensure that the correct HaloBox fields are set based on the parameters."""
+    """Ensure that the correct EmissivityFields fields are set based on the parameters."""
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=default_input_struct_lc, buffer_size=1
     )
-    assert isinstance(pert_halo_cat.halo_masses, Array)
-    assert isinstance(pert_halo_cat.halo_coords, Array)
-    assert isinstance(pert_halo_cat.halo_masses, Array)
-    assert isinstance(pert_halo_cat.halo_coords, Array)
-    assert isinstance(pert_halo_cat.stellar_masses, Array)
-    assert isinstance(pert_halo_cat.ion_emissivity, Array)
-    assert pert_halo_cat.xray_emissivity is None
-    assert pert_halo_cat.fesc_sfr is None
-    assert pert_halo_cat.stellar_mini is None
-    assert pert_halo_cat.sfr_mini is None
+    assert "halo_masses" in pert_halo_cat.arrays
+    assert "halo_coords" in pert_halo_cat.arrays
+    assert "halo_masses" in pert_halo_cat.arrays
+    assert "halo_coords" in pert_halo_cat.arrays
+    assert "stellar_masses_acg" in pert_halo_cat.arrays
+    assert "n_ion" in pert_halo_cat.arrays
+    assert "xray_luminosity" not in pert_halo_cat.arrays
+    assert "fesc_weighted_sfr" not in pert_halo_cat.arrays
+    assert "stellar_masses_mcg" not in pert_halo_cat.arrays
+    assert "sfr_mcg" not in pert_halo_cat.arrays
 
     inputs = default_input_struct_lc.evolve_input_structs(USE_TS_FLUCT=True)
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
-    assert isinstance(pert_halo_cat.xray_emissivity, Array)
+    assert "xray_luminosity" in pert_halo_cat.arrays
     inputs = inputs.evolve_input_structs(RECOMB_MODEL="inhomogeneous")
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
-    assert isinstance(pert_halo_cat.fesc_sfr, Array)
-    inputs = inputs.evolve_input_structs(USE_MINI_HALOS=True)
+    assert "fesc_weighted_sfr" in pert_halo_cat.arrays
+    inputs = inputs.evolve_input_structs(USE_MCGS=True)
     pert_halo_cat = ox.PerturbedHaloCatalog.new(
         redshift=0.0, inputs=inputs, buffer_size=1
     )
-    assert isinstance(pert_halo_cat.stellar_mini, Array)
-    assert isinstance(pert_halo_cat.sfr_mini, Array)
+    assert "stellar_masses_mcg" in pert_halo_cat.arrays
+    assert "sfr_mcg" in pert_halo_cat.arrays
 
 
-def test_optional_field_halobox(default_input_struct_lc: InputParameters):
-    """Ensure that the correct HaloBox fields are set based on the parameters."""
-    hb = ox.HaloBox.new(redshift=0.0, inputs=default_input_struct_lc)
-    assert hb.halo_mass is None
-    assert isinstance(hb.halo_sfr, Array)
-    assert isinstance(hb.n_ion, Array)
-    assert hb.halo_sfr_mini is None
-    assert hb.halo_xray is None
-    assert hb.whalo_sfr is None
+def test_optional_emissivity_fields(default_input_struct_lc: InputParameters):
+    """Ensure that the correct EmissivityFields fields are set based on the parameters."""
+    emissivity_fields = ox.EmissivityFields.new(
+        redshift=0.0, inputs=default_input_struct_lc
+    )
+    assert "halo_number" not in emissivity_fields.arrays
+    assert "halo_mass_density" not in emissivity_fields.arrays
+    assert "stellar_mass_density_acg" not in emissivity_fields.arrays
+    assert "stellar_mass_density_mcg" not in emissivity_fields.arrays
+    assert "sfrd_acg" not in emissivity_fields.arrays
+    assert "sfrd_mcg" not in emissivity_fields.arrays
+    assert "xray_emissivity" not in emissivity_fields.arrays
+    assert "fesc_weighted_sfrd" not in emissivity_fields.arrays
+    assert "n_ion" in emissivity_fields.arrays
 
-    with config.use(EXTRA_HALOBOX_FIELDS=True):
-        hb = ox.HaloBox.new(redshift=0.0, inputs=default_input_struct_lc)
-        assert isinstance(hb.halo_mass, Array)
-        assert isinstance(hb.count, Array)
-
-        inputs = default_input_struct_lc.evolve_input_structs(
-            RECOMB_MODEL="inhomogeneous"
+    with config.use(EXTRA_EMISSIVITY_FIELDS=True):
+        emissivity_fields = ox.EmissivityFields.new(
+            redshift=0.0, inputs=default_input_struct_lc
         )
-        hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
-        assert isinstance(hb.whalo_sfr, Array)
+        assert "halo_mass_density" in emissivity_fields.arrays
+        assert "halo_number" in emissivity_fields.arrays
+        assert "stellar_mass_density_acg" in emissivity_fields.arrays
+        assert "stellar_mass_density_mcg" not in emissivity_fields.arrays
 
-        inputs = inputs.evolve_input_structs(USE_TS_FLUCT=True)
-        hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
-        assert isinstance(hb.halo_xray, Array)
+        emissivity_fields = ox.EmissivityFields.new(
+            redshift=0.0,
+            inputs=default_input_struct_lc.evolve_input_structs(
+                USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous", USE_MCGS=True
+            ),
+        )
+        assert "stellar_mass_density_mcg" in emissivity_fields.arrays
 
-        inputs = inputs.evolve_input_structs(USE_MINI_HALOS=True)
-        hb = ox.HaloBox.new(redshift=0.0, inputs=inputs)
-        assert isinstance(hb.halo_sfr_mini, Array)
+    inputs = default_input_struct_lc.evolve_input_structs(
+        RECOMB_MODEL="inhomogeneous", SOURCE_MODEL="L-INTEGRAL"
+    )
+    emissivity_fields = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
+    assert "fesc_weighted_sfrd" in emissivity_fields.arrays
+
+    inputs = inputs.evolve_input_structs(USE_TS_FLUCT=True)
+    emissivity_fields = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
+    assert "sfrd_acg" in emissivity_fields.arrays
+    assert "xray_emissivity" in emissivity_fields.arrays
+
+    inputs = inputs.evolve_input_structs(USE_MCGS=True)
+    emissivity_fields = ox.EmissivityFields.new(redshift=0.0, inputs=inputs)
+    assert "sfrd_mcg" in emissivity_fields.arrays
 
 
-def test_optional_field_xrs(default_input_struct_lc: InputParameters):
-    """Ensure that the correct XraySourceBox fields are set based on the parameters."""
-    xr = ox.XraySourceBox.new(redshift=0.0, inputs=default_input_struct_lc)
-    assert isinstance(xr.filtered_sfr, Array)
-    assert isinstance(xr.filtered_xray, Array)
-    assert xr.filtered_sfr_mini is None
+def test_optional_setup_radiation_fields(default_input_struct_lc: InputParameters):
+    """Ensure that the correct fields of RadiationFieldsSetup are set based on the parameters."""
+    rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=default_input_struct_lc)
+    assert "filtered_sfrd_acg_for_lya" in rfs.arrays
+    assert "filtered_xray_emissivity" in rfs.arrays
+    assert "filtered_sfrd_mcg_for_lya" not in rfs.arrays
 
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
         RECOMB_MODEL="inhomogeneous",
     )
-    xr = ox.XraySourceBox.new(redshift=0.0, inputs=inputs)
-    assert isinstance(xr.filtered_sfr_mini, Array)
+    rfs = ox.RadiationFieldsSetup.new(redshift=0.0, inputs=inputs)
+    assert "filtered_sfrd_mcg_for_lya" in rfs.arrays
 
 
 def test_optional_field_ts(default_input_struct_lc: InputParameters):
     """Ensure that the correct TsBox fields are set based on the parameters."""
     ts = ox.TsBox.new(redshift=0.0, inputs=default_input_struct_lc)
-    assert isinstance(ts.spin_temperature, Array)
-    assert isinstance(ts.xray_ionised_fraction, Array)
-    assert isinstance(ts.kinetic_temp_neutral, Array)
-    assert ts.J_21_LW is None
+    assert "spin_temperature" in ts.arrays
+    assert "xray_ionised_fraction" in ts.arrays
+    assert "kinetic_temp_neutral" in ts.arrays
+    assert "J_21_LW" not in ts.arrays
 
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
         RECOMB_MODEL="inhomogeneous",
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
     )
     ts = ox.TsBox.new(redshift=0.0, inputs=inputs)
-    assert isinstance(ts.J_21_LW, Array)
+    assert "J_21_LW" in ts.arrays
 
 
 def test_optional_field_ion(default_input_struct_lc: InputParameters):
     """Ensure that the correct IonizedBox fields are set based on the parameters."""
     ion = ox.IonizedBox.new(redshift=0.0, inputs=default_input_struct_lc)
-    assert isinstance(ion.neutral_fraction, Array)
-    assert ion.unnormalised_nion_mini is None
-    assert ion.cumulative_recombinations is None
+    assert "neutral_fraction" in ion.arrays
+    assert "nion_conditional_filtered_mcg" not in ion.arrays
+    assert "cumulative_recombinations" not in ion.arrays
 
     inputs = default_input_struct_lc.evolve_input_structs(
         RECOMB_MODEL="inhomogeneous",
     )
     ion = ox.IonizedBox.new(redshift=0.0, inputs=inputs)
-    assert isinstance(ion.cumulative_recombinations, Array)
+    assert "cumulative_recombinations" in ion.arrays
 
     inputs = inputs.evolve_input_structs(
         USE_TS_FLUCT=True,
-        USE_MINI_HALOS=True,
+        USE_MCGS=True,
     )
     ion = ox.IonizedBox.new(redshift=0.0, inputs=inputs)
-    assert isinstance(ion.unnormalised_nion_mini, Array)
+    assert "nion_conditional_filtered_mcg" in ion.arrays
 
 
 def test_optional_field_bt(default_input_struct_lc: InputParameters):
     """Ensure that the correct BrightnessTemp fields are set based on the parameters."""
     bt = ox.BrightnessTemp.new(redshift=0.0, inputs=default_input_struct_lc)
-    assert isinstance(bt.brightness_temp, Array)
-    assert bt.tau_21 is None
+    assert "brightness_temp" in bt.arrays
+    assert "tau_21" not in bt.arrays
 
     inputs = default_input_struct_lc.evolve_input_structs(USE_TS_FLUCT=True)
     bt = ox.BrightnessTemp.new(redshift=0.0, inputs=inputs)
-    assert isinstance(bt.tau_21, Array)
+    assert "tau_21" in bt.arrays
 
 
 @pytest.mark.parametrize("struct", list(ox.OutputStructZ.__subclasses__()))
@@ -392,7 +444,7 @@ def test_bad_required_array(default_input_struct, struct):
         kwargs["buffer_size"] = 1
     output = struct.new(**kwargs)
 
-    with pytest.raises(ValueError, match="is not an input required for"):
+    with pytest.raises((ValueError, TypeError), match="is not an input required for"):
         _ = output.get_required_input_arrays(bt)
 
 

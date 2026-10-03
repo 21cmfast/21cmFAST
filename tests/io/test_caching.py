@@ -40,7 +40,7 @@ def create_full_run_cache(
                 # Go through each array and set it to be "computed" so we can trick
                 # the writer into writing it out to file.
                 for k, v in o.arrays.items():
-                    setattr(o, k, v.with_value(v.value))
+                    setattr(o, k, v.with_value(v._value))
 
                 # Mock the primitive fields as well...
                 for fld in o._struct.primitive_fields:
@@ -51,7 +51,7 @@ def create_full_run_cache(
     o = outputs.InitialConditions.new(inputs=inputs)
     o._init_arrays()
     for k, v in o.arrays.items():
-        setattr(o, k, v.with_value(v.value))
+        setattr(o, k, v.with_value(v._value))
     h5.write_output_to_hdf5(o, cache.InitialConditions)
     return cache
 
@@ -69,16 +69,10 @@ def partial_run_cache(tmp_path_factory):
 
 
 @pytest.fixture(scope="module")
-def no_xraysource_run_cache(tmp_path_factory):
-    """A cache with XraySourceBox missing at every redshift.
-
-    This mirrors production usage, where ``write=CacheConfig(xray_source_box=False)``
-    is used to avoid the (potentially enormous) disk footprint of XraySourceBox. Uses
-    the "latest-dhalos" template since XraySourceBox is only ever cached when
-    ``matter_options.lagrangian_source_grid`` is True.
-    """
+def no_radiation_fields_run_cache(tmp_path_factory):
+    """A cache with RadiationFields missing at every redshift."""
     cache = create_full_run_cache(
-        tmp_path_factory.mktemp("no_xraysource_run_cache"),
+        tmp_path_factory.mktemp("no_radiation_fields_run_cache"),
         template="latest-dhalos",
         save_optional=False,
     )
@@ -103,7 +97,7 @@ class TestCacheConfig:
         fields = attrs.fields(caching.CacheConfig)
 
         # Annoying fields that we don't want to cache
-        annoying_fields = ["xray_source_box", "initial_conditions"]
+        annoying_fields = ["radiation_fields", "initial_conditions"]
         kwargs = dict.fromkeys(annoying_fields, False)
 
         # First check that the update method works as expected
@@ -136,21 +130,22 @@ class TestRunCache:
         cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
         print(attrs.asdict(cache).keys(), flush=True)
 
-        assert isinstance(cache.HaloBox, dict)
+        assert isinstance(cache.EmissivityFields, dict)
         assert isinstance(cache.HaloCatalog, dict)
         assert isinstance(cache.InitialConditions, Path)
         assert isinstance(cache.PerturbedField, dict)
         assert isinstance(cache.IonizedBox, dict)
         assert isinstance(cache.BrightnessTemp, dict)
         assert isinstance(cache.TsBox, dict)
-        assert isinstance(cache.XraySourceBox, dict)
+        assert isinstance(cache.RadiationFields, dict)
 
-        assert len(cache.HaloBox) == len(inputs.node_redshifts)
+        assert len(cache.EmissivityFields) == len(inputs.node_redshifts)
 
         inputs = InputParameters.from_template("simple", random_seed=12345)
         cache = caching.RunCache.from_inputs(inputs, caching.OutputCache(tmp_path))
 
-        assert cache.HaloBox is None
+        assert cache.TsBox is None
+        assert cache.RadiationFields is None
 
     def test_from_example_file(self, full_run_cache: caching.RunCache):
         """Test the from_example_file classmethod."""
@@ -182,21 +177,12 @@ class TestRunCache:
         )
         assert partial_run_cache.is_complete_at(index=0)
 
-    def test_is_complete_at_ignores_missing_xray_source_box(
-        self, no_xraysource_run_cache
+    def test_is_complete_at_ignores_missing_radiation_fields(
+        self, no_radiation_fields_run_cache
     ):
-        """Regression test: absence of XraySourceBox must not block completeness.
-
-        XraySourceBox is recomputed from scratch at every redshift from the
-        accumulated HaloBox history and immediately purged (see
-        ``_redshift_loop_generator`` in ``drivers/coeval.py``) -- it is never
-        read back as an input anywhere (``compute_xray_source_field`` has no
-        parameter for a previous XraySourceBox, and ``Coeval`` has no field for
-        it either). So its absence on disk must not prevent a run from being
-        considered complete/resumable at a given redshift.
-        """
-        cache = no_xraysource_run_cache
-        assert not any(p.exists() for p in cache.XraySourceBox.values())
+        """Regression test: absence of RadiationFields must not block completeness."""
+        cache = no_radiation_fields_run_cache
+        assert not any(p.exists() for p in cache.RadiationFields.values())
         for idx in range(len(cache.inputs.node_redshifts)):
             assert cache.is_complete_at(index=idx)
 
@@ -239,15 +225,29 @@ class TestRunCache:
         with pytest.raises(ValueError, match="No output struct found"):
             cache.get_output_struct_at_z(kind="TsBox", z=0.0)
 
-    def test_get_all_boxes_at_z(self, full_run_cache):
+    @pytest.mark.parametrize("return_ics", [True, False])
+    def test_get_all_boxes_at_z(self, full_run_cache, return_ics):
         """Test get_all_boxes_at_z functionality."""
         cache = full_run_cache
 
         for z in cache.inputs.node_redshifts:
-            boxes = cache.get_all_boxes_at_z(z)
-            assert len(boxes) == 4  # number of structs with redshifts (PF, Ts, IB, BT)
+            boxes = cache.get_all_boxes_at_z(z, return_ics=return_ics)
+            assert (
+                "InitialConditions" in boxes
+                if return_ics
+                else "InitialConditions" not in boxes
+            )
+            assert "PerturbedField" in boxes
+            assert "EmissivityFields" in boxes
+            # RadiationFields is optional (see RunCache._optional_fields) and is
+            # never read back as an input, so get_all_boxes_at_z excludes it.
+            assert "RadiationFields" not in boxes
+            assert "TsBox" in boxes
+            assert "IonizedBox" in boxes
+            assert "BrightnessTemp" in boxes
             for b in boxes.values():
-                assert b.redshift == z
+                if hasattr(b, "redshift"):
+                    assert b.redshift == z
 
     def test_get_coeval_at_z(self, full_run_cache):
         """Test get_coeval_at_z functionality."""
@@ -264,14 +264,11 @@ class TestRunCache:
 
         assert not partial_run_cache.is_complete()
 
-    def test_is_complete_ignores_missing_xray_source_box(self, no_xraysource_run_cache):
-        """Regression test: is_complete() must not require XraySourceBox either.
-
-        See test_is_complete_at_ignores_missing_xray_source_box for the rationale;
-        the same logic applies here since both methods share
-        ``get_required_fields``.
-        """
-        assert no_xraysource_run_cache.is_complete()
+    def test_is_complete_ignores_missing_radiation_fields(
+        self, no_radiation_fields_run_cache
+    ):
+        """Regression test: is_complete() must not require RadiationFields either."""
+        assert no_radiation_fields_run_cache.is_complete()
 
 
 class TestOutputCache:
@@ -343,7 +340,7 @@ class TestOutputCache:
     ):
         """Test that changing parameters affects IonizedBox but not ICs or PerturbedField."""
         input_change = default_input_struct.evolve_input_structs(
-            F_ESC10=-1.5,
+            F_ESC10_ACG=-1.5,
         )
 
         ic2 = InitialConditions.new(inputs=input_change)
@@ -422,7 +419,7 @@ def test_hash_for_different_inputs(default_input_struct, inp_type):
         "simulation_options": {"BOX_LEN": 300},
         "matter_options": {"SOURCE_MODEL": "L-INTEGRAL"},
         "cosmo_params": {"hlittle": 0.7},
-        "astro_params": {"L_X": 38.0},
+        "astro_params": {"LX_OVER_SFR_ACG": 38.0},
         "astro_options": {"USE_CMB_HEATING": False},
     }
     hash_default = caching.OutputCache()._get_hashes(default_input_struct)

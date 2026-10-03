@@ -15,11 +15,12 @@ from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
     IonizedBox,
     PerturbedField,
     TsBox,
 )
+from ._global_initialization import c_state
 from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
 
 
@@ -36,7 +37,7 @@ def compute_global_reionization_at_z(
     ----------
     inputs : :class:`~InputParameters`
         The input parameters specifying the run. Since this may be the first box
-        to use the astro params/flags, it is needed when we have not computed a TsBox or HaloBox.
+        to use the astro params/flags, it is needed when we have not computed a TsBox or EmissivityFields.
     previous_ionize_box: :class:`IonizedBox`
         An ionized box at higher redshift.
     spin_temp: :class:`TsBox` or None, optional
@@ -60,29 +61,41 @@ def compute_global_reionization_at_z(
         #       This limitation however should be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600.
         #       When that happens, note that the call below to evaluate_Nion_z calls run_global_evolution,
         #       so be careful to avoid infinite recursion!
-        nion, _ = evaluate_Nion_z(inputs=inputs, redshifts=np.asarray(redshift))
+        # TODO: we compute Nion below with no reionization feedback, since reionization feedback would make the ACG turnover mass
+        # to depend on the simulation's fields (specifically, on ionisation_rate_G12 and z_reion). If we hadn't done this, the ACG turnover mass will
+        # be evaluated from running a global evolution, causing an inifinite recursion! This might be fixed by passing the "correct" turnover mass
+        # to evaluate_Nion_z, but I am not sure it worths the effort, since this tricky situation happens only when the user runs a global evolution
+        # with USE_TS_FLUCT=False, which is kinda pointless because it would yield the wrong global 21-cm signal. Having said that, it should be noted
+        # that also with USE_TS_FLUCT=True, the ACG turnover mass is currently ALWAYS evaluated in SpinTemperatureBox.c with no reionization feedback,
+        # (see https://github.com/21cmfast/21cmFAST/issues/470).
+        inputs_no_reionization_feedback = inputs.evolve_input_structs(
+            USE_REIONIZATION_PHOTOHEATING_FEEDBACK=False
+        )
+        nion, _ = evaluate_Nion_z(
+            inputs=inputs_no_reionization_feedback,
+            redshifts=np.asarray(redshift),
+        )
         Q_HI = 1.0 - nion
         # We don't need J_LW_21 because we currently don't allow to have mini-halos when USE_TS_FLUCT=False.
         # TODO: this limitation will be relaxed in the future, see https://github.com/21cmfast/21cmFAST/issues/600
         J_LW_21 = 0.0
     else:
         Q_HI = spin_temp.Q_HI
-        J_LW_21 = (
-            np.squeeze(spin_temp.J_21_LW.value)
-            if spin_temp.J_21_LW is not None
-            else 0.0
-        )
+        J_LW_21 = np.squeeze(spin_temp.J_21_LW) if spin_temp.has("J_21_LW") else 0.0
 
     # TODO: I think a more accurate global Q_HI can be achieved by solving an ODE that includes also the recombination rate
     Q_HI = max(0.0, Q_HI)
 
     # A crude way to estimate the global photoionization rate
-    try:
-        dQdz = (Q_HI - previous_ionized_box.neutral_fraction.value) / (
-            redshift - previous_ionized_box.redshift
-        )
-    except TypeError:
-        dQdz = 0.0
+    dQdz = 0.0
+    if previous_ionized_box.has("neutral_fraction"):
+        try:
+            dQdz = (Q_HI - previous_ionized_box.neutral_fraction) / (
+                redshift - previous_ionized_box.redshift
+            )
+        except TypeError:
+            # No previous redshift to difference against.
+            dQdz = 0.0
     dzdt = -(1.0 + redshift) * inputs.cosmo_params.cosmo.H(redshift)
     ionisation_rate_G12 = np.abs(dQdz * dzdt)
     ionisation_rate_G12 = np.squeeze(ionisation_rate_G12.to("1/s").value)
@@ -99,7 +112,7 @@ def compute_global_reionization_at_z(
         case "AVG-DEBUG":
             v_cb = inputs.astro_params.V_CB_AVG_DEBUG
 
-    M_turn_a, M_turn_m = compute_mturns(
+    M_turn_acg, M_turn_mcg = compute_mturns(
         inputs=inputs,
         redshifts=redshift,
         J_LW_21=J_LW_21,
@@ -122,9 +135,9 @@ def compute_global_reionization_at_z(
             .initialize()
             .with_value(val=val * np.ones(shape)),
         )
-    box.log10_Mturnover_ave = np.log10(M_turn_a)
-    if M_turn_m is not None:
-        box.log10_Mturnover_MINI_ave = np.log10(M_turn_m)
+    box.log10_mturn_ave_acg = np.log10(M_turn_acg)
+    if M_turn_mcg is not None:
+        box.log10_mturn_ave_mcg = np.log10(M_turn_mcg)
     return box
 
 
@@ -150,13 +163,12 @@ class GlobalEvolution:
         """Get a list of the names of the available fields in the simulation."""
         possible_outputs = [
             PerturbedField.new(inputs, redshift=0),
+            EmissivityFields.new(inputs, redshift=0),
             IonizedBox.new(inputs, redshift=0),
             BrightnessTemp.new(inputs, redshift=0),
         ]
         if inputs.astro_options.USE_TS_FLUCT:
             possible_outputs.append(TsBox.new(inputs, redshift=0))
-        if inputs.matter_options.lagrangian_source_grid:
-            possible_outputs.append(HaloBox.new(inputs, redshift=0))
         field_names = ("log10_mturn_acg", "log10_mturn_mcg")
         for output in possible_outputs:
             field_names += tuple(output.arrays.keys())
@@ -339,8 +351,8 @@ def run_global_evolution(
         "SOURCE_MODEL": source_model,
         "PERTURB_ALGORITHM": "LINEAR",  # no need to do 2LPT
         "USE_INTERPOLATION_TABLES": "sigma-interpolation",  # only need sigma interpolation tables (hmf integrals are evaluated once per snapshot, without interpolation)
-        "INTEGRATION_METHOD_ATOMIC": "GSL-QAG",  # due to above, we ought to use gsl, and not gauss-legendre (BUG?)
-        "INTEGRATION_METHOD_MINI": "GSL-QAG",
+        "INTEGRATION_METHOD_ACGS": "GSL-QAG",  # due to above, we ought to use gsl, and not gauss-legendre (BUG?)
+        "INTEGRATION_METHOD_MCGS": "GSL-QAG",
         "USE_UPPER_STELLAR_TURNOVER": False,  # no upper stellar turnover without discrete halos
         "USE_EXP_FILTER": False,  # we don't run reionization module, so we can leave this parameter on False for all source models
         "KEEP_3D_VELOCITIES": False,  # we don't need any velocities
@@ -365,48 +377,52 @@ def run_global_evolution(
         "regenerate": True,
     }
 
-    (
-        initial_conditions,
-        perturbed_fields,
-        halofield_list,
-        photon_nonconservation_data,
-    ) = _setup_ics_and_pfs_for_scrolling(
-        all_redshifts=inputs_one_cell.node_redshifts,
-        inputs=inputs_one_cell,
-        initial_conditions=None,
-        write=CacheConfig.off(),
-        progressbar=progressbar,
-        overdensity_z0=overdensity_z0,
-        **iokw,
-    )
+    # The one-cell inputs are deliberately different to those we were given, so hold
+    # them open for the whole scrolling calculation: the calls below then share a
+    # single scope instead of each rebuilding the backend, and the caller's own
+    # backend state is handed back when we're done.
+    with c_state(inputs_one_cell):
+        (
+            initial_conditions,
+            perturbed_fields,
+            halofield_list,
+            photon_nonconservation_data,
+        ) = _setup_ics_and_pfs_for_scrolling(
+            all_redshifts=inputs_one_cell.node_redshifts,
+            inputs=inputs_one_cell,
+            initial_conditions=None,
+            write=CacheConfig.off(),
+            progressbar=progressbar,
+            overdensity_z0=overdensity_z0,
+            **iokw,
+        )
 
-    for iz, coeval in _redshift_loop_generator(
-        inputs=inputs_one_cell,
-        initial_conditions=initial_conditions,
-        all_redshifts=inputs_one_cell.node_redshifts,
-        perturbed_field=perturbed_fields,
-        halofield_list=halofield_list,
-        write=CacheConfig.off(),
-        cleanup=True,
-        progressbar=progressbar,
-        photon_nonconservation_data=photon_nonconservation_data,
-        init_coeval=prev_coeval,
-        iokw=iokw,
-    ):
-        for quantity in global_evolution.quantities:
-            if quantity == "log10_mturn_acg":
-                global_evolution.quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_Mturnover_ave
-                )
-            elif quantity == "log10_mturn_mcg":
-                global_evolution.quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_Mturnover_MINI_ave
-                )
-            else:
-                global_evolution.quantities[quantity][iz] = np.mean(
-                    getattr(coeval, quantity)
-                )
+        for iz, coeval in _redshift_loop_generator(
+            inputs=inputs_one_cell,
+            initial_conditions=initial_conditions,
+            all_redshifts=inputs_one_cell.node_redshifts,
+            perturbed_field=perturbed_fields,
+            halofield_list=halofield_list,
+            write=CacheConfig.off(),
+            progressbar=progressbar,
+            photon_nonconservation_data=photon_nonconservation_data,
+            init_coeval=prev_coeval,
+            iokw=iokw,
+        ):
+            for quantity in global_evolution.quantities:
+                if quantity == "log10_mturn_acg":
+                    global_evolution.quantities[quantity][iz] = (
+                        coeval.ionized_box.log10_mturn_ave_acg
+                    )
+                elif quantity == "log10_mturn_mcg":
+                    global_evolution.quantities[quantity][iz] = (
+                        coeval.ionized_box.log10_mturn_ave_mcg
+                    )
+                else:
+                    global_evolution.quantities[quantity][iz] = np.mean(
+                        getattr(coeval, quantity)
+                    )
 
-        prev_coeval = coeval
+            prev_coeval = coeval
 
     return global_evolution

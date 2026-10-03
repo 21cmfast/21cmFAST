@@ -4,13 +4,14 @@ import tempfile
 import tomllib as toml
 from pathlib import Path
 
+import h5py
 import pytest
 from rich.console import Console
 
 from py21cmfast import Coeval, GlobalEvolution, LightCone, cli
 from py21cmfast._templates import create_params_from_template
 from py21cmfast.cli import Parameters, ParameterSelection, RunParams, _run_setup, app
-from py21cmfast.io.h5 import read_output_struct
+from py21cmfast.io.h5 import load_high_level_simulation, read_output_struct
 
 
 def app_noexit(*args, **kwargs):
@@ -514,3 +515,195 @@ class TestGlobalEvolution:
         )
 
         assert lcfile.exists()
+
+
+class TestPlot:
+    """Tests of the `plot` command and the `--plot` option on `run` commands."""
+
+    def test_plot_lightcone(self, capsys, tmp_path: Path):
+        """Test that `21cmfast plot` works on a saved lightcone."""
+        lcfile = tmp_path / "lightcone.h5"
+        app_noexit(
+            f"run lightcone --template simple tiny --cachedir {tmp_path} "
+            f"--redshift-range 6.0 12.0 --out {lcfile}",
+        )
+
+        # Without --plot, we should be told how to make one.
+        assert "21cmfast plot" in capsys.readouterr().out
+
+        app_noexit(f"plot {lcfile}")
+        assert (tmp_path / "lightcone_summary.png").exists()
+
+    def test_plot_explicit_out(self, tmp_path: Path):
+        """Test that `--out` puts the plot where we asked for it."""
+        lcfile = tmp_path / "lightcone.h5"
+        app_noexit(
+            f"run lightcone --template simple tiny --cachedir {tmp_path} "
+            f"--redshift-range 6.0 12.0 --out {lcfile}",
+        )
+
+        out = tmp_path / "plots" / "mylc.png"
+        app_noexit(f"plot {lcfile} --out {out}")
+        assert out.exists()
+
+    def test_run_lightcone_with_plot(self, tmp_path: Path):
+        """Test that `run lightcone --plot` writes a plot next to the data."""
+        lcfile = tmp_path / "lightcone.h5"
+        app_noexit(
+            f"run lightcone --template simple tiny --cachedir {tmp_path} "
+            f"--redshift-range 6.0 12.0 --out {lcfile} --plot",
+        )
+
+        assert (tmp_path / "lightcone_summary.png").exists()
+
+    def test_run_coeval_with_plot(self, tmp_path: Path):
+        """Test that `run coeval --plot` writes a plot next to each coeval box."""
+        app_noexit(
+            f"run coeval --template simple tiny --cachedir {tmp_path} "
+            f"--redshifts 7.0 --out {tmp_path} --plot",
+        )
+
+        assert (tmp_path / "coeval_z7.00.h5").exists()
+        assert (tmp_path / "coeval_z7.00_summary.png").exists()
+
+        # The same file can be re-plotted afterwards.
+        out = tmp_path / "again.png"
+        app_noexit(f"plot {tmp_path / 'coeval_z7.00.h5'} --out {out}")
+        assert out.exists()
+
+    def test_run_global_with_plot(self, tmp_path: Path):
+        """Test that `run global --plot` writes a plot next to the data."""
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out} --plot",
+        )
+
+        assert (tmp_path / "global-evolution_summary.png").exists()
+
+    def test_plot_unknown_file(self, tmp_path: Path):
+        """Test that a file that isn't a 21cmFAST output gives a nice error."""
+        bad = tmp_path / "bad.h5"
+        with h5py.File(bad, "w") as fl:
+            fl.attrs["something_else"] = True
+
+        with pytest.raises(ValueError, match="not a recognized 21cmFAST output"):
+            load_high_level_simulation(bad)
+
+    @pytest.mark.parametrize("flags", ["--show", "--plot --show"])
+    def test_run_with_show(self, tmp_path: Path, monkeypatch, flags: str):
+        """`--show` displays the plot; only `--plot` also writes it to file."""
+        shown = []
+        monkeypatch.setattr(cli.plt, "show", lambda *a, **kw: shown.append(True))
+
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out} {flags}",
+        )
+
+        assert shown
+        assert (tmp_path / "global-evolution_summary.png").exists() == (
+            "--plot" in flags
+        )
+
+    def test_no_plot_gives_hint(self, capsys, tmp_path: Path):
+        """Without --plot we should tell the user how to plot later."""
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out}",
+        )
+
+        assert "21cmfast plot" in capsys.readouterr().out
+        assert not list(tmp_path.glob("*.png"))
+
+    def test_saved_plot_path_is_a_link(self, capsys, tmp_path: Path):
+        """The saved-plot message carries a clickable file:// URL."""
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out} --plot",
+        )
+
+        png = tmp_path / "global-evolution_summary.png"
+        assert cli._as_url(png) == png.as_uri()
+        assert "Saved summary plot" in capsys.readouterr().out
+
+
+class TestCanShowPlots:
+    """Tests of the auto-detection behind a bare (unspecified) --show."""
+
+    def test_not_a_tty(self, monkeypatch):
+        """Never show when stdout isn't a terminal -- plt.show() would block."""
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
+        monkeypatch.setattr(cli.matplotlib, "get_backend", lambda **kw: "TkAgg")
+        assert cli._can_show_plots()
+
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: False, raising=False)
+        assert not cli._can_show_plots()
+
+    def test_non_gui_backend(self, monkeypatch):
+        """Never show on a backend that can't open a window."""
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
+
+        for backend in ("agg", "Agg", "pdf", "svg"):
+            monkeypatch.setattr(
+                cli.matplotlib, "get_backend", lambda b=backend, **kw: b
+            )
+            assert not cli._can_show_plots(), backend
+
+    def test_gui_backends(self, monkeypatch):
+        """Backends that drive a GUI toolkit are showable, whatever the platform."""
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
+
+        for backend in ("TkAgg", "macosx", "QtAgg", "GTK4Agg"):
+            monkeypatch.setattr(
+                cli.matplotlib, "get_backend", lambda b=backend, **kw: b
+            )
+            assert cli._can_show_plots(), backend
+
+    def test_module_backend_without_gui(self, monkeypatch):
+        """A "module://" backend with no GUI must not be treated as showable.
+
+        These aren't in matplotlib's list of *builtin* interactive backends, so a
+        membership test against that list misclassifies them as showable. The
+        notebook-inline backend is the one users are most likely to hit, since it
+        arrives with IPython.
+        """
+        monkeypatch.setattr(cli.sys.stdout, "isatty", lambda: True, raising=False)
+        monkeypatch.setattr(
+            cli.matplotlib,
+            "get_backend",
+            lambda **kw: "module://matplotlib_inline.backend_inline",
+        )
+
+        assert not cli._can_show_plots()
+
+    def test_auto_show_is_used_when_show_unset(self, tmp_path, monkeypatch):
+        """A bare run consults _can_show_plots rather than defaulting to False."""
+        shown = []
+        monkeypatch.setattr(cli.plt, "show", lambda *a, **kw: shown.append(True))
+        monkeypatch.setattr(cli, "_can_show_plots", lambda: True)
+
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out}",
+        )
+
+        assert shown
+
+    def test_explicit_no_show_beats_auto(self, tmp_path, monkeypatch):
+        """--no-show wins even where we could have shown it."""
+        shown = []
+        monkeypatch.setattr(cli.plt, "show", lambda *a, **kw: shown.append(True))
+        monkeypatch.setattr(cli, "_can_show_plots", lambda: True)
+
+        out = tmp_path / "global-evolution.h5"
+        app_noexit(
+            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"--out {out} --no-show",
+        )
+
+        assert not shown

@@ -200,7 +200,7 @@ class TestCosmoParams:
 class TestAstroParams:
     """Tests of AstroParams."""
 
-    def test_fix_vcb_avg_deprecated_warning(self):
+    def test_fixed_vavg_deprecated_warning(self):
         """Test that using FIXED_VAVG=True shows deprecation warning."""
         fixed_vavg = 1.0  # dummy value for testing
         with pytest.warns(
@@ -214,6 +214,19 @@ class TestAstroParams:
     def test_fixed_vavg_is_removed(self):
         """Fails when the removed_in version is reached, reminding you to delete FIXED_VAVG."""
         AstroParams(FIXED_VAVG=1.0)
+
+    def test_mturn_deprecated_warning(self):
+        """Test that using a non-None value for M_TURN shows deprecation warning."""
+        mturn = 8.7  # dummy value for testing
+        with pytest.warns(deprecation.DeprecatedWarning, match="M_TURN is deprecated"):
+            astro_params = AstroParams(M_TURN=mturn)
+        assert mturn == astro_params.M_TURN
+        assert mturn == astro_params.M_TURN_STELLAR_FEEDBACK
+
+    @deprecation.fail_if_not_removed
+    def test_mturn_is_removed(self):
+        """Fails when the removed_in version is reached, reminding you to delete M_TURN."""
+        AstroParams(M_TURN=8.7)
 
 
 class TestAstroOptions:
@@ -234,12 +247,12 @@ class TestAstroOptions:
                 {"HEAT_FILTER": 1},
             ),
             (
-                {"INTEGRATION_METHOD_ATOMIC": "GSL-QAG"},
-                {"INTEGRATION_METHOD_ATOMIC": 0},
+                {"INTEGRATION_METHOD_ACGS": "GSL-QAG"},
+                {"INTEGRATION_METHOD_ACGS": 0},
             ),
             (
-                {"INTEGRATION_METHOD_MINI": "GAMMA-APPROX"},
-                {"INTEGRATION_METHOD_MINI": 2},
+                {"INTEGRATION_METHOD_MCGS": "GAMMA-APPROX"},
+                {"INTEGRATION_METHOD_MCGS": 2},
             ),
         ],
     )
@@ -256,23 +269,23 @@ class TestAstroOptions:
         """Test possible exceptions when creating the object."""
         with pytest.raises(
             ValueError,
-            match="You have set USE_MINI_HALOS to True but RECOMB_MODEL is 'none'!",
+            match="You have set USE_MCGS to True but RECOMB_MODEL is 'none'!",
         ):
-            AstroOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, RECOMB_MODEL="none")
+            AstroOptions(USE_MCGS=True, USE_TS_FLUCT=True, RECOMB_MODEL="none")
 
         with pytest.raises(
             ValueError,
-            match="You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False!",
+            match="You have set USE_MCGS to True but USE_TS_FLUCT is False!",
         ):
             AstroOptions(
-                USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=False
+                USE_MCGS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=False
             )
 
-        msg = r"USE_MINI_HALOS is not compatible with the redshift-based"
+        msg = r"USE_MCGS is not compatible with the redshift-based"
         with pytest.raises(ValueError, match=msg):
             AstroOptions(
                 PHOTON_CONS_TYPE="z-photoncons",
-                USE_MINI_HALOS=True,
+                USE_MCGS=True,
                 RECOMB_MODEL="inhomogeneous",
                 USE_TS_FLUCT=True,
             )
@@ -287,6 +300,16 @@ class TestAstroOptions:
             match="USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0",
         ):
             AstroOptions(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
+
+    @pytest.mark.parametrize("use_mcgs", [True, False])
+    def test_use_reionization_photoheating_feedback_default(self, use_mcgs):
+        """Test that USE_REIONIZATION_PHOTOHEATING_FEEDBACK defaults to the correct value based on USE_MCGS."""
+        opts = AstroOptions(
+            USE_MCGS=use_mcgs,
+            RECOMB_MODEL="inhomogeneous",
+            USE_TS_FLUCT=True,
+        )
+        assert opts.USE_MCGS == opts.USE_REIONIZATION_PHOTOHEATING_FEEDBACK
 
     @pytest.mark.parametrize("recomb_model", ["none", "homogeneous", "inhomogeneous"])
     def test_recomb_model_basic(self, recomb_model):
@@ -579,11 +602,11 @@ class TestInputParameters:
     EXCEPTION_CASES: ClassVar = [
         (
             ValueError,
-            "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True",
+            "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MCGS=True",
             {
                 "matter_options": MatterOptions(SOURCE_MODEL="CONST-ION-EFF"),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=True,
+                    USE_MCGS=True,
                     RECOMB_MODEL="inhomogeneous",
                     USE_TS_FLUCT=True,
                     USE_EXP_FILTER=False,
@@ -620,20 +643,6 @@ class TestInputParameters:
         ),
         (
             ValueError,
-            "LYA_MULTIPLE_SCATTERING is not compatible with SOURCE_MODEL == E-INTEGRAL",
-            {
-                "matter_options": MatterOptions(
-                    SOURCE_MODEL="E-INTEGRAL",
-                ),
-                "astro_options": AstroOptions(
-                    LYA_MULTIPLE_SCATTERING=True,
-                    USE_EXP_FILTER=False,
-                    USE_UPPER_STELLAR_TURNOVER=False,
-                ),
-            },
-        ),
-        (
-            ValueError,
             "USE_EXP_FILTER is not compatible with SOURCE_MODEL == E-INTEGRAL",
             {
                 "matter_options": MatterOptions(
@@ -656,15 +665,43 @@ class TestInputParameters:
                 ),
             },
         ),
+        (
+            NotImplementedError,
+            "USE_REIONIZATION_PHOTOHEATING_FEEDBACK is not yet compatible with SOURCE_MODEL == CONST-ION-EFF",
+            {
+                "matter_options": MatterOptions(
+                    SOURCE_MODEL="CONST-ION-EFF",
+                ),
+                "astro_options": AstroOptions(
+                    USE_REIONIZATION_PHOTOHEATING_FEEDBACK=True,
+                    USE_UPPER_STELLAR_TURNOVER=False,
+                    USE_EXP_FILTER=False,
+                ),
+            },
+        ),
+        (
+            NotImplementedError,
+            "USE_METALLICITY is not yet compatible with SOURCE_MODEL == CONST-ION-EFF",
+            {
+                "matter_options": MatterOptions(
+                    SOURCE_MODEL="CONST-ION-EFF",
+                ),
+                "astro_options": AstroOptions(
+                    USE_METALLICITY=True,
+                    USE_UPPER_STELLAR_TURNOVER=False,
+                    USE_EXP_FILTER=False,
+                ),
+            },
+        ),
     ]
 
     WARNINGS_CASES: ClassVar = [
         (
-            "You are setting M_TURN > 8 when USE_MINI_HALOS=True.",
+            "You are setting M_TURN_STELLAR_FEEDBACK > 8 when USE_MCGS=True.",
             {
-                "astro_params": AstroParams(M_TURN=10),
+                "astro_params": AstroParams(M_TURN_STELLAR_FEEDBACK=10),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=True, USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous"
+                    USE_MCGS=True, USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous"
                 ),
             },
         ),
@@ -681,20 +718,20 @@ class TestInputParameters:
             },
         ),
         (
-            "USE_MINI_HALOS needs a non-trivial V_CB_MODEL",
+            "USE_MCGS needs a non-trivial V_CB_MODEL",
             {
                 "matter_options": MatterOptions(V_CB_MODEL="NONE"),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=True
+                    USE_MCGS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=True
                 ),
             },
         ),
         (
-            "USE_MINI_HALOS is False but V_CB_MODEL != 'NONE'",
+            "USE_MCGS is False but V_CB_MODEL != 'NONE'",
             {
                 "matter_options": MatterOptions(V_CB_MODEL="FLUCTS"),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=False,
+                    USE_MCGS=False,
                 ),
             },
         ),
@@ -894,11 +931,8 @@ class TestInputParameters:
             UserWarning,
             match="The maximum halo mass",
         ):
-            # The cell size is ~1e11 Msun
-            self.default.evolve_input_structs(
-                SOURCE_MODEL="L-INTEGRAL",
-                USE_UPPER_STELLAR_TURNOVER=False,
-            )
+            # The box size is too small to have very large halos
+            self.default.evolve_input_structs(BOX_LEN=50.0)
 
     def test_linear_node_redshifts(self):
         """Test that with_linear_redshifts works as expected."""

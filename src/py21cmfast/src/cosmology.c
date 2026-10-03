@@ -634,7 +634,7 @@ double deltac_nonlinear(float z) {
 
 /*
  T in K, M in Msun, mu is mean molecular weight
- from Barkana & Loeb 2001
+ from Barkana & Loeb 2001 (this is inversion of their Eq. 26)
 
  SUPRESS = 0 for no radiation field supression;
  SUPRESS = 1 for supression (step function at z=z_ss, at v=v_zz)
