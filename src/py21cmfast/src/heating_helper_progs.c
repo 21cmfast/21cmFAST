@@ -282,23 +282,49 @@ double spectral_emissivity(double nu_norm, int flag, int Population) {
 
     switch (flag) {
         case 2:
-            // For LW calculateion. New in v1.5, see...
+            // Energy-weighted spectral integral for the LW calculation.
+            // Unlike the Lyman-alpha flux that is used in the code, for suppressing star formation
+            // in MCGS we need the energy-weighted integral of the LW number flux, i.e.
+            //
+            // [ \int_{\nu_LW}^{\nu_H} h_P \nu J_LW^N(\nu) d\nu ] / (\nu_H - \nu_LW),
+            //
+            // where \nu_LW and \nu_H are the frequencies that correspond to the LW threshold
+            // (11.2 eV) and the Lyman limit (13.6 eV), respectively. Note that while the integrated
+            // SED is given in emission frame, the above integral is required to be performed at
+            // absorption frame, this is taken care of by redshifting the frequencies in
+            // calculate_spectral_factors (in RadiationFieldsSetup.c), i.e. by multiplying with
+            // (1+zp)^2/(1+zpp)^2.
             for (i = 1; i < (NSPEC_MAX - 1); i++) {
                 if ((nu_norm >= nu_n[i]) && (nu_norm < nu_n[i + 1])) {
                     // We are in the correct spectral region
+                    // The SED goes like nu^alpha_S, but we want to return the integral of
+                    //
+                    // \int_{\nu_norm}^{\nu_{n+1}} \nu \nu^alpha_S d\nu = (nu_{n+1}^{alpha_S + 2} -
+                    // nu_norm^{alpha_S + 2}) / (alpha_S + 2)
                     if (Population == 2) {
-                        // moved (1. - F_H2_SHIELD) outside
                         result =
-                            N0_2[i] / (alpha_S_2[i] + 1) *
-                            (pow(nu_n[i + 1], alpha_S_2[i] + 1) - pow(nu_norm, alpha_S_2[i] + 1));
+                            N0_2[i] / (alpha_S_2[i] + 2) *
+                            (pow(nu_n[i + 1], alpha_S_2[i] + 2) - pow(nu_norm, alpha_S_2[i] + 2));
                         return result > 0 ? result : 1e-40;
                     } else {
                         result =
-                            N0_3[i] / (alpha_S_3[i] + 1) *
-                            (pow(nu_n[i + 1], alpha_S_3[i] + 1) - pow(nu_norm, alpha_S_3[i] + 1));
+                            N0_3[i] / (alpha_S_3[i] + 2) *
+                            (pow(nu_n[i + 1], alpha_S_3[i] + 2) - pow(nu_norm, alpha_S_3[i] + 2));
                         return result > 0 ? result : 1e-40;
                     }
                 }
+            }
+
+            i = NSPEC_MAX - 1;
+            // We use Lyman limit if we got here (nu_n[i+1] = 4/3)
+            if (Population == 2) {
+                result = N0_2[i] / (alpha_S_2[i] + 2) *
+                         (pow(4. / 3., alpha_S_2[i] + 2) - pow(nu_norm, alpha_S_2[i] + 2));
+                return result > 0 ? result : 1e-40;
+            } else {
+                result = N0_3[i] / (alpha_S_3[i] + 2) *
+                         (pow(4. / 3., alpha_S_3[i] + 2) - pow(nu_norm, alpha_S_3[i] + 2));
+                return result > 0 ? result : 1e-40;
             }
 
         case 1:
@@ -312,10 +338,10 @@ double spectral_emissivity(double nu_norm, int flag, int Population) {
             }
 
             for (i = 1; i < NSPEC_MAX; i++) {
+                // When N0_2 and N0_3 are read in, they denote the number of emitted photons
+                // in the band per the total number of emitted ionizing photons
                 fscanf(F, "%i %e %e %e %e", &n[i], &N0_2[i], &alpha_S_2[i], &N0_3[i],
                        &alpha_S_3[i]);
-                //      printf("%i\t%e\t%e\t%e\t%e\n", n[i], N0_2[i], alpha_S_2[i], N0_3[i],
-                //      alpha_S_3[i]);
             }
             fclose(F);
 
@@ -324,6 +350,11 @@ double spectral_emissivity(double nu_norm, int flag, int Population) {
             }
 
             for (i = 1; i < (NSPEC_MAX - 1); i++) {
+                // After the multiplication below, N0_2 and N0_3 are the number of emitted photons
+                // in the band per baryon, times the constant to normalize the SED:
+                //
+                // [ \int_{\nu_n}^{\nu_{n+1}} \nu^alpha_S d\nu ]^{-1} = (\alpha_S + 1) /
+                // (nu_{n+1}^{alpha_S + 1} - nu_n^{alpha_S + 1})
                 n0_fac = (pow(nu_n[i + 1], alpha_S_2[i] + 1) - pow(nu_n[i], alpha_S_2[i] + 1));
                 N0_2[i] *= (alpha_S_2[i] + 1) / n0_fac * astro_params_global->POP2_ION;
                 n0_fac = (pow(nu_n[i + 1], alpha_S_3[i] + 1) - pow(nu_n[i], alpha_S_3[i] + 1));
@@ -334,9 +365,11 @@ double spectral_emissivity(double nu_norm, int flag, int Population) {
 
         default:
             for (i = 1; i < (NSPEC_MAX - 1); i++) {
-                //    printf("checking between %e and %e\n", nu_n[i], nu_n[i+1]);
                 if ((nu_norm >= nu_n[i]) && (nu_norm < nu_n[i + 1])) {
                     // We are in the correct spectral region
+                    // The SED goes like nu^alpha_S. The reason for dividing by the Lyman-alpha
+                    // frequency is because we work here with dimensionless frequencies, i.e.
+                    // nu_norm = nu/nu_Ly_alpha
                     if (Population == 2)
                         return N0_2[i] * pow(nu_norm, alpha_S_2[i]) / physconst.nu_Ly_alpha;
                     else
