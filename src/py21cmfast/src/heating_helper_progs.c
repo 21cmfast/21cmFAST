@@ -286,9 +286,9 @@ double spectral_emissivity(double nu_norm, int flag, int Population) {
             // Unlike the Lyman-alpha flux that is used in the code, for suppressing star formation
             // in MCGS we need the energy-weighted integral of the LW number flux, i.e.
             //
-            // [ \int_{\nu_LW}^{\nu_\infty} h_P \nu J_LW^N(\nu) d\nu ] / (\nu_\infty - \nu_LW),
+            // [ \int_{\nu_LW}^{\nu_H} h_P \nu J_LW^N(\nu) d\nu ] / (\nu_H - \nu_LW),
             //
-            // where \nu_LW and \nu_\infty are the frequencies that correspond to the LW threshold
+            // where \nu_LW and \nu_H are the frequencies that correspond to the LW threshold
             // (11.2 eV) and the Lyman limit (13.6 eV), respectively. Note that while the integrated
             // SED is given in emission frame, the above integral is required to be performed at
             // absorption frame, this is taken care of by redshifting the frequencies in

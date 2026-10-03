@@ -253,9 +253,9 @@ However, in order to determine the suppressions of star formation in MCGs, the f
 
 .. math::
 
-    J^E_{\rm LW}(z, \mathbf{x}) = \int_{\nu_{\rm LW}}^{\nu_\infty} d\nu h_{\rm P} J^N_{\rm LW}(z, \nu, \mathbf{x}),
+    J^E_{\rm LW}(z, \mathbf{x}) = \int_{\nu_{\rm LW}}^{\nu_{\rm H}} d\nu h_{\rm P} J^N_{\rm LW}(z, \nu, \mathbf{x}),
 
-where :math:`\nu_{\rm LW}` and :math:`\nu_\infty` are the frequencies that correspond to the LW threshold (11.2 eV) and the
+where :math:`\nu_{\rm LW}` and :math:`\nu_{\rm H}` are the frequencies that correspond to the LW threshold (11.2 eV) and the
 Lyman limit (13.6 eV), respectively. Several notes:
 
 * Note that unlike previous radiation fields, the LW flux contains units of energy.
@@ -349,7 +349,7 @@ as it was now set to be the energy-weighted LW flux,
 
 .. math::
 
-    J^E_{\rm LW}(z, \mathbf{x}) = \frac{\int_{\nu_{\rm LW}}^{\nu_\infty} d\nu h_{\rm P}\nu J^N_{\rm LW}(z, \nu, \mathbf{x})}{\nu_\infty - \nu_{\rm LW}}.
+    J^E_{\rm LW}(z, \mathbf{x}) = \frac{\int_{\nu_{\rm LW}}^{\nu_{\rm H}} d\nu h_{\rm P}\nu J^N_{\rm LW}(z, \nu, \mathbf{x})}{\nu_{\rm H} - \nu_{\rm LW}}.
 
 This change was made in order to be more consistent with the quantity that is used in the literature.
 

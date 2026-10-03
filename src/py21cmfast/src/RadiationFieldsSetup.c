@@ -180,9 +180,9 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
             // flux used in the code, unlike the Lyman-alpha flux, is an energy-integrated quantity
             // of the LW number flux, i.e.
             //
-            // [ \int_{\nu_LW}^{\nu_\infty} h_P \nu J_LW^N(\nu) d\nu ] / (\nu_\infty - \nu_LW),
+            // [ \int_{\nu_LW}^{\nu_H} h_P \nu J_LW^N(\nu) d\nu ] / (\nu_H - \nu_LW),
             //
-            // where \nu_LW and \nu_\infty are the frequencies that correspond to the LW threshold
+            // where \nu_LW and \nu_H are the frequencies that correspond to the LW threshold
             // (11.2 eV) and the Lyman limit (13.6 eV), respectively. While this integral needs to
             // be performed at the absorption frame, we compute it analytically at the emission
             // frame, as the SEDs are given in the emission frame (see more details in
