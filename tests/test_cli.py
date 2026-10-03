@@ -183,6 +183,10 @@ class TestTemplateCreate:
 class TestTemplateShow:
     """Tests of the `template show` command."""
 
+    # EOS21 triggers the EPS advisory (to be removed with #778).
+    @pytest.mark.filterwarnings(
+        "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+    )
     def test_show_alias(self, capsys):
         """Test that showing an alias works."""
         app_noexit("template show EOS21")
@@ -276,6 +280,8 @@ class TestRunICS:
         ics = read_output_struct(outfile)
         assert ics.simulation_options.HII_DIM == 32
 
+    # "default" keeps the warning visible for the capsys assertion.
+    @pytest.mark.filterwarnings("default:^Resolution is likely too low:UserWarning")
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
         app_noexit(
@@ -303,7 +309,9 @@ class TestRunICS:
     def test_passing_nodez_overwriting_template(self, capsys, tmp_path):
         """Test that passing nodez parameters does overwrite the template node redshifts."""
         app_noexit(
-            f"template create --template latest tiny --nodez.min 5.0 --nodez.n 10 --out {tmp_path / 'latest.toml'}"
+            f"template create --template latest --hii-dim 32 --hires-to-lowres-factor 2 "
+            f"--zprime-step-factor 1.2 --z-heat-max 20 --box-len 50 --r-bubble-max 50 "
+            f"--nodez.min 5.0 --nodez.n 10 --out {tmp_path / 'latest.toml'}"
         )
 
         with (tmp_path / "latest.toml").open("rb") as f:
@@ -350,7 +358,8 @@ class TestRunCoeval:
         """Test that having nodez in addition to --redshifts works."""
         # We have other node redshifts, but we don't do anything with them.
         app_noexit(
-            f"run coeval --template Park19 tiny --zprime-step-factor 1.4 --z-heat-max 15 "
+            f"run coeval --template Park19 --hii-dim 32 --hires-to-lowres-factor 2 "
+            f"--box-len 50 --r-bubble-max 50 --zprime-step-factor 1.4 --z-heat-max 15 "
             f"--cachedir {tmp_path} "
             f"--no-save-all-redshifts "
             f"--redshifts 6.0 --out {tmp_path}",
@@ -362,7 +371,9 @@ class TestRunCoeval:
         new = tmp_path / "new"
         new.mkdir()
         app_noexit(
-            f"run coeval --template Park19 tiny --cachedir {new} "
+            f"run coeval --template Park19 --hii-dim 32 --hires-to-lowres-factor 2 "
+            f"--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--box-len 50 --r-bubble-max 50 --cachedir {new} "
             f"--save-all-redshifts "
             f"--redshifts 6.0 --out {new}",
         )
@@ -461,7 +472,7 @@ class TestPredictTotalStorageSize:
 
     @pytest.mark.parametrize(
         "template",
-        ["simple tiny", "Park19 small", "Munoz21 small", "latest-dhalos large"],
+        ["simple tiny", "Park19 medium", "minihalos medium", "latest-dhalos large"],
     )
     def test_relevant_text_is_printed(self, capsys, template: str):
         """Test that running the total storage size CLI prints relevant text."""
@@ -474,7 +485,7 @@ class TestPredictTotalStorageSize:
 
     @pytest.mark.parametrize(
         "template",
-        ["simple tiny", "Park19 small", "Munoz21 small", "latest-dhalos large"],
+        ["simple tiny", "Park19 medium", "minihalos medium", "latest-dhalos large"],
     )
     def test_cache_off(self, capsys, template: str):
         """Test that running with cache off affects the predicted total storage size."""
@@ -496,7 +507,7 @@ class TestGlobalEvolution:
         """Test that a basic run produces a lightcone.h5 file."""
         lcfile = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} "
+            f"run global --template latest --cachedir {tmp_path} "
             f"--zmin 12.0 --out {lcfile}",
         )
 
@@ -510,7 +521,7 @@ class TestGlobalEvolution:
         """Test that a non-existent output path is OK."""
         lcfile = tmp_path / "new" / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple tiny --cachedir {tmp_path} "
+            f"run global --template latest --cachedir {tmp_path} "
             f"--zmin 10.0 --out {lcfile}",
         )
 
@@ -575,7 +586,7 @@ class TestPlot:
         """Test that `run global --plot` writes a plot next to the data."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --plot",
         )
 
@@ -598,7 +609,7 @@ class TestPlot:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} {flags}",
         )
 
@@ -611,7 +622,7 @@ class TestPlot:
         """Without --plot we should tell the user how to plot later."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out}",
         )
 
@@ -622,7 +633,7 @@ class TestPlot:
         """The saved-plot message carries a clickable file:// URL."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --plot",
         )
 
@@ -688,7 +699,7 @@ class TestCanShowPlots:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out}",
         )
 
@@ -702,7 +713,7 @@ class TestCanShowPlots:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --no-show",
         )
 

@@ -5,6 +5,8 @@ They do not test for correctness of simulations, but whether different parameter
 work/don't work as intended.
 """
 
+import warnings
+
 import attrs
 import numpy as np
 import pytest
@@ -53,13 +55,25 @@ def test_coeval_warnings(default_input_struct_lc, cache):
         SOURCE_MODEL="CHMF-SAMPLER",
     )
 
-    with pytest.warns(UserWarning, match="You have turned off caching"):
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
         run_coeval(
             out_redshifts=16.0,
             inputs=inputs,
             write=False,
             cache=cache,
         )
+    assert all(issubclass(w.category, UserWarning) for w in record), [
+        (w.category.__name__, str(w.message)) for w in record
+    ]
+    messages = [str(w.message) for w in record]
+    assert any("You have turned off caching" in m for m in messages)
+    assert any(m.startswith("Trying to purge array") for m in messages)
+    # The run also emits purge warnings; nothing else should warn.
+    assert all(
+        "You have turned off caching" in m or m.startswith("Trying to purge array")
+        for m in messages
+    ), messages
 
     inputs = default_input_struct_lc.evolve_input_structs(
         USE_TS_FLUCT=True,
@@ -138,7 +152,10 @@ def test_coeval_resume_reconstructs_radiation_fields_history(tmp_path_factory):
 def test_coeval_resume_cached_ts_without_radiation_fields(tmp_path):
     """Resuming with cached TsBox but uncached RadiationFields must not crash (#791)."""
     inputs = InputParameters.from_template(
-        ["latest-discrete", "size-tiny"], random_seed=1
+        ["latest-discrete", "size-tiny"],
+        random_seed=1,
+        BOX_LEN=50.0,
+        R_BUBBLE_MAX=50.0,
     )
     cache = OutputCache(tmp_path)
     write = CacheConfig(radiation_fields=False)

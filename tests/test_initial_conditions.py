@@ -115,13 +115,23 @@ def test_transfer_function(
 
 def test_relvels():
     """Test for relative velocity initial conditions."""
-    inputs = p21c.InputParameters(random_seed=1).evolve_input_structs(
-        HII_DIM=100,
-        DIM=300,
-        BOX_LEN=300,
-        POWER_SPECTRUM="CLASS",
-        V_CB_MODEL="FLUCTS",
-        N_THREADS=cpu_count(),  # To make this one a bit faster.
+    inputs = (
+        p21c.InputParameters(random_seed=1)
+        .with_logspaced_redshifts()
+        .evolve_input_structs(
+            HII_DIM=100,
+            DIM=300,
+            BOX_LEN=300,
+            POWER_SPECTRUM="CLASS",
+            V_CB_MODEL="FLUCTS",
+            USE_MCGS=True,
+            USE_TS_FLUCT=True,
+            RECOMB_MODEL="inhomogeneous",
+            R_BUBBLE_MAX=50.0,
+            M_TURN_STELLAR_FEEDBACK=5.0,
+            K_MAX_FOR_CLASS=1.0,
+            N_THREADS=cpu_count(),  # To make this one a bit faster.
+        )
     )
     ic = p21c.compute_initial_conditions(inputs=inputs)
 
@@ -183,10 +193,11 @@ def test_bad_initial_density_array(
 ):
     """Test bad/weird initial_density array."""
     # Run initial conditions with hires density box that has non-zero mean, just to throw the relevant warning
-    ic_non_zero = p21c.compute_initial_conditions(
-        inputs=default_input_struct,
-        initial_density=np.ones_like(single_pxl_array_mean_zero),
-    )
+    with pytest.warns(UserWarning, match="initial_density has mean 1.0"):
+        ic_non_zero = p21c.compute_initial_conditions(
+            inputs=default_input_struct,
+            initial_density=np.ones_like(single_pxl_array_mean_zero),
+        )
     assert isinstance(ic_non_zero, p21c.InitialConditions)
 
     with pytest.raises(

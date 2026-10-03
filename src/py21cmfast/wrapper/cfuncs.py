@@ -459,13 +459,9 @@ def compute_luminosity_function(
 
     if component == "both":
         # redo the Muv range using the faintest (most likely MINI) and the brightest (most likely massive)
-        lfunc_all = np.zeros(len(redshifts) * nbins)
-        Muvfunc_all = np.zeros(len(redshifts) * nbins)
-        Mhfunc_all = np.zeros(len(redshifts) * nbins * 2)
-
-        lfunc_all.shape = (len(redshifts), nbins)
-        Muvfunc_all.shape = (len(redshifts), nbins)
-        Mhfunc_all.shape = (len(redshifts), nbins, 2)
+        lfunc_all = np.zeros((len(redshifts), nbins))
+        Muvfunc_all = np.zeros((len(redshifts), nbins))
+        Mhfunc_all = np.zeros((len(redshifts), nbins, 2))
 
         for iz in range(len(redshifts)):
             Muvfunc_all[iz] = np.linspace(

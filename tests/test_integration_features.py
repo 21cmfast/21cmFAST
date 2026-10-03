@@ -38,11 +38,31 @@ logger = logging.getLogger("py21cmfast")
 logger.setLevel(logging.INFO)
 
 options = list(prd.OPTIONS_TESTRUNS.keys())
+# These configs test CONST-ION-EFF / GAMMA-APPROX with the default HMF,
+# which intentionally triggers the EPS conditional mass function advisory.
+_EPS_CONFIGS = ("no-mdz", "ts_nomdz", "mcgs_gamma_approx")
+_EPS_FILTER = pytest.mark.filterwarnings(
+    "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+)
+options_marked = [
+    pytest.param(n, marks=_EPS_FILTER if n in _EPS_CONFIGS else ()) for n in options
+]
 options_pt = list(prd.OPTIONS_PT.keys())
 
 
-@pytest.mark.parametrize("name", options)
-def test_power_spectra_coeval(name, module_direc, plt):
+def _record_mismatch(request, *args, **kwargs):
+    """Record a reference-data mismatch on the test report (summarised in conftest.py)."""
+    stats = prd.failure_stats(*args, **kwargs)
+    if stats is None:
+        return False
+    summary, message = stats
+    request.node.user_properties.append(("reference_mismatch", message))
+    request.node.user_properties.append(("reference_mismatch_summary", summary))
+    return True
+
+
+@pytest.mark.parametrize("name", options_marked)
+def test_power_spectra_coeval(request, name, module_direc, plt):
     redshift, kwargs = prd.OPTIONS_TESTRUNS[name]
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
 
@@ -67,11 +87,13 @@ def test_power_spectra_coeval(name, module_direc, plt):
     assert np.allclose(true_k, test_k)
 
     any_failed = False
-    # We don't assert that all the fields are identical, but print the differences
+    # Differences from the reference data are recorded rather than asserted, and
+    # summarised at the end of the run (see issue #450 on making these checks robust).
     for key in prd.COEVAL_FIELDS:
         if key not in true_powers:
             continue
-        any_failed |= prd.print_failure_stats(
+        any_failed |= _record_mismatch(
+            request,
             test_powers[key],
             true_powers[key],
             [test_k],
@@ -84,8 +106,8 @@ def test_power_spectra_coeval(name, module_direc, plt):
         make_coeval_comparison_plot(true_k, test_k, true_powers, test_powers, plt)
 
 
-@pytest.mark.parametrize("name", options)
-def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
+@pytest.mark.parametrize("name", options_marked)
+def test_power_spectra_lightcone(request, name, module_direc, plt, benchmark):
     redshift, kwargs = prd.OPTIONS_TESTRUNS[name]
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
 
@@ -136,12 +158,14 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
     test_global = {k: lc.global_quantities[k] for k in true_global}
     assert np.allclose(true_k, test_k)
 
-    # We don't assert that all the fields are identical, but print the differences
     any_failed = False
+    # Differences from the reference data are recorded rather than asserted, and
+    # summarised at the end of the run (see issue #450 on making these checks robust).
     for key in prd.LIGHTCONE_FIELDS:
         if key not in true_powers:
             continue
-        any_failed |= prd.print_failure_stats(
+        any_failed |= _record_mismatch(
+            request,
             test_powers[key],
             true_powers[key],
             [test_k],
@@ -150,7 +174,6 @@ def test_power_spectra_lightcone(name, module_direc, plt, benchmark):
             name=key,
         )
 
-    any_failed = True  # TODO:remove this testing line
     if plt == mpl.pyplot and any_failed:
         make_lightcone_comparison_plot(
             true_k,
@@ -194,9 +217,7 @@ def make_lightcone_comparison_plot(
         2,
         n,
         figsize=(4 * n, 6),
-        constrained_layout=True,
         sharex="col",
-        gridspec_kw={"hspace": 0.1, "wspace": 0.1},
     )
 
     for i, (key, val) in enumerate(test_powers.items()):
@@ -232,7 +253,6 @@ def make_coeval_comparison_plot(true_k, k, true_powers, test_powers, plt):
         len(true_powers),
         figsize=(4 * len(true_powers), 6),
         sharex=True,
-        constrained_layout=True,
     )
 
     for i, (key, val) in enumerate(test_powers.items()):
@@ -264,7 +284,9 @@ def make_comparison_plot(
     ax[0].plot(x, test, label="Test")
     if logx:
         ax[0].set_xscale("log")
-    if logy:
+    # Fields a config doesn't evolve (e.g. ionisation_rate_G12) have zero power,
+    # which can't be log-scaled.
+    if logy and (np.any(true > 0) or np.any(test > 0)):
         ax[0].set_yscale("log")
     if xlab:
         ax[1].set_xlabel(xlab)
@@ -273,7 +295,15 @@ def make_comparison_plot(
 
     ax[0].legend()
 
-    ax[1].plot(x, (test - true) / true)
+    ax[1].plot(
+        x,
+        np.divide(
+            test - true,
+            true,
+            out=np.full_like(test, np.nan, dtype=float),
+            where=true != 0,
+        ),
+    )
 
     if make_lower_ylab:
         ax[1].set_ylabel("Fractional Difference")
