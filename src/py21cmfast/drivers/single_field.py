@@ -530,7 +530,7 @@ def interp_emissivity_fields(
 # (for the NO_LIGHT condition), and also for computing the X-ray optical depth. I think we could relax the dependency of this
 # function on sigma once https://github.com/21cmfast/21cmFAST/issues/659 is addressed.
 @single_field_func
-@init_c_state(sigma=True)
+@init_c_state(sigma=True, heat=True)
 def setup_radiation_fields(
     *,
     emissivity_fields_list: list[EmissivityFields],
