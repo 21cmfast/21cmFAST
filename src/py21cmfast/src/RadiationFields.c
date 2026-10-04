@@ -198,7 +198,8 @@ void multiply_radiation_fields_by_constants(float redshift, RadiationFields *rad
                 xray_prefactor * volunit_inv * Nb_zp * (1 + curr_delta);
             if (astro_options_global->USE_MCGS) {
                 radiation_fields->lyw_flux[box_ct] *=
-                    lya_star_prefactor * volunit_inv * physconst.h_p * 1e21;
+                    lya_star_prefactor * volunit_inv * physconst.h_p * physconst.nu_Ly_alpha /
+                    (physconst.nu_ion_HI - physconst.nu_LW_thresh) * 1e21;
             }
             if (astro_options_global->USE_LYA_HEATING) {
                 radiation_fields->lya_flux_continuum[box_ct] *= lya_star_prefactor * volunit_inv;
