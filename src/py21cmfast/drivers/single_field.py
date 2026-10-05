@@ -597,8 +597,7 @@ def setup_radiation_fields(
     if need_c:
         if previous_spin_temp is None:
             raise ValueError(
-                f"You must specify the previous_spin_temp at z={redshift}, since "
-                "there are sources in the radiation-field shells (below Z_HEAT_MAX)."
+                f"You must specify the previous_spin_temp at z={redshift}."
             )
 
         # TODO: the whole code below is only required if we use mini-halos. It could be removed though, see comment below
@@ -718,7 +717,10 @@ def compute_radiation_fields(
         raise ValueError("emissivity_fields_list must be provided")
 
     # Setup the radiation fields
-    if rad_setup is None:
+    if (
+        rad_setup is None
+        and redshift <= emissivity_fields_list[0].inputs.simulation_options.Z_HEAT_MAX
+    ):
         rad_setup = setup_radiation_fields(
             redshift=redshift,
             emissivity_fields_list=emissivity_fields_list,
@@ -748,7 +750,12 @@ def compute_radiation_fields(
         ]
     )
     lowest_shell_above_zmax = rad_setup.zpp_avg.min() >= rad_setup.source_z_max
-    need_c = not (sfr_allzero or lowest_shell_above_zmax or rad_setup.NO_LIGHT)
+    need_c = not (
+        sfr_allzero
+        or lowest_shell_above_zmax
+        or rad_setup.NO_LIGHT
+        or redshift > inputs.simulation_options.Z_HEAT_MAX
+    )
 
     if need_c:
         for name, box in {
@@ -756,10 +763,7 @@ def compute_radiation_fields(
             "previous_spin_temp": previous_spin_temp,
         }.items():
             if box is None:
-                raise ValueError(
-                    f"You must specify the {name} at z={redshift}, since there are "
-                    "sources in the radiation-field shells (below Z_HEAT_MAX)."
-                )
+                raise ValueError(f"You must specify the {name} at z={redshift}.")
 
         # Compute the comoving diffusion scale in the case of Lyman alpha multiple scattering
         if inputs.astro_options.LYA_MULTIPLE_SCATTERING:

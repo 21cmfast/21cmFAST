@@ -844,7 +844,7 @@ def _redshift_loop_generator(
 
                 this_radiation_fields = None
 
-                if not skip_radfields:
+                if not skip_radfields and z <= inputs.simulation_options.Z_HEAT_MAX:
                     this_rad_setup = sf.setup_radiation_fields(
                         redshift=z,
                         emissivity_fields_list=[
