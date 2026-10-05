@@ -18,12 +18,10 @@ def default_input_struct_lc_mcgs(default_input_struct_lc):
     """A default input struct with mcgs turned on."""
     return default_input_struct_lc.evolve_input_structs(
         USE_MCGS=True,
-        V_CB_MODEL="FLUCTS",
-        POWER_SPECTRUM="CLASS",
+        V_CB_MODEL="AVG-DEBUG",
         RECOMB_MODEL="inhomogeneous",
         R_BUBBLE_MAX=50.0,
         USE_TS_FLUCT=True,
-        K_MAX_FOR_CLASS=1.0,
         M_TURN_STELLAR_FEEDBACK=5.0,
         USE_REIONIZATION_PHOTOHEATING_FEEDBACK=True,
     )

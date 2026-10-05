@@ -470,9 +470,11 @@ class TestPredictStructSize:
 class TestPredictTotalStorageSize:
     """Test the predict total storage-size command."""
 
+    # Apply Park19/minihalos last to retain R_BUBBLE_MAX=50.
+
     @pytest.mark.parametrize(
         "template",
-        ["simple tiny", "Park19 medium", "minihalos medium", "latest-dhalos large"],
+        ["simple tiny", "small Park19", "small minihalos", "latest-dhalos large"],
     )
     def test_relevant_text_is_printed(self, capsys, template: str):
         """Test that running the total storage size CLI prints relevant text."""
@@ -485,7 +487,7 @@ class TestPredictTotalStorageSize:
 
     @pytest.mark.parametrize(
         "template",
-        ["simple tiny", "Park19 medium", "minihalos medium", "latest-dhalos large"],
+        ["simple tiny", "small Park19", "small minihalos", "latest-dhalos large"],
     )
     def test_cache_off(self, capsys, template: str):
         """Test that running with cache off affects the predicted total storage size."""
