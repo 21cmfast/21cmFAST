@@ -57,13 +57,14 @@ void setup_z_edges(double zp, RadiationFieldsSetup *rad_setup) {
 
 void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
     double nuprime;
+    double redshift_ratio;
     bool first_radii = true, first_zero = true;
     double trial_zpp;
     int counter, ii;
     int n_pts_radii = 1000;
     double weight = 0.;
     int R_ct, n_ct;
-    double zpp, zpp_integrand;
+    double zpp, lya_integrand_prefactor, lw_integrand_prefactor;
 
     double sum_lyn_val_acg, sum_lyn_val_mcg;
     double sum_lyLW_val_acg, sum_lyLW_val_mcg;
@@ -76,6 +77,7 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
     double prev_zpp = 0;
     for (R_ct = 0; R_ct < astro_params_global->N_STEP_TS; R_ct++) {
         zpp = rad_setup->zpp_avg[R_ct];
+        redshift_ratio = (1. + zpp) / (1. + zp);
         // We need to set up prefactors for how much of Lyman-N radiation is recycled to Lyman-alpha
         sum_lyLW_val_acg = 0.;
         sum_lyLW_val_mcg = 0.;
@@ -85,35 +87,32 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
         sum_ly2_val_mcg = 0.;
 
         // in case we use LYA_HEATING, we separate the ==2 and >2 cases
-        nuprime = nu_n(2) * (1. + zpp) / (1. + zp);
+        nuprime = nu_n(2) * redshift_ratio;
         if (zpp < zmax(zp, 2)) {
             sum_ly2_val_acg = frecycle(2) * spectral_emissivity(nuprime, 0, 2);
             if (astro_options_global->USE_MCGS) {
                 sum_ly2_val_mcg = frecycle(2) * spectral_emissivity(nuprime, 0, 3);
 
-                if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
-                    nuprime = physconst.nu_LW_thresh / physconst.nu_ion_HI;
-                // NOTE: are we comparing nuprime at z' and z'' correctly here?
-                //   currently: emitted frequency >= received frequency of next n
-                if (nuprime >= nu_n(2 + 1)) continue;
-
-                sum_lyLW_val_acg +=
-                    (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
-                sum_lyLW_val_mcg +=
-                    (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 3);
+                // The 11.2 eV lower edge is defined in the target frame, so redshift it
+                // to the emission frame before integrating the lowest LW interval.
+                nuprime = physconst.nu_LW_thresh / physconst.nu_Ly_alpha * redshift_ratio;
+                if (nuprime < nu_n(3)) {
+                    sum_lyLW_val_acg += (1. - astro_params_global->F_H2_SHIELD) *
+                                        spectral_emissivity(nuprime, 2, 2);
+                    sum_lyLW_val_mcg += (1. - astro_params_global->F_H2_SHIELD) *
+                                        spectral_emissivity(nuprime, 2, 3);
+                }
             }
         }
 
         for (n_ct = NSPEC_MAX; n_ct >= 3; n_ct--) {
             if (zpp > zmax(zp, n_ct)) continue;
 
-            nuprime = nu_n(n_ct) * (1 + zpp) / (1.0 + zp);
+            nuprime = nu_n(n_ct) * redshift_ratio;
             sum_lynto2_val_acg += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 2);
             if (astro_options_global->USE_MCGS) {
                 sum_lynto2_val_mcg += frecycle(n_ct) * spectral_emissivity(nuprime, 0, 3);
 
-                if (nuprime < physconst.nu_LW_thresh / physconst.nu_ion_HI)
-                    nuprime = physconst.nu_LW_thresh / physconst.nu_ion_HI;
                 if (nuprime >= nu_n(n_ct + 1)) continue;
                 sum_lyLW_val_acg +=
                     (1. - astro_params_global->F_H2_SHIELD) * spectral_emissivity(nuprime, 2, 2);
@@ -155,36 +154,59 @@ void calculate_spectral_factors(double zp, RadiationFieldsSetup *rad_setup) {
             }
             first_radii = false;
         }
-        zpp_integrand = (pow(1 + zp, 2) * (1 + zpp));
+        // The reason for this redshift factor:
+        // 1. (1+zp)^2 comes from converting the flux units from per comoving area to per proper
+        // area
+        // 2. (1+zpp) comes from integrating over the comoving shell radii,
+        //     dR = (1+zpp) * c * dt = (1+zpp) * c * dt/dz(zpp) * dzpp
+        lya_integrand_prefactor = (pow(1 + zp, 2) * (1 + zpp));
 
         if (astro_options_global->USE_LYA_HEATING) {
-            rad_setup->lya_flux_continuum_prefactor_acg[R_ct] = zpp_integrand * sum_ly2_val_acg;
-            rad_setup->lya_flux_injected_prefactor_acg[R_ct] = zpp_integrand * sum_lynto2_val_acg;
+            rad_setup->lya_flux_continuum_prefactor_acg[R_ct] =
+                lya_integrand_prefactor * sum_ly2_val_acg;
+            rad_setup->lya_flux_injected_prefactor_acg[R_ct] =
+                lya_integrand_prefactor * sum_lynto2_val_acg;
             LOG_ULTRA_DEBUG("cont %.2e inj %.2e", rad_setup->lya_flux_continuum_prefactor_acg[R_ct],
                             rad_setup->lya_flux_injected_prefactor_acg[R_ct]);
         } else {
             rad_setup->lya_flux_continuum_injected_prefactor_acg[R_ct] =
-                zpp_integrand * sum_lyn_val_acg;
+                lya_integrand_prefactor * sum_lyn_val_acg;
             LOG_ULTRA_DEBUG("z: %.2e R: %.2e int %.2e starlya: %.4e", zpp,
-                            rad_setup->R_values[R_ct], zpp_integrand,
+                            rad_setup->R_values[R_ct], lya_integrand_prefactor,
                             rad_setup->lya_flux_continuum_injected_prefactor_acg[R_ct]);
         }
         if (astro_options_global->USE_MCGS) {
-            rad_setup->lyw_flux_prefactor_acg[R_ct] = zpp_integrand * sum_lyLW_val_acg;
-            rad_setup->lyw_flux_prefactor_mcg[R_ct] = zpp_integrand * sum_lyLW_val_mcg;
+            // The reason why the redshift factor is different for the LW flux is because the LW
+            // flux used in the code, unlike the Lyman-alpha flux, is an energy-integrated quantity
+            // of the LW number flux, i.e.
+            //
+            // [ \int_{\nu_LW}^{\nu_H} h_P \nu J_LW^N(\nu) d\nu ] / (\nu_H - \nu_LW),
+            //
+            // where \nu_LW and \nu_H are the frequencies that correspond to the LW threshold
+            // (11.2 eV) and the Lyman limit (13.6 eV), respectively. While this integral needs to
+            // be performed at the absorption frame, we compute it analytically at the emission
+            // frame, as the SEDs are given in the emission frame (see more details in
+            // spectral_emissivity). Thus, we need to redshift the frequencies in the integral (both
+            // \nu and d\nu) from the emission frame to the absorption frame, which gives rise to
+            // the extra factor of (1+zp)^2/(1+zpp)^2.
+            lw_integrand_prefactor = lya_integrand_prefactor * pow(1 + zp, 2) / pow(1 + zpp, 2);
+
+            rad_setup->lyw_flux_prefactor_acg[R_ct] = lw_integrand_prefactor * sum_lyLW_val_acg;
+            rad_setup->lyw_flux_prefactor_mcg[R_ct] = lw_integrand_prefactor * sum_lyLW_val_mcg;
             LOG_ULTRA_DEBUG("LW (ACG): %.2e LW (MCG): %.2e",
                             rad_setup->lyw_flux_prefactor_acg[R_ct],
                             rad_setup->lyw_flux_prefactor_mcg[R_ct]);
             if (astro_options_global->USE_LYA_HEATING) {
-                rad_setup->lya_flux_continuum_prefactor_mcg[R_ct] = zpp_integrand * sum_ly2_val_mcg;
+                rad_setup->lya_flux_continuum_prefactor_mcg[R_ct] =
+                    lya_integrand_prefactor * sum_ly2_val_mcg;
                 rad_setup->lya_flux_injected_prefactor_mcg[R_ct] =
-                    zpp_integrand * sum_lynto2_val_mcg;
+                    lya_integrand_prefactor * sum_lynto2_val_mcg;
                 LOG_ULTRA_DEBUG("cont mini %.2e inj mini %.2e",
                                 rad_setup->lya_flux_continuum_prefactor_mcg[R_ct],
                                 rad_setup->lya_flux_injected_prefactor_mcg[R_ct]);
             } else {
                 rad_setup->lya_flux_continuum_injected_prefactor_mcg[R_ct] =
-                    zpp_integrand * sum_lyn_val_mcg;
+                    lya_integrand_prefactor * sum_lyn_val_mcg;
                 LOG_ULTRA_DEBUG("starmini: %.2e",
                                 rad_setup->lya_flux_continuum_injected_prefactor_mcg[R_ct]);
             }
