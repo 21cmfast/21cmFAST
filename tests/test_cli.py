@@ -509,7 +509,10 @@ class TestGlobalEvolution:
         """Test that a basic run produces a lightcone.h5 file."""
         lcfile = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template latest --cachedir {tmp_path} "
+            "run global --template latest --hii-dim 32 "
+            "--hires-to-lowres-factor 2 --box-len 50 "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} "
             f"--zmin 12.0 --out {lcfile}",
         )
 
@@ -523,7 +526,10 @@ class TestGlobalEvolution:
         """Test that a non-existent output path is OK."""
         lcfile = tmp_path / "new" / "global-evolution.h5"
         app_noexit(
-            f"run global --template latest --cachedir {tmp_path} "
+            "run global --template latest --hii-dim 32 "
+            "--hires-to-lowres-factor 2 --box-len 50 "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} "
             f"--zmin 10.0 --out {lcfile}",
         )
 
@@ -588,7 +594,10 @@ class TestPlot:
         """Test that `run global --plot` writes a plot next to the data."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest --hii-dim 32 "
+            "--hires-to-lowres-factor 2 --box-len 50 "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --plot",
         )
 
@@ -611,7 +620,10 @@ class TestPlot:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest --hii-dim 32 "
+            "--hires-to-lowres-factor 2 --box-len 50 "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} {flags}",
         )
 
@@ -624,7 +636,10 @@ class TestPlot:
         """Without --plot we should tell the user how to plot later."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest --hii-dim 32 "
+            "--hires-to-lowres-factor 2 --box-len 50 "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out}",
         )
 
@@ -635,7 +650,10 @@ class TestPlot:
         """The saved-plot message carries a clickable file:// URL."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest --hii-dim 32 "
+            "--hires-to-lowres-factor 2 --box-len 50 "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --plot",
         )
 
@@ -701,7 +719,10 @@ class TestCanShowPlots:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest --hii-dim 32 "
+            "--hires-to-lowres-factor 2 --box-len 50 "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out}",
         )
 
@@ -715,7 +736,10 @@ class TestCanShowPlots:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template latest --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest --hii-dim 32 "
+            "--hires-to-lowres-factor 2 --box-len 50 "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --no-show",
         )
 
