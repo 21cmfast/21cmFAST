@@ -595,6 +595,11 @@ def setup_radiation_fields(
     need_c = not (sfr_allzero or lowest_shell_above_zmax)
 
     if need_c:
+        if previous_spin_temp is None:
+            raise ValueError(
+                f"You must specify the previous_spin_temp at z={redshift}."
+            )
+
         # TODO: the whole code below is only required if we use mini-halos. It could be removed though, see comment below
         if inputs.astro_options.USE_MCGS:
             # Get log10_mturn_mcg_ave for each shell
@@ -711,8 +716,11 @@ def compute_radiation_fields(
     if emissivity_fields_list is None:
         raise ValueError("emissivity_fields_list must be provided")
 
+    inputs = emissivity_fields_list[0].inputs
+    started_astrophysics = redshift <= inputs.simulation_options.Z_HEAT_MAX
+
     # Setup the radiation fields
-    if rad_setup is None:
+    if rad_setup is None and started_astrophysics:
         rad_setup = setup_radiation_fields(
             redshift=redshift,
             emissivity_fields_list=emissivity_fields_list,
@@ -724,15 +732,17 @@ def compute_radiation_fields(
         emissivity_fields_redshifts = [
             emissivity_fields.redshift for emissivity_fields in emissivity_fields_list
         ]
-        if emissivity_fields_redshifts != rad_setup.emissivity_fields_redshifts:
+        if (
+            started_astrophysics
+            and emissivity_fields_redshifts != rad_setup.emissivity_fields_redshifts
+        ):
             raise ValueError(
                 "The redshifts of the input emissivity_fields do not match those of the input rad_setup!"
             )
 
-    inputs = rad_setup.inputs
-
     radiation_fields = RadiationFields.new(redshift=redshift, inputs=inputs)
-    radiation_fields.Q_HI = rad_setup.Q_HI_zp
+    if rad_setup is not None:
+        radiation_fields.Q_HI = rad_setup.Q_HI_zp
 
     # Let's figure out if we really need to go through the C code
     sfr_allzero = np.all(
@@ -741,10 +751,20 @@ def compute_radiation_fields(
             for emissivity_fields in emissivity_fields_list
         ]
     )
-    lowest_shell_above_zmax = rad_setup.zpp_avg.min() >= rad_setup.source_z_max
-    need_c = not (sfr_allzero or lowest_shell_above_zmax or rad_setup.NO_LIGHT)
+    if rad_setup is not None:
+        lowest_shell_above_zmax = rad_setup.zpp_avg.min() >= rad_setup.source_z_max
+        need_c = not (sfr_allzero or lowest_shell_above_zmax or rad_setup.NO_LIGHT)
+    else:
+        need_c = False
 
     if need_c:
+        for name, box in {
+            "perturbed_field": perturbed_field,
+            "previous_spin_temp": previous_spin_temp,
+        }.items():
+            if box is None:
+                raise ValueError(f"You must specify the {name} at z={redshift}.")
+
         # Compute the comoving diffusion scale in the case of Lyman alpha multiple scattering
         if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
             # TODO: In principle, the diffusion scale varies locally but for simplicty, we consider the global ionization value.
@@ -865,15 +885,17 @@ def compute_spin_temperature(
     """
     redshift = perturbed_field.redshift
 
-    if radiation_fields is None:
+    if redshift >= inputs.simulation_options.Z_HEAT_MAX:
+        previous_spin_temp = TsBox.dummy()
+        radiation_fields = RadiationFields.dummy()
+    elif previous_spin_temp is None:
+        raise ValueError("Below Z_HEAT_MAX you must specify the previous_spin_temp")
+    elif radiation_fields is None:
         # Only allowed when the TsBox is read from the cache (the decorator
         # returns before we get here); computing it needs the radiation fields.
         raise ValueError(
             f"radiation_fields is required to compute the spin temperature at z={redshift}"
         )
-
-    if redshift >= inputs.simulation_options.Z_HEAT_MAX:
-        previous_spin_temp = TsBox.dummy()
 
     # Set up the box without computing anything.
     box = TsBox.new(
