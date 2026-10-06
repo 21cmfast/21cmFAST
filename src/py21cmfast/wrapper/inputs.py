@@ -13,6 +13,7 @@ listed in the documentation for each class below.
 
 import logging
 import warnings
+from collections import OrderedDict
 from collections.abc import Sequence
 from functools import cached_property
 from pathlib import Path
@@ -41,6 +42,36 @@ from .classy_interface import (
 from .structs import StructWrapper
 
 logger = logging.getLogger(__name__)
+
+# Astropy cosmologies shared between CosmoParams instances, keyed on the identity of the
+# base cosmology and the parameters that override it (astropy cosmologies are immutable,
+# but not hashable). See _shared_cosmology.
+_SHARED_COSMOLOGIES: OrderedDict[tuple, tuple[FLRW, FLRW]] = OrderedDict()
+_SHARED_COSMOLOGIES_MAXSIZE = 64
+
+
+def _shared_cosmology(base: FLRW, *, hlittle: float, OMm: float, OMb: float) -> FLRW:
+    """Return ``base`` cloned with the given parameters, re-using an earlier clone.
+
+    Every new :class:`CosmoParams` (and every set of inputs read from a cache file has
+    new ones) used to build its own astropy cosmology. Building one does unit
+    conversions that leave behind a reference cycle in astropy, which keeps every
+    calling frame -- and the boxes held in their locals -- alive until the garbage
+    collector runs. The high-level drivers disable the collector, so a run resumed from
+    cache accumulated that garbage at every redshift (see issue #796). Sharing one
+    (immutable) cosmology per parameter set avoids building it more than once.
+    """
+    key = (id(base), hlittle, OMm, OMb)
+    # The entry holds a reference to `base`, so its id can't be re-used while cached.
+    if (cached := _SHARED_COSMOLOGIES.get(key)) is not None:
+        _SHARED_COSMOLOGIES.move_to_end(key)
+        return cached[1]
+
+    cosmo = base.clone(name=base.name, H0=hlittle * 100, Om0=OMm, Ob0=OMb)
+    _SHARED_COSMOLOGIES[key] = (base, cosmo)
+    if len(_SHARED_COSMOLOGIES) > _SHARED_COSMOLOGIES_MAXSIZE:
+        _SHARED_COSMOLOGIES.popitem(last=False)
+    return cosmo
 
 
 def field(*, transformer=None, **kw):
@@ -605,12 +636,12 @@ class CosmoParams(InputStruct):
 
     @cached_property
     def cosmo(self):
-        """An astropy cosmology object for this cosmology."""
-        return self._base_cosmo.clone(
-            name=self._base_cosmo.name,
-            H0=self.hlittle * 100,
-            Om0=self.OMm,
-            Ob0=self.OMb,
+        """An astropy cosmology object for this cosmology.
+
+        Instances with the same base cosmology and parameters share the same object.
+        """
+        return _shared_cosmology(
+            self._base_cosmo, hlittle=self.hlittle, OMm=self.OMm, OMb=self.OMb
         )
 
     @classmethod

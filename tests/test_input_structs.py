@@ -1,11 +1,13 @@
 """Unit tests for input structures."""
 
 import pickle
+from collections import OrderedDict
 from itertools import chain
 from typing import Any, ClassVar
 
 import deprecation
 import pytest
+from astropy.cosmology import Planck15, Planck18
 
 from py21cmfast import (
     AstroOptions,
@@ -21,6 +23,7 @@ from py21cmfast.input_serialization import (
     deserialize_inputs,
     prepare_inputs_for_serialization,
 )
+from py21cmfast.wrapper import inputs as inputs_module
 from py21cmfast.wrapper.inputs import CosmoTables, Table1D
 
 _TEMPLATES = tmpl.list_templates()
@@ -195,6 +198,33 @@ class TestCosmoParams:
         """Test bad inputs."""
         with pytest.raises(ValueError, match="Cannot set both SIGMA_8 and A_s!"):
             CosmoParams(SIGMA_8=self.sigma_8, A_s=self.A_s)
+
+    def test_cosmo_shared_between_equal_instances(self):
+        """Test that instances with the same parameters share one astropy cosmology."""
+        assert CosmoParams().cosmo is CosmoParams().cosmo
+
+        cosmo = CosmoParams(hlittle=0.7).cosmo
+        assert cosmo is not CosmoParams().cosmo
+        assert cosmo.H0.value == pytest.approx(70.0, rel=1e-12)
+
+    def test_cosmo_uses_base_cosmo(self):
+        """Test that the shared cosmology is built from the right base cosmology."""
+        p15 = CosmoParams.from_astropy(Planck15)
+        p18 = CosmoParams(hlittle=p15.hlittle, OMm=p15.OMm, OMb=p15.OMb)
+
+        assert p15.cosmo.name == Planck15.name
+        assert p18.cosmo.name == Planck18.name
+        assert p15.cosmo is not p18.cosmo
+
+    def test_cosmo_cache_is_bounded(self, monkeypatch):
+        """Test that sweeping over parameters doesn't grow the cosmology cache forever."""
+        monkeypatch.setattr(inputs_module, "_SHARED_COSMOLOGIES", OrderedDict())
+        monkeypatch.setattr(inputs_module, "_SHARED_COSMOLOGIES_MAXSIZE", 2)
+
+        cosmos = [CosmoParams(hlittle=h).cosmo for h in (0.6, 0.65, 0.7)]
+
+        assert len(inputs_module._SHARED_COSMOLOGIES) == 2
+        assert CosmoParams(hlittle=0.7).cosmo is cosmos[-1]
 
 
 class TestAstroParams:
