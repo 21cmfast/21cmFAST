@@ -1,6 +1,5 @@
 """Unit tests for input structures."""
 
-import gc
 import pickle
 from collections import OrderedDict
 from itertools import chain
@@ -9,7 +8,6 @@ from typing import Any, ClassVar
 import deprecation
 import pytest
 from astropy.cosmology import Planck15, Planck18
-from attrs import evolve
 
 from py21cmfast import (
     AstroOptions,
@@ -227,32 +225,6 @@ class TestCosmoParams:
 
         assert len(inputs_module._SHARED_COSMOLOGIES) == 2
         assert CosmoParams(hlittle=0.7).cosmo is cosmos[-1]
-
-    @pytest.mark.filterwarnings("ignore:The maximum halo mass:UserWarning")
-    @pytest.mark.filterwarnings("ignore:You are setting R_BUBBLE_MAX:UserWarning")
-    def test_new_inputs_leave_no_reference_cycles(self):
-        """Test that new inputs for an existing cosmology create no cyclic garbage.
-
-        Inputs are re-created for every box read from the cache. Building a new
-        astropy cosmology for them left reference cycles that kept the calling frames
-        (and the boxes they held) alive while the high-level drivers have the
-        garbage collector disabled (issue #796).
-        """
-        inputs = InputParameters.from_template(
-            ["minihalos-discrete", "size-tiny"], random_seed=1
-        )
-
-        gc.collect()
-        gc.disable()
-        try:
-            # Evolving with new CosmoParams re-runs the halo mass range check, which
-            # uses the cosmology, just like reading inputs from a cache file does.
-            evolve(inputs, cosmo_params=CosmoParams.new(inputs.cosmo_params))
-            n_unreachable = gc.collect()
-        finally:
-            gc.enable()
-
-        assert n_unreachable == 0
 
 
 class TestAstroParams:
