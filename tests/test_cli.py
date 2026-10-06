@@ -13,7 +13,8 @@ from py21cmfast._templates import create_params_from_template
 from py21cmfast.cli import Parameters, ParameterSelection, RunParams, _run_setup, app
 from py21cmfast.io.h5 import load_high_level_simulation, read_output_struct
 
-# Apply tiny/small last so R_BUBBLE_MAX <= BOX_LEN/3.
+# Size profiles use R_BUBBLE_MAX=BOX_LEN/3. With recombinations,
+# this triggers the nonstandard-radius advisory (see #778).
 _NON_STANDARD_BUBBLE_RADIUS = pytest.mark.filterwarnings(
     "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
 )
