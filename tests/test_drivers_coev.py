@@ -137,14 +137,13 @@ def test_coeval_resume_reconstructs_radiation_fields_history(tmp_path_factory):
     )
 
 
+# The tiny box uses R_BUBBLE_MAX=16 with recombinations enabled.
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 def test_coeval_resume_cached_ts_without_radiation_fields(tmp_path):
     """Resuming with cached TsBox but uncached RadiationFields must not crash (#791)."""
-    inputs = InputParameters.from_template(
-        ["latest-discrete", "size-tiny"],
-        random_seed=1,
-        BOX_LEN=50.0,
-        R_BUBBLE_MAX=50.0,
-    )
+    inputs = InputParameters.from_template(["latest-discrete", "tiny"], random_seed=1)
     cache = OutputCache(tmp_path)
     write = CacheConfig(radiation_fields=False)
     zs = inputs.node_redshifts
