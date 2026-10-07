@@ -4,6 +4,7 @@ import warnings
 from pathlib import Path
 
 import h5py
+import numpy as np
 import pytest
 
 import py21cmfast as p21c
@@ -148,7 +149,20 @@ def test_migrate_high_level_file(legacy, tmp_path: Path, kind: str):
     with warnings.catch_warnings():
         warnings.simplefilter("error", compat.CompatibilityWarning)
         new = h5.load_high_level_simulation(tmp_path / "new.h5")
-    assert new == h5.load_high_level_simulation(old)
+    orig = h5.load_high_level_simulation(old)
+    assert new == orig
+
+    # The data itself must be the same as the (converted) original data.
+    if kind == "coeval":
+        for name, struct in orig.output_structs.items():
+            for array in struct.arrays:
+                np.testing.assert_array_equal(
+                    new.output_structs[name].get(array), struct.get(array)
+                )
+    else:
+        for attr in ("lightcones", "global_quantities"):
+            for name, val in getattr(orig, attr).items():
+                np.testing.assert_array_equal(getattr(new, attr)[name], val)
 
     # Don't overwrite unless asked.
     assert migrate_high_level_file(old, tmp_path / "new.h5").status == "exists"
@@ -216,3 +230,85 @@ class TestMigrateCLI:
 
         with pytest.raises(ValueError, match="dry-run"):
             self.run(f"migrate {old} --dry-run")
+
+
+def test_high_level_unsupported_version(legacy_v42, tmp_path: Path):
+    """High-level files from unsupported versions are reported, not raised."""
+    old = legacy_v42.write_lightcone(tmp_path / "old.h5", "nohalo")
+    with h5py.File(old, "a") as fl:
+        fl["InputParameters"].attrs["21cmFAST-version"] = "3.3.1"
+
+    res = migrate_high_level_file(old, tmp_path / "new.h5")
+    assert res.status == "unconvertible"
+    assert "not supported" in res.message
+    assert not (tmp_path / "new.h5").exists()
+
+
+def test_original_is_never_replaced(legacy_v42, tmp_path: Path):
+    """An old file already at its migrated location is not replaced, even with overwrite."""
+    old = legacy_v42.write_struct(tmp_path / "ics.h5", "nohalo:InitialConditions")
+    (res,) = migrate_cache(tmp_path, dry_run=True)
+    res.destination.parent.mkdir(parents=True)
+    old.rename(res.destination)
+
+    (res,) = migrate_cache(tmp_path, overwrite=True)
+    assert res.status == "exists"
+    assert "replace the original" in res.message
+    with h5py.File(res.destination, "r") as fl:
+        assert fl.attrs["21cmFAST-version"] == legacy_v42.version
+
+
+def test_failed_write_leaves_no_files(legacy_v42, tmp_path: Path, monkeypatch):
+    """If writing fails, neither the destination nor a temporary file is left."""
+    legacy_v42.write_struct(tmp_path / "old" / "ics.h5", "nohalo:InitialConditions")
+
+    def fail(*args, **kwargs):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(h5, "write_output_to_hdf5", fail)
+    (res,) = migrate_cache(tmp_path / "old", tmp_path / "new")
+    assert res.status == "failed"
+    assert "disk full" in res.message
+    assert not [p for p in (tmp_path / "new").rglob("*") if p.is_file()]
+
+
+def test_concurrent_temporary_files_are_unique(legacy_v42, tmp_path: Path):
+    """Temporary files of a migration don't clash with those of another one."""
+    legacy_v42.write_struct(tmp_path / "old" / "ics.h5", "nohalo:InitialConditions")
+    (res,) = migrate_cache(tmp_path / "old", tmp_path / "new", dry_run=True)
+
+    # A temporary file of another (running) migration to the same destination.
+    other = res.destination.with_name(res.destination.name + ".migrating")
+    other.parent.mkdir(parents=True)
+    other.write_text("another migration in progress")
+
+    (res,) = migrate_cache(tmp_path / "old", tmp_path / "new")
+    assert res.status == "migrated"
+    assert other.read_text() == "another migration in progress"
+    assert len(list(res.destination.parent.glob("*.migrating"))) == 1
+
+
+def test_dry_run_matches_real_run(legacy, tmp_path: Path):
+    """A dry run reports the same as a real run, including duplicate destinations."""
+    legacy.write_cache(tmp_path / "old")
+    dry = migrate_cache(tmp_path / "old", tmp_path / "new", dry_run=True)
+    real = migrate_cache(tmp_path / "old", tmp_path / "new")
+    assert [r.status for r in dry] == [r.status for r in real]
+    assert "exists" in {r.status for r in real}
+
+
+def test_migrated_arrays_are_not_kept_in_memory(legacy_v42, tmp_path: Path):
+    """Arrays are written one at a time, and purged from memory once written."""
+    path = legacy_v42.write_struct(tmp_path / "ics.h5", "nohalo:InitialConditions")
+    obj = h5.read_output_struct(path)
+    expected = {k: obj.get(k).copy() for k in obj.arrays}
+    obj = h5.read_output_struct(path)
+
+    h5.write_output_to_hdf5(obj, tmp_path / "new.h5", keep_in_memory=False)
+    for array in obj.arrays.values():
+        assert array._value is None
+        assert array.state.on_disk
+
+    new = h5.read_output_struct(tmp_path / "new.h5")
+    for k, val in expected.items():
+        np.testing.assert_array_equal(new.get(k), val)

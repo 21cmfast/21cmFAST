@@ -76,6 +76,7 @@ def write_output_to_hdf5(
     path: Path,
     group: str | None = None,
     mode: str = "w",
+    keep_in_memory: bool = True,
 ):
     """
     Write an output struct in standard HDF5 format.
@@ -90,6 +91,10 @@ def write_output_to_hdf5(
         The HDF5 group into which to write the object. By default, this is the root.
     mode : str
         The mode in which to open the file.
+    keep_in_memory
+        Whether to keep all arrays in memory after writing. If False, arrays are
+        loaded and written one at a time, and purged from memory once written, so
+        that writing never needs more memory than the largest array.
     """
     if not all(v.state.is_computed for v in output.arrays.values()):
         raise ValueError(
@@ -114,7 +119,7 @@ def write_output_to_hdf5(
         if hasattr(output, "redshift"):
             group.attrs["redshift"] = output.redshift
 
-        write_outputs_to_group(output, group)
+        write_outputs_to_group(output, group, keep_in_memory=keep_in_memory)
         _write_inputs_to_group(output.inputs, group)
 
 
@@ -182,7 +187,9 @@ def _write_inputs_to_group(
 
 
 def write_outputs_to_group(
-    output: ostruct.OutputStruct, group: h5py.Group | h5py.File | str | Path
+    output: ostruct.OutputStruct,
+    group: h5py.Group | h5py.File | str | Path,
+    keep_in_memory: bool = True,
 ):
     """
     Write the compute fields of an OutputStruct to a particular HDF5 subgroup.
@@ -198,6 +205,9 @@ def write_outputs_to_group(
     group
         The HDF5 group into which to write the object. A new group "OutputFields" will
         be created inside this group/file.
+    keep_in_memory
+        Whether to keep all arrays in memory after writing. If False, arrays are
+        loaded and written one at a time, and purged from memory once written.
     """
     need_to_close = False
     if isinstance(group, str | Path):
@@ -208,11 +218,16 @@ def write_outputs_to_group(
     # Go through all fields in this struct, and save
     group = group.create_group("OutputFields")
 
-    # First make sure we have everything in memory
-    output.load_all()
+    if keep_in_memory:
+        # First make sure we have everything in memory
+        output.load_all()
 
     for k, array in output.arrays.items():
-        new = array.written_to_disk(H5Backend(group.file.filename, f"{group.name}/{k}"))
+        backend = H5Backend(group.file.filename, f"{group.name}/{k}")
+        if keep_in_memory:
+            new = array.written_to_disk(backend)
+        else:
+            new = array.loaded_from_disk().purged_to_disk(backend)
         setattr(output, k, new)
 
     for k in output._struct.primitive_fields:

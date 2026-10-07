@@ -385,7 +385,9 @@ class TestOutputStructUpgrades:
         )
         compat.upgrade_output_struct(raw)
         assert set(raw.arrays) == {"n_ion", "sfr_acg"}
-        assert np.all(raw.arrays["n_ion"] < 1e-8)
+        rhocrit_omb = RHOCRIT_OMB_FACTOR * 0.7**2 * 0.05
+        np.testing.assert_allclose(raw.arrays["n_ion"], 1 / rhocrit_omb, rtol=1e-3)
+        np.testing.assert_allclose(raw.arrays["sfr_acg"], 2.0, rtol=0)
 
     def test_xray_source_box(self):
         """XraySourceBox can't be converted."""

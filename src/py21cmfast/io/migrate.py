@@ -16,8 +16,11 @@ removed.
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 import warnings
 from collections.abc import Iterable
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Literal
 
@@ -95,11 +98,21 @@ def _cache_path(cache: OutputCache, obj: ostruct.OutputStruct) -> Path:
         return cache.get_path(obj)
 
 
-def _write_atomically(obj: ostruct.OutputStruct, path: Path) -> None:
-    """Write an output struct, without leaving a partial file if it fails."""
-    tmp = path.with_name(path.name + ".migrating")
+@contextmanager
+def _atomic_destination(path: Path):
+    """Yield a unique temporary file that replaces ``path`` once it's written.
+
+    No partial file is left behind if writing fails, and concurrent migrations to
+    the same destination don't interfere with each other's temporary files.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(
+        dir=path.parent, prefix=f".{path.name}.", suffix=".migrating"
+    )
+    os.close(fd)
+    tmp = Path(tmp)
     try:
-        h5.write_output_to_hdf5(obj, tmp)
+        yield tmp
         tmp.replace(path)
     finally:
         tmp.unlink(missing_ok=True)
@@ -127,7 +140,8 @@ def migrate_cache_file(
         If given, only migrate files containing these kinds of output struct (by
         their current names, e.g. "EmissivityFields"). Others are skipped.
     overwrite
-        Whether to overwrite an existing file at the destination.
+        Whether to overwrite an existing file at the destination. The original file
+        is never overwritten, even if it is at the destination.
     dry_run
         If True, don't write anything, but report what would be done.
     safe
@@ -180,15 +194,16 @@ def migrate_cache_file(
     if destination.exists() and destination.samefile(path):
         if not compat.is_legacy(raw.version):
             return MigrationResult(path, "up-to-date", **common)
-        if not overwrite:
-            return MigrationResult(
-                path,
-                "exists",
-                message="the migrated file would replace the original file",
-                warnings=msgs,
-                **common,
-            )
-    elif destination.exists() and not overwrite:
+        # Original files are never replaced (even with overwrite=True).
+        return MigrationResult(
+            path,
+            "exists",
+            message="the migrated file would replace the original file; migrate "
+            "into a different destination instead",
+            warnings=msgs,
+            **common,
+        )
+    if destination.exists() and not overwrite:
         return MigrationResult(path, "exists", warnings=msgs, **common)
 
     if missing := [k for k, v in obj.arrays.items() if not v.state.is_computed]:
@@ -203,8 +218,10 @@ def migrate_cache_file(
 
     if not dry_run:
         try:
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            _write_atomically(obj, destination)
+            with _atomic_destination(destination) as tmp:
+                # Write one array at a time, so we never need more memory than the
+                # largest array.
+                h5.write_output_to_hdf5(obj, tmp, keep_in_memory=False)
         except Exception as e:
             logger.debug("Failed to write %s", destination, exc_info=True)
             return MigrationResult(
@@ -269,12 +286,20 @@ def migrate_cache(
     cache = OutputCache(Path(destination) if destination is not None else source)
     kinds = None if kinds is None else {compat.current_struct_name(k) for k in kinds}
 
-    return [
-        migrate_cache_file(
+    results = []
+    planned = set()  # destinations that a dry run would have written.
+    for path in sorted(source.rglob("*.h5")):
+        res = migrate_cache_file(
             path, cache, kinds=kinds, overwrite=overwrite, dry_run=dry_run, safe=safe
         )
-        for path in sorted(source.rglob("*.h5"))
-    ]
+        if res.status == "migrated" and dry_run:
+            # Report what a real run would do, which would find files it had
+            # already written for earlier sources.
+            if res.destination in planned and not overwrite:
+                res = attrs.evolve(res, status="exists")
+            planned.add(res.destination)
+        results.append(res)
+    return results
 
 
 def migrate_high_level_file(
@@ -314,15 +339,18 @@ def migrate_high_level_file(
         warnings.simplefilter("always")
         try:
             obj = h5.load_high_level_simulation(path, safe=safe)
-        except compat.UnconvertibleError as e:
+        except (
+            compat.UnconvertibleError,
+            compat.UnsupportedVersionError,
+            NotImplementedError,
+        ) as e:
             return MigrationResult(
                 path, "unconvertible", destination, version=version, message=str(e)
             )
 
-    tmp = destination.with_name(destination.name + ".migrating")
     try:
-        obj.save(tmp, clobber=True)
-        tmp.replace(destination)
+        with _atomic_destination(destination) as tmp:
+            obj.save(tmp, clobber=True)
     except Exception as e:
         logger.debug("Failed to write %s", destination, exc_info=True)
         return MigrationResult(
@@ -334,8 +362,6 @@ def migrate_high_level_file(
             message=f"{type(e).__name__}: {e}",
             warnings=_compat_warnings(caught),
         )
-    finally:
-        tmp.unlink(missing_ok=True)
 
     return MigrationResult(
         path,
