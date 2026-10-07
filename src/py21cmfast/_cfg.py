@@ -31,8 +31,9 @@ class Config(dict):
     }
     _defaults["wisdoms_path"] = Path(_defaults["direc"]) / "wisdoms"
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, file_name: str | Path | None = None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.file_name = file_name
         # keep the config settings from the C library here
         self._c_config_settings = StructInstanceWrapper(lib.config_settings, ffi)
 
@@ -81,16 +82,22 @@ class Config(dict):
 
     def write(self, fname: str | Path | None = None):
         """Write current configuration to file to make it permanent."""
-        if fname := Path(fname or self.file_name):
-            if not fname.parent.exists():
-                fname.parent.mkdir(parents=True)
+        fname = fname or self.file_name
+        if fname is None:
+            raise ValueError(
+                "No file name given to write the config to, and the config has no file_name."
+            )
 
-            with fname.open("w") as fl:
-                yaml.dump(self._as_dict(), fl)
+        fname = Path(fname)
+        if not fname.parent.exists():
+            fname.parent.mkdir(parents=True)
+
+        with fname.open("w") as fl:
+            yaml.dump(self._as_dict(), fl)
 
     def _as_dict(self):
         """Return a plain dict defining the instance."""
-        return {k: str(Path) if isinstance(v, Path) else v for k, v in self.items()}
+        return {k: str(v) if isinstance(v, Path) else v for k, v in self.items()}
 
     @classmethod
     def load(cls, file_name: str | Path):
@@ -102,7 +109,7 @@ class Config(dict):
                 cfg = yaml.load(fl)
             return cls(cfg, file_name=file_name)
         else:
-            return cls(write=True)
+            return cls(file_name=file_name)
 
 
 # On import, load the default config
