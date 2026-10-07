@@ -32,8 +32,10 @@ from .drivers.global_evolution import run_global_evolution
 from .drivers.lightcone import run_lightcone
 from .drivers.single_field import compute_initial_conditions
 from .input_serialization import convert_inputs_to_dict
+from .io import compat
 from .io.caching import CacheConfig, OutputCache, RunCache
 from .io.h5 import load_high_level_simulation
+from .io.migrate import migrate_cache, migrate_high_level_file
 from .lightconers import RectilinearLightconer
 from .wrapper.inputs import (
     AstroOptions,
@@ -875,6 +877,153 @@ def plot_output(
         out = _summary_plot_path(Path(filename))
 
     _make_summary_plot(obj, out, show=show)
+
+
+_MIGRATION_STYLES = {
+    "migrated": "spring_green3",
+    "up-to-date": "cyan",
+    "exists": "yellow",
+    "skipped": "grey50",
+    "unconvertible": "orange1",
+    "failed": "red",
+}
+
+
+@app.command(name="migrate")
+def migrate(
+    source: Path | None = None,
+    destination: Annotated[Path | None, Parameter(name=("--out", "-o"))] = None,
+    kind: Annotated[list[str] | None, Parameter(consume_multiple=True)] = None,
+    overwrite: bool = False,
+    dry_run: bool = False,
+    safe: bool = True,
+    explain: bool = False,
+    verbose: Annotated[bool, Parameter(name=("--verbose", "-v"))] = False,
+):
+    """Migrate outputs written by an older version of 21cmFAST to the current version.
+
+    If SOURCE is a directory, it is treated as a cache of boxes (written by the
+    simulation drivers): every file in it is converted to the current format and
+    written into the cache at --out (by default, SOURCE itself) at the location the
+    current version expects, so that simulations can find and re-use them. If
+    SOURCE is a saved coeval, lightcone or global-evolution file, it is converted to
+    the current format and written to --out (by default, alongside SOURCE with a
+    "-migrated" suffix). Original files are never removed.
+
+    Note that migrating a box only changes its format, not its contents: boxes that
+    depend on physics that has changed since they were written are not the same as
+    what this version would compute.
+
+    Parameters
+    ----------
+    source
+        A cache directory, or a saved coeval/lightcone/global-evolution file.
+    destination
+        Where to write the migrated outputs.
+    kind
+        Only migrate cache files of these kinds of box (e.g. InitialConditions).
+    overwrite
+        Overwrite existing files at the destination.
+    dry_run
+        Only report what would be done, without writing anything.
+    safe
+        Fail to migrate files with unknown input parameters.
+    explain
+        Print the changes to the file format since v4.0 and exit.
+    verbose
+        Print the result for every file, rather than a summary.
+    """
+    if explain:
+        cns.print(Rule("Changes to the file format of 21cmFAST", characters="="))
+        cns.print(compat.describe_format_changes(), highlight=False, markup=False)
+        return
+
+    if source is None:
+        raise ValueError("Provide a SOURCE to migrate (or use --explain).")
+
+    if source.is_dir():
+        results = migrate_cache(
+            source,
+            destination,
+            kinds=kind,
+            overwrite=overwrite,
+            dry_run=dry_run,
+            safe=safe,
+        )
+    elif source.is_file():
+        if dry_run:
+            raise ValueError("--dry-run is only supported for cache directories.")
+        destination = destination or source.with_name(f"{source.stem}-migrated.h5")
+        results = [
+            migrate_high_level_file(source, destination, overwrite=overwrite, safe=safe)
+        ]
+    else:
+        raise FileNotFoundError(f"{source} does not exist.")
+
+    _print_migration_results(
+        results,
+        verbose=verbose or source.is_file(),
+        source_root=source if source.is_dir() else source.parent,
+        dest_root=(destination or source) if source.is_dir() else None,
+    )
+    if dry_run:
+        cns.print("[yellow]This was a dry run: nothing was written.")
+
+
+def _relative(path: Path | None, root: Path | None) -> str:
+    if path is None:
+        return ""
+    if root is not None and path.is_relative_to(root):
+        return str(path.relative_to(root))
+    return str(path)
+
+
+def _print_migration_results(
+    results, verbose: bool, source_root: Path, dest_root: Path | None
+):
+    """Print a summary of the results of a migration."""
+    table = Table(box=box.SIMPLE)
+    for col in ("File", "Version", "Kind", "Status", "Details"):
+        table.add_column(col)
+
+    counts = {}
+    for res in results:
+        counts[res.status] = counts.get(res.status, 0) + 1
+        if not verbose and res.status in ("skipped", "up-to-date"):
+            continue
+        style = _MIGRATION_STYLES[res.status]
+        details = "\n".join(
+            x
+            for x in (
+                (
+                    f"-> {_relative(res.destination, dest_root)}"
+                    if res.status == "migrated"
+                    else ""
+                ),
+                res.message,
+                *res.warnings,
+            )
+            if x
+        )
+        table.add_row(
+            _relative(res.source, source_root),
+            res.version or "",
+            res.kind or "",
+            f"[{style}]{res.status}",
+            Text(details),
+        )
+
+    if table.rows:
+        cns.print(table)
+    cns.print(
+        "Summary: "
+        + ", ".join(
+            f"[{_MIGRATION_STYLES[k]}]{v} {k}[/{_MIGRATION_STYLES[k]}]"
+            for k, v in counts.items()
+        )
+        if counts
+        else "No files found to migrate."
+    )
 
 
 @dev.command(name="feature")

@@ -249,8 +249,9 @@ class GlobalEvolution:
 
             kwargs["inputs"] = h5.read_inputs(fl, safe=safe)
 
-            glb = fl["quantities"]
-            kwargs["quantities"] = {k: glb[k][...] for k in glb}
+            kwargs["quantities"] = h5.read_box_quantities(
+                fl["quantities"], fl["InputParameters"]
+            )
 
         return cls(**kwargs)
 

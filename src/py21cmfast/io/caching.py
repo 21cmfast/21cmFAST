@@ -577,9 +577,11 @@ class CacheConfigUpdate(TypedDict, total=False):
     emissivity_fields: bool
     halo_catalog: bool
     radiation_fields: bool
+    halobox: bool
+    xray_source_box: bool
 
 
-@attrs.define
+@attrs.define(init=False)
 class CacheConfig:
     """A configuration object that specifies whether a certain field should be cached."""
 
@@ -592,19 +594,37 @@ class CacheConfig:
     halo_catalog: bool = attrs.field(default=True, converter=bool)
     radiation_fields: bool = attrs.field(default=True, converter=bool)
 
+    _deprecated_aliases: ClassVar[dict[str, str]] = {
+        "halobox": "emissivity_fields",
+        "xray_source_box": "radiation_fields",
+    }
+
+    def __init__(self, *args, **kwargs):
+        """Create the object, accepting deprecated aliases of the fields."""
+        for old, new in self._deprecated_aliases.items():
+            if old in kwargs:
+                self._warn_deprecated_alias(old, new, stacklevel=2)
+                kwargs[new] = kwargs.pop(old)
+        self.__attrs_init__(*args, **kwargs)
+
+    @staticmethod
+    def _warn_deprecated_alias(old: str, new: str, stacklevel: int):
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                old,
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=f"'{old}' has been renamed to '{new}'. Please use '{new}' instead.",
+            ),
+            stacklevel=stacklevel + 1,
+        )
+
     def update(self, **kwargs: Unpack[CacheConfigUpdate]) -> Self:
         """Return a new CacheConfig with the given fields updated."""
-        if "halobox" in kwargs:
-            warnings.warn(
-                deprecation.DeprecatedWarning(
-                    "halobox",
-                    deprecated_in="4.3.0",
-                    removed_in="5.0.0",
-                    details="'halobox' has been renamed to 'emissivity_fields'. Please use 'emissivity_fields' instead.",
-                ),
-                stacklevel=2,
-            )
-            kwargs["emissivity_fields"] = kwargs.pop("halobox")
+        for old, new in self._deprecated_aliases.items():
+            if old in kwargs:
+                self._warn_deprecated_alias(old, new, stacklevel=2)
+                kwargs[new] = kwargs.pop(old)
         return attrs.evolve(self, **kwargs)
 
     @classmethod
@@ -676,3 +696,9 @@ class CacheConfig:
             stacklevel=2,
         )
         return self.emissivity_fields
+
+    @property
+    def xray_source_box(self) -> bool:
+        """A deprecated property that returns radiation_fields as xray_source_box."""
+        self._warn_deprecated_alias("xray_source_box", "radiation_fields", stacklevel=2)
+        return self.radiation_fields

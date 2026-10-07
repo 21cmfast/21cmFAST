@@ -32,6 +32,7 @@ from py21cmfast import (
     InputParameters,
     IonizedBox,
     PerturbedField,
+    SimulationOptions,
     compute_emissivity_fields,
     compute_halo_grid,
     compute_initial_conditions,
@@ -44,6 +45,7 @@ from py21cmfast import (
 from py21cmfast import lightconers as lcn
 from py21cmfast.io import caching, h5
 from py21cmfast.wrapper import cfuncs as cf
+from py21cmfast.wrapper._utils import camel_to_snake
 from py21cmfast.wrapper.inputs import MatterOptions
 
 _MAJOR_VERSION = int(p21c.__version__.split(".")[0])
@@ -1243,3 +1245,90 @@ def test_array_value_is_removed(ic: InitialConditions):
     assert np.allclose(ic.arrays["hires_density"].value, ic.get("hires_density"))
     # ... and the transitional _LegacyArrayView along with it.
     assert np.allclose(ic.hires_density.value, ic.get("hires_density"))
+
+
+def test_min_xe_for_fcoll_in_taux_deprecated_warning():
+    """Test that using MIN_XE_FOR_FCOLL_IN_TAUX shows a deprecation warning (#793)."""
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="MIN_XE_FOR_FCOLL_IN_TAUX is deprecated"
+    ):
+        opts = SimulationOptions(MIN_XE_FOR_FCOLL_IN_TAUX=0.01)
+    assert opts.MIN_XE_FOR_NION_IN_TAUX == 0.01
+    assert opts.MIN_XE_FOR_FCOLL_IN_TAUX == 0.01
+
+    with pytest.raises(ValueError, match="MIN_XE_FOR_NION_IN_TAUX is set to"):
+        SimulationOptions(MIN_XE_FOR_FCOLL_IN_TAUX=0.01, MIN_XE_FOR_NION_IN_TAUX=0.1)
+
+
+@deprecation.fail_if_not_removed
+def test_min_xe_for_fcoll_in_taux_is_removed():
+    """Fails when removed_in version is reached, reminding you to delete MIN_XE_FOR_FCOLL_IN_TAUX."""
+    SimulationOptions(MIN_XE_FOR_FCOLL_IN_TAUX=0.01)
+
+
+def test_min_xe_for_fcoll_in_taux_in_template(tmp_path: Path):
+    """Test that v4.2 TOML files with MIN_XE_FOR_FCOLL_IN_TAUX can be read (#793)."""
+    toml = tmp_path / "v42.toml"
+    toml.write_text("[SimulationOptions]\nMIN_XE_FOR_FCOLL_IN_TAUX = 0.002\n")
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="MIN_XE_FOR_FCOLL_IN_TAUX is deprecated"
+    ):
+        inputs = InputParameters.from_template(["latest", toml], random_seed=1)
+    assert inputs.simulation_options.MIN_XE_FOR_NION_IN_TAUX == 0.002
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [("halobox", "emissivity_fields"), ("xray_source_box", "radiation_fields")],
+)
+def test_cache_config_constructor_deprecated_warning(old, new):
+    """Test that CacheConfig accepts deprecated names in its constructor (#793)."""
+    with pytest.warns(deprecation.DeprecatedWarning, match=f"{old} is deprecated"):
+        cfg = caching.CacheConfig(**{old: False})
+    assert not getattr(cfg, new)
+    assert cfg == caching.CacheConfig(**{new: False})
+
+    with pytest.warns(deprecation.DeprecatedWarning, match=f"{old} is deprecated"):
+        assert not getattr(cfg, old)
+
+
+@deprecation.fail_if_not_removed
+@pytest.mark.parametrize("old", ["halobox", "xray_source_box"])
+def test_cache_config_constructor_deprecated_is_removed(old):
+    """Fails when removed_in version is reached, reminding you to delete the alias."""
+    caching.CacheConfig(**{old: False})
+
+
+@pytest.mark.filterwarnings("ignore::deprecation.DeprecatedWarning")
+@pytest.mark.parametrize(
+    ("cls", "old", "new", "value"),
+    [
+        (AstroParams, "F_STAR10", "F_STAR10_ACG", -1.5),
+        (AstroParams, "L_X", "LX_OVER_SFR_ACG", 40.0),
+        (AstroOptions, "USE_MINI_HALOS", "USE_MCGS", False),
+        (
+            SimulationOptions,
+            "MIN_XE_FOR_FCOLL_IN_TAUX",
+            "MIN_XE_FOR_NION_IN_TAUX",
+            0.01,
+        ),
+    ],
+)
+def test_deprecated_alias_equivalent_to_new_name(cls, old, new, value):
+    """Using a deprecated name gives the same object (and cache hash) as the new name."""
+    with_old = cls(**{old: value})
+    with_new = cls(**{new: value})
+    assert with_old == with_new
+    assert repr(with_old) == repr(with_new)
+    assert with_old.asdict() == with_new.asdict()
+
+    struct_name = camel_to_snake(cls.__name__)
+    inputs_old = InputParameters(random_seed=1, **{struct_name: with_old})
+    inputs_new = InputParameters(random_seed=1, **{struct_name: with_new})
+    assert caching.OutputCache._get_hashes(
+        inputs_old
+    ) == caching.OutputCache._get_hashes(inputs_new)
+    for struct in inputs_old.asdict(
+        only_structs=True, only_cstruct_params=False
+    ).values():
+        assert old not in struct
