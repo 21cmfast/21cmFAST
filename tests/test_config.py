@@ -44,7 +44,7 @@ def restore_backend():
 
 
 def test_config_write_paths(cfgdir):
-    fname = cfgdir / "config_paths.yml"
+    fname = cfgdir / "new_subdir" / "config_paths.yml"
     with p21.config.use(direc=str(cfgdir)):
         p21.config.write(fname)
 

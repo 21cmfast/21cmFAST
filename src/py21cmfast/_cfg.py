@@ -98,8 +98,7 @@ class Config(dict):
             )
 
         fname = Path(fname)
-        if not fname.parent.exists():
-            fname.parent.mkdir(parents=True)
+        fname.parent.mkdir(parents=True, exist_ok=True)
 
         with fname.open("w") as fl:
             yaml.dump(self._as_dict(), fl)
