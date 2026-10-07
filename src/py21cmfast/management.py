@@ -13,22 +13,17 @@ def get_expected_outputs(
     out = {
         "InitialConditions": ostrct.InitialConditions.new(inputs).arrays,
         "PerturbedField": ostrct.PerturbedField.new(inputs, redshift=6).arrays,
+        "EmissivityFields": ostrct.EmissivityFields.new(inputs, redshift=6).arrays,
         "IonizedBox": ostrct.IonizedBox.new(inputs, redshift=6).arrays,
         "BrightnessTemp": ostrct.BrightnessTemp.new(inputs, redshift=6).arrays,
     }
 
-    if inputs.matter_options.lagrangian_source_grid:
-        out["HaloBox"] = ostrct.HaloBox.new(inputs, redshift=6).arrays
-        if inputs.astro_options.USE_TS_FLUCT:
-            out["XraySourceBox"] = ostrct.XraySourceBox.new(inputs, redshift=6).arrays
+    if inputs.astro_options.USE_TS_FLUCT:
+        out["RadiationFields"] = ostrct.RadiationFields.new(inputs, redshift=6).arrays
+        out["TsBox"] = ostrct.TsBox.new(inputs, redshift=6.0).arrays
 
     if inputs.matter_options.has_discrete_halos:
         out["HaloCatalog"] = ostrct.HaloCatalog.new(inputs, redshift=6).arrays
-
-    if inputs.astro_options.USE_TS_FLUCT:
-        out |= {
-            "TsBox": ostrct.TsBox.new(inputs, redshift=6.0).arrays,
-        }
 
     # Make the outputs consistent with the cache config
     if not cache_config.initial_conditions:
@@ -41,12 +36,12 @@ def get_expected_outputs(
         del out["BrightnessTemp"]
     if not cache_config.halo_catalog and "HaloCatalog" in out:
         del out["HaloCatalog"]
-    if not cache_config.halobox and "HaloBox" in out:
-        del out["HaloBox"]
+    if not cache_config.emissivity_fields:
+        del out["EmissivityFields"]
     if not cache_config.spin_temp and "TsBox" in out:
         del out["TsBox"]
-    if not cache_config.xray_source_box and "XraySourceBox" in out:
-        del out["XraySourceBox"]
+    if not cache_config.radiation_fields and "RadiationFields" in out:
+        del out["RadiationFields"]
 
     return out
 

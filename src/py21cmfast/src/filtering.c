@@ -1,6 +1,7 @@
 
 #include <complex.h>
 #include <fftw3.h>
+#include <float.h>
 #include <gsl/gsl_sf_gamma.h>
 #include <math.h>
 #include <omp.h>
@@ -163,9 +164,11 @@ void initialize_alphas_and_betas_for_multiple_scattering(
     double R_inner, double R_outer, double R_star, struct multiple_scattering_params *consts) {
     if (R_star == 0.) {
         // R_star == 0 could happen after reionization since R_star is proportional to x_HI
-        consts->alpha_inner = 1.;
-        consts->alpha_outer = 1.;
-        consts->beta_inner = 1.;
+        // In this limit, x_em goes to infinity, and thus alpha goes to infinity while beta goes to
+        // zero (this corresponds to the straight-line limit)
+        consts->alpha_inner = DBL_MAX;  // inifinity-like
+        consts->alpha_outer = DBL_MAX;  // inifinity-like
+        consts->beta_inner = 0.;
         consts->beta_outer = 0.;
     } else {
         // Eq. (25) in arxiv: 2601.14360
@@ -178,8 +181,15 @@ void initialize_alphas_and_betas_for_multiple_scattering(
         double eta_outer = compute_eta_for_multiple_scattering(x_em_outer);
 
         // Eq. (28) in arxiv: 2601.14360 (mu = alpha/(alpha+beta), eta = alpha/(alpha+beta^2))
-        consts->alpha_inner = (1. / eta_inner - 1.) / pow(1. / mu_inner - 1., 2);
-        consts->beta_inner = (1. / eta_inner - 1.) / (1. / mu_inner - 1.);
+        if (R_inner == 0.) {
+            // For R_inner = 0 (innermost shell), alpha_inner and beta_inner should be infinity,
+            // (though still with beta_inner >> alpha_inner, corresponding to the diffusion limit)
+            consts->alpha_inner = DBL_MAX;  // inifinity-like
+            consts->beta_inner = DBL_MAX;   // inifinity-like
+        } else {
+            consts->alpha_inner = (1. / eta_inner - 1.) / pow(1. / mu_inner - 1., 2);
+            consts->beta_inner = (1. / eta_inner - 1.) / (1. / mu_inner - 1.);
+        }
         consts->alpha_outer = (1. / eta_outer - 1.) / pow(1. / mu_outer - 1., 2);
         consts->beta_outer = (1. / eta_outer - 1.) / (1. / mu_outer - 1.);
     }
@@ -249,6 +259,10 @@ double asymptotic_2F3(double kR, double alpha, double beta) {
 // Implementation of 2F3((alpha+2)/2, (alpha+3)/2 ; (alpha+beta+2)/2, (alpha+beta+3)/2 ; -kR^2 /4))
 // This is Eq. (32) in arxiv: 2601.14360
 double hyper_2F3(double kR, double alpha, double beta) {
+    if (kR == 0.) {
+        // For kR=0, the hypergeometric function is unity
+        return 1.0;
+    }
     if (beta == 0.) {
         // beta=0 during reionization.
         // In this case we return the straight-line window function (no multiple scattering if there
@@ -317,10 +331,10 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
 
     // setup constants if needed
     double R_const;
-    if (filter_type == 3) {
+    if (filter_type == FILTER_EXP_MFP) {
         R_const = exp(-R / R_param);
     }
-    if (filter_type == 5) {
+    if (filter_type == FILTER_SPHERICAL_SHELL_MULTIPLE_SCATTERING) {
         initialize_alphas_and_betas_for_multiple_scattering(R, R_param, R_star, &consts_for_ms);
     }
 
@@ -353,17 +367,17 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
 
                     // TODO: it would be nice to combine these into the filter_function call, *but*
                     // since each can take different arguments more thought is needed
-                    if (filter_type == 0) {  // real space top-hat
+                    if (filter_type == FILTER_TOPHAT) {  // real space top-hat
                         kR = sqrt(k_mag_sq) * R;
                         box[grid_index] *= real_tophat_filter(kR);
-                    } else if (filter_type == 1) {  // k-space top hat
+                    } else if (filter_type == FILTER_SHARP_K) {  // k-space top hat
                         // NOTE: why was this commented????
                         //  This is actually (kR^2) but since we zero the value and find kR > 1 this
                         //  is more computationally efficient kR = 0.17103765852*( k_x*k_x + k_y*k_y
                         //  + k_z*k_z )*R*R;
                         kR = sqrt(k_mag_sq) * R;
                         box[grid_index] *= sharp_k_filter(kR);
-                    } else if (filter_type == 2) {  // gaussian
+                    } else if (filter_type == FILTER_GAUSSIAN) {  // gaussian
                         // This is actually (kR^2) but since we zero the value and find kR > 1 this
                         // is more computationally efficient
                         kR = k_mag_sq * R * R;
@@ -371,13 +385,17 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
                     }
                     // The next two filters are not given by the HII_FILTER global, but used for
                     // specific grids
-                    else if (filter_type ==
-                             3) {  // exponentially decaying tophat, param == scale of decay (MFP)
+                    else if (filter_type == FILTER_EXP_MFP) {  // exponentially decaying tophat,
+                                                               // param == scale of decay (MFP)
                         // NOTE: This should be optimized, I havne't looked at it in a while
                         box[grid_index] *= exp_mfp_filter(sqrt(k_mag_sq), R, R_param, R_const);
-                    } else if (filter_type == 4) {  // spherical shell, R_param == inner radius
+                    } else if (filter_type ==
+                               FILTER_SPHERICAL_SHELL_STRAIGHT_LINE) {  // spherical shell, R_param
+                                                                        // == inner radius
                         box[grid_index] *= spherical_shell_filter(sqrt(k_mag_sq), R, R_param);
-                    } else if (filter_type == 5) {  // multiple scattering window function
+                    } else if (filter_type ==
+                               FILTER_SPHERICAL_SHELL_MULTIPLE_SCATTERING) {  // multiple scattering
+                                                                              // window function
                         box[grid_index] *=
                             multiple_scattering_filter(sqrt(k_mag_sq), R, R_param, &consts_for_ms);
                     } else {
@@ -442,4 +460,32 @@ int test_filter(float *input_box, double R, double R_param, double R_star, int f
     fftwf_free(box_filtered);
 
     return 0;
+}
+
+double test_alpha_for_multiple_scattering(double x_em) {
+    struct multiple_scattering_params consts_for_ms;
+    // x_em = R / R_star, so we can set R_inner to be x_em while R_star is 1.
+    // R_outer is irrelevant since we take the output to be alpha_inner
+    initialize_alphas_and_betas_for_multiple_scattering(x_em, 0., 1., &consts_for_ms);
+    return consts_for_ms.alpha_inner;
+}
+double test_beta_for_multiple_scattering(double x_em) {
+    struct multiple_scattering_params consts_for_ms;
+    // x_em = R / R_star, so we can set R_inner to be x_em while R_star is 1.
+    // R_outer is irrelevant since we take the output to be beta_inner
+    initialize_alphas_and_betas_for_multiple_scattering(x_em, 0., 1., &consts_for_ms);
+    return consts_for_ms.beta_inner;
+}
+
+double test_alpha_for_multiple_scattering_straight_line_limit(void) {
+    struct multiple_scattering_params consts_for_ms;
+    // If x_em = inf, then we can set R_star = 0, without caring for R_inner and R_outer
+    initialize_alphas_and_betas_for_multiple_scattering(1., 0., 0., &consts_for_ms);
+    return consts_for_ms.alpha_inner;
+}
+double test_beta_for_multiple_scattering_straight_line_limit(void) {
+    struct multiple_scattering_params consts_for_ms;
+    // If x_em = inf, then we can set R_star = 0, without caring for R_inner and R_outer
+    initialize_alphas_and_betas_for_multiple_scattering(1., 0., 0., &consts_for_ms);
+    return consts_for_ms.beta_inner;
 }

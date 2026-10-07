@@ -7,12 +7,10 @@
 // clumping factor of C_{HII}=3 and the IGM temperature of T_0 = 2e4 K, following Section 2.1 of
 // Kuhlen & Faucher-Gigue`re (2012) MNRAS, 423, 862 and references therein. 1) initialise
 // interpolation table
-// -> initialise_Q_value_spline(NoRec, M_TURN, ALPHA_STAR, ALPHA_ESC, F_STAR10, F_ESC10)
-// NoRec = 0: Compute dQ/dt with the recombination time.
-// NoRec = 1: Ignore recombination.
-// 2) find Q value at a given z -> Q_at_z(z, &(Q))
-// or find z at a given Q -> z_at_Q(Q, &(z)).
-// 3) free memory allocation -> free_Q_value()
+// -> initialise_Q_value_spline(NoRec, M_TURN_STELLAR_FEEDBACK, ALPHA_STAR_ACG, ALPHA_ESC,
+// F_STAR10_ACG, F_ESC10_ACG) NoRec = 0: Compute dQ/dt with the recombination time. NoRec = 1:
+// Ignore recombination. 2) find Q value at a given z -> Q_at_z(z, &(Q)) or find z at a given Q ->
+// z_at_Q(Q, &(z)). 3) free memory allocation -> free_Q_value()
 
 #include "photoncons.h"
 
@@ -116,9 +114,9 @@ int InitialisePhotonCons() {
 
         // set the minimum source mass
         if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-            ION_EFF_FACTOR = astro_params_global->POP2_ION * astro_params_global->F_STAR10 *
-                             astro_params_global->F_ESC10;
-            M_MIN = astro_params_global->M_TURN / 50.;
+            ION_EFF_FACTOR = astro_params_global->POP2_ION * astro_params_global->F_STAR10_ACG *
+                             astro_params_global->F_ESC10_ACG;
+            M_MIN = astro_params_global->M_TURN_STELLAR_FEEDBACK / 50.;
             lnMmin = log(M_MIN);
         } else {
             ION_EFF_FACTOR = astro_params_global->HII_EFF_FACTOR;
@@ -165,10 +163,12 @@ int InitialisePhotonCons() {
                 // We Force QAG due to the changing limits and messy implementation which I will fix
                 // later (hopefully move the whole thing to python)
                 if (source_model_is_mass_dependent(matter_options_global->SOURCE_MODEL)) {
-                    Nion0 = ION_EFF_FACTOR *
-                            Nion_General(z0, lnMmin, lnMmax, astro_params_global->M_TURN, &sc_0);
-                    Nion1 = ION_EFF_FACTOR *
-                            Nion_General(z1, lnMmin, lnMmax, astro_params_global->M_TURN, &sc_1);
+                    // TODO: the passed ACG turnover mass that we give below has to be updated to
+                    // be more consistent with what's done in the rest of the code
+                    Nion0 = nion_unconditional_acg(
+                        z0, lnMmin, lnMmax, astro_params_global->M_TURN_STELLAR_FEEDBACK, &sc_0);
+                    Nion1 = nion_unconditional_acg(
+                        z1, lnMmin, lnMmax, astro_params_global->M_TURN_STELLAR_FEEDBACK, &sc_1);
                 } else {
                     // set the minimum source mass
                     if (astro_params_global->ION_Tvir_MIN < 9.99999e3) {  // neutral IGM
@@ -179,8 +179,8 @@ int InitialisePhotonCons() {
                         M_MIN_z1 = (float)TtoM(z1, astro_params_global->ION_Tvir_MIN, 0.6);
                     }
 
-                    Nion0 = ION_EFF_FACTOR * Fcoll_General(z0, log(M_MIN_z0), lnMmax);
-                    Nion1 = ION_EFF_FACTOR * Fcoll_General(z1, log(M_MIN_z1), lnMmax);
+                    Nion0 = ION_EFF_FACTOR * fcoll_unconditional(z0, log(M_MIN_z0), lnMmax);
+                    Nion1 = ION_EFF_FACTOR * fcoll_unconditional(z1, log(M_MIN_z1), lnMmax);
                 }
 
                 // With scale factor a, the above equation is written as dQ/da = n_{ion}/da -

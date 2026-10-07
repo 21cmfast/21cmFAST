@@ -24,7 +24,7 @@ from ..rsds import include_dvdr_in_tau21 as _apply_dvdr_in_tau21
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
-    HaloBox,
+    EmissivityFields,
     HaloCatalog,
     InitialConditions,
     IonizedBox,
@@ -89,13 +89,12 @@ class LightCone:
         """Get a list of the names of the available fields in the simulation."""
         possible_outputs = [
             PerturbedField.new(inputs, redshift=0),
+            EmissivityFields.new(inputs, redshift=0),
             IonizedBox.new(inputs, redshift=0),
             BrightnessTemp.new(inputs, redshift=0),
         ]
         if inputs.astro_options.USE_TS_FLUCT:
             possible_outputs.append(TsBox.new(inputs, redshift=0))
-        if inputs.matter_options.lagrangian_source_grid:
-            possible_outputs.append(HaloBox.new(inputs, redshift=0))
         field_names = ("log10_mturn_acg", "log10_mturn_mcg")
         for output in possible_outputs:
             field_names += tuple(output.arrays.keys())
@@ -385,7 +384,7 @@ def _get_all_possible_arrays(inputs: InputParameters) -> list[str]:
         InitialConditions.new(inputs),
         PerturbedField.new(inputs, redshift=0),
         TsBox.new(inputs, redshift=0),
-        HaloBox.new(inputs, redshift=0),
+        EmissivityFields.new(inputs, redshift=0),
         IonizedBox.new(inputs, redshift=0),
         BrightnessTemp.new(inputs, redshift=0),
     ]
@@ -474,7 +473,6 @@ def _run_lightcone_from_perturbed_fields(
     apply_rsds: bool,
     n_rsd_subcells: int,
     halofield_list: list[HaloCatalog],
-    cleanup: bool = True,
     write: CacheConfig = _cache,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
@@ -534,7 +532,6 @@ def _run_lightcone_from_perturbed_fields(
         perturbed_field=perturbed_fields,
         halofield_list=halofield_list,
         write=write,
-        cleanup=cleanup,
         progressbar=progressbar,
         photon_nonconservation_data=photon_nonconservation_data,
         start_idx=lightcone._last_completed_node + 1,
@@ -545,11 +542,11 @@ def _run_lightcone_from_perturbed_fields(
         for quantity in lightcone.global_quantities:
             if quantity == "log10_mturn_acg":
                 lightcone.global_quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_Mturnover_ave
+                    coeval.ionized_box.log10_mturn_ave_acg
                 )
             elif quantity == "log10_mturn_mcg":
                 lightcone.global_quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_Mturnover_MINI_ave
+                    coeval.ionized_box.log10_mturn_ave_mcg
                 )
             else:
                 lightcone.global_quantities[quantity][iz] = np.mean(
@@ -595,12 +592,12 @@ def _run_lightcone_from_perturbed_fields(
         yield iz, coeval.redshift, coeval, lightcone
 
         # Purge the previous coeval after we're done with it
-        # Note: we do not attempt to purge halo box from prev_coeval, since it used in compute_xray_source_field.
-        #       Halo boxes are ultimately purged in halobox.prepare_for_next_snapshot().
+        # Note: we do not attempt to purge emissivity_fields from prev_coeval, since it used in compute_radiation_fields.
+        #       emissivity_fields are ultimately purged in emissivity_fields.prepare_for_next_snapshot().
         #       Meanwhile, unnecessary fields from initial_conditions were removed via prepare_for_perturb and prepare_for_spin_temp
         if prev_coeval is not None:
             prev_coeval.prepare_for_next_snapshot(
-                keepset=["initial_conditions", "halobox"], force=True
+                keepset=["initial_conditions", "emissivity_fields"], force=True
             )
 
         prev_coeval = coeval
@@ -615,7 +612,6 @@ def generate_lightcone(
     include_dvdr_in_tau21: bool = True,
     apply_rsds: bool = False,
     n_rsd_subcells: int = 4,
-    cleanup: bool = True,
     write: CacheConfig = _cache,
     cache: OutputCache | None = _ocache,
     regenerate: bool = True,
@@ -647,12 +643,6 @@ def generate_lightcone(
     n_rsd_subcells : int, optional
         The number of subcells into which each cell is divided when redshift space distortions are applied.
         Becomes relevant only if apply_rsds is True. Default is False.
-    cleanup : bool, optional
-        A flag to specify whether the C routine cleans up its memory before returning.
-        Typically, if `spin_temperature` is called directly, you will want this to be
-        true, as if the next box to be calculate has different shape, errors will occur
-        if memory is not cleaned. Note that internally, this is set to False until the
-        last iteration.
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
     lightcone_filename
@@ -717,7 +707,6 @@ def generate_lightcone(
         apply_rsds=apply_rsds,
         n_rsd_subcells=n_rsd_subcells,
         write=write,
-        cleanup=cleanup,
         progressbar=progressbar,
         lightcone_filename=lightcone_filename,
         **iokw,

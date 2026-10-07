@@ -1,11 +1,12 @@
 """Unit tests for input structures."""
 
 import pickle
+from collections import OrderedDict
 from itertools import chain
 from typing import Any, ClassVar
 
-import deprecation
 import pytest
+from astropy.cosmology import Planck15, Planck18
 
 from py21cmfast import (
     AstroOptions,
@@ -21,6 +22,7 @@ from py21cmfast.input_serialization import (
     deserialize_inputs,
     prepare_inputs_for_serialization,
 )
+from py21cmfast.wrapper import inputs as inputs_module
 from py21cmfast.wrapper.inputs import CosmoTables, Table1D
 
 _TEMPLATES = tmpl.list_templates()
@@ -196,24 +198,36 @@ class TestCosmoParams:
         with pytest.raises(ValueError, match="Cannot set both SIGMA_8 and A_s!"):
             CosmoParams(SIGMA_8=self.sigma_8, A_s=self.A_s)
 
+    def test_cosmo_shared_between_equal_instances(self):
+        """Test that instances with the same parameters share one astropy cosmology."""
+        assert CosmoParams().cosmo is CosmoParams().cosmo
+
+        cosmo = CosmoParams(hlittle=0.7).cosmo
+        assert cosmo is not CosmoParams().cosmo
+        assert cosmo.H0.value == pytest.approx(70.0, rel=1e-12)
+
+    def test_cosmo_uses_base_cosmo(self):
+        """Test that the shared cosmology is built from the right base cosmology."""
+        p15 = CosmoParams.from_astropy(Planck15)
+        p18 = CosmoParams(hlittle=p15.hlittle, OMm=p15.OMm, OMb=p15.OMb)
+
+        assert p15.cosmo.name == Planck15.name
+        assert p18.cosmo.name == Planck18.name
+        assert p15.cosmo is not p18.cosmo
+
+    def test_cosmo_cache_is_bounded(self, monkeypatch):
+        """Test that sweeping over parameters doesn't grow the cosmology cache forever."""
+        monkeypatch.setattr(inputs_module, "_SHARED_COSMOLOGIES", OrderedDict())
+        monkeypatch.setattr(inputs_module, "_SHARED_COSMOLOGIES_MAXSIZE", 2)
+
+        cosmos = [CosmoParams(hlittle=h).cosmo for h in (0.6, 0.65, 0.7)]
+
+        assert len(inputs_module._SHARED_COSMOLOGIES) == 2
+        assert CosmoParams(hlittle=0.7).cosmo is cosmos[-1]
+
 
 class TestAstroParams:
     """Tests of AstroParams."""
-
-    def test_fix_vcb_avg_deprecated_warning(self):
-        """Test that using FIXED_VAVG=True shows deprecation warning."""
-        fixed_vavg = 1.0  # dummy value for testing
-        with pytest.warns(
-            deprecation.DeprecatedWarning, match="FIXED_VAVG is deprecated"
-        ):
-            astro_params = AstroParams(FIXED_VAVG=fixed_vavg)
-        assert fixed_vavg == astro_params.FIXED_VAVG
-        assert fixed_vavg == astro_params.V_CB_AVG_DEBUG
-
-    @deprecation.fail_if_not_removed
-    def test_fixed_vavg_is_removed(self):
-        """Fails when the removed_in version is reached, reminding you to delete FIXED_VAVG."""
-        AstroParams(FIXED_VAVG=1.0)
 
 
 class TestAstroOptions:
@@ -234,12 +248,12 @@ class TestAstroOptions:
                 {"HEAT_FILTER": 1},
             ),
             (
-                {"INTEGRATION_METHOD_ATOMIC": "GSL-QAG"},
-                {"INTEGRATION_METHOD_ATOMIC": 0},
+                {"INTEGRATION_METHOD_ACGS": "GSL-QAG"},
+                {"INTEGRATION_METHOD_ACGS": 0},
             ),
             (
-                {"INTEGRATION_METHOD_MINI": "GAMMA-APPROX"},
-                {"INTEGRATION_METHOD_MINI": 2},
+                {"INTEGRATION_METHOD_MCGS": "GAMMA-APPROX"},
+                {"INTEGRATION_METHOD_MCGS": 2},
             ),
         ],
     )
@@ -256,23 +270,23 @@ class TestAstroOptions:
         """Test possible exceptions when creating the object."""
         with pytest.raises(
             ValueError,
-            match="You have set USE_MINI_HALOS to True but RECOMB_MODEL is 'none'!",
+            match="You have set USE_MCGS to True but RECOMB_MODEL is 'none'!",
         ):
-            AstroOptions(USE_MINI_HALOS=True, USE_TS_FLUCT=True, RECOMB_MODEL="none")
+            AstroOptions(USE_MCGS=True, USE_TS_FLUCT=True, RECOMB_MODEL="none")
 
         with pytest.raises(
             ValueError,
-            match="You have set USE_MINI_HALOS to True but USE_TS_FLUCT is False!",
+            match="You have set USE_MCGS to True but USE_TS_FLUCT is False!",
         ):
             AstroOptions(
-                USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=False
+                USE_MCGS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=False
             )
 
-        msg = r"USE_MINI_HALOS is not compatible with the redshift-based"
+        msg = r"USE_MCGS is not compatible with the redshift-based"
         with pytest.raises(ValueError, match=msg):
             AstroOptions(
                 PHOTON_CONS_TYPE="z-photoncons",
-                USE_MINI_HALOS=True,
+                USE_MCGS=True,
                 RECOMB_MODEL="inhomogeneous",
                 USE_TS_FLUCT=True,
             )
@@ -288,43 +302,15 @@ class TestAstroOptions:
         ):
             AstroOptions(USE_EXP_FILTER=True, HII_FILTER="sharp-k")
 
-    @pytest.mark.parametrize("recomb_model", ["none", "homogeneous", "inhomogeneous"])
-    def test_recomb_model_basic(self, recomb_model):
-        """Test basic RECOMB_MODEL usage without INHOMO_RECO."""
-        opts_none = AstroOptions(RECOMB_MODEL=recomb_model)
-        assert recomb_model == opts_none.RECOMB_MODEL
-        assert opts_none.INHOMO_RECO is False if recomb_model == "none" else True
-
-    def test_inhomo_reco_deprecated_warning(self):
-        """Test that using INHOMO_RECO=True shows deprecation warning."""
-        with pytest.warns(
-            deprecation.DeprecatedWarning, match="INHOMO_RECO is deprecated"
-        ):
-            opts = AstroOptions(INHOMO_RECO=True)
-        assert opts.RECOMB_MODEL == "inhomogeneous"
-        assert opts.INHOMO_RECO is True
-
-    @deprecation.fail_if_not_removed
-    def test_inhomo_reco_is_removed(self):
-        """Fails when the removed_in version is reached, reminding you to delete INHOMO_RECO."""
-        AstroOptions(INHOMO_RECO=True)
-
-    @pytest.mark.parametrize("kwargs", [{}, {"INHOMO_RECO": False}])
-    def test_inhomo_reco_false_sets_none(self, kwargs):
-        """Test that INHOMO_RECO=False (or not provided) sets RECOMB_MODEL='none'."""
-        opts = AstroOptions(**kwargs)
-        assert opts.RECOMB_MODEL == "none"
-        assert opts.INHOMO_RECO is False
-
-    @pytest.mark.parametrize("recomb_model", ["none", "homogeneous", "inhomogeneous"])
-    def test_recomb_model_conflict(self, recomb_model):
-        """Test error when INHOMO_RECO=False conflicts with RECOMB_MODEL!='none'."""
-        inhomo_reco_wrong = recomb_model == "none"
-        with pytest.raises(
-            ValueError,
-            match=f"RECOMB_MODEL is set to '{recomb_model}' but INHOMO_RECO is {inhomo_reco_wrong}",
-        ):
-            AstroOptions(INHOMO_RECO=inhomo_reco_wrong, RECOMB_MODEL=recomb_model)
+    @pytest.mark.parametrize("use_mcgs", [True, False])
+    def test_use_reionization_photoheating_feedback_default(self, use_mcgs):
+        """Test that USE_REIONIZATION_PHOTOHEATING_FEEDBACK defaults to the correct value based on USE_MCGS."""
+        opts = AstroOptions(
+            USE_MCGS=use_mcgs,
+            RECOMB_MODEL="inhomogeneous",
+            USE_TS_FLUCT=True,
+        )
+        assert opts.USE_MCGS == opts.USE_REIONIZATION_PHOTOHEATING_FEEDBACK
 
     def test_recomb_model_choices_valid(self):
         """Test that only valid RECOMB_MODEL choices are accepted."""
@@ -524,49 +510,6 @@ class TestMatterOptions:
         with pytest.raises(NotImplementedError, match=msg):
             MatterOptions(SOURCE_MODEL="CHMF-SAMPLER", HMF="WATSON")
 
-    @pytest.mark.parametrize("v_cb_model", ["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"])
-    def test_v_cb_model_basic(self, v_cb_model):
-        """Test basic V_CB_MODEL usage without USE_RELATIVE_VELOCITIES."""
-        opts_none = MatterOptions(V_CB_MODEL=v_cb_model)
-        assert v_cb_model == opts_none.V_CB_MODEL
-        assert (
-            opts_none.USE_RELATIVE_VELOCITIES is False if v_cb_model == "NONE" else True
-        )
-
-    def test_use_relative_velocities_deprecated_warning(self):
-        """Test that using USE_RELATIVE_VELOCITIES=True shows deprecation warning."""
-        with pytest.warns(
-            deprecation.DeprecatedWarning, match="USE_RELATIVE_VELOCITIES is deprecated"
-        ):
-            opts = MatterOptions(USE_RELATIVE_VELOCITIES=True)
-        assert opts.V_CB_MODEL == "FLUCTS"
-        assert opts.USE_RELATIVE_VELOCITIES is True
-
-    @deprecation.fail_if_not_removed
-    def test_use_relative_velocities_is_removed(self):
-        """Fails when the removed_in version is reached, reminding you to delete USE_RELATIVE_VELOCITIES."""
-        MatterOptions(USE_RELATIVE_VELOCITIES=True)
-
-    @pytest.mark.parametrize("kwargs", [{}, {"USE_RELATIVE_VELOCITIES": False}])
-    def test_use_relative_velocities_false_sets_none(self, kwargs):
-        """Test that USE_RELATIVE_VELOCITIES=False (or not provided) sets V_CB_MODEL='NONE'."""
-        opts = MatterOptions(**kwargs)
-        assert opts.V_CB_MODEL == "NONE"
-        assert opts.USE_RELATIVE_VELOCITIES is False
-
-    @pytest.mark.parametrize("v_cb_model", ["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"])
-    def test_v_cb_model_conflict(self, v_cb_model):
-        """Test error when USE_RELATIVE_VELOCITIES=False conflicts with V_CB_MODEL!='NONE'."""
-        use_relative_veclocities_wrong = v_cb_model == "NONE"
-        with pytest.raises(
-            ValueError,
-            match=f"V_CB_MODEL is set to '{v_cb_model}' but USE_RELATIVE_VELOCITIES is {use_relative_veclocities_wrong}",
-        ):
-            MatterOptions(
-                USE_RELATIVE_VELOCITIES=use_relative_veclocities_wrong,
-                V_CB_MODEL=v_cb_model,
-            )
-
     def test_v_cb_model_choices_valid(self):
         """Test that only valid V_CB_MODEL choices are accepted."""
         with pytest.raises(ValueError, match="V_CB_MODEL must be one of"):
@@ -579,11 +522,15 @@ class TestInputParameters:
     EXCEPTION_CASES: ClassVar = [
         (
             ValueError,
-            "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MINI_HALOS=True",
+            "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MCGS=True",
             {
-                "matter_options": MatterOptions(SOURCE_MODEL="CONST-ION-EFF"),
+                "matter_options": MatterOptions(
+                    SOURCE_MODEL="CONST-ION-EFF",
+                    V_CB_MODEL="FLUCTS",
+                    POWER_SPECTRUM="CLASS",
+                ),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=True,
+                    USE_MCGS=True,
                     RECOMB_MODEL="inhomogeneous",
                     USE_TS_FLUCT=True,
                     USE_EXP_FILTER=False,
@@ -620,20 +567,6 @@ class TestInputParameters:
         ),
         (
             ValueError,
-            "LYA_MULTIPLE_SCATTERING is not compatible with SOURCE_MODEL == E-INTEGRAL",
-            {
-                "matter_options": MatterOptions(
-                    SOURCE_MODEL="E-INTEGRAL",
-                ),
-                "astro_options": AstroOptions(
-                    LYA_MULTIPLE_SCATTERING=True,
-                    USE_EXP_FILTER=False,
-                    USE_UPPER_STELLAR_TURNOVER=False,
-                ),
-            },
-        ),
-        (
-            ValueError,
             "USE_EXP_FILTER is not compatible with SOURCE_MODEL == E-INTEGRAL",
             {
                 "matter_options": MatterOptions(
@@ -656,15 +589,60 @@ class TestInputParameters:
                 ),
             },
         ),
+        # CONST-ION-EFF with the default HMF also triggers the EPS advisory.
+        pytest.param(
+            NotImplementedError,
+            "USE_REIONIZATION_PHOTOHEATING_FEEDBACK is not yet compatible with SOURCE_MODEL == CONST-ION-EFF",
+            {
+                "matter_options": MatterOptions(
+                    SOURCE_MODEL="CONST-ION-EFF",
+                ),
+                "astro_options": AstroOptions(
+                    USE_REIONIZATION_PHOTOHEATING_FEEDBACK=True,
+                    USE_UPPER_STELLAR_TURNOVER=False,
+                    USE_EXP_FILTER=False,
+                ),
+            },
+            marks=pytest.mark.filterwarnings(
+                "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+            ),
+        ),
+        # CONST-ION-EFF with the default HMF also triggers the EPS advisory.
+        pytest.param(
+            NotImplementedError,
+            "USE_METALLICITY is not yet compatible with SOURCE_MODEL == CONST-ION-EFF",
+            {
+                "matter_options": MatterOptions(
+                    SOURCE_MODEL="CONST-ION-EFF",
+                ),
+                "astro_options": AstroOptions(
+                    USE_METALLICITY=True,
+                    USE_UPPER_STELLAR_TURNOVER=False,
+                    USE_EXP_FILTER=False,
+                ),
+            },
+            marks=pytest.mark.filterwarnings(
+                "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+            ),
+        ),
     ]
 
     WARNINGS_CASES: ClassVar = [
         (
-            "You are setting M_TURN > 8 when USE_MINI_HALOS=True.",
+            "You are setting M_TURN_STELLAR_FEEDBACK > 8 when USE_MCGS=True.",
             {
-                "astro_params": AstroParams(M_TURN=10),
+                "matter_options": MatterOptions(
+                    V_CB_MODEL="FLUCTS",
+                    POWER_SPECTRUM="CLASS",
+                ),
+                "astro_params": AstroParams(
+                    M_TURN_STELLAR_FEEDBACK=10,
+                    R_BUBBLE_MAX=50,
+                ),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=True, USE_TS_FLUCT=True, RECOMB_MODEL="inhomogeneous"
+                    USE_MCGS=True,
+                    USE_TS_FLUCT=True,
+                    RECOMB_MODEL="inhomogeneous",
                 ),
             },
         ),
@@ -681,20 +659,24 @@ class TestInputParameters:
             },
         ),
         (
-            "USE_MINI_HALOS needs a non-trivial V_CB_MODEL",
+            "USE_MCGS needs a non-trivial V_CB_MODEL",
             {
                 "matter_options": MatterOptions(V_CB_MODEL="NONE"),
+                "astro_params": AstroParams(
+                    M_TURN_STELLAR_FEEDBACK=5.0,
+                    R_BUBBLE_MAX=50,
+                ),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=True
+                    USE_MCGS=True, RECOMB_MODEL="inhomogeneous", USE_TS_FLUCT=True
                 ),
             },
         ),
         (
-            "USE_MINI_HALOS is False but V_CB_MODEL != 'NONE'",
+            "USE_MCGS is False but V_CB_MODEL != 'NONE'",
             {
                 "matter_options": MatterOptions(V_CB_MODEL="FLUCTS"),
                 "astro_options": AstroOptions(
-                    USE_MINI_HALOS=False,
+                    USE_MCGS=False,
                 ),
             },
         ),
@@ -711,9 +693,15 @@ class TestInputParameters:
         self.default_sigma8 = InputParameters(
             random_seed=1, cosmo_params=CosmoParams(SIGMA_8=1.0)
         )
-        self.default_A_s = InputParameters(
-            random_seed=1, cosmo_params=CosmoParams(A_s=3.0e-9)
-        )
+        # Retain EH with A_s to test its documented normalization fallback.
+        with pytest.warns(
+            UserWarning,
+            match=r"^You have chosen to work with POWER_SPECTRUM=EH, but at the same time you work with A_s",
+        ):
+            self.default_A_s = InputParameters(
+                random_seed=1,
+                cosmo_params=CosmoParams(A_s=3.0e-9),
+            )
 
     @pytest.mark.parametrize(("exc", "msg", "kw"), EXCEPTION_CASES)
     def test_validation_exceptions(self, exc, msg, kw):
@@ -726,44 +714,6 @@ class TestInputParameters:
         """Test various warnings that can happen on validation."""
         with pytest.warns(UserWarning, match=msg):
             InputParameters(random_seed=1, **kw)
-
-    @pytest.mark.parametrize("fix_vcb_avg", [True, False])
-    def test_fix_vcb_avg_deprecated_warning(self, fix_vcb_avg):
-        """Test that using FIX_VCB_AVG=True shows deprecation warning."""
-        v_cb_model = "AVG-DEBUG" if fix_vcb_avg else "NONE"
-        with pytest.warns(
-            deprecation.DeprecatedWarning, match="FIX_VCB_AVG is deprecated"
-        ):
-            inputs = InputParameters(
-                random_seed=1,
-                astro_options=AstroOptions(FIX_VCB_AVG=fix_vcb_avg),
-                matter_options=MatterOptions(V_CB_MODEL=v_cb_model),
-            )
-        assert v_cb_model == inputs.matter_options.V_CB_MODEL
-        assert fix_vcb_avg == inputs.astro_options.FIX_VCB_AVG
-
-    @deprecation.fail_if_not_removed
-    def test_fix_vcb_avg_is_removed(self):
-        """Fails when the removed_in version is reached, reminding you to delete FIX_VCB_AVG."""
-        InputParameters(
-            random_seed=1,
-            astro_options=AstroOptions(FIX_VCB_AVG=True),
-            matter_options=MatterOptions(V_CB_MODEL="AVG-DEBUG"),
-        )
-
-    @pytest.mark.parametrize("fix_vcb_avg", [True, False])
-    def test_fix_vcb_avg_conflict(self, fix_vcb_avg):
-        """Test error when FIX_VCB_AVG conflicts with V_CB_MODEL."""
-        v_cb_model_wrong = "NONE" if fix_vcb_avg else "AVG-DEBUG"
-        with pytest.raises(
-            ValueError,
-            match=f"FIX_VCB_AVG={fix_vcb_avg} is not compatible with ",
-        ):
-            InputParameters(
-                random_seed=1,
-                astro_options=AstroOptions(FIX_VCB_AVG=fix_vcb_avg),
-                matter_options=MatterOptions(V_CB_MODEL=v_cb_model_wrong),
-            )
 
     def test_default(self):
         """Test the default object is, well, default."""
@@ -800,7 +750,11 @@ class TestInputParameters:
         altered_struct = self.default.evolve_input_structs(SIGMA_8=1.0)
         assert altered_struct.cosmo_params.SIGMA_8 == 1.0
 
-        altered_struct = self.default.evolve_input_structs(A_s=3.0e-9)
+        with pytest.warns(
+            UserWarning,
+            match=r"^You have chosen to work with POWER_SPECTRUM=EH, but at the same time you work with A_s",
+        ):
+            altered_struct = self.default.evolve_input_structs(A_s=3.0e-9)
         assert altered_struct.cosmo_params.A_s == 3.0e-9
         # Even though we work with A_s, transfer function is EH, so we still use sigma8 at the backend
         assert (
@@ -816,7 +770,11 @@ class TestInputParameters:
         )
         assert altered_struct.cosmo_tables.USE_SIGMA_8
 
-        altered_struct = self.default_A_s.evolve_input_structs(A_s=3.0e-9)
+        with pytest.warns(
+            UserWarning,
+            match=r"^You have chosen to work with POWER_SPECTRUM=EH, but at the same time you work with A_s",
+        ):
+            altered_struct = self.default_A_s.evolve_input_structs(A_s=3.0e-9)
         assert altered_struct.cosmo_params.A_s == 3.0e-9
         # Even though we work with A_s, transfer function is EH, so we still use sigma8 at the backend
         assert (
@@ -851,9 +809,14 @@ class TestInputParameters:
             self.default_A_s.evolve_input_structs(SIGMA_8=1.0)
 
         # Check that we can change normalization parameter if we set the other parameter to None
-        altered_struct = self.default_sigma8.evolve_input_structs(
-            A_s=3.0e-9, SIGMA_8=None
-        )
+        with pytest.warns(
+            UserWarning,
+            match=r"^You have chosen to work with POWER_SPECTRUM=EH, but at the same time you work with A_s",
+        ):
+            altered_struct = self.default_sigma8.evolve_input_structs(
+                A_s=3.0e-9,
+                SIGMA_8=None,
+            )
         assert altered_struct.cosmo_params.A_s == 3.0e-9
         # Even though we work with A_s, transfer function is EH, so we still use sigma8 at the backend
         assert (
@@ -867,7 +830,28 @@ class TestInputParameters:
         )
         assert altered_struct.cosmo_tables.USE_SIGMA_8
 
-    @pytest.mark.parametrize("template", _ALL_ALIASES)
+    # Qin20 and the EPS-based templates trigger advisories (to be removed with #778).
+    @pytest.mark.parametrize(
+        "template",
+        [
+            pytest.param(
+                t,
+                marks=pytest.mark.filterwarnings(
+                    "ignore:^USE_MCGS needs a non-trivial V_CB_MODEL:UserWarning"
+                ),
+            )
+            if t == "Qin20"
+            else pytest.param(
+                t,
+                marks=pytest.mark.filterwarnings(
+                    "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+                ),
+            )
+            if t in ("const-zeta", "Munoz21", "EOS21")
+            else t
+            for t in _ALL_ALIASES
+        ],
+    )
     def test_from_template(self, template):
         """Test that creation from a template works for all templates."""
         inputs = InputParameters.from_template(template, random_seed=1)
@@ -894,23 +878,10 @@ class TestInputParameters:
             UserWarning,
             match="The maximum halo mass",
         ):
-            # The cell size is ~1e11 Msun
-            self.default.evolve_input_structs(
-                SOURCE_MODEL="L-INTEGRAL",
-                USE_UPPER_STELLAR_TURNOVER=False,
-            )
+            # The box size is too small to have very large halos
+            self.default.evolve_input_structs(BOX_LEN=50.0)
 
     def test_linear_node_redshifts(self):
         """Test that with_linear_redshifts works as expected."""
         with pytest.raises(ValueError, match=r"Either `nz` or `step` must be provided"):
             InputParameters(random_seed=1).with_linear_redshifts()
-
-    def test_zstep_factor_raises_warning(self):
-        """Test that using zstep_factor raises a warning."""
-        with pytest.warns(
-            DeprecationWarning,
-            match=r"The `zstep_factor` argument is deprecated and will be removed in a future version. Please use `step` instead.",
-        ):
-            InputParameters(random_seed=1).with_logspaced_redshifts(
-                zstep_factor=0.5, zmin=5, zmax=15
-            )

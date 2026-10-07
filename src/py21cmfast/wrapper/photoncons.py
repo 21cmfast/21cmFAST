@@ -19,7 +19,7 @@ can take 4 values:
    relation is fit by performing a calibration simulation as in (1), and comparing it to
    a range of expected global histories with different power-law slopes.
 3. The normalisation of the ionizing escape fraction is adjusted, using a fit
-   F_ESC10 -> X + Y*Q(z), where Q is the expected global ionized fraction. This relation
+   F_ESC10_ACG -> X + Y*Q(z), where Q is the expected global ionized fraction. This relation
    is fit by performing a calibration simulation as in (1), and taking its ratio with
    the expected global evolution.
 
@@ -43,7 +43,7 @@ The function map for the photon conservation model looks like::
                 lib.ComputeIonizedBox()
                     get_fesc_fit() --> applies the fit to the current redshift
             ELIF PHOTON_CONS_TYPE=='f-photoncons':
-                photoncons_fesc() --> computes and stores F_ESC10 shift vs global neutral fraction
+                photoncons_fesc() --> computes and stores F_ESC10_ACG shift vs global neutral fraction
                 lib.ComputeIonizedBox()
                     get_fesc_fit() --> applies the fit to the current redshift
 
@@ -56,7 +56,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
-from ..drivers._global_initialization import init_c_state
+from ..drivers._global_initialization import c_state, init_c_state
 from ._utils import _process_exitcode
 from .inputs import InputParameters
 from .outputs import InitialConditions
@@ -85,6 +85,10 @@ class _PhotonConservationState:
 _photoncons_state = _PhotonConservationState()
 
 
+# NOTE: the decorator is what gets `inputs` to the backend: InitialisePhotonCons reads
+# the global astro params rather than taking any arguments, so the ALPHA_ESC scan in
+# photoncons_alpha depends on each set of inputs being broadcast before we call it.
+@init_c_state(sigma=True)
 def _init_photon_conservation_correction(*, inputs, **kwargs):
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),
@@ -305,7 +309,7 @@ def calibrate_photon_cons(
     inputs_calibration = inputs.evolve_input_structs(
         USE_TS_FLUCT=False,
         RECOMB_MODEL="none",
-        USE_MINI_HALOS=False,
+        USE_MCGS=False,
         SOURCE_MODEL=source_model_calibration[inputs.matter_options.SOURCE_MODEL],
         PHOTON_CONS_TYPE="no-photoncons",
         R_BUBBLE_MAX=(
@@ -334,43 +338,47 @@ def calibrate_photon_cons(
     #   Since the z-step is Q-dependent, we can't predict the redshifts
     inputs_calibration = inputs_calibration.clone(node_redshifts=None)
 
-    while z > inputs.astro_params.PHOTONCONS_CALIBRATION_END:
-        # Determine the ionisation box with recombinations, spin temperature etc.
-        # turned off.
-        this_perturb = perturb_field(
-            redshift=z,
-            inputs=inputs_calibration,
-            initial_conditions=initial_conditions,
-            **kwargs,
-        )
+    # The calibration simulation deliberately runs with modified inputs, so hold them
+    # open for the whole loop: the calls inside then share a single scope instead of
+    # each rebuilding the backend, and everything after the loop sees `inputs` again.
+    with c_state(inputs_calibration):
+        while z > inputs.astro_params.PHOTONCONS_CALIBRATION_END:
+            # Determine the ionisation box with recombinations, spin temperature etc.
+            # turned off.
+            this_perturb = perturb_field(
+                redshift=z,
+                inputs=inputs_calibration,
+                initial_conditions=initial_conditions,
+                **kwargs,
+            )
 
-        ib2 = compute_ionization_field(
-            inputs=inputs_calibration,
-            previous_ionized_box=ib,
-            initial_conditions=initial_conditions,
-            perturbed_field=this_perturb,
-            previous_perturbed_field=prev_perturb,
-            **kwargs,
-        )
+            ib2 = compute_ionization_field(
+                inputs=inputs_calibration,
+                previous_ionized_box=ib,
+                initial_conditions=initial_conditions,
+                perturbed_field=this_perturb,
+                previous_perturbed_field=prev_perturb,
+                **kwargs,
+            )
 
-        mean_nf = np.mean(ib2.get("neutral_fraction"))
+            mean_nf = np.mean(ib2.get("neutral_fraction"))
 
-        # Save mean/global quantities
-        neutral_fraction_photon_cons.append(mean_nf)
+            # Save mean/global quantities
+            neutral_fraction_photon_cons.append(mean_nf)
 
-        # Can speed up sampling in regions where the evolution is slower
-        if 0.3 < mean_nf <= 0.9:
-            z -= 0.15
-        elif 0.01 < mean_nf <= 0.3:
-            z -= 0.05
-        else:
-            z -= 0.5
+            # Can speed up sampling in regions where the evolution is slower
+            if 0.3 < mean_nf <= 0.9:
+                z -= 0.15
+            elif 0.01 < mean_nf <= 0.3:
+                z -= 0.05
+            else:
+                z -= 0.5
 
-        ib = ib2
-        if inputs.astro_options.USE_MINI_HALOS:
-            prev_perturb = this_perturb
+            ib = ib2
+            if inputs.astro_options.USE_MCGS:
+                prev_perturb = this_perturb
 
-        fast_node_redshifts.append(z)
+            fast_node_redshifts.append(z)
 
     fast_node_redshifts = np.array(fast_node_redshifts[::-1])
     neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
@@ -408,9 +416,9 @@ def alpha_func(Q, a_const, a_slope):
 
 
 # (jdavies): this will be a very hacky way to make a (d_alphastar vs z) array
-# for a photoncons done by ALPHA_STAR instead of redshift
+# for a photoncons done by ALPHA_STAR_ACG instead of redshift
 # This will work by taking the calibration simulation, plotting a RANGE of analytic
-# Q vs z curves for different ALPHA_STAR, and then finding the aloha star which has the inverse ratio
+# Q vs z curves for different ALPHA_STAR_ACG, and then finding the aloha star which has the inverse ratio
 # with the reference analytic as the calibration
 # TODO: don't rely on the photoncons functions since they do a bunch of other stuff in C
 def photoncons_alpha(inputs, **kwargs):
@@ -585,7 +593,7 @@ def photoncons_alpha(inputs, **kwargs):
 
 
 def photoncons_fesc(inputs):
-    """Run the Even Simpler photon conservation model using F_ESC10.
+    """Run the Even Simpler photon conservation model using F_ESC10_ACG.
 
     Adjusts the normalisation of the escape fraction to match a global evolution.
     """
@@ -615,13 +623,13 @@ def photoncons_fesc(inputs):
     # ratio of each alpha with calibration
     ratio_ref = ref_interp / (1 - ref_pc_data["nf_calibration"])
 
-    fit_fesc = ratio_ref * ap_c["F_ESC10"]
+    fit_fesc = ratio_ref * ap_c["F_ESC10_ACG"]
     sel = np.isfinite(fit_fesc) & (ref_interp < max_q_fit) & (ref_interp > min_q_fit)
 
     popt, _pcov = curve_fit(alpha_func, ref_interp[sel], fit_fesc[sel])
     # pass to C
-    logger.info(f"F_ESC10 Original = {ap_c['F_ESC10']:.3f}")
-    logger.info(f"Running with F_ESC10 = {popt[0]:.2f} + {popt[1]:.2f} * Q")
+    logger.info(f"F_ESC10_ACG Original = {ap_c['F_ESC10_ACG']:.3f}")
+    logger.info(f"Running with F_ESC10_ACG = {popt[0]:.2f} + {popt[1]:.2f} * Q")
 
     # initialise the output structure before the fits
     results = {
