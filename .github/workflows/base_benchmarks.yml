@@ -2,7 +2,11 @@ name: Continuous Benchmarking
 
 on:
   push:
-    branches: main
+    # Release branches are tracked too, since PRs into them use them as the start
+    # point for their benchmarks (see fork_pr_benchmarks_track.yml).
+    branches:
+      - main
+      - "release-v*"
 
 jobs:
   benchmark_base_branch:
@@ -27,6 +31,10 @@ jobs:
         run: |
           conda install fftw gsl numba
 
+      - name: Cache FFTW Wisdom
+        id: wisdom
+        uses: ./.github/actions/cache-fftw-wisdom
+
       - name: Install 21cmFAST
         run: |
           pip install ".[dev]"
@@ -37,7 +45,7 @@ jobs:
         run: |
           bencher run \
           --project 21cmfast \
-          --branch main \
+          --branch "${{ github.ref_name }}" \
           --testbed ubuntu-latest \
           --threshold-measure latency \
           --threshold-test percentage \
@@ -47,4 +55,4 @@ jobs:
           --err \
           --adapter python_pytest \
           --file results.json \
-          "pytest --benchmark-json results.json tests/test_integration_features.py"
+          "pytest --benchmark-json results.json tests/test_integration_features.py --wisdoms-path ${{ steps.wisdom.outputs.path }}"

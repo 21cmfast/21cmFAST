@@ -3,6 +3,10 @@
 from py21cmfast.c_21cmfast import lib
 
 import py21cmfast as p21c
+from py21cmfast.drivers._global_initialization import (
+    _GlobalInitManagerSingleton,
+    c_state,
+)
 
 
 def test_fftw_wisdom_is_reused(tmp_path):
@@ -34,3 +38,25 @@ def test_fftw_wisdom_is_reused(tmp_path):
         p21c.compute_initial_conditions(inputs=inputs, write=False)
         assert lib.CreateFFTWWisdoms() == 0
         assert {f.name: f.read_bytes() for f in tmp_path.iterdir()} == wisdoms
+
+
+def test_fftw_wisdom_is_saved_on_broadcast(tmp_path):
+    """Broadcasting inputs with USE_FFTW_WISDOM saves the wisdom into wisdoms_path.
+
+    FFTW cannot save into a directory that doesn't exist, and fails silently if so,
+    which would mean the (slow) wisdom creation is repeated in every run.
+    """
+    inputs = p21c.InputParameters.from_template(
+        "simple", random_seed=1, node_redshifts=()
+    ).evolve_input_structs(
+        HII_DIM=16, DIM=32, BOX_LEN=32, N_THREADS=2, USE_FFTW_WISDOM=True
+    )
+    wisdoms_path = tmp_path / "not" / "yet" / "created"
+    _GlobalInitManagerSingleton.free()
+    with (
+        p21c.config.use(wisdoms_path=wisdoms_path),
+        c_state(inputs, broadcast_inputs=True),
+    ):
+        pass
+
+    assert len(list(wisdoms_path.iterdir())) == 4

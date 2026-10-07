@@ -1,0 +1,34 @@
+name: Cache FFTW Wisdom
+description: >
+  Restore (and, on a miss, save at the end of the job) the FFTW wisdom created by the
+  tests, since creating it takes ~30s per configuration. Pass the `path` output to
+  pytest as `--wisdoms-path`. Requires FFTW to be installed in the conda environment.
+
+outputs:
+  path:
+    description: Directory holding the wisdom.
+    value: ${{ steps.info.outputs.path }}
+
+runs:
+  using: composite
+  steps:
+    # FFTW won't import wisdom from a different version, so make it part of the key.
+    - name: Get FFTW Version
+      id: info
+      shell: bash -l {0}
+      run: |
+        version=$(conda list --json '^fftw$' | python -c 'import json, sys; print(json.load(sys.stdin)[0]["version"])')
+        echo "fftw-version=$version" >> "$GITHUB_OUTPUT"
+        echo "path=$RUNNER_TEMP/fftw-wisdoms" >> "$GITHUB_OUTPUT"
+
+    # Wisdom also depends on how 21cmFAST plans its FFTs (dft.c), and on the box sizes
+    # and thread counts the tests use. If those change, start from the closest older
+    # cache: wisdom files are named by size and thread count, so any that still apply
+    # are reused, and the rest are created and saved under the new key.
+    - name: Cache FFTW Wisdom
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.info.outputs.path }}
+        key: fftw-wisdom-${{ runner.os }}-${{ runner.arch }}-${{ steps.info.outputs.fftw-version }}-${{ hashFiles('src/py21cmfast/src/dft.c', 'tests/produce_integration_test_data.py') }}
+        restore-keys: |
+          fftw-wisdom-${{ runner.os }}-${{ runner.arch }}-${{ steps.info.outputs.fftw-version }}-

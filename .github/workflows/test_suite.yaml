@@ -76,6 +76,10 @@ jobs:
         run: |
           conda install llvm-openmp
 
+      - name: Cache FFTW Wisdom
+        id: wisdom
+        uses: ./.github/actions/cache-fftw-wisdom
+
       - name: Install 21cmFAST
         run: |
           LOG_LEVEL=${{ env.log_level }} python -m pip install ".[dev]"
@@ -95,7 +99,8 @@ jobs:
             --cov=py21cmfast --cov-config=.coveragerc \
             -vv  --cov-append --cov-report xml:./coverage.xml \
             --durations=25 --plots=testplots \
-            --junitxml=junit.xml -o junit_family=legacy
+            --junitxml=junit.xml -o junit_family=legacy \
+            --wisdoms-path "${{ steps.wisdom.outputs.path }}"
 
       - name: Archive Integration Test Plots
         if: always()

@@ -34,6 +34,10 @@ class Config(dict):
     }
     _defaults["wisdoms_path"] = Path(_defaults["direc"]) / "wisdoms"
 
+    # Keys holding filesystem paths. These are expanded on setting, since the C backend
+    # cannot resolve "~" itself.
+    _path_keys: ClassVar = ("direc", "wisdoms_path")
+
     _deprecated_keys: ClassVar = {
         "EXTRA_HALOBOX_FIELDS": "EXTRA_EMISSIVITY_FIELDS",
     }
@@ -57,7 +61,8 @@ class Config(dict):
                     f"You passed the key '{k}' to config, which is not known to 21cmFAST."
                 )
 
-        self["direc"] = Path(self["direc"]).expanduser().absolute()
+        for k in self._path_keys:
+            self[k] = self[k]  # expand the path via __setitem__
 
         # since the subclass __setitem__ is not called in the super().__init__ call, we re-do the setting here
         # NOTE: This seems messy but I don't know a better way to do it
@@ -67,6 +72,8 @@ class Config(dict):
     def __setitem__(self, key, value):
         """Set an item in the config. Also updating the backend if it exists there."""
         key = self._resolve_deprecated_key(key)
+        if key in self._path_keys:
+            value = Path(value).expanduser().absolute()
         super().__setitem__(key, value)
         if key in self._c_config_settings:
             self._pass_to_backend(key, value)
@@ -87,7 +94,7 @@ class Config(dict):
         kwargs = self._translate_deprecated(kwargs)
         backup = self.copy()
         for k, v in kwargs.items():
-            self[k] = Path(v).expanduser().absolute() if k == "direc" else v
+            self[k] = v
         try:
             yield self
         finally:

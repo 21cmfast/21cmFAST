@@ -19,6 +19,7 @@ from contextlib import AbstractContextManager, contextmanager
 
 import attrs
 
+from .._cfg import config
 from ..c_21cmfast import lib
 from ..wrapper.inputs import InputParameters
 from ._param_config import _OutputStructComputationInspect
@@ -189,6 +190,9 @@ class GlobalInitializationManager:
                 self.inputs.cosmo_tables._cstruct,
             )
             if self.inputs.matter_options.USE_FFTW_WISDOM:
+                # FFTW silently fails to save wisdom into a missing directory, in which
+                # case it would be re-created (slowly) on every call.
+                config["wisdoms_path"].mkdir(parents=True, exist_ok=True)
                 lib.CreateFFTWWisdoms()
 
             self.inputs_are_broadcast = True
