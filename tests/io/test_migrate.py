@@ -41,7 +41,8 @@ def test_migrate_cache(legacy, tmp_path: Path):
     # second of these to be migrated finds the first.
     migrated = {r.destination for r in status["migrated"]}
     assert all(r.destination in migrated for r in status.get("exists", []))
-    assert {r.kind for r in status["unconvertible"]} == {"XraySourceBox"}
+    assert {r.kind for r in status["unconvertible"]} == {"RadiationFields"}
+    assert all("XraySourceBox" in r.message for r in status["unconvertible"])
     assert all(r.version == legacy.version for r in results)
 
     cache = OutputCache(tmp_path / "new")

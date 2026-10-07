@@ -106,6 +106,11 @@ class TestFormatHistory:
                     assert change.new in names, change.description
                 elif isinstance(change, compat.RenameOutputStruct):
                     assert change.new in ostruct._ALL_OUTPUT_STRUCTS
+                elif (
+                    isinstance(change, compat.UnconvertibleOutputStruct)
+                    and change.successor is not None
+                ):
+                    assert change.successor in ostruct._ALL_OUTPUT_STRUCTS
 
     def test_struct_names(self):
         """Old and new names of output structs are mapped correctly."""
@@ -114,6 +119,8 @@ class TestFormatHistory:
             "HaloBox",
         }
         assert compat.current_struct_name("HaloBox") == "EmissivityFields"
+        assert compat.current_struct_name("XraySourceBox") == "RadiationFields"
+        assert "XraySourceBox" in compat.historical_struct_names("RadiationFields")
         assert compat.current_struct_name("TsBox") == "TsBox"
 
     def test_field_names(self):
@@ -385,7 +392,9 @@ class TestOutputStructUpgrades:
         raw = compat.RawOutputStruct(
             kind="XraySourceBox", inputs=self._inputs(), version="4.2"
         )
-        with pytest.raises(compat.UnconvertibleError, match="XraySourceBox"):
+        with pytest.raises(
+            compat.UnconvertibleError, match="renamed to RadiationFields"
+        ):
             compat.upgrade_output_struct(raw)
 
     @pytest.mark.parametrize("hii_dim", [1, 10])

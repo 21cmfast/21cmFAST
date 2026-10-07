@@ -328,16 +328,32 @@ class RenameOutputStruct(FormatChange):
 
 
 @attrs.define(frozen=True)
-class RemoveOutputStruct(FormatChange):
-    """An output struct was removed, and has no equivalent in the newer version."""
+class UnconvertibleOutputStruct(FormatChange):
+    """An output struct was removed, or changed so much that it can't be converted.
+
+    Parameters
+    ----------
+    name
+        The (old) name of the output struct.
+    reason
+        Why it can't be converted.
+    successor
+        The name of the output struct that replaced it, if any.
+    """
 
     name: str
     reason: str
+    successor: str | None = None
 
     @property
     def description(self) -> str:
         """A human-readable description of the change."""
-        return f"Output struct {self.name} removed: {self.reason}"
+        if self.successor is None:
+            return f"Output struct {self.name} removed: {self.reason}"
+        return (
+            f"Output struct {self.name} -> {self.successor}, but can't be "
+            f"converted: {self.reason}"
+        )
 
     def upgrade_output_struct(self, struct: RawOutputStruct) -> None:
         """Raise an error, since the struct can't be converted."""
@@ -845,12 +861,16 @@ FORMAT_HISTORY: tuple[FormatRelease, ...] = (
                 _v43_nion_conditional(mcg=True),
                 _NION_PREFACTOR_EXPLANATION,
             ),
-            RemoveOutputStruct(
+            UnconvertibleOutputStruct(
                 "XraySourceBox",
-                "the calculation of the radiation fields was refactored, and the "
-                "XraySourceBox has no equivalent (see RadiationFieldsSetup and "
-                "RadiationFields). It is only an intermediate product, and is "
-                "recomputed when needed.",
+                "it was renamed to RadiationFields, but the calculation of the "
+                "radiation fields was then refactored. RadiationFields now holds "
+                "the computed X-ray, Lyman-alpha and Lyman-Werner rates and fluxes, "
+                "which older files don't contain, while the filtered source fields "
+                "that the XraySourceBox held (as 4D arrays over all shells) are now "
+                "per-shell scratch arrays of RadiationFieldsSetup. Since these are "
+                "intermediate products, they are simply recomputed when needed.",
+                successor="RadiationFields",
             ),
         ],
     ),
@@ -923,6 +943,11 @@ def historical_struct_names(name: str) -> set[str]:
         for change in release.changes:
             if isinstance(change, RenameOutputStruct) and change.new in names:
                 names.add(change.old)
+            elif (
+                isinstance(change, UnconvertibleOutputStruct)
+                and change.successor in names
+            ):
+                names.add(change.name)
     return names
 
 
@@ -932,6 +957,12 @@ def current_struct_name(name: str) -> str:
         for change in release.changes:
             if isinstance(change, RenameOutputStruct) and change.old == name:
                 name = change.new
+            elif (
+                isinstance(change, UnconvertibleOutputStruct)
+                and change.name == name
+                and change.successor is not None
+            ):
+                name = change.successor
     return name
 
 

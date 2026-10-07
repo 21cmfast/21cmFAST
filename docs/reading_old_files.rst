@@ -20,9 +20,13 @@ or ``GlobalEvolution.from_file``::
 Renamed parameters and fields are renamed, and fields whose meaning changed are
 converted where possible. Where an old file is missing information that the current
 version needs (or contains information that can't be converted), a
-:class:`~py21cmfast.io.compat.CompatibilityWarning` is raised. Some outputs have no
-equivalent in the current version at all (e.g. the ``XraySourceBox`` of versions before
-v4.3), and raise an :class:`~py21cmfast.io.compat.UnconvertibleError`.
+:class:`~py21cmfast.io.compat.CompatibilityWarning` is raised. Some outputs changed so
+much that they can't be converted at all, and raise an
+:class:`~py21cmfast.io.compat.UnconvertibleError`. For example, the ``XraySourceBox`` of
+versions before v4.3 became ``RadiationFields``, but while it held the (filtered)
+sources of the radiation fields, ``RadiationFields`` now holds the radiation fields
+themselves, which older files don't contain. Since both are intermediate products of
+the calculation of the spin temperature, they are simply recomputed when needed.
 
 Input parameters are converted so that they describe the physics of the older version
 as closely as possible. For example, ``USE_METALLICITY`` (new in v4.3) is set to the
