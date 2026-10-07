@@ -42,10 +42,14 @@ jobs:
       - name: Track base branch benchmarks with Bencher
         env:
           BENCHER_API_TOKEN: ${{ secrets.BENCHER_API_TOKEN }}
+          # Passed via env (not interpolated into the script) so that a branch name
+          # can't inject shell commands.
+          BENCHER_BRANCH: ${{ github.ref_name }}
+          WISDOMS_PATH: ${{ steps.wisdom.outputs.path }}
         run: |
           bencher run \
           --project 21cmfast \
-          --branch "${{ github.ref_name }}" \
+          --branch "$BENCHER_BRANCH" \
           --testbed ubuntu-latest \
           --threshold-measure latency \
           --threshold-test percentage \
@@ -55,4 +59,4 @@ jobs:
           --err \
           --adapter python_pytest \
           --file results.json \
-          "pytest --benchmark-json results.json tests/test_integration_features.py --wisdoms-path ${{ steps.wisdom.outputs.path }}"
+          "pytest --benchmark-json results.json tests/test_integration_features.py --wisdoms-path '$WISDOMS_PATH'"

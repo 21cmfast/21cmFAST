@@ -60,3 +60,21 @@ def test_fftw_wisdom_is_saved_on_broadcast(tmp_path):
         pass
 
     assert len(list(wisdoms_path.iterdir())) == 4
+
+
+def test_fftw_wisdom_is_recreated_for_new_wisdoms_path(tmp_path):
+    """Changing wisdoms_path creates wisdom there, even if the inputs are unchanged."""
+    inputs = p21c.InputParameters.from_template(
+        "simple", random_seed=1, node_redshifts=()
+    ).evolve_input_structs(
+        HII_DIM=16, DIM=32, BOX_LEN=32, N_THREADS=2, USE_FFTW_WISDOM=True
+    )
+    _GlobalInitManagerSingleton.free()
+    for name in ("first", "second"):
+        with (
+            p21c.config.use(wisdoms_path=tmp_path / name),
+            c_state(inputs, broadcast_inputs=True),
+        ):
+            pass
+
+        assert len(list((tmp_path / name).iterdir())) == 4
