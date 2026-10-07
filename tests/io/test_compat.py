@@ -14,6 +14,13 @@ from py21cmfast.wrapper import outputs as ostruct
 from py21cmfast.wrapper._utils import snake_to_camel
 from py21cmfast.wrapper.inputs import InputStruct
 
+# The (tiny, unusual) inputs of the legacy test files trigger these warnings.
+pytestmark = [
+    pytest.mark.filterwarnings("ignore:.*R_BUBBLE_MAX.*:UserWarning"),
+    pytest.mark.filterwarnings("ignore:.*maximum halo mass.*:UserWarning"),
+    pytest.mark.filterwarnings("ignore:.*V_CB_MODEL.*:UserWarning"),
+]
+
 RHOCRIT_OMB_FACTOR = 2.775e11  # rho_crit / h^2 in Msun/Mpc^3, approximately
 
 

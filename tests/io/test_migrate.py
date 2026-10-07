@@ -13,15 +13,12 @@ from py21cmfast.io import compat, h5
 from py21cmfast.io.caching import OutputCache
 from py21cmfast.io.migrate import migrate_cache, migrate_high_level_file
 
-
-@pytest.fixture(autouse=True)
-def _ignore_input_warnings():
-    """Ignore warnings about the (tiny, unusual) inputs of the legacy files."""
-    with warnings.catch_warnings():
-        warnings.filterwarnings("ignore", message=".*R_BUBBLE_MAX.*")
-        warnings.filterwarnings("ignore", message=".*maximum halo mass.*")
-        warnings.filterwarnings("ignore", message=".*V_CB_MODEL.*")
-        yield
+# The (tiny, unusual) inputs of the legacy test files trigger these warnings.
+pytestmark = [
+    pytest.mark.filterwarnings("ignore:.*R_BUBBLE_MAX.*:UserWarning"),
+    pytest.mark.filterwarnings("ignore:.*maximum halo mass.*:UserWarning"),
+    pytest.mark.filterwarnings("ignore:.*V_CB_MODEL.*:UserWarning"),
+]
 
 
 def _by_status(results) -> dict[str, list]:
