@@ -118,6 +118,7 @@ OPTIONS_TESTRUNS = {
             "N_THREADS": 4,
             "INTEGRATION_METHOD_MCGS": "GAMMA-APPROX",
             "INTEGRATION_METHOD_ACGS": "GAMMA-APPROX",
+            "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
             "K_MAX_FOR_CLASS": 1.0,
             "USE_REIONIZATION_PHOTOHEATING_FEEDBACK": True,
@@ -592,18 +593,30 @@ def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
     return fname
 
 
-def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
+def failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
+    """Compare test with truth.
+
+    Return (summary, message) describing where they differ beyond tolerance,
+    or None if they agree.
+    """
     sel_failed = np.fabs(truth - test) > (abs_tol + np.fabs(truth) * rel_tol)
 
     if not np.any(sel_failed):
-        return False
+        return None
 
     failed_idx = np.where(sel_failed)
+    abs_diff = np.fabs(truth - test)
+    rel_diff = np.divide(
+        abs_diff,
+        truth,
+        out=np.full_like(abs_diff, np.inf),
+        where=(truth != 0),
+    )
     message = (
         f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}\n"
         f"subcube of failures [min] [max] {[f.min() for f in failed_idx]} {[f.max() for f in failed_idx]}\n"
         f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})\n"
-        f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}\n"
+        f"max abs diff of failures {abs_diff[sel_failed].max():.4e} relative {rel_diff[sel_failed].max():.4e}\n"
     )
 
     failed_inp = [
@@ -621,7 +634,19 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
             + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}\n"
         )
 
-    warnings.warn(message, stacklevel=2)
+    summary = (
+        f"{name} {sel_failed.sum()}/{sel_failed.size} "
+        f"(max rel {rel_diff[sel_failed].max():.4e})"
+    )
+    return summary, message
+
+
+def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
+    """Warn with the failure details if test and truth differ; return whether they do."""
+    stats = failure_stats(test, truth, inputs, abs_tol, rel_tol, name)
+    if stats is None:
+        return False
+    warnings.warn(stats[1], stacklevel=2)
     return True
 
 

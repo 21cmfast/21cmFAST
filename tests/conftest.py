@@ -31,6 +31,28 @@ def pytest_addoption(parser):
     parser.addoption("--log-level-21", action="store", default="WARNING")
 
 
+# Small test boxes intentionally trigger these numerical/physical advisories.
+SMALL_BOX_WARNING_FILTERS = (
+    "ignore:^Resolution is likely too low:UserWarning",
+    "ignore:^The maximum halo mass:UserWarning",
+    "ignore:^Your R_BUBBLE_MAX is > BOX_LEN:UserWarning",
+)
+
+
+def pytest_collection_modifyitems(items):
+    """Add the small-box filters to every test.
+
+    As marks, they take precedence over ``-W error``; ``append=False`` lets
+    each test's own marks still override them.
+    """
+    for item in items:
+        for warning_filter in SMALL_BOX_WARNING_FILTERS:
+            item.add_marker(
+                pytest.mark.filterwarnings(warning_filter),
+                append=False,
+            )
+
+
 @pytest.fixture(scope="session")
 def tmpdirec(tmp_path_factory):
     """Pytest fixture instantiating a new session-scope "data" folder.
@@ -332,3 +354,27 @@ def tiny_inputs():
 @pytest.fixture(scope="session")
 def tiny_ics(tiny_inputs):
     return compute_initial_conditions(inputs=tiny_inputs)
+
+
+_REFERENCE_MISMATCHES = {}
+
+
+def pytest_runtest_logreport(report):
+    """Collect reference-data mismatches recorded by the integration tests."""
+    if report.when != "call":
+        return
+    fields = [v for k, v in report.user_properties if k == "reference_mismatch_summary"]
+    if fields:
+        _REFERENCE_MISMATCHES[report.nodeid] = fields
+
+
+def pytest_terminal_summary(terminalreporter):
+    """Print one line per integration test whose output differs from the reference data."""
+    if not _REFERENCE_MISMATCHES:
+        return
+    terminalreporter.write_sep(
+        "=", "reference data mismatches (not failures; see GitHub issue #450)"
+    )
+    for nodeid, fields in sorted(_REFERENCE_MISMATCHES.items()):
+        test = nodeid.split("::")[-1]
+        terminalreporter.write_line(f"{test}: {', '.join(fields)}")

@@ -51,6 +51,8 @@ def test_coeval_lowerz_than_photon_cons(
         )
 
 
+# Uncached halo runs also emit purge advisories.
+@pytest.mark.filterwarnings("ignore:^Trying to purge array:UserWarning")
 def test_coeval_warnings(default_input_struct_lc, cache):
     # test for no caching with halo fields
     inputs = default_input_struct_lc.evolve_input_structs(
@@ -139,6 +141,11 @@ def test_coeval_resume_reconstructs_radiation_fields_history(tmp_path_factory):
     )
 
 
+# The size-tiny profile uses R_BUBBLE_MAX=16 with recombinations,
+# triggering the nonstandard-radius advisory (see #778).
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
 def test_coeval_resume_cached_ts_without_radiation_fields(tmp_path):
     """Resuming with cached TsBox but uncached RadiationFields must not crash (#791)."""
     inputs = InputParameters.from_template(

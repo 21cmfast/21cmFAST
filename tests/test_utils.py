@@ -5,6 +5,7 @@ import pytest
 
 from py21cmfast import InputParameters
 from py21cmfast.utils import recursive_difference, show_references
+from py21cmfast.wrapper._utils import _ffi, asarray
 
 
 def test_ref_printing():
@@ -36,7 +37,10 @@ def test_ref_printing():
     assert "10.1051/0004-6361/202554951" in ref_str  # LAGRANGIAN_SOURCE_MODEL
     assert "10.1103/5r5v-nk5j" not in ref_str  # LYA_MULTIPLE_SCATTERING
 
-    inputs = InputParameters.from_template("const-zeta", random_seed=1234)
+    with pytest.warns(
+        UserWarning, match=r"^Your model .*uses the EPS conditional mass function"
+    ):
+        inputs = InputParameters.from_template("const-zeta", random_seed=1234)
     ref_str = show_references(inputs, lightcone=True, print_to_stdout=True)
 
     assert "2011MNRAS.411..955M" in ref_str  # 21cmFAST first paper
@@ -130,3 +134,16 @@ class TestRecursiveDifference:
 
         cmprules = {np.ndarray: lambda x, y: np.allclose(x, y)}
         assert recursive_difference(a, b, cmprules=cmprules) == {}
+
+
+def test_asarray_is_a_shaped_view_of_the_c_buffer():
+    """Asarray returns a correctly shaped view (not a copy) of the C buffer."""
+    ptr = _ffi.new("float[6]", [0, 1, 2, 3, 4, 5])
+    arr = asarray(ptr, (2, 3))
+
+    assert arr.shape == (2, 3)
+    assert arr.dtype == np.float32
+    np.testing.assert_array_equal(arr, [[0, 1, 2], [3, 4, 5]])
+
+    arr[0, 0] = 42
+    assert ptr[0] == 42

@@ -8,10 +8,29 @@ import h5py
 import pytest
 from rich.console import Console
 
-from py21cmfast import Coeval, GlobalEvolution, LightCone, cli
+from py21cmfast import Coeval, GlobalEvolution, LightCone, cli, config
 from py21cmfast._templates import create_params_from_template
 from py21cmfast.cli import Parameters, ParameterSelection, RunParams, _run_setup, app
 from py21cmfast.io.h5 import load_high_level_simulation, read_output_struct
+
+# Size profiles use R_BUBBLE_MAX=BOX_LEN/3. With recombinations,
+# this triggers the nonstandard-radius advisory (see #778).
+_NON_STANDARD_BUBBLE_RADIUS = pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
+_STORAGE_TEMPLATES = [
+    "simple tiny",
+    pytest.param("Park19 small", marks=_NON_STANDARD_BUBBLE_RADIUS),
+    pytest.param("minihalos small", marks=_NON_STANDARD_BUBBLE_RADIUS),
+    "latest-dhalos large",
+]
+
+
+@pytest.fixture(autouse=True)
+def _default_bubble_radius_validation(setup_and_teardown_package):
+    """Validate CLI inputs as in a normal invocation."""
+    with config.use(ignore_R_BUBBLE_MAX_error=False):
+        yield
 
 
 def app_noexit(*args, **kwargs):
@@ -183,6 +202,10 @@ class TestTemplateCreate:
 class TestTemplateShow:
     """Tests of the `template show` command."""
 
+    # EOS21 triggers the EPS advisory (to be removed with #778).
+    @pytest.mark.filterwarnings(
+        "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+    )
     def test_show_alias(self, capsys):
         """Test that showing an alias works."""
         app_noexit("template show EOS21")
@@ -276,6 +299,8 @@ class TestRunICS:
         ics = read_output_struct(outfile)
         assert ics.simulation_options.HII_DIM == 32
 
+    # "default" keeps the warning visible for the capsys assertion.
+    @pytest.mark.filterwarnings("default:^Resolution is likely too low:UserWarning")
     def test_warn_formatting(self, tmp_path, capsys):
         """Test that warnings are printed properly."""
         app_noexit(
@@ -300,10 +325,12 @@ class TestRunICS:
         out = capsys.readouterr().out
         assert "skipping computation" in out
 
+    @_NON_STANDARD_BUBBLE_RADIUS
     def test_passing_nodez_overwriting_template(self, capsys, tmp_path):
         """Test that passing nodez parameters does overwrite the template node redshifts."""
         app_noexit(
-            f"template create --template latest tiny --nodez.min 5.0 --nodez.n 10 --out {tmp_path / 'latest.toml'}"
+            f"template create --template latest tiny "
+            f"--nodez.min 5.0 --nodez.n 10 --out {tmp_path / 'latest.toml'}"
         )
 
         with (tmp_path / "latest.toml").open("rb") as f:
@@ -346,11 +373,13 @@ class TestRunCoeval:
         cv = Coeval.from_file(cfile)
         assert cv.redshift == 6.0
 
+    @_NON_STANDARD_BUBBLE_RADIUS
     def test_node_redshifts(self, capsys, tmp_path):
         """Test that having nodez in addition to --redshifts works."""
         # We have other node redshifts, but we don't do anything with them.
         app_noexit(
-            f"run coeval --template Park19 tiny --zprime-step-factor 1.4 --z-heat-max 15 "
+            f"run coeval --template Park19 tiny "
+            f"--zprime-step-factor 1.4 --z-heat-max 15 "
             f"--cachedir {tmp_path} "
             f"--no-save-all-redshifts "
             f"--redshifts 6.0 --out {tmp_path}",
@@ -459,10 +488,7 @@ class TestPredictStructSize:
 class TestPredictTotalStorageSize:
     """Test the predict total storage-size command."""
 
-    @pytest.mark.parametrize(
-        "template",
-        ["simple tiny", "Park19 small", "Munoz21 small", "latest-dhalos large"],
-    )
+    @pytest.mark.parametrize("template", _STORAGE_TEMPLATES)
     def test_relevant_text_is_printed(self, capsys, template: str):
         """Test that running the total storage size CLI prints relevant text."""
         app_noexit(f"predict storage-size --template {template} --unit gb")
@@ -472,10 +498,7 @@ class TestPredictTotalStorageSize:
         out = capsys.readouterr().out
         assert "Storage Sizes" in out
 
-    @pytest.mark.parametrize(
-        "template",
-        ["simple tiny", "Park19 small", "Munoz21 small", "latest-dhalos large"],
-    )
+    @pytest.mark.parametrize("template", _STORAGE_TEMPLATES)
     def test_cache_off(self, capsys, template: str):
         """Test that running with cache off affects the predicted total storage size."""
         app_noexit(f"predict storage-size --template {template} --cache-config off")
@@ -496,7 +519,9 @@ class TestGlobalEvolution:
         """Test that a basic run produces a lightcone.h5 file."""
         lcfile = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} "
+            "run global --template latest "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} "
             f"--zmin 12.0 --out {lcfile}",
         )
 
@@ -510,7 +535,9 @@ class TestGlobalEvolution:
         """Test that a non-existent output path is OK."""
         lcfile = tmp_path / "new" / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple tiny --cachedir {tmp_path} "
+            "run global --template latest "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} "
             f"--zmin 10.0 --out {lcfile}",
         )
 
@@ -575,7 +602,9 @@ class TestPlot:
         """Test that `run global --plot` writes a plot next to the data."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --plot",
         )
 
@@ -598,7 +627,9 @@ class TestPlot:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} {flags}",
         )
 
@@ -611,7 +642,9 @@ class TestPlot:
         """Without --plot we should tell the user how to plot later."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out}",
         )
 
@@ -622,7 +655,9 @@ class TestPlot:
         """The saved-plot message carries a clickable file:// URL."""
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --plot",
         )
 
@@ -688,7 +723,9 @@ class TestCanShowPlots:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out}",
         )
 
@@ -702,7 +739,9 @@ class TestCanShowPlots:
 
         out = tmp_path / "global-evolution.h5"
         app_noexit(
-            f"run global --template simple --cachedir {tmp_path} --zmin 12.0 "
+            "run global --template latest "
+            "--zprime-step-factor 1.2 --z-heat-max 20 "
+            f"--cachedir {tmp_path} --zmin 12.0 "
             f"--out {out} --no-show",
         )
 
