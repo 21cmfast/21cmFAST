@@ -34,10 +34,9 @@ def test_config_write(cfgdir):
 
 @pytest.fixture
 def restore_backend():
-    """Re-point the C config_settings at the global config's buffers after a test.
+    """Re-sync the C config_settings with the global config after a test.
 
-    Constructing a new ``Config`` writes its string values into the global C struct,
-    with char buffers owned by that instance, which dangle once it is collected.
+    Constructing a new ``Config`` writes its values into the process-global C struct.
     """
     yield
     for k in p21.config._c_config_settings:
@@ -64,11 +63,28 @@ def test_config_write_without_fname():
 
 def test_config_load_roundtrip(cfgdir, restore_backend):
     fname = cfgdir / "config_roundtrip.yml"
-    p21.config.write(fname)
+    with p21.config.use(
+        direc=str(cfgdir), HALO_CATALOG_MEM_FACTOR=3.5, safe_read=False
+    ):
+        p21.config.write(fname)
+        expected = p21.config._as_dict()
 
     loaded = Config.load(fname)
     assert loaded.file_name == fname
-    assert loaded._as_dict() == p21.config._as_dict()
+    assert loaded["HALO_CATALOG_MEM_FACTOR"] == 3.5
+    assert loaded["safe_read"] is False
+    assert loaded["direc"] == cfgdir
+    assert loaded._as_dict() == expected
+    for k in ("direc", "wisdoms_path", "external_table_path"):
+        assert isinstance(loaded[k], Path)
+
+
+def test_config_load_rejects_python_tags(cfgdir):
+    fname = cfgdir / "config_unsafe.yml"
+    fname.write_text("direc: !!python/name:builtins.print\n")
+
+    with pytest.raises(yaml.constructor.ConstructorError):
+        Config.load(fname)
 
 
 def test_config_load_missing(cfgdir, restore_backend):
