@@ -30,6 +30,9 @@ int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     fftwf_plan plan;
 
     Try {
+        // This must come before importing the wisdom too: FFTW rejects wisdom for threaded
+        // plans if threading isn't initialized (e.g. after clean_fftw()).
+        set_fftw_threads(n_threads);
         if (use_wisdom) {
             // Check to see if the wisdom exists
             sprintf(wisdom_filename, "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
@@ -43,7 +46,6 @@ int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
                     wisdom_filename);
             }
         }
-        set_fftw_threads(n_threads);
         plan = fftwf_plan_dft_c2r_3d(dim, dim, dim_los, (fftwf_complex *)box, (float *)box, flag);
         if (plan == NULL && flag == FFTW_WISDOM_ONLY) {
             // The wisdom did not contain a matching plan (e.g. it was created with a different
@@ -67,6 +69,9 @@ int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     fftwf_plan plan;
 
     Try {
+        // This must come before importing the wisdom too: FFTW rejects wisdom for threaded
+        // plans if threading isn't initialized (e.g. after clean_fftw()).
+        set_fftw_threads(n_threads);
         if (use_wisdom) {
             // Check to see if the wisdom exists
             sprintf(wisdom_filename, "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
@@ -80,7 +85,6 @@ int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
                     wisdom_filename);
             }
         }
-        set_fftw_threads(n_threads);
         plan = fftwf_plan_dft_r2c_3d(dim, dim, dim_los, (float *)box, (fftwf_complex *)box, flag);
         if (plan == NULL && flag == FFTW_WISDOM_ONLY) {
             // The wisdom did not contain a matching plan (e.g. it was created with a different
