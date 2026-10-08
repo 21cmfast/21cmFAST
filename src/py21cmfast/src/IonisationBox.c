@@ -1624,9 +1624,6 @@ int ComputeIonizedBox(float redshift, float prev_redshift, PerturbedField *pertu
                 box->nion_unconditional_acg = curr_radius.nion_conditional_ave_acg;
                 box->nion_unconditional_mcg = curr_radius.nion_conditional_ave_mcg;
             }
-
-            fftwf_cleanup_threads();
-            fftwf_cleanup();
         }
 
         LOG_DEBUG("global_xH = %e", global_xH);

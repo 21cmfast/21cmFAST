@@ -1,8 +1,10 @@
 """Test the GlobalInitializationManager class."""
 
 import pytest
+from py21cmfast.c_21cmfast import lib
 
 from py21cmfast import InputParameters
+from py21cmfast.drivers import _global_initialization
 from py21cmfast.drivers._global_initialization import (
     GlobalInitializationManager,
     _GlobalInitManagerSingleton,
@@ -169,6 +171,36 @@ def test_free():
     assert not _GlobalInitManagerSingleton.sigma_inited
     assert not _GlobalInitManagerSingleton.heat_inited
     assert not _GlobalInitManagerSingleton.recomb_inited
+
+
+def test_free_cleans_fftw(monkeypatch):
+    """Test that free cleans up FFTW, and that FFTs still work before and after it.
+
+    The Compute* functions leave FFTW's state (threads and wisdom) in place, so that it
+    can be reused between calls, and rely on free to clean it up.
+    """
+
+    class _RecordingLib:
+        """Forward to the real lib, recording calls to clean_fftw."""
+
+        def __init__(self):
+            self.n_clean_fftw = 0
+
+        def __getattr__(self, name):
+            return getattr(lib, name)
+
+        def clean_fftw(self):
+            self.n_clean_fftw += 1
+            lib.clean_fftw()
+
+    recording_lib = _RecordingLib()
+    monkeypatch.setattr(_global_initialization, "lib", recording_lib)
+
+    for n_free in range(1, 3):
+        assert lib.test_dft_cube(16, 2, 2) == 0
+        _GlobalInitManagerSingleton.free()
+        assert recording_lib.n_clean_fftw == n_free
+    assert lib.test_dft_cube(16, 2, 2) == 0
 
 
 def test_direct_initializations_for_heat_and_recomb():

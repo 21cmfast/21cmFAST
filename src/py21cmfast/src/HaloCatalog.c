@@ -441,9 +441,6 @@ int ComputeHaloCatalog(float redshift_desc, float redshift, InitialConditions *b
         fftwf_free(density_field);
         fftwf_free(density_field_saved);
 
-        fftwf_cleanup_threads();
-        fftwf_cleanup();
-
         LOG_DEBUG("Finished halo cleanup.");
         LOG_DEBUG("Found %llu Halos", halos->n_halos);
         if (halos->n_halos > 3)
