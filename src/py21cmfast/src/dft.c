@@ -17,7 +17,7 @@
 
 // FFTW stores the number of threads in each plan at planning time, so this must be called
 // before every plan is created. fftwf_init_threads() is idempotent, and calling it here also
-// guards against any earlier fftwf_cleanup_threads() having reset the threading state.
+// guards against an earlier clean_fftw() having reset the threading state.
 static void set_fftw_threads(int n_threads) {
     fftwf_init_threads();
     fftwf_plan_with_nthreads(n_threads);
@@ -156,9 +156,6 @@ int CreateFFTWWisdoms() {
             fftwf_destroy_plan(plan);
         }
 
-        fftwf_cleanup_threads();
-        fftwf_cleanup();
-
         // deallocate
         fftwf_free(HIRES_box);
         fftwf_free(LOWRES_box);
@@ -167,6 +164,15 @@ int CreateFFTWWisdoms() {
 
     Catch(status) { return (status); }
     return (0);
+}
+
+// Free FFTW's global state: its threads, and the plans (and wisdom) it keeps in memory.
+// This is called from Python when the global state of the backend is freed, rather than at
+// the end of each Compute* function, so that the plans can be reused between calls.
+// There must not be any FFTW plans alive when this is called.
+void clean_fftw() {
+    fftwf_cleanup_threads();
+    fftwf_cleanup();
 }
 
 // Test function: run `n_repeat` forward+backward FFTs of a cubic box of side `dim`
