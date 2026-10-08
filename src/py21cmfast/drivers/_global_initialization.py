@@ -55,7 +55,9 @@ class GlobalInitializationManager:
     # The state as it was on entry to each currently-open scope, innermost last.
     _scopes: list[_BackendState] = attrs.field(factory=list, init=False, repr=False)
 
-    # The directory that FFTW wisdom was last created in for the broadcast inputs.
+    # The directory that FFTW wisdom was last created in for the *current* inputs. The
+    # wisdom also depends on the inputs (DIM, HII_DIM, N_THREADS etc.), so this is reset
+    # whenever they change (via `free`).
     _wisdoms_path: Path | None = attrs.field(default=None, init=False, repr=False)
 
     def __new__(cls, *args, **kwargs):
@@ -86,7 +88,7 @@ class GlobalInitializationManager:
         if self.inputs_are_broadcast:
             lib.Free_cosmo_tables_global()
             self.inputs_are_broadcast = False
-            self._wisdoms_path = None
+        self._wisdoms_path = None
 
     def init(
         self,
@@ -201,8 +203,9 @@ class GlobalInitializationManager:
     def _create_fftw_wisdoms(self):
         """Create (or load) FFTW wisdom for the broadcast inputs, if they use it.
 
-        This is redone if ``config["wisdoms_path"]`` changes, since the FFTs read the
-        wisdom from there.
+        This is done once per set of inputs (changing the inputs frees the backend,
+        which resets ``self._wisdoms_path``), and redone if ``config["wisdoms_path"]``
+        changes, since the FFTs read the wisdom from there.
         """
         if not self.inputs.matter_options.USE_FFTW_WISDOM:
             return

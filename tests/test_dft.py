@@ -78,3 +78,23 @@ def test_fftw_wisdom_is_recreated_for_new_wisdoms_path(tmp_path):
             pass
 
         assert len(list((tmp_path / name).iterdir())) == 4
+
+
+def test_fftw_wisdom_is_created_for_new_inputs(tmp_path):
+    """Changing the box size creates wisdom for it, even if wisdoms_path is unchanged."""
+    _GlobalInitManagerSingleton.free()
+    for hii_dim in (16, 8):
+        inputs = p21c.InputParameters.from_template(
+            "simple", random_seed=1, node_redshifts=()
+        ).evolve_input_structs(
+            HII_DIM=hii_dim, DIM=32, BOX_LEN=32, N_THREADS=2, USE_FFTW_WISDOM=True
+        )
+        with (
+            p21c.config.use(wisdoms_path=tmp_path),
+            c_state(inputs, broadcast_inputs=True),
+        ):
+            pass
+
+    # The DIM=32 files are shared, so 2 + 2 + 2 files.
+    assert len(list(tmp_path.glob(f"*_DIM{hii_dim}_*"))) == 2
+    assert len(list(tmp_path.iterdir())) == 6
