@@ -170,9 +170,11 @@ int CreateFFTWWisdoms() {
     return (0);
 }
 
-// Free FFTW's global state: its threads, and the plans (and wisdom) it keeps in memory.
-// This is called from Python when the global state of the backend is freed, rather than at
-// the end of each Compute* function, so that the plans can be reused between calls.
+// Free FFTW's global state: its threads, and the wisdom it keeps in memory. FFTW records
+// wisdom for every plan it creates (including FFTW_ESTIMATE ones), so that creating the same
+// plan again is cheap. This is called from Python when the global state of the backend is
+// freed, rather than at the end of each Compute* function, so that the wisdom is kept between
+// calls (the plans themselves are still created and destroyed in every FFT).
 // There must not be any FFTW plans alive when this is called.
 void clean_fftw() {
     fftwf_cleanup_threads();

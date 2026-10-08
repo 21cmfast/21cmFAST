@@ -81,9 +81,9 @@ class GlobalInitializationManager:
         if self.inputs_are_broadcast:
             lib.Free_cosmo_tables_global()
             self.inputs_are_broadcast = False
-        # FFTW keeps its threads and plans (including wisdom) in memory, so that they can
-        # be reused between calls with the same inputs. Its state isn't tracked here, and
-        # cleaning it up when there's nothing to clean is harmless.
+        # FFTW keeps its threads and wisdom (how to plan each FFT) in memory, so that
+        # planning is cheap in later calls with the same inputs. Its state isn't tracked
+        # here, and cleaning it up when there's nothing to clean is harmless.
         lib.clean_fftw()
 
     def init(

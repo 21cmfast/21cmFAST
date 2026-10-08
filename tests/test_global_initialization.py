@@ -176,7 +176,7 @@ def test_free():
 def test_free_cleans_fftw(monkeypatch):
     """Test that free cleans up FFTW, and that FFTs still work before and after it.
 
-    The Compute* functions leave FFTW's state (threads and plans) in place, so that it
+    The Compute* functions leave FFTW's state (threads and wisdom) in place, so that it
     can be reused between calls, and rely on free to clean it up.
     """
 
