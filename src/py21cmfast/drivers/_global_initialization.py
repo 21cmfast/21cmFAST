@@ -16,9 +16,11 @@ import functools
 import logging
 from collections.abc import Callable, Generator
 from contextlib import AbstractContextManager, contextmanager
+from pathlib import Path
 
 import attrs
 
+from .._cfg import config
 from ..c_21cmfast import lib
 from ..wrapper.inputs import InputParameters
 from ._param_config import _OutputStructComputationInspect
@@ -53,6 +55,11 @@ class GlobalInitializationManager:
     # The state as it was on entry to each currently-open scope, innermost last.
     _scopes: list[_BackendState] = attrs.field(factory=list, init=False, repr=False)
 
+    # The directory that FFTW wisdom was last created in for the *current* inputs. The
+    # wisdom also depends on the inputs (DIM, HII_DIM, N_THREADS etc.), so this is reset
+    # whenever they change (via `free`).
+    _wisdoms_path: Path | None = attrs.field(default=None, init=False, repr=False)
+
     def __new__(cls, *args, **kwargs):
         """Ensure this class is a singleton."""
         if not hasattr(cls, "exists"):
@@ -81,6 +88,7 @@ class GlobalInitializationManager:
         if self.inputs_are_broadcast:
             lib.Free_cosmo_tables_global()
             self.inputs_are_broadcast = False
+        self._wisdoms_path = None
 
     def init(
         self,
@@ -188,10 +196,29 @@ class GlobalInitializationManager:
                 self.inputs.astro_options._cstruct,
                 self.inputs.cosmo_tables._cstruct,
             )
-            if self.inputs.matter_options.USE_FFTW_WISDOM:
-                lib.CreateFFTWWisdoms()
-
             self.inputs_are_broadcast = True
+
+        self._create_fftw_wisdoms()
+
+    def _create_fftw_wisdoms(self):
+        """Create (or load) FFTW wisdom for the broadcast inputs, if they use it.
+
+        This is done once per set of inputs (changing the inputs frees the backend,
+        which resets ``self._wisdoms_path``), and redone if ``config["wisdoms_path"]``
+        changes, since the FFTs read the wisdom from there.
+        """
+        if not self.inputs.matter_options.USE_FFTW_WISDOM:
+            return
+
+        wisdoms_path = config["wisdoms_path"]
+        if wisdoms_path == self._wisdoms_path:
+            return
+
+        # FFTW silently fails to save wisdom into a missing directory, in which case it
+        # would be re-created (slowly) on every call.
+        wisdoms_path.mkdir(parents=True, exist_ok=True)
+        lib.CreateFFTWWisdoms()
+        self._wisdoms_path = wisdoms_path
 
     def _initialize_power_spectrum(self):
         """Initialize power spectrum at the C backend."""

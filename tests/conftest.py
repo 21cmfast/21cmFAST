@@ -29,6 +29,15 @@ from py21cmfast.lightconers import RectilinearLightconer
 
 def pytest_addoption(parser):
     parser.addoption("--log-level-21", action="store", default="WARNING")
+    parser.addoption(
+        "--wisdoms-path",
+        action="store",
+        default=None,
+        help=(
+            "Directory in which to keep FFTW wisdom. Creating wisdom is slow, so CI "
+            "points this at a cached directory. Defaults to a fresh temporary directory."
+        ),
+    )
 
 
 # Small test boxes intentionally trigger these numerical/physical advisories.
@@ -118,6 +127,12 @@ def setup_and_teardown_package(tmpdirec, request):
 
     # we run small boxes often here, and R_max is often large, so we ignore this error
     config["ignore_R_BUBBLE_MAX_error"] = True
+
+    # Keep FFTW wisdom out of the user's cache, so that every session starts from the
+    # same state (unless a directory is given explicitly).
+    config["wisdoms_path"] = request.config.getoption("--wisdoms-path") or (
+        tmpdirec / "wisdoms"
+    )
 
     log_level = request.config.getoption("--log-level-21") or logging.INFO
     logging.getLogger("py21cmfast").setLevel(log_level)

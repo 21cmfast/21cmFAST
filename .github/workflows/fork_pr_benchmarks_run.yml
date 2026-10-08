@@ -31,13 +31,18 @@ jobs:
         run: |
           conda install pip fftw gsl numba compilers pkg-config
 
+      - name: Cache FFTW Wisdom
+        id: wisdom
+        uses: ./.github/actions/cache-fftw-wisdom
+
       - name: Install 21cmFAST
         run: |
           pip install ".[dev]"
 
       - name: Run Benchmarking
         run: |
-          pytest --benchmark-json results.json tests/test_integration_features.py
+          pytest --benchmark-json results.json tests/test_integration_features.py \
+            --wisdoms-path "${{ steps.wisdom.outputs.path }}"
 
       - name: Upload Benchmark Results
         uses: actions/upload-artifact@v7

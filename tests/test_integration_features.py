@@ -30,6 +30,7 @@ import numpy as np
 import pytest
 
 from py21cmfast import Coeval, LightCone, OutputCache
+from py21cmfast.drivers._global_initialization import c_state
 from py21cmfast.wrapper.inputs import Table1D
 
 from . import produce_integration_test_data as prd
@@ -123,10 +124,20 @@ def test_power_spectra_lightcone(request, name, module_direc, plt, benchmark):
             elif key.startswith("global_"):
                 true_global[fieldname] = fl["lightcone"][key][...]
 
+    def make_fftw_wisdoms():
+        # FFTW wisdom is created once per machine and then read from disk. It is slow to
+        # create, and whether it already exists depends on what ran before, so create it
+        # here, outside the timed region, to benchmark only the simulation itself.
+        inputs = prd.get_all_options_struct(redshift, lc=True, **kwargs)["inputs"]
+        if inputs.matter_options.USE_FFTW_WISDOM:
+            with c_state(inputs, broadcast_inputs=True):
+                pass
+
     # Now compute the lightcone
     test_k, test_powers, lc = benchmark.pedantic(
         prd.produce_lc_power_spectra,
         kwargs=dict(redshift=redshift, cache=OutputCache(module_direc), **kwargs),
+        setup=make_fftw_wisdoms,
         iterations=1,  # these tests can be slow
         rounds=1,
     )

@@ -77,6 +77,7 @@ int init_heat();
 void init_MHR();
 int CreateFFTWWisdoms();
 int test_dft_cube(int dim, int n_threads, int n_repeat);
+int get_n_fftw_wisdom_fallbacks();
 void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
                                      MatterOptions *matter_options, CosmoParams *cosmo_params);
 void Broadcast_struct_global_all(SimulationOptions *simulation_options,

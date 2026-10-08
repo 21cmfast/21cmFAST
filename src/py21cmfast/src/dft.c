@@ -23,6 +23,13 @@ static void set_fftw_threads(int n_threads) {
     fftwf_plan_with_nthreads(n_threads);
 }
 
+// The number of FFTs that were asked to use wisdom, but fell back to FFTW_ESTIMATE because
+// no matching wisdom was found. FFTW doesn't complain about this, and the warning below is
+// compiled out of default builds, so this lets the tests check that wisdom is actually used.
+static int n_wisdom_fallbacks = 0;
+
+int get_n_fftw_wisdom_fallbacks() { return n_wisdom_fallbacks; }
+
 int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex *box) {
     char wisdom_filename[500];
     unsigned flag = FFTW_ESTIMATE;
@@ -30,6 +37,9 @@ int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     fftwf_plan plan;
 
     Try {
+        // This must come before importing the wisdom too: FFTW rejects wisdom for threaded
+        // plans if threading isn't initialized (e.g. after fftwf_cleanup_threads()).
+        set_fftw_threads(n_threads);
         if (use_wisdom) {
             // Check to see if the wisdom exists
             sprintf(wisdom_filename, "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
@@ -41,15 +51,16 @@ int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
                 LOG_WARNING(
                     "Cannot locate FFTW Wisdom: %s file not found. Reverting to FFTW_ESTIMATE.",
                     wisdom_filename);
+                n_wisdom_fallbacks++;
             }
         }
-        set_fftw_threads(n_threads);
         plan = fftwf_plan_dft_c2r_3d(dim, dim, dim_los, (fftwf_complex *)box, (float *)box, flag);
         if (plan == NULL && flag == FFTW_WISDOM_ONLY) {
             // The wisdom did not contain a matching plan (e.g. it was created with a different
             // number of threads), so FFTW_WISDOM_ONLY failed.
             LOG_WARNING("FFTW Wisdom %s has no matching plan. Reverting to FFTW_ESTIMATE.",
                         wisdom_filename);
+            n_wisdom_fallbacks++;
             plan = fftwf_plan_dft_c2r_3d(dim, dim, dim_los, (fftwf_complex *)box, (float *)box,
                                          FFTW_ESTIMATE);
         }
@@ -67,6 +78,9 @@ int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     fftwf_plan plan;
 
     Try {
+        // This must come before importing the wisdom too: FFTW rejects wisdom for threaded
+        // plans if threading isn't initialized (e.g. after fftwf_cleanup_threads()).
+        set_fftw_threads(n_threads);
         if (use_wisdom) {
             // Check to see if the wisdom exists
             sprintf(wisdom_filename, "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
@@ -78,15 +92,16 @@ int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
                 LOG_WARNING(
                     "Cannot locate FFTW Wisdom: %s file not found. Reverting to FFTW_ESTIMATE.",
                     wisdom_filename);
+                n_wisdom_fallbacks++;
             }
         }
-        set_fftw_threads(n_threads);
         plan = fftwf_plan_dft_r2c_3d(dim, dim, dim_los, (float *)box, (fftwf_complex *)box, flag);
         if (plan == NULL && flag == FFTW_WISDOM_ONLY) {
             // The wisdom did not contain a matching plan (e.g. it was created with a different
             // number of threads), so FFTW_WISDOM_ONLY failed.
             LOG_WARNING("FFTW Wisdom %s has no matching plan. Reverting to FFTW_ESTIMATE.",
                         wisdom_filename);
+            n_wisdom_fallbacks++;
             plan = fftwf_plan_dft_r2c_3d(dim, dim, dim_los, (float *)box, (fftwf_complex *)box,
                                          FFTW_ESTIMATE);
         }

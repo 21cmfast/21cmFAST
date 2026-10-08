@@ -1,8 +1,13 @@
 """Tests of the C-level FFT wrappers."""
 
-from py21cmfast.c_21cmfast import lib
+import numpy as np
+from py21cmfast.c_21cmfast import ffi, lib
 
 import py21cmfast as p21c
+from py21cmfast.drivers._global_initialization import (
+    _GlobalInitManagerSingleton,
+    c_state,
+)
 
 
 def test_fftw_wisdom_is_reused(tmp_path):
@@ -34,3 +39,118 @@ def test_fftw_wisdom_is_reused(tmp_path):
         p21c.compute_initial_conditions(inputs=inputs, write=False)
         assert lib.CreateFFTWWisdoms() == 0
         assert {f.name: f.read_bytes() for f in tmp_path.iterdir()} == wisdoms
+
+
+def test_fftw_wisdom_is_saved_on_broadcast(tmp_path):
+    """Broadcasting inputs with USE_FFTW_WISDOM saves the wisdom into wisdoms_path.
+
+    FFTW cannot save into a directory that doesn't exist, and fails silently if so,
+    which would mean the (slow) wisdom creation is repeated in every run.
+    """
+    inputs = p21c.InputParameters.from_template(
+        "simple", random_seed=1, node_redshifts=()
+    ).evolve_input_structs(
+        HII_DIM=16, DIM=32, BOX_LEN=32, N_THREADS=2, USE_FFTW_WISDOM=True
+    )
+    wisdoms_path = tmp_path / "not" / "yet" / "created"
+    _GlobalInitManagerSingleton.free()
+    with (
+        p21c.config.use(wisdoms_path=wisdoms_path),
+        c_state(inputs, broadcast_inputs=True),
+    ):
+        pass
+
+    assert len(list(wisdoms_path.iterdir())) == 4
+
+
+def test_fftw_wisdom_is_recreated_for_new_wisdoms_path(tmp_path):
+    """Changing wisdoms_path creates wisdom there, even if the inputs are unchanged."""
+    inputs = p21c.InputParameters.from_template(
+        "simple", random_seed=1, node_redshifts=()
+    ).evolve_input_structs(
+        HII_DIM=16, DIM=32, BOX_LEN=32, N_THREADS=2, USE_FFTW_WISDOM=True
+    )
+    _GlobalInitManagerSingleton.free()
+    for name in ("first", "second"):
+        with (
+            p21c.config.use(wisdoms_path=tmp_path / name),
+            c_state(inputs, broadcast_inputs=True),
+        ):
+            pass
+
+        assert len(list((tmp_path / name).iterdir())) == 4
+
+
+def test_fftw_wisdom_is_created_for_new_inputs(tmp_path):
+    """Changing the box size creates wisdom for it, even if wisdoms_path is unchanged."""
+    _GlobalInitManagerSingleton.free()
+    for hii_dim in (16, 8):
+        inputs = p21c.InputParameters.from_template(
+            "simple", random_seed=1, node_redshifts=()
+        ).evolve_input_structs(
+            HII_DIM=hii_dim, DIM=32, BOX_LEN=32, N_THREADS=2, USE_FFTW_WISDOM=True
+        )
+        with (
+            p21c.config.use(wisdoms_path=tmp_path),
+            c_state(inputs, broadcast_inputs=True),
+        ):
+            pass
+
+    # The DIM=32 files are shared, so 2 + 2 + 2 files.
+    assert len(list(tmp_path.glob(f"*_DIM{hii_dim}_*"))) == 2
+    assert len(list(tmp_path.iterdir())) == 6
+
+
+def _filter_box(box: np.ndarray) -> np.ndarray:
+    """Forward FFT, filter and inverse FFT a box with the broadcast inputs."""
+    out = np.zeros(box.shape, dtype="f8")
+    assert (
+        lib.test_filter(
+            ffi.cast("float *", box.ctypes.data),
+            3.0,
+            0.0,
+            0.0,
+            0,
+            ffi.cast("double *", out.ctypes.data),
+        )
+        == 0
+    )
+    return out
+
+
+def test_fftw_wisdom_is_used(tmp_path):
+    """FFTs with USE_FFTW_WISDOM use the wisdom, and agree with those without it.
+
+    Without wisdom, the FFTs silently fall back to FFTW_ESTIMATE, which is how a
+    broken wisdoms_path (and importing wisdom before initializing FFTW's threads) went
+    unnoticed. We don't compare timings: for boxes this small using wisdom isn't faster
+    (it is read from disk for every FFT), and timings are too noisy on CI anyway.
+    """
+    box = np.random.default_rng(1).normal(size=(16, 16, 16)).astype("f4")
+    outputs = {}
+    for use_wisdom in (False, True):
+        inputs = p21c.InputParameters.from_template(
+            "simple", random_seed=1, node_redshifts=()
+        ).evolve_input_structs(
+            HII_DIM=16, DIM=32, BOX_LEN=32, N_THREADS=2, USE_FFTW_WISDOM=use_wisdom
+        )
+        _GlobalInitManagerSingleton.free()
+        n_fallbacks = lib.get_n_fftw_wisdom_fallbacks()
+        with (
+            p21c.config.use(wisdoms_path=tmp_path),
+            c_state(inputs, broadcast_inputs=True),
+        ):
+            outputs[use_wisdom] = _filter_box(box)
+        assert lib.get_n_fftw_wisdom_fallbacks() == n_fallbacks
+
+    np.testing.assert_allclose(
+        outputs[True], outputs[False], rtol=0, atol=1e-5 * np.abs(outputs[False]).max()
+    )
+
+    # Check that a fallback would be noticed: without the wisdom files, both FFTs
+    # fall back to FFTW_ESTIMATE.
+    for f in tmp_path.iterdir():
+        f.unlink()
+    with p21c.config.use(wisdoms_path=tmp_path), c_state(inputs, broadcast_inputs=True):
+        _filter_box(box)
+    assert lib.get_n_fftw_wisdom_fallbacks() == n_fallbacks + 2
