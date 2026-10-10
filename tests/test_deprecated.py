@@ -1289,7 +1289,7 @@ def test_cache_config_constructor_deprecated_warning(old, new):
     assert cfg == caching.CacheConfig(**{new: False})
 
     with pytest.warns(deprecation.DeprecatedWarning, match=f"{old} is deprecated"):
-        assert not getattr(cfg, old)
+        assert not getattr(caching.CacheConfig().update(**{old: False}), new)
 
 
 @deprecation.fail_if_not_removed

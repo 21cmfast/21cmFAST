@@ -577,8 +577,6 @@ class CacheConfigUpdate(TypedDict, total=False):
     emissivity_fields: bool
     halo_catalog: bool
     radiation_fields: bool
-    halobox: bool
-    xray_source_box: bool
 
 
 @attrs.define(init=False)
@@ -696,9 +694,3 @@ class CacheConfig:
             stacklevel=2,
         )
         return self.emissivity_fields
-
-    @property
-    def xray_source_box(self) -> bool:
-        """A deprecated property that returns radiation_fields as xray_source_box."""
-        self._warn_deprecated_alias("xray_source_box", "radiation_fields", stacklevel=2)
-        return self.radiation_fields
