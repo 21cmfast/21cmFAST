@@ -74,14 +74,29 @@ def _shared_cosmology(base: FLRW, *, hlittle: float, OMm: float, OMb: float) -> 
     return cosmo
 
 
-def field(*, transformer=None, **kw):
+def field(*, transformer=None, deprecated: bool = False, **kw):
     """Define an attrs field with a 'transformer' property.
 
     The transformer, if given, should be a function of a single variable, which will
     be the attribute's value. It will be used to transform the value before usage in
     C-code (e.g. by transformin from log to linear space).
+
+    If ``deprecated`` is True, the field is a deprecated alias of another field (which
+    takes its value from this one). Such fields are excluded from equality checks,
+    the repr and :meth:`InputStruct.asdict`.
     """
-    return _field(metadata={"transformer": transformer}, **kw)
+    if deprecated:
+        # Deprecated aliases only exist to pass their value on to the field that
+        # replaces them, so they must not make otherwise-identical inputs compare
+        # unequal (or hash differently in the cache), and are not serialized.
+        kw.setdefault("eq", False)
+        kw.setdefault("repr", False)
+    return _field(metadata={"transformer": transformer, "deprecated": deprecated}, **kw)
+
+
+def _is_not_deprecated(att: attrs.Attribute, value: Any) -> bool:
+    """Filter for attrs.asdict that removes deprecated alias fields."""
+    return not att.metadata.get("deprecated", False)
 
 
 def choice_field(*, validator=None, **kwargs):
@@ -285,7 +300,7 @@ class InputStruct:
         >>> newinp =InputStruct(**inp.asdict())
         >>> inp == newinp
         """
-        return asdict(self)
+        return asdict(self, filter=_is_not_deprecated)
 
     @cached_property
     def cdict(self) -> dict:
@@ -801,7 +816,7 @@ class MatterOptions(InputStruct):
         choice_field(default="ST")
     )
     _USE_RELATIVE_VELOCITIES: bool | None = field(
-        default=None, converter=attrs.converters.optional(bool)
+        deprecated=True, default=None, converter=attrs.converters.optional(bool)
     )
     V_CB_MODEL: Literal["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"] = choice_field()
     POWER_SPECTRUM: Literal["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"] = (
@@ -1043,6 +1058,8 @@ class SimulationOptions(InputStruct):
         For now, this parameter becomes relevant only when run_global_evolution is
         called, as it controls the runtime of this function (higher values reduce the
         runtime, in expense of degraded precision).
+    MIN_XE_FOR_FCOLL_IN_TAUX: float, optional
+        This is a deprecated parameter, please use MIN_XE_FOR_NION_IN_TAUX instead.
     """
 
     _DEFAULT_HIRES_TO_LOWRES_FACTOR: ClassVar[float] = 3
@@ -1089,7 +1106,12 @@ class SimulationOptions(InputStruct):
     PARKINSON_y2: float = field(default=0.0, converter=float)
     Z_HEAT_MAX: float = field(default=35.0, converter=float)
     ZPRIME_STEP_FACTOR: float = field(default=1.02, converter=float)
-    MIN_XE_FOR_NION_IN_TAUX: float = field(default=1e-3, converter=float)
+    _MIN_XE_FOR_FCOLL_IN_TAUX: float | None = field(
+        deprecated=True,
+        default=None,
+        converter=attrs.converters.optional(float),
+    )
+    MIN_XE_FOR_NION_IN_TAUX: float = field(converter=float)
 
     INITIAL_REDSHIFT: float = field(default=300.0, converter=float)
     DELTA_R_FACTOR: float = field(
@@ -1183,6 +1205,45 @@ class SimulationOptions(InputStruct):
             return self._LOWRES_CELL_SIZE_MPC
         else:
             return self._DEFAULT_LOWRES_CELL_SIZE_MPC
+
+    @cached_property
+    def MIN_XE_FOR_FCOLL_IN_TAUX(self) -> float:
+        """Minimum global x_e value for which n_ion is evaluated in the tau_X integral.
+
+        This is a deprecated property, and will be removed in v5. Please use
+        MIN_XE_FOR_NION_IN_TAUX instead.
+        """
+        return self.MIN_XE_FOR_NION_IN_TAUX
+
+    @MIN_XE_FOR_NION_IN_TAUX.default
+    def _min_xe_for_nion_in_taux_default(self):
+        if self._MIN_XE_FOR_FCOLL_IN_TAUX is None:
+            return 1e-3
+
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "MIN_XE_FOR_FCOLL_IN_TAUX",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "MIN_XE_FOR_FCOLL_IN_TAUX is deprecated and will be removed in a "
+                    "future version. Please use MIN_XE_FOR_NION_IN_TAUX directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        return self._MIN_XE_FOR_FCOLL_IN_TAUX
+
+    @MIN_XE_FOR_NION_IN_TAUX.validator
+    def _min_xe_for_nion_in_taux_vld(self, att, val):
+        if (
+            self._MIN_XE_FOR_FCOLL_IN_TAUX is not None
+            and val != self._MIN_XE_FOR_FCOLL_IN_TAUX
+        ):
+            raise ValueError(
+                f"MIN_XE_FOR_NION_IN_TAUX is set to {val} but MIN_XE_FOR_FCOLL_IN_TAUX "
+                f"is {self._MIN_XE_FOR_FCOLL_IN_TAUX}! Only set one of them."
+            )
 
     @NON_CUBIC_FACTOR.validator
     def _NON_CUBIC_FACTOR_validator(self, att, val):
@@ -1348,18 +1409,18 @@ class AstroOptions(InputStruct):
     """
 
     _USE_MINI_HALOS: bool | None = field(
-        default=None, converter=attrs.converters.optional(bool)
+        deprecated=True, default=None, converter=attrs.converters.optional(bool)
     )
     USE_MCGS: bool = field(converter=bool)
     USE_X_RAY_HEATING: bool = field(default=True, converter=bool)
     USE_CMB_HEATING: bool = field(default=True, converter=bool)
     USE_LYA_HEATING: bool = field(default=True, converter=bool)
     _INHOMO_RECO: bool | None = field(
-        default=None, converter=attrs.converters.optional(bool)
+        deprecated=True, default=None, converter=attrs.converters.optional(bool)
     )
     USE_TS_FLUCT: bool = field(default=False, converter=bool)
     _FIX_VCB_AVG: bool | None = field(
-        default=None, converter=attrs.converters.optional(bool)
+        deprecated=True, default=None, converter=attrs.converters.optional(bool)
     )
     USE_EXP_FILTER: bool = field(default=True, converter=bool)
     CELL_RECOMB: bool = field(default=True, converter=bool)
@@ -1380,10 +1441,10 @@ class AstroOptions(InputStruct):
     RECOMB_MODEL: Literal["none", "homogeneous", "inhomogeneous"] = choice_field()
     USE_REIONIZATION_PHOTOHEATING_FEEDBACK: bool = field(converter=bool)
     _INTEGRATION_METHOD_ATOMIC: IntegralMethods | None = field(
-        default=None, converter=attrs.converters.optional(str)
+        deprecated=True, default=None, converter=attrs.converters.optional(str)
     )
     _INTEGRATION_METHOD_MINI: IntegralMethods | None = field(
-        default=None, converter=attrs.converters.optional(str)
+        deprecated=True, default=None, converter=attrs.converters.optional(str)
     )
     INTEGRATION_METHOD_ACGS: IntegralMethods = choice_field()
     INTEGRATION_METHOD_MCGS: IntegralMethods = choice_field()
@@ -1781,6 +1842,7 @@ class AstroParams(InputStruct):
         default=30.0, converter=float, validator=validators.gt(0)
     )
     _F_STAR10: float | None = field(
+        deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
@@ -1789,21 +1851,24 @@ class AstroParams(InputStruct):
         converter=float, validator=between(-3.0, 0.0), transformer=logtransformer
     )
     _ALPHA_STAR: float | None = field(
+        deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
     )
     ALPHA_STAR_ACG: float = field(converter=float)
     _F_STAR7_MINI: float | None = field(
+        deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
     )
     F_STAR7_MCG: float = field(converter=float, transformer=logtransformer)
     _ALPHA_STAR_MINI: float | None = field(
-        default=None, converter=attrs.converters.optional(float)
+        deprecated=True, default=None, converter=attrs.converters.optional(float)
     )
     ALPHA_STAR_MCG: float = field(converter=float)
     _F_ESC10: float | None = field(
+        deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
@@ -1815,12 +1880,14 @@ class AstroParams(InputStruct):
         converter=float,
     )
     _F_ESC7_MINI: float | None = field(
+        deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
     )
     F_ESC7_MCG: float = field(converter=float, transformer=logtransformer)
     _M_TURN: float | None = field(
+        deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
         validator=validators.optional(validators.gt(0)),
@@ -1845,6 +1912,7 @@ class AstroParams(InputStruct):
     )
 
     _L_X: float | None = field(
+        deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
@@ -1855,6 +1923,7 @@ class AstroParams(InputStruct):
         transformer=logtransformer,
     )
     _L_X_MINI: float | None = field(
+        deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
@@ -1894,7 +1963,7 @@ class AstroParams(InputStruct):
 
     T_RE: float = field(default=2e4, converter=float)
     _FIXED_VAVG: float | None = field(
-        default=None, converter=attrs.converters.optional(float)
+        deprecated=True, default=None, converter=attrs.converters.optional(float)
     )
     V_CB_AVG_DEBUG: float = field(converter=float, validator=validators.gt(0))
 
@@ -2992,7 +3061,7 @@ class InputParameters:
               which avoids triggering CLASS work during serialization.
             - ``"never"``: omit tables entirely, useful for portable templates.
         """
-        dct = attrs.asdict(self, recurse=True)
+        dct = attrs.asdict(self, recurse=True, filter=_is_not_deprecated)
 
         # We use a tri-state here because different writers need different behavior:
         # full in-memory snapshots, cache writes that should not trigger CLASS, and

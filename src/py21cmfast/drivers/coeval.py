@@ -16,7 +16,7 @@ from rich.progress import Progress
 
 from .. import __version__
 from ..c_21cmfast import lib
-from ..io import h5
+from ..io import compat, h5
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..rsds import apply_rsds, include_dvdr_in_tau21
 from ..wrapper.inputs import InputParameters
@@ -431,12 +431,14 @@ class Coeval:
 
             kwargs = {}
             for k in keys:
-                if k not in type_to_name:
+                # Files written by older versions may use older names of the structs.
+                name = compat.current_struct_name(k)
+                if name not in type_to_name:
                     raise ValueError(
                         f"HDF5 group '{k}' in {path} does not correspond to any "
                         f"known OutputStruct field on {cls.__name__}."
                     )
-                kwargs[type_to_name[k]] = h5.read_output_struct(
+                kwargs[type_to_name[name]] = h5.read_output_struct(
                     path, struct=k, safe=safe
                 )
             return cls(photon_nonconservation_data=photoncons, **kwargs)

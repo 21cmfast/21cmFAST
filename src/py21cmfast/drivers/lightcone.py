@@ -340,13 +340,14 @@ class LightCone:
             grp = fl["photon_nonconservation_data"]
             kwargs["photon_nonconservation_data"] = {k: v[...] for k, v in grp.items()}
 
-            boxes = fl["lightcones"]
-            kwargs["lightcones"] = {
-                k: boxes[k][..., lowz_buffer_pixels:highz_buffer_pixels] for k in boxes
-            }
-
-            glb = fl["global_quantities"]
-            kwargs["global_quantities"] = {k: glb[k][...] for k in glb}
+            kwargs["lightcones"] = h5.read_box_quantities(
+                fl["lightcones"],
+                fl["InputParameters"],
+                index=(..., slice(lowz_buffer_pixels, highz_buffer_pixels)),
+            )
+            kwargs["global_quantities"] = h5.read_box_quantities(
+                fl["global_quantities"], fl["InputParameters"]
+            )
             kwargs["lightcone_distances"] = (
                 fl["lightcone_distances"][..., lowz_buffer_pixels:highz_buffer_pixels]
                 * units.Mpc

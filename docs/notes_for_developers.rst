@@ -79,6 +79,20 @@ method. Any output which depends on the new array must also have it added to its
 If the C backend uses new input or output fields, they must be added to the structs
 in the header files ``_inputparams_wrapper.h`` or ``_outputstructs_wrapper.h``.
 
+Changing the File Format
+------------------------
+Any change that affects what is written to (or read from) output files -- renaming,
+adding or removing an input parameter, an output struct or one of its fields, or
+changing the meaning of a field -- must be recorded in ``FORMAT_HISTORY`` in
+``src/py21cmfast/io/compat.py``, under the release in which it will appear. This is
+what allows files written by older versions to be read (and migrated with
+``21cmfast migrate``), and it doubles as a changelog of the file format. Add a test
+of the new entry to ``tests/io/test_compat.py``.
+
+The tests use descriptions of the files written by each older release, stored in
+``tests/test_data/legacy_formats/``. After a release that changes the format, add a
+description for it using the scripts in ``devel/legacy_formats/``.
+
 C Function Standards
 ~~~~~~~~~~~~~~~~~~~~
 The C-level functions are split into two groups -- low-level "private" functions, and

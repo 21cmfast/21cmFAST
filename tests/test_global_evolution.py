@@ -1,5 +1,6 @@
 """Test the GlobalEvolution class."""
 
+import warnings
 from pathlib import Path
 
 import deprecation
@@ -151,9 +152,11 @@ def test_compatability_with_database():
     are absolutely sure of what you are doing.
     """
     fname = DATA_PATH / "global_evolution.h5"
-    # The file uses old parameter names (e.g. USE_MINI_HALOS, F_STAR10, M_TURN), and
-    # loading it emits one DeprecatedWarning per old name.
-    with pytest.warns(deprecation.DeprecatedWarning, match="is deprecated as of"):
+    # The file uses old parameter names (e.g. USE_MINI_HALOS, F_STAR10, M_TURN), which
+    # are converted to the new names when reading, without deprecation warnings
+    # (since the user did not use them).
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", deprecation.DeprecatedWarning)
         global_evolution = GlobalEvolution.from_file(fname)
     assert isinstance(global_evolution, GlobalEvolution)
 
