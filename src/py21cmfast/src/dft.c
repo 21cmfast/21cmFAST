@@ -24,34 +24,22 @@ static void set_fftw_threads(int n_threads) {
 }
 
 int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex *box) {
-    char wisdom_filename[500];
-    unsigned flag = FFTW_ESTIMATE;
+    // The wisdom is loaded into memory by CreateFFTWWisdoms() when the inputs are broadcast,
+    // and kept there until clean_fftw(), so there's no need to import it here.
+    unsigned flag = use_wisdom ? FFTW_WISDOM_ONLY : FFTW_ESTIMATE;
     int status;
     fftwf_plan plan;
 
     Try {
-        // This must come before importing the wisdom too: FFTW rejects wisdom for threaded
-        // plans if threading isn't initialized (e.g. after clean_fftw()).
         set_fftw_threads(n_threads);
-        if (use_wisdom) {
-            // Check to see if the wisdom exists
-            sprintf(wisdom_filename, "%s/c2r_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                    dim, dim_los, n_threads);
-
-            if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
-                flag = FFTW_WISDOM_ONLY;
-            } else {
-                LOG_WARNING(
-                    "Cannot locate FFTW Wisdom: %s file not found. Reverting to FFTW_ESTIMATE.",
-                    wisdom_filename);
-            }
-        }
         plan = fftwf_plan_dft_c2r_3d(dim, dim, dim_los, (fftwf_complex *)box, (float *)box, flag);
         if (plan == NULL && flag == FFTW_WISDOM_ONLY) {
-            // The wisdom did not contain a matching plan (e.g. it was created with a different
-            // number of threads), so FFTW_WISDOM_ONLY failed.
-            LOG_WARNING("FFTW Wisdom %s has no matching plan. Reverting to FFTW_ESTIMATE.",
-                        wisdom_filename);
+            // There was no matching wisdom in memory (e.g. CreateFFTWWisdoms() wasn't called
+            // since the last clean_fftw()), so FFTW_WISDOM_ONLY failed.
+            LOG_WARNING(
+                "No FFTW wisdom for c2r DIM=%d DIM_LOS=%d NTHREADS=%d. Reverting to "
+                "FFTW_ESTIMATE.",
+                dim, dim_los, n_threads);
             plan = fftwf_plan_dft_c2r_3d(dim, dim, dim_los, (fftwf_complex *)box, (float *)box,
                                          FFTW_ESTIMATE);
         }
@@ -63,34 +51,22 @@ int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
 }
 
 int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_complex *box) {
-    char wisdom_filename[500];
-    unsigned flag = FFTW_ESTIMATE;
+    // The wisdom is loaded into memory by CreateFFTWWisdoms() when the inputs are broadcast,
+    // and kept there until clean_fftw(), so there's no need to import it here.
+    unsigned flag = use_wisdom ? FFTW_WISDOM_ONLY : FFTW_ESTIMATE;
     int status;
     fftwf_plan plan;
 
     Try {
-        // This must come before importing the wisdom too: FFTW rejects wisdom for threaded
-        // plans if threading isn't initialized (e.g. after clean_fftw()).
         set_fftw_threads(n_threads);
-        if (use_wisdom) {
-            // Check to see if the wisdom exists
-            sprintf(wisdom_filename, "%s/r2c_DIM%d_DIM%d_NTHREADS%d", config_settings.wisdoms_path,
-                    dim, dim_los, n_threads);
-
-            if (fftwf_import_wisdom_from_filename(wisdom_filename) != 0) {
-                flag = FFTW_WISDOM_ONLY;
-            } else {
-                LOG_WARNING(
-                    "Cannot locate FFTW Wisdom: %s file not found. Reverting to FFTW_ESTIMATE.",
-                    wisdom_filename);
-            }
-        }
         plan = fftwf_plan_dft_r2c_3d(dim, dim, dim_los, (float *)box, (fftwf_complex *)box, flag);
         if (plan == NULL && flag == FFTW_WISDOM_ONLY) {
-            // The wisdom did not contain a matching plan (e.g. it was created with a different
-            // number of threads), so FFTW_WISDOM_ONLY failed.
-            LOG_WARNING("FFTW Wisdom %s has no matching plan. Reverting to FFTW_ESTIMATE.",
-                        wisdom_filename);
+            // There was no matching wisdom in memory (e.g. CreateFFTWWisdoms() wasn't called
+            // since the last clean_fftw()), so FFTW_WISDOM_ONLY failed.
+            LOG_WARNING(
+                "No FFTW wisdom for r2c DIM=%d DIM_LOS=%d NTHREADS=%d. Reverting to "
+                "FFTW_ESTIMATE.",
+                dim, dim_los, n_threads);
             plan = fftwf_plan_dft_r2c_3d(dim, dim, dim_los, (float *)box, (fftwf_complex *)box,
                                          FFTW_ESTIMATE);
         }
