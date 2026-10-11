@@ -2430,10 +2430,16 @@ class InputParameters:
         if (
             self.astro_options.RECOMB_MODEL != "none" or self.astro_options.USE_TS_FLUCT
         ) and ((max(val) if val else 0.0) < self.simulation_options.Z_HEAT_MAX):
-            raise ValueError(
-                "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
-                + f"your maximum passed node_redshifts {max(val) if hasattr(val, '__len__') else val} must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
-            )
+            if not val:
+                raise ValueError(
+                    "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
+                    + f"you passed no node_redshifts, but their maximum must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
+                )
+            else:
+                raise ValueError(
+                    "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
+                    + f"your maximum passed node_redshifts {max(val)} must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
+                )
 
     @cached_property
     def cosmo_tables(self) -> CosmoTables:

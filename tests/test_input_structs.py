@@ -885,3 +885,18 @@ class TestInputParameters:
         """Test that with_linear_redshifts works as expected."""
         with pytest.raises(ValueError, match=r"Either `nz` or `step` must be provided"):
             InputParameters(random_seed=1).with_linear_redshifts()
+
+    @pytest.mark.parametrize(
+        ("node_redshifts", "msg"),
+        [
+            ((), "you passed no node_redshifts"),
+            ((20.0, 10.0), "your maximum passed node_redshifts 20.0"),
+        ],
+    )
+    def test_node_redshifts_must_reach_z_heat_max(self, node_redshifts, msg):
+        """Spin temperature runs need node redshifts up to Z_HEAT_MAX, even if none are given."""
+        inputs = InputParameters.from_template(
+            "simple", random_seed=1, node_redshifts=node_redshifts
+        )
+        with pytest.raises(ValueError, match=f"{msg}.* must be above Z_HEAT_MAX"):
+            inputs.evolve_input_structs(USE_TS_FLUCT=True)
