@@ -6,6 +6,8 @@ import contextlib
 from pathlib import Path
 from typing import ClassVar
 
+import yaml as pyyaml
+
 from . import yaml
 from ._data import _DATA_PATH
 from .c_21cmfast import ffi, lib
@@ -31,8 +33,14 @@ class Config(dict):
     }
     _defaults["wisdoms_path"] = Path(_defaults["direc"]) / "wisdoms"
 
-    def __init__(self, *args, **kwargs):
+    # The C config_settings struct is process-global, but string values are stored in
+    # char buffers allocated by cffi. Keep the most recent buffer for each key alive
+    # here, so the struct never points at memory freed with a collected instance.
+    _c_string_buffers: ClassVar[dict] = {}
+
+    def __init__(self, *args, file_name: str | Path | None = None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.file_name = file_name
         # keep the config settings from the C library here
         self._c_config_settings = StructInstanceWrapper(lib.config_settings, ffi)
 
@@ -47,6 +55,8 @@ class Config(dict):
                 )
 
         self["direc"] = Path(self["direc"]).expanduser().absolute()
+        for k in ("wisdoms_path", "external_table_path"):
+            self[k] = Path(self[k])
 
         # since the subclass __setitem__ is not called in the super().__init__ call, we re-do the setting here
         # NOTE: This seems messy but I don't know a better way to do it
@@ -63,9 +73,9 @@ class Config(dict):
         """Set the value in the backend."""
         # we should possibly do a typemap for the ffi
         if isinstance(value, Path | str):
-            setattr(
-                self._c_config_settings, key, ffi.new("char[]", str(value).encode())
-            )
+            buffer = ffi.new("char[]", str(value).encode())
+            Config._c_string_buffers[key] = buffer
+            setattr(self._c_config_settings, key, buffer)
         else:
             setattr(self._c_config_settings, key, value)
 
@@ -81,16 +91,21 @@ class Config(dict):
 
     def write(self, fname: str | Path | None = None):
         """Write current configuration to file to make it permanent."""
-        if fname := Path(fname or self.file_name):
-            if not fname.parent.exists():
-                fname.parent.mkdir(parents=True)
+        fname = fname or self.file_name
+        if fname is None:
+            raise ValueError(
+                "No file name given to write the config to, and the config has no file_name."
+            )
 
-            with fname.open("w") as fl:
-                yaml.dump(self._as_dict(), fl)
+        fname = Path(fname)
+        fname.parent.mkdir(parents=True, exist_ok=True)
+
+        with fname.open("w") as fl:
+            yaml.dump(self._as_dict(), fl)
 
     def _as_dict(self):
         """Return a plain dict defining the instance."""
-        return {k: str(Path) if isinstance(v, Path) else v for k, v in self.items()}
+        return {k: str(v) if isinstance(v, Path) else v for k, v in self.items()}
 
     @classmethod
     def load(cls, file_name: str | Path):
@@ -99,10 +114,12 @@ class Config(dict):
 
         if file_name.exists():
             with file_name.open() as fl:
-                cfg = yaml.load(fl)
+                # Config files only hold plain values, so never construct arbitrary
+                # Python objects from tags in them.
+                cfg = pyyaml.safe_load(fl) or {}
             return cls(cfg, file_name=file_name)
         else:
-            return cls(write=True)
+            return cls(file_name=file_name)
 
 
 # On import, load the default config
