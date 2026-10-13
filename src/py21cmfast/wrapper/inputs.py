@@ -35,7 +35,6 @@ from .classy_interface import (
     compute_rms,
     find_redshift_kinematic_decoupling,
     get_transfer_function,
-    k_transfer,
     run_classy,
 )
 from .structs import StructWrapper
@@ -671,6 +670,7 @@ class MatterOptions(InputStruct):
         * WHITE: White 1985
         * CLASS: Runs the CLASS code to compute the power spectrum. This is the most precise, but also the slowest (can take ~30 seconds
           at most and can be reduced if USE_MINI_HALOS=False or K_MAX_FOR_CLASS is set to a low value).
+        * FILE: Loads in user provided file -- If selected, you must also specify POWER_SPECTRUM_FILE
     PERTURB_ON_HIGH_RES
         Whether to perform the Zel'Dovich or 2LPT perturbation on the low or high
         resolution grid.
@@ -770,8 +770,11 @@ class MatterOptions(InputStruct):
         default=None, converter=attrs.converters.optional(bool)
     )
     V_CB_MODEL: Literal["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"] = choice_field()
-    POWER_SPECTRUM: Literal["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"] = (
-        choice_field()
+    POWER_SPECTRUM: Literal[
+        "EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS", "FILE"
+    ] = choice_field()
+    POWER_SPECTRUM_FILE: Path | None = field(
+        default=None, converter=attrs.converters.optional(Path)
     )
     PERTURB_ON_HIGH_RES: bool = field(default=False, converter=bool)
     USE_INTERPOLATION_TABLES: Literal[
@@ -806,7 +809,7 @@ class MatterOptions(InputStruct):
 
     @POWER_SPECTRUM.validator
     def _POWER_SPECTRUM_vld(self, att, val):
-        if self.V_CB_MODEL == "FLUCTS" and val != "CLASS":
+        if self.V_CB_MODEL == "FLUCTS" and (val != "CLASS" and val != "FILE"):
             raise ValueError(
                 "When using V_CB_MODEL='FLUCTS', you must use POWER_SPECTRUM = 'CLASS'! "
                 "Please set POWER_SPECTRUM to 'CLASS' or change V_CB_MODEL to something else."
@@ -1862,7 +1865,10 @@ class InputParameters:
         """Cosmological tables and constants derived from fundamental input parameters."""
         V_CB_AVG = V_CB_AVG_DEFAULT
 
-        if self.matter_options.POWER_SPECTRUM == "CLASS":
+        if (
+            self.matter_options.POWER_SPECTRUM == "CLASS"
+            or self.matter_options.POWER_SPECTRUM == "FILE"
+        ):
             if self.simulation_options.K_MAX_FOR_CLASS is not None:
                 k_max = self.simulation_options.K_MAX_FOR_CLASS / un.Mpc
             else:
@@ -1885,23 +1891,42 @@ class InputParameters:
                     "1/Mpc"
                 ) * 1.5  # Multiply by 1.5 for better precision
 
-            classy_output = run_classy(
-                h=self.cosmo_params.hlittle,
-                Omega_cdm=self.cosmo_params.OMm - self.cosmo_params.OMb,
-                Omega_b=self.cosmo_params.OMb,
-                n_s=self.cosmo_params.POWER_INDEX,
-                sigma8=self.cosmo_params.SIGMA_8,
-                output="mTk,vTk",
-                P_k_max=k_max,
-            )
+            if self.matter_options.POWER_SPECTRUM == "CLASS":
+                classy_output = run_classy(
+                    h=self.cosmo_params.hlittle,
+                    Omega_cdm=self.cosmo_params.OMm - self.cosmo_params.OMb,
+                    Omega_b=self.cosmo_params.OMb,
+                    n_s=self.cosmo_params.POWER_INDEX,
+                    sigma8=self.cosmo_params.SIGMA_8,
+                    output="mTk,vTk",
+                    P_k_max=k_max,
+                )
 
-            # Linear matter density transfer function at z=0
-            transfer_density = get_transfer_function(
-                classy_output=classy_output, kind="d_m", z=0.0
-            )
-            # Include a sample at k=0
-            k_transfer_with_0 = np.concatenate(([0.0], k_transfer))
-            transfer_density = np.concatenate(([0.0], transfer_density))
+                # Linear matter density transfer function at z=0
+                transfer_density = get_transfer_function(
+                    classy_output=classy_output, kind="d_m", z=0.0
+                )
+                # Include a sample at k=0
+                k_transfer = np.concatenate(
+                    (
+                        np.logspace(-5.15, -1.49, 50),
+                        np.logspace(-1.45, -0.258, 80),
+                        np.logspace(-0.2083, 3.049, 100),
+                    )
+                )
+                k_transfer_with_0 = np.concatenate(([0.0], k_transfer))
+                transfer_density = np.concatenate(([0.0], transfer_density))
+                # Find the redshift of kinematic decoupling
+                z_dec = find_redshift_kinematic_decoupling(classy_output)
+            else:  # If providing your own transfer function, simply load it in
+                transfer_density = np.ascontiguousarray(
+                    np.loadtxt(self.matter_options.POWER_SPECTRUM_FILE)
+                )  # File should be two columns, k and T(k)
+                k_transfer = np.ascontiguousarray(
+                    np.loadtxt("./Coevals/Transfers/Transfer_k.txt")
+                )
+                k_transfer_with_0 = np.concatenate(([0.0], k_transfer))
+                z_dec = 1010.0
             # Create a Table1D for the density transfer function
             transfer_density = Table1D(
                 size=k_transfer_with_0.size,
@@ -1909,20 +1934,20 @@ class InputParameters:
                 y_values=transfer_density,
             )
 
-            # Find the redshift of kinematic decoupling
-            z_dec = find_redshift_kinematic_decoupling(classy_output)
-
             # If we use the fluctuations of the v_cb field, find its transfer function at the redshift of kinematic decoupling
             if self.matter_options.V_CB_MODEL == "FLUCTS":
                 # Linear vcb transfer function at kinematic decoupling
-                transfer_vcb = (
-                    (
-                        get_transfer_function(
-                            classy_output=classy_output, kind="v_cb", z=z_dec
-                        )
-                        / constants.c  # Need to normalize by c, because ComputeInitialConditions() expects to receive a dimensionless transfer function
-                    ).to(un.dimensionless_unscaled)
-                )
+                if self.matter_options.POWER_SPECTRUM == "CLASS":
+                    transfer_vcb = (
+                        (
+                            get_transfer_function(
+                                classy_output=classy_output, kind="v_cb", z=z_dec
+                            )
+                            / constants.c  # Need to normalize by c, because ComputeInitialConditions() expects to receive a dimensionless transfer function
+                        ).to(un.dimensionless_unscaled)
+                    )
+                else:
+                    transfer_vcb = np.loadtxt(self.matter_options.POWER_SPECTRUM_FILE)
                 # Include a sample at k=0
                 transfer_vcb = np.concatenate(([0.0], transfer_vcb))
                 # Create a Table1D for the vcb transfer function
@@ -1936,11 +1961,14 @@ class InputParameters:
 
             # Compute the RMS value of the v_cb field at kinematic decoupling
             # For LCDM cosmology with Planck 2018 parameters, the rms is 29.3 km/s
-            V_CB_RMS = (
-                compute_rms(classy_output, kind="v_cb", redshifts=z_dec)
-                .to("km/s")
-                .value[0]
-            )
+            if self.matter_options.POWER_SPECTRUM != "FILE":
+                V_CB_RMS = (
+                    compute_rms(classy_output, kind="v_cb", redshifts=z_dec)
+                    .to("km/s")
+                    .value[0]
+                )
+            else:  # If using provided P(k), use standard value
+                V_CB_RMS = 29.3  # km/s, for Planck 2018 cosmology
             # Assuming a Maxwell-Boltzmann distribution (consistent with the v_cb field distribution when V_CB_MODEL="FLUCTS"),
             # the mean value is given by the rms times sqrt(8/3pi) = 0.92
             # This gives a mean value of ~ 27 km/s for Planck 2018 cosmology
@@ -2404,7 +2432,13 @@ class InputParameters:
               which avoids triggering CLASS work during serialization.
             - ``"never"``: omit tables entirely, useful for portable templates.
         """
-        dct = attrs.asdict(self, recurse=True)
+
+        def serialize(inst, field, val):
+            if isinstance(val, Path):
+                return str(val)
+            return val
+
+        dct = attrs.asdict(self, recurse=True, value_serializer=serialize)
 
         # We use a tri-state here because different writers need different behavior:
         # full in-memory snapshots, cache writes that should not trigger CLASS, and
