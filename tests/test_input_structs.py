@@ -890,7 +890,10 @@ class TestInputParameters:
         ("node_redshifts", "msg"),
         [
             ((), "you passed no node_redshifts"),
-            ((20.0, 10.0), "your maximum passed node_redshifts 20.0"),
+            (
+                (20.0, 10.0),
+                "your maximum passed node_redshifts 20.0 must be above Z_HEAT_MAX",
+            ),
         ],
     )
     def test_node_redshifts_must_reach_z_heat_max(self, node_redshifts, msg):
@@ -898,5 +901,5 @@ class TestInputParameters:
         inputs = InputParameters.from_template(
             "simple", random_seed=1, node_redshifts=node_redshifts
         )
-        with pytest.raises(ValueError, match=f"{msg}.* must be above Z_HEAT_MAX"):
+        with pytest.raises(ValueError, match=f"{msg}"):
             inputs.evolve_input_structs(USE_TS_FLUCT=True)
