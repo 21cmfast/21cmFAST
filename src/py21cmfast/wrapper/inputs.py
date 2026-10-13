@@ -2433,7 +2433,7 @@ class InputParameters:
             if not val:
                 raise ValueError(
                     "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
-                    + f"you passed no node_redshifts, but their maximum must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
+                    + "you passed no node_redshifts, but they are required for the simulation."
                 )
             else:
                 raise ValueError(
