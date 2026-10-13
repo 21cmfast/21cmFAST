@@ -27,26 +27,19 @@ int dft_c2r_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     // The wisdom is loaded into memory by CreateFFTWWisdoms() when the inputs are broadcast,
     // and kept there until clean_fftw(), so there's no need to import it here.
     unsigned flag = use_wisdom ? FFTW_WISDOM_ONLY : FFTW_ESTIMATE;
-    int status;
     fftwf_plan plan;
 
-    Try {
-        set_fftw_threads(n_threads);
-        plan = fftwf_plan_dft_c2r_3d(dim, dim, dim_los, (fftwf_complex *)box, (float *)box, flag);
-        if (plan == NULL && flag == FFTW_WISDOM_ONLY) {
-            // There was no matching wisdom in memory (e.g. CreateFFTWWisdoms() wasn't called
-            // since the last clean_fftw()), so FFTW_WISDOM_ONLY failed.
-            LOG_WARNING(
-                "No FFTW wisdom for c2r DIM=%d DIM_LOS=%d NTHREADS=%d. Reverting to "
-                "FFTW_ESTIMATE.",
-                dim, dim_los, n_threads);
-            plan = fftwf_plan_dft_c2r_3d(dim, dim, dim_los, (fftwf_complex *)box, (float *)box,
-                                         FFTW_ESTIMATE);
-        }
-        fftwf_execute(plan);
-        fftwf_destroy_plan(plan);
+    set_fftw_threads(n_threads);
+    plan = fftwf_plan_dft_c2r_3d(dim, dim, dim_los, (fftwf_complex *)box, (float *)box, flag);
+    if (plan == NULL && flag == FFTW_WISDOM_ONLY) {
+        // There was no matching wisdom in memory (e.g. CreateFFTWWisdoms() wasn't called
+        // since the last clean_fftw()), so FFTW_WISDOM_ONLY failed. This is thrown to the
+        // caller's Try, rather than caught here, so that it isn't ignored.
+        LOG_ERROR("No FFTW wisdom for c2r DIM=%d DIM_LOS=%d NTHREADS=%d.", dim, dim_los, n_threads);
+        Throw(ValueError);
     }
-    Catch(status) { return (status); }
+    fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
     return (0);
 }
 
@@ -54,26 +47,19 @@ int dft_r2c_cube(bool use_wisdom, int dim, int dim_los, int n_threads, fftwf_com
     // The wisdom is loaded into memory by CreateFFTWWisdoms() when the inputs are broadcast,
     // and kept there until clean_fftw(), so there's no need to import it here.
     unsigned flag = use_wisdom ? FFTW_WISDOM_ONLY : FFTW_ESTIMATE;
-    int status;
     fftwf_plan plan;
 
-    Try {
-        set_fftw_threads(n_threads);
-        plan = fftwf_plan_dft_r2c_3d(dim, dim, dim_los, (float *)box, (fftwf_complex *)box, flag);
-        if (plan == NULL && flag == FFTW_WISDOM_ONLY) {
-            // There was no matching wisdom in memory (e.g. CreateFFTWWisdoms() wasn't called
-            // since the last clean_fftw()), so FFTW_WISDOM_ONLY failed.
-            LOG_WARNING(
-                "No FFTW wisdom for r2c DIM=%d DIM_LOS=%d NTHREADS=%d. Reverting to "
-                "FFTW_ESTIMATE.",
-                dim, dim_los, n_threads);
-            plan = fftwf_plan_dft_r2c_3d(dim, dim, dim_los, (float *)box, (fftwf_complex *)box,
-                                         FFTW_ESTIMATE);
-        }
-        fftwf_execute(plan);
-        fftwf_destroy_plan(plan);
+    set_fftw_threads(n_threads);
+    plan = fftwf_plan_dft_r2c_3d(dim, dim, dim_los, (float *)box, (fftwf_complex *)box, flag);
+    if (plan == NULL && flag == FFTW_WISDOM_ONLY) {
+        // There was no matching wisdom in memory (e.g. CreateFFTWWisdoms() wasn't called
+        // since the last clean_fftw()), so FFTW_WISDOM_ONLY failed. This is thrown to the
+        // caller's Try, rather than caught here, so that it isn't ignored.
+        LOG_ERROR("No FFTW wisdom for r2c DIM=%d DIM_LOS=%d NTHREADS=%d.", dim, dim_los, n_threads);
+        Throw(ValueError);
     }
-    Catch(status) { return (status); }
+    fftwf_execute(plan);
+    fftwf_destroy_plan(plan);
     return (0);
 }
 
