@@ -76,6 +76,7 @@ void init_ps();
 int init_heat();
 void init_MHR();
 int CreateFFTWWisdoms();
+void clean_fftw();
 int test_dft_cube(int dim, int n_threads, int n_repeat);
 void Broadcast_struct_global_noastro(SimulationOptions *simulation_options,
                                      MatterOptions *matter_options, CosmoParams *cosmo_params);

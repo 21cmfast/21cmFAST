@@ -1,8 +1,13 @@
 """Test the GlobalInitializationManager class."""
 
-import pytest
+from contextlib import contextmanager
 
-from py21cmfast import InputParameters
+import numpy as np
+import pytest
+from py21cmfast.c_21cmfast import lib
+
+from py21cmfast import Coeval, InputParameters, run_coeval
+from py21cmfast.drivers import _global_initialization
 from py21cmfast.drivers._global_initialization import (
     GlobalInitializationManager,
     _GlobalInitManagerSingleton,
@@ -169,6 +174,96 @@ def test_free():
     assert not _GlobalInitManagerSingleton.sigma_inited
     assert not _GlobalInitManagerSingleton.heat_inited
     assert not _GlobalInitManagerSingleton.recomb_inited
+
+
+class _CleanFFTWCounter:
+    """Stand-in for the C library that counts the calls to clean_fftw."""
+
+    def __init__(self):
+        self.n_calls = 0
+
+    def __getattr__(self, name):
+        return getattr(lib, name)
+
+    def clean_fftw(self):
+        self.n_calls += 1
+        lib.clean_fftw()
+
+
+def _count_clean_fftw(monkeypatch) -> _CleanFFTWCounter:
+    """Count every call to clean_fftw made from the global initialization module."""
+    counter = _CleanFFTWCounter()
+    monkeypatch.setattr(_global_initialization, "lib", counter)
+    return counter
+
+
+@pytest.fixture(scope="module")
+def ts_coeval_inputs() -> InputParameters:
+    """Small inputs whose coeval evolves through several redshifts, doing many FFTs.
+
+    There's no photon-conservation calibration, which runs with other inputs (and so
+    frees the backend, as any change of inputs does).
+    """
+    return (
+        InputParameters.from_template(["simple", "tiny"], random_seed=1234)
+        .evolve_input_structs(Z_HEAT_MAX=20)
+        .with_logspaced_redshifts(zmin=10, zmax=20)
+        .evolve_input_structs(USE_TS_FLUCT=True)
+    )
+
+
+def _run_ts_coeval(inputs: InputParameters) -> Coeval:
+    (coeval,) = run_coeval(
+        inputs=inputs, out_redshifts=min(inputs.node_redshifts), write=False
+    )
+    return coeval
+
+
+def test_fftw_is_cleaned_once_per_run(monkeypatch, ts_coeval_inputs):
+    """FFTW is only cleaned up when the inputs change, not by each computation.
+
+    The Compute* functions leave FFTW's state (threads and wisdom) in place, so that it
+    is reused throughout a run, and free (called when the inputs change) cleans it up.
+    """
+    counter = _count_clean_fftw(monkeypatch)
+    _run_ts_coeval(ts_coeval_inputs)
+    assert counter.n_calls == 1
+
+
+def test_cleaning_fftw_every_step_gives_same_results(monkeypatch, ts_coeval_inputs):
+    """Keeping FFTW's state between computations doesn't change the results.
+
+    Compare with cleaning up FFTW after every computation, as the Compute* functions
+    used to do.
+    """
+    reference = _run_ts_coeval(ts_coeval_inputs)
+
+    real_c_state = _global_initialization.c_state
+
+    @contextmanager
+    def c_state_cleaning_fftw(*args, **kwargs):
+        try:
+            with real_c_state(*args, **kwargs):
+                yield
+        finally:
+            _global_initialization.lib.clean_fftw()
+
+    _GlobalInitManagerSingleton.free()
+    counter = _count_clean_fftw(monkeypatch)
+    monkeypatch.setattr(_global_initialization, "c_state", c_state_cleaning_fftw)
+    cleaned = _run_ts_coeval(ts_coeval_inputs)
+
+    # Check that FFTW was indeed cleaned up during the run, many times
+    assert counter.n_calls > len(ts_coeval_inputs.node_redshifts)
+    for field in ("brightness_temp", "neutral_fraction", "spin_temperature", "density"):
+        expected = getattr(reference, field)
+        np.testing.assert_allclose(
+            getattr(cleaned, field),
+            expected,
+            rtol=0,
+            atol=1e-5 * np.abs(expected).max(),
+            err_msg=field,
+        )
 
 
 def test_direct_initializations_for_heat_and_recomb():

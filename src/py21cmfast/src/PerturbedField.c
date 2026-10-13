@@ -476,16 +476,12 @@ int ComputePerturbedField(float redshift, InitialConditions *boxes,
                                          perturbed_field->velocity_z);
         }
 
-        fftwf_cleanup_threads();
-        fftwf_cleanup();
-
         // deallocate
         fftwf_free(LOWRES_density_perturb);
         fftwf_free(density_perturb_saved);
         if (matter_options_global->PERTURB_ON_HIGH_RES) {
             fftwf_free(HIRES_density_perturb);
         }
-        fftwf_cleanup();
         LOG_DEBUG("Done.");
 
     }  // End of Try{}

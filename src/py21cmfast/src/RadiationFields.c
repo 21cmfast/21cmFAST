@@ -362,11 +362,6 @@ int UpdateRadiationFields(float redshift, EmissivityFields *emissivity_fields, i
         if (R_ct == 0) {
             multiply_radiation_fields_by_constants(redshift, radiation_fields, perturbed_field,
                                                    previous_spin_temp);
-            // free fftwf only if we have a full box (with more than one cell)
-            if (simulation_options_global->HII_DIM > 1) {
-                fftwf_cleanup_threads();
-                fftwf_cleanup();
-            }
             LOG_DEBUG("finished RadiationFields");
         }
     }  // End of try

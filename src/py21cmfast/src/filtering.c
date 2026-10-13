@@ -414,7 +414,7 @@ void filter_box(fftwf_complex *box, int box_dim[3], int filter_type, float R, fl
 // Test function to filter a box without computing a whole output box
 int test_filter(float *input_box, double R, double R_param, double R_star, int filter_flag,
                 double *result) {
-    int i, j, k;
+    int i, j, k, status;
     index_huge ii, jj;
     int box_dim[3] = {
         simulation_options_global->HII_DIM, simulation_options_global->HII_DIM,
@@ -426,35 +426,43 @@ int test_filter(float *input_box, double R, double R_param, double R_star, int f
     fftwf_complex *box_filtered =
         (fftwf_complex *)fftwf_malloc(sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
 
-    for (i = 0; i < box_dim[0]; i++)
-        for (j = 0; j < box_dim[1]; j++)
-            for (k = 0; k < box_dim[2]; k++) {
-                ii = grid_index_general(i, j, k, box_dim);
-                jj = grid_index_fftw_r(i, j, k, box_dim);
-                *((float *)box_unfiltered + jj) = input_box[ii];
-            }
+    // The FFTs throw errors (e.g. missing FFTW wisdom), so this is needed when called from Python
+    Try {
+        for (i = 0; i < box_dim[0]; i++)
+            for (j = 0; j < box_dim[1]; j++)
+                for (k = 0; k < box_dim[2]; k++) {
+                    ii = grid_index_general(i, j, k, box_dim);
+                    jj = grid_index_fftw_r(i, j, k, box_dim);
+                    *((float *)box_unfiltered + jj) = input_box[ii];
+                }
 
-    dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
-                 HII_D_PARA, simulation_options_global->N_THREADS, box_unfiltered);
+        dft_r2c_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, box_unfiltered);
 
-    for (ii = 0; ii < HII_KSPACE_NUM_PIXELS; ii++) {
-        box_unfiltered[ii] /= (double)HII_TOT_NUM_PIXELS;
+        for (ii = 0; ii < HII_KSPACE_NUM_PIXELS; ii++) {
+            box_unfiltered[ii] /= (double)HII_TOT_NUM_PIXELS;
+        }
+
+        memcpy(box_filtered, box_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
+
+        filter_box(box_filtered, box_dim, filter_flag, R, R_param, R_star);
+
+        dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
+                     HII_D_PARA, simulation_options_global->N_THREADS, box_filtered);
+
+        for (i = 0; i < simulation_options_global->HII_DIM; i++)
+            for (j = 0; j < simulation_options_global->HII_DIM; j++)
+                for (k = 0; k < HII_D_PARA; k++) {
+                    ii = grid_index_general(i, j, k, box_dim);
+                    jj = grid_index_fftw_r(i, j, k, box_dim);
+                    result[ii] = *((float *)box_filtered + jj);
+                }
     }
-
-    memcpy(box_filtered, box_unfiltered, sizeof(fftwf_complex) * HII_KSPACE_NUM_PIXELS);
-
-    filter_box(box_filtered, box_dim, filter_flag, R, R_param, R_star);
-
-    dft_c2r_cube(matter_options_global->USE_FFTW_WISDOM, simulation_options_global->HII_DIM,
-                 HII_D_PARA, simulation_options_global->N_THREADS, box_filtered);
-
-    for (i = 0; i < simulation_options_global->HII_DIM; i++)
-        for (j = 0; j < simulation_options_global->HII_DIM; j++)
-            for (k = 0; k < HII_D_PARA; k++) {
-                ii = grid_index_general(i, j, k, box_dim);
-                jj = grid_index_fftw_r(i, j, k, box_dim);
-                result[ii] = *((float *)box_filtered + jj);
-            }
+    Catch(status) {
+        fftwf_free(box_unfiltered);
+        fftwf_free(box_filtered);
+        return (status);
+    }
 
     fftwf_free(box_unfiltered);
     fftwf_free(box_filtered);
