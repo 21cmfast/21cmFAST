@@ -4,8 +4,8 @@ Reading Outputs from Older Versions
 From time to time, new versions of ``21cmFAST`` change the format of the files that
 it writes: input parameters and output fields are renamed, added or removed, and the
 meaning of some fields changes. ``21cmFAST`` keeps a record of every such change since
-v4.0 (in :mod:`py21cmfast.io.compat`), and uses it to read files written by older
-versions, converting them to objects of the current version.
+v4.0, and uses it to read files written by older versions, converting them to
+objects of the current version.
 
 Reading old files
 -----------------
@@ -20,9 +20,9 @@ or ``GlobalEvolution.from_file``::
 Renamed parameters and fields are renamed, and fields whose meaning changed are
 converted where possible. Where an old file is missing information that the current
 version needs (or contains information that can't be converted), a
-:class:`~py21cmfast.io.compat.CompatibilityWarning` is raised. Some outputs changed so
+:class:`~py21cmfast.io.migrate.CompatibilityWarning` is raised. Some outputs changed so
 much that they can't be converted at all, and raise an
-:class:`~py21cmfast.io.compat.UnconvertibleError`. For example, the ``XraySourceBox`` of
+:class:`~py21cmfast.io.migrate.UnconvertibleError`. For example, the ``XraySourceBox`` of
 versions before v4.3 became ``RadiationFields``, but while it held the (filtered)
 sources of the radiation fields, ``RadiationFields`` now holds the radiation fields
 themselves, which older files don't contain. Since both are intermediate products of
@@ -37,8 +37,19 @@ To see every change to the file format since v4.0, use::
 
     $ 21cmfast migrate --explain
 
-Files written before v4.0 are not supported. Their arrays can still be read directly
-with ``h5py``.
+Which versions are supported
+----------------------------
+Files written by the current major version of ``21cmFAST`` are always supported.
+Files written by the *previous* major version are deprecated: they can still be read
+and migrated, but doing so emits a
+:class:`~py21cmfast.io.migrate.FormatDeprecationWarning`, and they will no longer be
+readable by the next major version. Files written by any older major version raise
+an :class:`~py21cmfast.io.migrate.UnsupportedVersionError`. For example, v5 will read
+files from v4 with a warning, and v6 will not read them at all. To keep using files
+from a deprecated version, migrate them (see below) before upgrading.
+
+Files written before v4.0 have never been supported. Their arrays can still be read
+directly with ``h5py``.
 
 Migrating a cache
 -----------------

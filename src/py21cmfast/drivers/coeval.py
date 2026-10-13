@@ -16,7 +16,8 @@ from rich.progress import Progress
 
 from .. import __version__
 from ..c_21cmfast import lib
-from ..io import compat, h5
+from ..io import h5
+from ..io._compat import current_struct_name
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..rsds import apply_rsds, include_dvdr_in_tau21
 from ..wrapper.inputs import InputParameters
@@ -432,7 +433,7 @@ class Coeval:
             kwargs = {}
             for k in keys:
                 # Files written by older versions may use older names of the structs.
-                name = compat.current_struct_name(k)
+                name = current_struct_name(k)
                 if name not in type_to_name:
                     raise ValueError(
                         f"HDF5 group '{k}' in {path} does not correspond to any "

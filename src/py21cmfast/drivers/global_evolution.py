@@ -249,7 +249,7 @@ class GlobalEvolution:
 
             kwargs["inputs"] = h5.read_inputs(fl, safe=safe)
 
-            kwargs["quantities"] = h5.read_box_quantities(
+            kwargs["quantities"] = h5._read_box_quantities(
                 fl["quantities"], fl["InputParameters"]
             )
 

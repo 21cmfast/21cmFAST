@@ -88,14 +88,27 @@ which it will appear. This is what allows files written by older versions to be 
 (and migrated with ``21cmfast migrate``), and it doubles as a changelog of the file
 format.
 
-The changes of each release live in their own module of
-``src/py21cmfast/io/_compat/`` (e.g. ``_v43.py`` for v4.3.0), as a ``RELEASE``
-built from the kinds of change defined in ``src/py21cmfast/io/_compat_framework.py``
+The changes live in modules of ``src/py21cmfast/io/_compat/``, one for each release
+that changed the format, named after the versions it converts between (e.g.
+``_v4_2_v4_3.py`` converts files from the format of v4.2 to that of v4.3). Each
+defines a ``RELEASE`` (with an explicit ``from_version`` and ``to_version``) built
+from the kinds of change defined in ``src/py21cmfast/io/_compat_framework.py``
 (renamed parameters, renamed fields, conversions, etc.), along with any helper
 functions those changes need. To record changes for a new release, add a module for
-it, and add its ``RELEASE`` to ``FORMAT_HISTORY`` in
-``src/py21cmfast/io/_compat/__init__.py``. Add a test of each new change to
+it (converting from the last release that changed the format), and add its
+``RELEASE`` to ``FORMAT_HISTORY`` in ``src/py21cmfast/io/_compat/__init__.py``.
+Tests check that the history is a continuous chain from v4.0, and that the module
+names match the versions. Add a test of each new change to
 ``tests/io/test_compat.py``.
+
+Support for old files follows a deprecation policy: files from the previous major
+version are deprecated (reading them warns), and files from older major versions are
+not supported. When releasing a new major version N, nothing needs to be done for
+files from N-1 (they become deprecated automatically). Support for files from N-2
+must then be removed, by deleting the modules of ``_compat`` that convert *from*
+version N-2 (including the one converting to N-1.0), along with their tests and
+legacy-format descriptions. ``test_no_steps_from_unsupported_versions`` fails until
+this is done.
 
 The tests use descriptions of the files written by each older release, stored in
 ``tests/test_data/legacy_formats/``. After a release that changes the format, add a

@@ -1,4 +1,4 @@
-"""Changes to the file format made in v4.3.0."""
+"""Changes to the file format between v4.2.0 and v4.3.0."""
 
 from __future__ import annotations
 
@@ -158,6 +158,7 @@ _NION_PREFACTOR_EXPLANATION = (
 
 
 RELEASE = FormatRelease(
+    "4.2.0",
     "4.3.0",
     [
         # ---- Input parameters ----

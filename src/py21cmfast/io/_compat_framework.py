@@ -7,8 +7,9 @@ made to the format (:class:`FormatChange` and its subclasses), which are grouped
 the release that made them in a :class:`FormatRelease`.
 
 The changes made in each release are defined in the modules of
-:mod:`py21cmfast.io._compat` (one per release), and are used through the public
-interface in :mod:`py21cmfast.io.compat`.
+:mod:`py21cmfast.io._compat` (one per release), and are applied to old files by
+the functions in :mod:`py21cmfast.io._compat`. The parts of this that users may need
+(e.g. the warnings and errors) are exposed publicly in :mod:`py21cmfast.io.migrate`.
 
 Changes are written to be *tolerant*: each one only does something if it finds the
 old format in the data it is given (e.g. a renamed parameter is only renamed if the
@@ -20,7 +21,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Literal
 
 import attrs
 import numpy as np
@@ -29,12 +30,21 @@ from packaging.version import InvalidVersion, Version
 from .. import __version__
 from ..wrapper.arrays import H5Backend
 
-#: The oldest version of 21cmFAST whose files can be read.
-OLDEST_SUPPORTED_VERSION = Version("4.0.0.dev0")  # including pre-releases of v4.0
+#: Files written before this version (i.e. before v4.0, including its pre-releases)
+#: have never been supported.
+FIRST_FORMAT_VERSION = Version("4.0.0.dev0")
 
 
 class CompatibilityWarning(UserWarning):
     """Warning for when a file from an older version can't be fully converted."""
+
+
+class FormatDeprecationWarning(FutureWarning):
+    """Warning for when a file was written by a deprecated version of 21cmFAST.
+
+    Files written by the previous major version of 21cmFAST can still be read and
+    migrated, but support for them will be removed in the next major version.
+    """
 
 
 class UnsupportedVersionError(ValueError):
@@ -57,8 +67,9 @@ def parse_version(version: str | Version | None) -> Version:
     Raises
     ------
     UnsupportedVersionError
-        If the version is None (as for files written before v4), or older than the
-        oldest supported version.
+        If the version is None (as for files written before v4), or can't be parsed.
+        Whether files of the version are supported is checked by
+        :func:`check_support`.
     """
     if version is None:
         raise UnsupportedVersionError(
@@ -73,21 +84,84 @@ def parse_version(version: str | Version | None) -> Version:
         version = version.decode()
 
     try:
-        out = Version(str(version))
+        return Version(str(version))
     except InvalidVersion as e:
         raise UnsupportedVersionError(
             f"Could not understand the 21cmFAST version '{version}'."
         ) from e
 
-    if out < OLDEST_SUPPORTED_VERSION:
-        raise UnsupportedVersionError(
-            f"Files written by 21cmFAST v{out} are not supported. The oldest version "
-            f"whose files can be read is v{OLDEST_SUPPORTED_VERSION}."
-        )
-    return out
-
 
 CURRENT_VERSION = Version(__version__)
+
+SupportStatus = Literal["supported", "deprecated", "unsupported"]
+
+
+def support_status(
+    version: str | Version, current: str | Version | None = None
+) -> SupportStatus:
+    """Return whether files written by a version of 21cmFAST are supported.
+
+    The policy is that files written by the current major version of 21cmFAST are
+    supported, files written by the previous major version are deprecated (they can
+    still be read and migrated, with a warning), and files written by any older
+    version are not supported. For example, v5 supports files from v5, and
+    deprecates files from v4, while v6 no longer supports files from v4 at all.
+    Files written before v4.0 have never been supported.
+
+    Parameters
+    ----------
+    version
+        The version of 21cmFAST that wrote a file.
+    current
+        The version of 21cmFAST reading the file. By default, this version.
+    """
+    version = parse_version(version)
+    current = CURRENT_VERSION if current is None else parse_version(current)
+
+    if version < FIRST_FORMAT_VERSION or version.major < current.major - 1:
+        return "unsupported"
+    if version.major < current.major:
+        return "deprecated"
+    return "supported"
+
+
+def check_support(version: str | Version) -> Version:
+    """Check that files written by a version of 21cmFAST can be read.
+
+    Raises
+    ------
+    UnsupportedVersionError
+        If files of the version are not supported.
+
+    Warns
+    -----
+    FormatDeprecationWarning
+        If support for files of the version is deprecated.
+    """
+    version = parse_version(version)
+    status = support_status(version)
+    major = CURRENT_VERSION.major
+
+    if status == "unsupported":
+        msg = f"Files written by 21cmFAST v{version} are not supported."
+        if version >= FIRST_FORMAT_VERSION:
+            msg += (
+                f" Support for files written by v{version.major} was removed in "
+                f"v{version.major + 2}.0: migrate them with 21cmFAST v{major - 1} "
+                "first (using `21cmfast migrate`)."
+            )
+        raise UnsupportedVersionError(msg)
+
+    if status == "deprecated":
+        warnings.warn(
+            f"Files written by 21cmFAST v{version.major} (this one was written by "
+            f"v{version}) are deprecated, and will not be readable by 21cmFAST "
+            f"v{major + 1}. Migrate them to the current format with "
+            "`21cmfast migrate`.",
+            FormatDeprecationWarning,
+            stacklevel=3,
+        )
+    return version
 
 
 # ======================================================================================
@@ -478,20 +552,45 @@ class FormatRelease:
 
     Parameters
     ----------
-    version
+    from_version
+        The previous release that changed the file format (or v4.0.0 for the first
+        set of changes recorded). The changes convert files from this format.
+    to_version
         The release in which the changes were made.
     changes
         The changes, in the order in which they should be applied.
     """
 
-    version: Version = attrs.field(converter=Version)
+    from_version: Version = attrs.field(converter=Version)
+    to_version: Version = attrs.field(converter=Version)
     changes: tuple[FormatChange, ...] = attrs.field(converter=tuple)
+
+    @to_version.validator
+    def _to_version_vld(self, att, val):
+        if val <= self.from_version:
+            raise ValueError(
+                f"to_version ({val}) must be after from_version ({self.from_version})"
+            )
+
+    @property
+    def module_name(self) -> str:
+        """The name of the module of :mod:`py21cmfast.io._compat` defining this."""
+
+        def tag(version: Version) -> str:
+            parts = list(version.release)
+            while len(parts) > 2 and parts[-1] == 0:
+                parts.pop()
+            return "_".join(str(p) for p in parts)
+
+        return f"_v{tag(self.from_version)}_v{tag(self.to_version)}"
 
     def applies_to(self, version: Version) -> bool:
         """Whether the changes of this release need to be applied to a file version.
 
-        Files written by development versions leading up to this release (e.g.
-        ``4.3.dev12``) are considered to need the changes, since they may have been
-        written before some of them were made.
+        Files written by any version before ``to_version`` need the changes (older
+        versions get the changes of earlier releases first). Files written by
+        development versions leading up to this release (e.g. ``4.3.dev12``) are
+        considered to need the changes, since they may have been written before some
+        of them were made.
         """
-        return version < self.version
+        return version < self.to_version

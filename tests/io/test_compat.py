@@ -1,5 +1,6 @@
 """Tests of reading files written by older versions of 21cmFAST."""
 
+import itertools
 import warnings
 from pathlib import Path
 
@@ -7,9 +8,10 @@ import attrs
 import h5py
 import numpy as np
 import pytest
+from packaging.version import Version
 
 import py21cmfast as p21c
-from py21cmfast.io import _compat, compat, h5
+from py21cmfast.io import _compat, h5, migrate
 from py21cmfast.io import _compat_framework as framework
 from py21cmfast.wrapper import outputs as ostruct
 from py21cmfast.wrapper._utils import snake_to_camel
@@ -25,8 +27,8 @@ pytestmark = [
 RHOCRIT_OMB_FACTOR = 2.775e11  # rho_crit / h^2 in Msun/Mpc^3, approximately
 
 
-def _raw_inputs(version="4.2", **structs) -> compat.RawInputs:
-    return compat.RawInputs(structs=structs, random_seed=1, version=version)
+def _raw_inputs(version="4.2", **structs) -> framework.RawInputs:
+    return framework.RawInputs(structs=structs, random_seed=1, version=version)
 
 
 class TestVersions:
@@ -34,18 +36,20 @@ class TestVersions:
 
     def test_no_version(self):
         """Files without a version (pre-v4) are not supported."""
-        with pytest.raises(compat.UnsupportedVersionError, match=r"older than v4\.0"):
-            compat.parse_version(None)
+        with pytest.raises(
+            framework.UnsupportedVersionError, match=r"older than v4\.0"
+        ):
+            framework.parse_version(None)
 
     def test_too_old(self):
         """Versions before v4.0 are not supported."""
-        with pytest.raises(compat.UnsupportedVersionError, match="not supported"):
-            compat.parse_version("3.4.0")
+        with pytest.raises(framework.UnsupportedVersionError, match="not supported"):
+            framework.check_support("3.4.0")
 
     def test_bad_version(self):
         """Unparseable versions raise a clear error."""
-        with pytest.raises(compat.UnsupportedVersionError, match="understand"):
-            compat.parse_version("not-a-version")
+        with pytest.raises(framework.UnsupportedVersionError, match="understand"):
+            framework.parse_version("not-a-version")
 
     @pytest.mark.parametrize(
         ("version", "n_releases"),
@@ -53,52 +57,116 @@ class TestVersions:
     )
     def test_releases_since(self, version, n_releases):
         """The right releases apply to files of each version."""
-        assert len(compat.releases_since(version)) == n_releases
-        assert compat.needs_upgrade(version) == bool(n_releases)
+        assert len(_compat.releases_since(version)) == n_releases
+        assert _compat.needs_upgrade(version) == bool(n_releases)
 
     def test_current_version_is_not_legacy(self):
         """Files of the current version are not converted."""
-        assert not compat.is_legacy(p21c.__version__)
-        assert compat.is_legacy("4.2")
+        assert not _compat.is_legacy(p21c.__version__)
+        assert _compat.is_legacy("4.2")
+
+
+class TestSupportPolicy:
+    """Tests of the deprecation policy for files of older major versions."""
+
+    @pytest.mark.parametrize(
+        ("version", "current", "status"),
+        [
+            ("3.4.0", "4.3.0", "unsupported"),
+            ("4.0.0b1.dev5", "4.3.0", "supported"),
+            ("4.2", "4.3.0", "supported"),
+            ("4.2", "5.0.0", "deprecated"),
+            ("4.2", "5.3.dev12", "deprecated"),
+            ("5.1.0", "5.3.0", "supported"),
+            ("4.2", "6.0.0", "unsupported"),
+            ("5.1.0", "6.0.0", "deprecated"),
+            ("3.4.0", "5.0.0", "unsupported"),
+        ],
+    )
+    def test_support_status(self, version, current, status):
+        """Files of the previous major version are deprecated, older ones unsupported."""
+        assert framework.support_status(version, current) == status
+
+    def test_deprecated_file_warns(self, legacy_v42, tmp_path: Path, monkeypatch):
+        """Reading a file of the previous major version warns, but still works."""
+        path = legacy_v42.write_struct(tmp_path / "ics.h5", "halo:InitialConditions")
+        monkeypatch.setattr(framework, "CURRENT_VERSION", Version("5.0.0"))
+        with pytest.warns(framework.FormatDeprecationWarning, match="v6"):
+            obj = h5.read_output_struct(path)
+        assert isinstance(obj, p21c.InitialConditions)
+
+    def test_unsupported_file_raises(self, legacy_v42, tmp_path: Path, monkeypatch):
+        """Reading a file of two major versions ago raises an error."""
+        path = legacy_v42.write_struct(tmp_path / "ics.h5", "halo:InitialConditions")
+        monkeypatch.setattr(framework, "CURRENT_VERSION", Version("6.0.0"))
+        with pytest.raises(
+            framework.UnsupportedVersionError, match=r"removed in v6\.0"
+        ):
+            h5.read_output_struct(path)
+
+    def test_no_steps_from_unsupported_versions(self):
+        """Fails when support for files of an old major version must be removed.
+
+        When this fails, delete the modules of ``py21cmfast.io._compat`` that convert
+        from the version given in the message (and their tests and legacy-format
+        descriptions in ``tests/test_data/legacy_formats``), as described in the
+        developer notes.
+        """
+        for release in _compat.FORMAT_HISTORY:
+            assert framework.support_status(release.from_version) != "unsupported", (
+                f"Files written by v{release.from_version.major} are no longer "
+                f"supported: remove {release.module_name} from py21cmfast.io._compat."
+            )
 
 
 class TestFormatHistory:
     """Consistency checks of the format history itself."""
 
-    def test_releases_are_ordered(self):
-        """Releases in the history must be in order."""
-        versions = [rel.version for rel in compat.FORMAT_HISTORY]
-        assert versions == sorted(versions)
+    def test_history_is_a_chain(self):
+        """Each step converts from the version the previous step converted to."""
+        history = _compat.FORMAT_HISTORY
+        assert history[0].from_version.major >= 4
+        for previous, release in itertools.pairwise(history):
+            assert release.from_version == previous.to_version
 
     def test_every_release_module_is_in_history(self):
-        """Each module of _compat is a release in the history, named after it."""
-        modules = sorted(p.stem for p in Path(_compat.__file__).parent.glob("_v*.py"))
-        releases = [getattr(_compat, mod).RELEASE for mod in modules]
-        assert set(releases) == set(compat.FORMAT_HISTORY)
-        for mod, release in zip(modules, releases, strict=True):
-            assert mod == f"_v{release.version.major}{release.version.minor}"
+        """Each module of _compat is a step in the history, named after its versions."""
+        modules = {p.stem for p in Path(_compat.__file__).parent.glob("_v*.py")}
+        assert modules == {rel.module_name for rel in _compat.FORMAT_HISTORY}
+        for mod in modules:
+            assert getattr(_compat, mod).RELEASE in _compat.FORMAT_HISTORY
+
+    def test_module_name(self):
+        """Module names include the patch version only when it's not zero."""
+        release = framework.FormatRelease("4.2.0", "4.3.1", [])
+        assert release.module_name == "_v4_2_v4_3_1"
+
+    def test_versions_must_increase(self):
+        """A step can't convert to an earlier version."""
+        with pytest.raises(ValueError, match="must be after"):
+            framework.FormatRelease("4.3.0", "4.2.0", [])
 
     def test_all_changes_are_described(self):
         """Every change has a description for the changelog."""
-        for release in compat.FORMAT_HISTORY:
+        for release in _compat.FORMAT_HISTORY:
             for change in release.changes:
                 assert change.description
 
     def test_describe(self):
         """The changelog lists the right releases."""
-        desc = compat.describe_format_changes()
-        assert "v4.1.0:" in desc
+        desc = migrate.describe_format_changes()
+        assert "v4.0.0 -> v4.1.0:" in desc
         assert "HaloBox -> EmissivityFields" in desc
 
-        desc = compat.describe_format_changes(since="4.2")
-        assert "v4.1.0:" not in desc
-        assert "v4.3.0:" in desc
+        desc = migrate.describe_format_changes(since="4.2")
+        assert "v4.0.0 -> v4.1.0:" not in desc
+        assert "v4.2.0 -> v4.3.0:" in desc
 
     def test_parameter_renames_are_current(self):
         """Renamed parameters must exist in this version (unless renamed again)."""
         renames = [
             change
-            for release in compat.FORMAT_HISTORY
+            for release in _compat.FORMAT_HISTORY
             for change in release.changes
             if isinstance(change, framework.RenameParameter)
         ]
@@ -112,7 +180,7 @@ class TestFormatHistory:
 
     def test_field_renames_are_current(self):
         """Renamed fields of output structs must exist in this version."""
-        for release in compat.FORMAT_HISTORY:
+        for release in _compat.FORMAT_HISTORY:
             for change in release.changes:
                 if isinstance(change, framework.RenameField):
                     kls = getattr(ostruct, change.struct)
@@ -130,23 +198,23 @@ class TestFormatHistory:
 
     def test_struct_names(self):
         """Old and new names of output structs are mapped correctly."""
-        assert compat.historical_struct_names("EmissivityFields") == {
+        assert _compat.historical_struct_names("EmissivityFields") == {
             "EmissivityFields",
             "HaloBox",
         }
-        assert compat.current_struct_name("HaloBox") == "EmissivityFields"
-        assert compat.current_struct_name("XraySourceBox") == "RadiationFields"
-        assert "XraySourceBox" in compat.historical_struct_names("RadiationFields")
-        assert compat.current_struct_name("TsBox") == "TsBox"
+        assert _compat.current_struct_name("HaloBox") == "EmissivityFields"
+        assert _compat.current_struct_name("XraySourceBox") == "RadiationFields"
+        assert "XraySourceBox" in _compat.historical_struct_names("RadiationFields")
+        assert _compat.current_struct_name("TsBox") == "TsBox"
 
     def test_field_names(self):
         """Old and new names of fields are mapped correctly."""
-        assert "halo_sfr" in compat.historical_field_names(
+        assert "halo_sfr" in _compat.historical_field_names(
             "EmissivityFields", "sfrd_acg"
         )
-        assert compat.current_field_name("halo_sfr") == "sfrd_acg"
-        assert compat.current_field_name("sfr", ["PerturbedHaloCatalog"]) == "sfr_acg"
-        assert compat.current_field_name("brightness_temp") == "brightness_temp"
+        assert _compat.current_field_name("halo_sfr") == "sfrd_acg"
+        assert _compat.current_field_name("sfr", ["PerturbedHaloCatalog"]) == "sfr_acg"
+        assert _compat.current_field_name("brightness_temp") == "brightness_temp"
 
 
 class TestInputUpgrades:
@@ -171,7 +239,7 @@ class TestInputUpgrades:
 
     def test_issue_793_min_xe(self):
         """MIN_XE_FOR_FCOLL_IN_TAUX is renamed (issue #793)."""
-        inputs = compat.upgrade_inputs(
+        inputs = _compat.upgrade_inputs(
             _raw_inputs(simulation_options={"MIN_XE_FOR_FCOLL_IN_TAUX": 0.01})
         )
         assert inputs.structs["simulation_options"] == {"MIN_XE_FOR_NION_IN_TAUX": 0.01}
@@ -179,7 +247,7 @@ class TestInputUpgrades:
     @pytest.mark.parametrize(("hii_dim", "expected"), [(1, 0.0), (10, None)])
     def test_v40_min_xe(self, hii_dim, expected):
         """v4.0 single-cell runs get a zero x_e threshold."""
-        inputs = compat.upgrade_inputs(
+        inputs = _compat.upgrade_inputs(
             _raw_inputs("4.0.0", simulation_options={"HII_DIM": hii_dim})
         )
         assert (
@@ -192,7 +260,7 @@ class TestInputUpgrades:
     )
     def test_inhomo_reco(self, inhomo, model):
         """INHOMO_RECO is converted to RECOMB_MODEL."""
-        inputs = compat.upgrade_inputs(
+        inputs = _compat.upgrade_inputs(
             _raw_inputs("4.1.1", astro_options={"INHOMO_RECO": inhomo})
         )
         assert inputs.structs["astro_options"]["RECOMB_MODEL"] == model
@@ -203,7 +271,7 @@ class TestInputUpgrades:
     )
     def test_sigma_sfr_index(self, version, converted):
         """SIGMA_SFR_INDEX is converted from base e to dex before v4.2."""
-        inputs = compat.upgrade_inputs(
+        inputs = _compat.upgrade_inputs(
             _raw_inputs(version, astro_params={"SIGMA_SFR_INDEX": -0.12})
         )
         expected = -0.12 / np.log(10) if converted else -0.12
@@ -223,7 +291,7 @@ class TestInputUpgrades:
     )
     def test_v_cb_model(self, rel_vel, fix_vcb, mini, model):
         """Relative-velocity options are converted to V_CB_MODEL."""
-        inputs = compat.upgrade_inputs(
+        inputs = _compat.upgrade_inputs(
             _raw_inputs(
                 matter_options={"USE_RELATIVE_VELOCITIES": rel_vel},
                 astro_options={"FIX_VCB_AVG": fix_vcb, "USE_MINI_HALOS": mini},
@@ -248,7 +316,7 @@ class TestInputUpgrades:
     )
     def test_use_metallicity(self, source_model, upper, expected):
         """USE_METALLICITY reproduces the old behaviour."""
-        inputs = compat.upgrade_inputs(
+        inputs = _compat.upgrade_inputs(
             _raw_inputs(
                 matter_options={"SOURCE_MODEL": source_model},
                 astro_options={"USE_UPPER_STELLAR_TURNOVER": upper},
@@ -259,7 +327,7 @@ class TestInputUpgrades:
     @pytest.mark.parametrize("mini", [True, False])
     def test_photoheating_feedback(self, mini):
         """Photoheating feedback follows the old mini-halo flag."""
-        inputs = compat.upgrade_inputs(
+        inputs = _compat.upgrade_inputs(
             _raw_inputs(astro_options={"USE_MINI_HALOS": mini})
         )
         opts = inputs.structs["astro_options"]
@@ -268,7 +336,7 @@ class TestInputUpgrades:
 
     def test_new_params_not_overridden(self):
         """Parameters already in the file are not changed."""
-        inputs = compat.upgrade_inputs(
+        inputs = _compat.upgrade_inputs(
             _raw_inputs(
                 "4.3.dev1",
                 astro_options={"USE_MCGS": False, "USE_METALLICITY": True},
@@ -287,7 +355,7 @@ class TestInputUpgrades:
         """Incomplete cosmo tables are discarded."""
         inputs = _raw_inputs()
         inputs.cosmo_tables = tables
-        compat.upgrade_inputs(inputs)
+        _compat.upgrade_inputs(inputs)
         assert (inputs.cosmo_tables is not None) == kept
 
 
@@ -296,7 +364,7 @@ class TestOutputStructUpgrades:
 
     @staticmethod
     def _inputs(source_model="E-INTEGRAL", photoncons="no-photoncons"):
-        return compat.upgrade_inputs(
+        return _compat.upgrade_inputs(
             _raw_inputs(
                 cosmo_params={"hlittle": 0.7, "OMb": 0.05},
                 matter_options={"SOURCE_MODEL": source_model},
@@ -316,14 +384,14 @@ class TestOutputStructUpgrades:
 
     def test_halobox(self):
         """HaloBox is converted to EmissivityFields."""
-        raw = compat.RawOutputStruct(
+        raw = framework.RawOutputStruct(
             kind="HaloBox",
             inputs=self._inputs("CHMF-SAMPLER"),
             arrays={"n_ion": np.ones(3), "halo_sfr": np.full(3, 2.0)},
             primitives={"log10_Mcrit_ACG_ave": 8.0, "log10_Mcrit_MCG_ave": -np.inf},
             version="4.2",
         )
-        compat.upgrade_output_struct(raw)
+        _compat.upgrade_output_struct(raw)
 
         assert raw.kind == "EmissivityFields"
         assert np.allclose(raw.arrays["sfrd_acg"], 2.0)
@@ -343,7 +411,7 @@ class TestOutputStructUpgrades:
     )
     def test_ionized_box_eulerian(self, source_model, acg_factor, mcg_factor):
         """The n_ion fields of IonizedBox gain their prefactor."""
-        raw = compat.RawOutputStruct(
+        raw = framework.RawOutputStruct(
             kind="IonizedBox",
             inputs=self._inputs(source_model),
             arrays={
@@ -353,7 +421,7 @@ class TestOutputStructUpgrades:
             primitives={"mean_f_coll": 1.0, "mean_f_coll_MINI": 1.0},
             version="4.2",
         )
-        compat.upgrade_output_struct(raw)
+        _compat.upgrade_output_struct(raw)
         assert np.isclose(raw.primitives["nion_unconditional_acg"], acg_factor)
         assert np.isclose(raw.primitives["nion_unconditional_mcg"], mcg_factor)
         assert np.allclose(raw.arrays["nion_conditional_filtered_acg"], acg_factor)
@@ -361,14 +429,14 @@ class TestOutputStructUpgrades:
 
     def test_ionized_box_lagrangian(self):
         """Lagrangian IonizedBox mean n_ion is normalised."""
-        raw = compat.RawOutputStruct(
+        raw = framework.RawOutputStruct(
             kind="IonizedBox",
             inputs=self._inputs("CHMF-SAMPLER"),
             arrays={"unnormalised_nion": np.ones((1, 3))},
             primitives={"mean_f_coll": 1.0, "mean_f_coll_MINI": 0.0},
             version="4.0.0",
         )
-        compat.upgrade_output_struct(raw)
+        _compat.upgrade_output_struct(raw)
         rhocrit_omb = RHOCRIT_OMB_FACTOR * 0.7**2 * 0.05
         assert np.isclose(
             raw.primitives["nion_unconditional_acg"], 1 / rhocrit_omb, rtol=1e-3
@@ -379,27 +447,27 @@ class TestOutputStructUpgrades:
 
     def test_ionized_box_f_photoncons(self):
         """n_ion fields can't be converted with f-photoncons."""
-        raw = compat.RawOutputStruct(
+        raw = framework.RawOutputStruct(
             kind="IonizedBox",
             inputs=self._inputs(photoncons="f-photoncons"),
             arrays={"unnormalised_nion": np.ones(3)},
             primitives={"mean_f_coll": 1.0},
             version="4.2",
         )
-        with pytest.warns(compat.CompatibilityWarning, match="f-photoncons"):
-            compat.upgrade_output_struct(raw)
+        with pytest.warns(framework.CompatibilityWarning, match="f-photoncons"):
+            _compat.upgrade_output_struct(raw)
         assert raw.arrays == {}
         assert "nion_unconditional_acg" not in raw.primitives
 
     def test_perturbed_halo_catalog(self):
         """PerturbedHaloCatalog fields are renamed and converted."""
-        raw = compat.RawOutputStruct(
+        raw = framework.RawOutputStruct(
             kind="PerturbedHaloCatalog",
             inputs=self._inputs("CHMF-SAMPLER"),
             arrays={"ion_emissivity": np.ones(3), "sfr": np.full(3, 2.0)},
             version="4.2",
         )
-        compat.upgrade_output_struct(raw)
+        _compat.upgrade_output_struct(raw)
         assert set(raw.arrays) == {"n_ion", "sfr_acg"}
         rhocrit_omb = RHOCRIT_OMB_FACTOR * 0.7**2 * 0.05
         np.testing.assert_allclose(raw.arrays["n_ion"], 1 / rhocrit_omb, rtol=1e-3)
@@ -407,31 +475,31 @@ class TestOutputStructUpgrades:
 
     def test_xray_source_box(self):
         """XraySourceBox can't be converted."""
-        raw = compat.RawOutputStruct(
+        raw = framework.RawOutputStruct(
             kind="XraySourceBox", inputs=self._inputs(), version="4.2"
         )
         with pytest.raises(
-            compat.UnconvertibleError, match="renamed to RadiationFields"
+            framework.UnconvertibleError, match="renamed to RadiationFields"
         ):
-            compat.upgrade_output_struct(raw)
+            _compat.upgrade_output_struct(raw)
 
     @pytest.mark.parametrize("hii_dim", [1, 10])
     def test_tsbox_q_hi(self, hii_dim):
         """Missing Q_HI only warns for single-cell runs."""
         inputs = self._inputs()
         inputs.structs["simulation_options"]["HII_DIM"] = hii_dim
-        raw = compat.RawOutputStruct(kind="TsBox", inputs=inputs, version="4.0.0")
+        raw = framework.RawOutputStruct(kind="TsBox", inputs=inputs, version="4.0.0")
         with warnings.catch_warnings(record=True) as caught:
             warnings.simplefilter("always")
-            compat.upgrade_output_struct(raw)
+            _compat.upgrade_output_struct(raw)
         assert bool(caught) == (hii_dim == 1)
         assert "Q_HI" not in raw.primitives
 
     def test_box_quantities(self):
         """Lightcone/global quantities are renamed like box fields."""
         inputs = self._inputs("CHMF-SAMPLER")
-        inputs.version = compat.parse_version("4.2")
-        quantities = compat.upgrade_box_quantities(
+        inputs.version = framework.parse_version("4.2")
+        quantities = _compat.upgrade_box_quantities(
             {
                 "halo_sfr": np.ones(2),
                 "halo_xray": np.ones(2),
@@ -461,7 +529,7 @@ class TestReadLegacyFiles:
             kind = key.split(":")[1]
 
             if kind == "XraySourceBox":
-                with pytest.raises(compat.UnconvertibleError):
+                with pytest.raises(framework.UnconvertibleError):
                     h5.read_output_struct(path)
                 continue
 
@@ -471,7 +539,7 @@ class TestReadLegacyFiles:
 
             # All changes are known, so nothing is "unknown".
             assert not [w for w in caught if "unknown" in str(w.message)], key
-            assert type(obj).__name__ == compat.current_struct_name(kind)
+            assert type(obj).__name__ == _compat.current_struct_name(kind)
             assert all(a.state.is_computed for a in obj.arrays.values()), key
 
     def test_pure_renames_preserve_data(self, legacy, tmp_path: Path):
@@ -519,7 +587,7 @@ class TestReadLegacyFiles:
         with h5py.File(path, "a") as fl:
             del fl["TsBox/OutputFields/spin_temperature"]
 
-        with pytest.warns(compat.CompatibilityWarning, match="spin_temperature"):
+        with pytest.warns(framework.CompatibilityWarning, match="spin_temperature"):
             obj = h5.read_output_struct(path)
         assert not obj.arrays["spin_temperature"].state.is_computed
 
@@ -529,7 +597,7 @@ class TestReadLegacyFiles:
         with h5py.File(path, "a") as fl:
             fl["TsBox/OutputFields/not_a_field"] = np.zeros(3)
 
-        with pytest.warns(compat.CompatibilityWarning, match="not_a_field"):
+        with pytest.warns(framework.CompatibilityWarning, match="not_a_field"):
             h5.read_output_struct(path)
 
     def test_coeval(self, legacy, tmp_path: Path):

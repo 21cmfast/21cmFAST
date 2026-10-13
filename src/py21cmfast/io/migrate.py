@@ -1,13 +1,27 @@
-"""Migrate files written by older versions of 21cmFAST to the current version.
+"""Read and migrate files written by older versions of 21cmFAST.
 
-The readers in :mod:`py21cmfast.io.h5` can read files written by older versions of
-21cmFAST directly (see :mod:`py21cmfast.io.compat`). However, the cache of a
-simulation (see :class:`~py21cmfast.io.caching.OutputCache`) locates files by hashes
-of their input parameters, which change whenever the input parameters change between
-versions, so a cache written by an older version can't be *found* by the current
-version. The functions in this module migrate whole caches (re-writing each file in
-the current format, at the location the current version expects), as well as
-high-level outputs (coeval boxes, lightcones and global evolutions).
+The readers in :mod:`py21cmfast.io.h5` (and therefore ``Coeval.from_file``,
+``LightCone.from_file`` etc.) can read files written by older versions of 21cmFAST
+directly: every change to the file format is recorded, and applied to older files
+when they are read. :func:`describe_format_changes` (or ``21cmfast migrate
+--explain``) lists these changes. Where an older file lacks information that the
+current version needs, or contains information that can't be converted, a
+:class:`CompatibilityWarning` is emitted, and objects that have no equivalent in
+the current version raise an :class:`UnconvertibleError`.
+
+Files written by the current major version of 21cmFAST are supported. Files written
+by the previous major version are deprecated (reading them emits a
+:class:`FormatDeprecationWarning`), and files written by any older version (or before
+v4.0) raise an :class:`UnsupportedVersionError`. To keep using files of a deprecated
+version, migrate them before upgrading to the next major version.
+
+However, the cache of a simulation (see :class:`~py21cmfast.io.caching.OutputCache`)
+locates files by hashes of their input parameters, which change whenever the input
+parameters change between versions, so a cache written by an older version can't be
+*found* by the current version. The functions in this module migrate whole caches
+(re-writing each file in the current format, at the location the current version
+expects), as well as high-level outputs (coeval boxes, lightcones and global
+evolutions).
 
 Migrated files are always written as new files, and the original files are never
 removed.
@@ -29,8 +43,27 @@ import h5py
 
 from .._cfg import config
 from ..wrapper import outputs as ostruct
-from . import compat, h5
+from . import h5
+from ._compat import current_struct_name, describe_format_changes, is_legacy
+from ._compat_framework import (
+    CompatibilityWarning,
+    FormatDeprecationWarning,
+    UnconvertibleError,
+    UnsupportedVersionError,
+)
 from .caching import OutputCache
+
+__all__ = [
+    "CompatibilityWarning",
+    "FormatDeprecationWarning",
+    "MigrationResult",
+    "UnconvertibleError",
+    "UnsupportedVersionError",
+    "describe_format_changes",
+    "migrate_cache",
+    "migrate_cache_file",
+    "migrate_high_level_file",
+]
 
 logger = logging.getLogger(__name__)
 
@@ -82,9 +115,7 @@ class MigrationResult:
 
 def _compat_warnings(caught: list[warnings.WarningMessage]) -> list[str]:
     msgs = [
-        str(w.message)
-        for w in caught
-        if issubclass(w.category, compat.CompatibilityWarning)
+        str(w.message) for w in caught if issubclass(w.category, CompatibilityWarning)
     ]
     return list(dict.fromkeys(msgs))
 
@@ -154,16 +185,16 @@ def migrate_cache_file(
     """
     path = Path(path)
     try:
-        raw = h5.read_raw_output_struct(path)
+        raw = h5._read_raw_output_struct(path)
     except (OSError, KeyError, h5.HDF5FileStructureError, NotImplementedError) as e:
         return MigrationResult(
             path, "skipped", message=f"not a single-struct cache file ({e})"
         )
-    except compat.UnsupportedVersionError as e:
+    except UnsupportedVersionError as e:
         return MigrationResult(path, "unconvertible", message=str(e))
 
     version = str(raw.version)
-    kind = compat.current_struct_name(raw.kind)
+    kind = current_struct_name(raw.kind)
     if kinds is not None and kind not in kinds:
         return MigrationResult(
             path, "skipped", kind=kind, version=version, message="kind not requested"
@@ -172,8 +203,8 @@ def migrate_cache_file(
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
         try:
-            obj = h5.output_struct_from_raw(raw, safe=safe)
-        except compat.UnconvertibleError as e:
+            obj = h5._output_struct_from_raw(raw, safe=safe)
+        except UnconvertibleError as e:
             return MigrationResult(
                 path, "unconvertible", kind=kind, version=version, message=str(e)
             )
@@ -192,7 +223,7 @@ def migrate_cache_file(
     common = {"destination": destination, "kind": kind, "version": version}
 
     if destination.exists() and destination.samefile(path):
-        if not compat.is_legacy(raw.version):
+        if not is_legacy(raw.version):
             return MigrationResult(path, "up-to-date", **common)
         # Original files are never replaced (even with overwrite=True).
         return MigrationResult(
@@ -284,7 +315,7 @@ def migrate_cache(
         raise NotADirectoryError(f"{source} is not a directory.")
 
     cache = OutputCache(Path(destination) if destination is not None else source)
-    kinds = None if kinds is None else {compat.current_struct_name(k) for k in kinds}
+    kinds = None if kinds is None else {current_struct_name(k) for k in kinds}
 
     results = []
     planned = set()  # destinations that a dry run would have written.
@@ -340,8 +371,8 @@ def migrate_high_level_file(
         try:
             obj = h5.load_high_level_simulation(path, safe=safe)
         except (
-            compat.UnconvertibleError,
-            compat.UnsupportedVersionError,
+            UnconvertibleError,
+            UnsupportedVersionError,
             NotImplementedError,
         ) as e:
             return MigrationResult(

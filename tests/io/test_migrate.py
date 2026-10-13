@@ -9,9 +9,13 @@ import pytest
 
 import py21cmfast as p21c
 from py21cmfast.cli import app
-from py21cmfast.io import compat, h5
+from py21cmfast.io import h5
 from py21cmfast.io.caching import OutputCache
-from py21cmfast.io.migrate import migrate_cache, migrate_high_level_file
+from py21cmfast.io.migrate import (
+    CompatibilityWarning,
+    migrate_cache,
+    migrate_high_level_file,
+)
 
 # The (tiny, unusual) inputs of the legacy test files trigger these warnings.
 pytestmark = [
@@ -144,7 +148,7 @@ def test_migrate_high_level_file(legacy, tmp_path: Path, kind: str):
     assert res.version == legacy.version
 
     with warnings.catch_warnings():
-        warnings.simplefilter("error", compat.CompatibilityWarning)
+        warnings.simplefilter("error", CompatibilityWarning)
         new = h5.load_high_level_simulation(tmp_path / "new.h5")
     orig = h5.load_high_level_simulation(old)
     assert new == orig

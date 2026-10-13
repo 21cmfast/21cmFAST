@@ -32,10 +32,13 @@ from .drivers.global_evolution import run_global_evolution
 from .drivers.lightcone import run_lightcone
 from .drivers.single_field import compute_initial_conditions
 from .input_serialization import convert_inputs_to_dict
-from .io import compat
 from .io.caching import CacheConfig, OutputCache, RunCache
 from .io.h5 import load_high_level_simulation
-from .io.migrate import migrate_cache, migrate_high_level_file
+from .io.migrate import (
+    describe_format_changes,
+    migrate_cache,
+    migrate_high_level_file,
+)
 from .lightconers import RectilinearLightconer
 from .wrapper.inputs import (
     AstroOptions,
@@ -935,7 +938,7 @@ def migrate(
     """
     if explain:
         cns.print(Rule("Changes to the file format of 21cmFAST", characters="="))
-        cns.print(compat.describe_format_changes(), highlight=False, markup=False)
+        cns.print(describe_format_changes(), highlight=False, markup=False)
         return
 
     if source is None:

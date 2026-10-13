@@ -1,4 +1,4 @@
-"""Changes to the file format made in v4.2.0."""
+"""Changes to the file format between v4.1.0 and v4.2.0."""
 
 from __future__ import annotations
 
@@ -27,6 +27,7 @@ def _sigma_sfr_index(inputs: RawInputs) -> None:
 
 
 RELEASE = FormatRelease(
+    "4.1.0",
     "4.2.0",
     [
         ConvertParameters(

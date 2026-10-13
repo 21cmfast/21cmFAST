@@ -1,4 +1,4 @@
-"""Changes to the file format made in v4.1.0."""
+"""Changes to the file format between v4.0.0 and v4.1.0."""
 
 from __future__ import annotations
 
@@ -28,6 +28,7 @@ def _q_hi(struct: RawOutputStruct) -> None:
 
 
 RELEASE = FormatRelease(
+    "4.0.0",
     "4.1.0",
     [
         AddParameter(

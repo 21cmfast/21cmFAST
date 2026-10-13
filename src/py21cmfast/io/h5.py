@@ -48,7 +48,7 @@ from ..wrapper import outputs as ostruct
 from ..wrapper.arrays import Array, H5Backend
 from ..wrapper.arraystate import ArrayState
 from ..wrapper.inputs import InputParameters
-from . import compat
+from . import _compat, _compat_framework
 
 
 def hdf5_to_dict(grp: h5py.Group) -> dict[str, Any]:
@@ -249,7 +249,7 @@ def read_output_struct(
     Read an output struct from an HDF5 file.
 
     Files written by older versions of 21cmFAST (since v4.0) are converted to the
-    current format on the fly (see :mod:`py21cmfast.io.compat`).
+    current format on the fly (see :mod:`py21cmfast.io.migrate`).
 
     Parameters
     ----------
@@ -273,8 +273,8 @@ def read_output_struct(
     OutputStruct
         An OutputStruct that is contained in the cache file.
     """
-    raw = read_raw_output_struct(path, group=group, struct=struct)
-    return output_struct_from_raw(raw, safe=safe)
+    raw = _read_raw_output_struct(path, group=group, struct=struct)
+    return _output_struct_from_raw(raw, safe=safe)
 
 
 def _find_struct_group(group: h5py.Group, struct: str | None) -> h5py.Group:
@@ -285,7 +285,7 @@ def _find_struct_group(group: h5py.Group, struct: str | None) -> h5py.Group:
             )
         return group[next(iter(group.keys()))]
 
-    for name in compat.historical_struct_names(struct):
+    for name in _compat.historical_struct_names(struct):
         if name in group:
             return group[name]
 
@@ -299,8 +299,8 @@ def _check_file_version(version: str | None, filename: str) -> Version:
             f"The file {filename} is not a valid 21cmFAST v4 file."
         )
 
-    version = compat.parse_version(version)
-    if version > compat.CURRENT_VERSION:
+    version = _compat_framework.check_support(version)
+    if version > _compat_framework.CURRENT_VERSION:
         warnings.warn(
             f"File created with a newer version {version} of 21cmFAST than this "
             f"{__version__}. Reading may break. Consider updating 21cmFAST.",
@@ -309,9 +309,9 @@ def _check_file_version(version: str | None, filename: str) -> Version:
     return version
 
 
-def read_raw_output_struct(
+def _read_raw_output_struct(
     path: Path, group: str = "/", struct: str | None = None
-) -> compat.RawOutputStruct:
+) -> _compat_framework.RawOutputStruct:
     """Read the raw contents of an output struct from an HDF5 file.
 
     The contents are read exactly as they are in the file, i.e. without converting
@@ -341,11 +341,11 @@ def read_raw_output_struct(
         primitives = dict(fields.attrs)
         del primitives["21cmFAST-version"]
 
-        return compat.RawOutputStruct(
+        return _compat_framework.RawOutputStruct(
             kind=group.name.split("/")[-1],
             inputs=_read_raw_inputs(group["InputParameters"]),
             arrays={
-                name: compat.ArrayOnDisk(
+                name: _compat_framework.ArrayOnDisk(
                     backend=H5Backend(path=fl.filename, dataset=dataset.name),
                     shape=dataset.shape,
                     dtype=dataset.dtype,
@@ -359,13 +359,13 @@ def read_raw_output_struct(
         )
 
 
-def output_struct_from_raw(
-    raw: compat.RawOutputStruct, safe: bool = True
+def _output_struct_from_raw(
+    raw: _compat_framework.RawOutputStruct, safe: bool = True
 ) -> ostruct.OutputStruct:
     """Create an OutputStruct from its raw contents (as read from a file).
 
     If the raw contents are from a file written by an older version of 21cmFAST,
-    they are first converted to the current format (see :mod:`py21cmfast.io.compat`).
+    they are first converted to the current format (see :mod:`py21cmfast.io.migrate`).
     Any arrays of the output struct that do not exist in such a file are left
     uninitialized (with a warning), while for files written by the current version
     an error is raised.
@@ -377,9 +377,9 @@ def output_struct_from_raw(
     safe
         Whether to raise an error if there are unknown input parameters.
     """
-    legacy = compat.is_legacy(raw.version)
+    legacy = _compat.is_legacy(raw.version)
     if legacy:
-        compat.upgrade_output_struct(raw)
+        _compat.upgrade_output_struct(raw)
 
     kls = getattr(ostruct, raw.kind, None)
     if kls is None or not issubclass(kls, ostruct.OutputStruct):
@@ -397,7 +397,7 @@ def output_struct_from_raw(
             warnings.warn(
                 f"The {raw.kind} (written by 21cmFAST v{raw.version}) contains "
                 f"unknown fields {sorted(unknown)}, which are ignored.",
-                compat.CompatibilityWarning,
+                _compat_framework.CompatibilityWarning,
                 stacklevel=2,
             )
             kwargs = {k: v for k, v in kwargs.items() if k in known}
@@ -420,7 +420,7 @@ def output_struct_from_raw(
             warnings.warn(
                 f"{msg} The file was written by 21cmFAST v{raw.version}, which did "
                 "not save this array for these parameters, so it is unavailable.",
-                compat.CompatibilityWarning,
+                _compat_framework.CompatibilityWarning,
                 stacklevel=2,
             )
             continue
@@ -434,18 +434,20 @@ def output_struct_from_raw(
         warnings.warn(
             f"The {raw.kind} (written by 21cmFAST v{raw.version}) contains "
             f"unknown arrays {unknown}, which are ignored.",
-            compat.CompatibilityWarning,
+            _compat_framework.CompatibilityWarning,
             stacklevel=2,
         )
 
     return obj
 
 
-def _array_from_source(source: compat.ArraySource, array: Array, name: str) -> Array:
+def _array_from_source(
+    source: _compat_framework.ArraySource, array: Array, name: str
+) -> Array:
     if source.shape != array.shape:
         filename = (
             f" in the file {source.backend.path}"
-            if isinstance(source, compat.ArrayOnDisk)
+            if isinstance(source, _compat_framework.ArrayOnDisk)
             else ""
         )
         raise HDF5FileStructureError(
@@ -454,7 +456,7 @@ def _array_from_source(source: compat.ArraySource, array: Array, name: str) -> A
         )
 
     # We don't check dtype because it can be usually safely cast.
-    if isinstance(source, compat.ArrayOnDisk):
+    if isinstance(source, _compat_framework.ArrayOnDisk):
         return attrs.evolve(
             array, state=ArrayState(on_disk=True), cache_backend=source.backend
         )
@@ -467,7 +469,7 @@ def read_inputs(
     """Read the InputParameters from a cache file.
 
     Files written by older versions of 21cmFAST (since v4.0) are converted to the
-    current format on the fly (see :mod:`py21cmfast.io.compat`).
+    current format on the fly (see :mod:`py21cmfast.io.migrate`).
 
     Parameters
     ----------
@@ -497,20 +499,20 @@ def read_inputs(
         group = group["InputParameters"]
 
     raw = _read_raw_inputs(group)
-    legacy = compat.is_legacy(raw.version)
+    legacy = _compat.is_legacy(raw.version)
     if legacy:
-        compat.upgrade_inputs(raw)
+        _compat.upgrade_inputs(raw)
     return _inputs_from_raw(raw, safe=safe, legacy=legacy)
 
 
-def read_box_quantities(
+def _read_box_quantities(
     group: h5py.Group, inputs_group: h5py.Group, index: Any = ...
 ) -> dict[str, np.ndarray]:
     """Read a group of quantities named after arrays of OutputStructs.
 
     This is used for the lightcones and global quantities of high-level outputs.
     Quantities in files written by older versions of 21cmFAST are converted to the
-    current format (see :func:`py21cmfast.io.compat.upgrade_box_quantities`).
+    current format .
 
     Parameters
     ----------
@@ -524,20 +526,20 @@ def read_box_quantities(
     quantities = {k: v[index] for k, v in group.items()}
 
     raw = _read_raw_inputs(inputs_group)
-    if compat.is_legacy(raw.version):
-        compat.upgrade_inputs(raw)
-        compat.upgrade_box_quantities(quantities, raw)
+    if _compat.is_legacy(raw.version):
+        _compat.upgrade_inputs(raw)
+        _compat.upgrade_box_quantities(quantities, raw)
     return quantities
 
 
-def _read_raw_inputs(group: h5py.Group) -> compat.RawInputs:
+def _read_raw_inputs(group: h5py.Group) -> _compat_framework.RawInputs:
     """Read the raw input parameters from an InputParameters group."""
     kwargs = hdf5_to_dict(group)
     version = _check_file_version(
         kwargs.pop("21cmFAST-version", None), group.file.filename
     )
 
-    return compat.RawInputs(
+    return _compat_framework.RawInputs(
         # The node_redshifts and random_seed are treated differently.
         node_redshifts=kwargs.pop("node_redshifts", None),
         random_seed=kwargs.pop("random_seed", None),
@@ -548,7 +550,7 @@ def _read_raw_inputs(group: h5py.Group) -> compat.RawInputs:
 
 
 def _inputs_from_raw(
-    raw: compat.RawInputs, safe: bool = True, legacy: bool = False
+    raw: _compat_framework.RawInputs, safe: bool = True, legacy: bool = False
 ) -> InputParameters:
     structs = dict(raw.structs)
     if raw.cosmo_tables is not None:
