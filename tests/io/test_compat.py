@@ -9,7 +9,8 @@ import numpy as np
 import pytest
 
 import py21cmfast as p21c
-from py21cmfast.io import compat, h5
+from py21cmfast.io import _compat, compat, h5
+from py21cmfast.io import _compat_framework as framework
 from py21cmfast.wrapper import outputs as ostruct
 from py21cmfast.wrapper._utils import snake_to_camel
 from py21cmfast.wrapper.inputs import InputStruct
@@ -69,6 +70,14 @@ class TestFormatHistory:
         versions = [rel.version for rel in compat.FORMAT_HISTORY]
         assert versions == sorted(versions)
 
+    def test_every_release_module_is_in_history(self):
+        """Each module of _compat is a release in the history, named after it."""
+        modules = sorted(p.stem for p in Path(_compat.__file__).parent.glob("_v*.py"))
+        releases = [getattr(_compat, mod).RELEASE for mod in modules]
+        assert set(releases) == set(compat.FORMAT_HISTORY)
+        for mod, release in zip(modules, releases, strict=True):
+            assert mod == f"_v{release.version.major}{release.version.minor}"
+
     def test_all_changes_are_described(self):
         """Every change has a description for the changelog."""
         for release in compat.FORMAT_HISTORY:
@@ -91,7 +100,7 @@ class TestFormatHistory:
             change
             for release in compat.FORMAT_HISTORY
             for change in release.changes
-            if isinstance(change, compat.RenameParameter)
+            if isinstance(change, framework.RenameParameter)
         ]
         for i, change in enumerate(renames):
             if any(later.old == change.new for later in renames[i + 1 :]):
@@ -105,16 +114,16 @@ class TestFormatHistory:
         """Renamed fields of output structs must exist in this version."""
         for release in compat.FORMAT_HISTORY:
             for change in release.changes:
-                if isinstance(change, compat.RenameField):
+                if isinstance(change, framework.RenameField):
                     kls = getattr(ostruct, change.struct)
                     names = set(kls._array_field_names) | {
                         f.alias for f in attrs.fields(kls)
                     }
                     assert change.new in names, change.description
-                elif isinstance(change, compat.RenameOutputStruct):
+                elif isinstance(change, framework.RenameOutputStruct):
                     assert change.new in ostruct._ALL_OUTPUT_STRUCTS
                 elif (
-                    isinstance(change, compat.UnconvertibleOutputStruct)
+                    isinstance(change, framework.UnconvertibleOutputStruct)
                     and change.successor is not None
                 ):
                     assert change.successor in ostruct._ALL_OUTPUT_STRUCTS
@@ -145,7 +154,7 @@ class TestInputUpgrades:
 
     def test_rename_is_tolerant(self):
         """Renames only apply to data in the old format."""
-        change = compat.RenameParameter("astro_params", "F_STAR10", "F_STAR10_ACG")
+        change = framework.RenameParameter("astro_params", "F_STAR10", "F_STAR10_ACG")
 
         inputs = _raw_inputs(astro_params={"F_STAR10": -1.0})
         change.upgrade_inputs(inputs)

@@ -83,11 +83,19 @@ Changing the File Format
 ------------------------
 Any change that affects what is written to (or read from) output files -- renaming,
 adding or removing an input parameter, an output struct or one of its fields, or
-changing the meaning of a field -- must be recorded in ``FORMAT_HISTORY`` in
-``src/py21cmfast/io/compat.py``, under the release in which it will appear. This is
-what allows files written by older versions to be read (and migrated with
-``21cmfast migrate``), and it doubles as a changelog of the file format. Add a test
-of the new entry to ``tests/io/test_compat.py``.
+changing the meaning of a field -- must be recorded as a change of the release in
+which it will appear. This is what allows files written by older versions to be read
+(and migrated with ``21cmfast migrate``), and it doubles as a changelog of the file
+format.
+
+The changes of each release live in their own module of
+``src/py21cmfast/io/_compat/`` (e.g. ``_v43.py`` for v4.3.0), as a ``RELEASE``
+built from the kinds of change defined in ``src/py21cmfast/io/_compat_framework.py``
+(renamed parameters, renamed fields, conversions, etc.), along with any helper
+functions those changes need. To record changes for a new release, add a module for
+it, and add its ``RELEASE`` to ``FORMAT_HISTORY`` in
+``src/py21cmfast/io/_compat/__init__.py``. Add a test of each new change to
+``tests/io/test_compat.py``.
 
 The tests use descriptions of the files written by each older release, stored in
 ``tests/test_data/legacy_formats/``. After a release that changes the format, add a
