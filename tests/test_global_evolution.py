@@ -1,16 +1,10 @@
 """Test the GlobalEvolution class."""
 
-from pathlib import Path
-
-import deprecation
 import numpy as np
 import pytest
 
 import py21cmfast as p21c
 from py21cmfast import GlobalEvolution
-
-DATA_PATH = Path(__file__).parent / "test_data"
-
 
 # CONST-ION-EFF uses the EPS conditional mass function with the default HMF.
 _SOURCE_MODELS = [
@@ -131,31 +125,6 @@ def test_global_evolution_bad_inputs(default_input_struct_ts, source_model):
                     SOURCE_MODEL=source_model
                 ),
             )
-
-
-# The stored file uses MCGs without a V_CB_MODEL, and A_s with POWER_SPECTRUM=EH.
-@pytest.mark.filterwarnings(
-    "ignore:^USE_MCGS needs a non-trivial V_CB_MODEL:UserWarning"
-)
-@pytest.mark.filterwarnings(
-    "ignore:^You have chosen to work with POWER_SPECTRUM=EH, but at the same time you work with A_s:UserWarning"
-)
-def test_compatability_with_database():
-    """
-    Test that loading GlobalEvolution from the database succeeds.
-
-    This test is useful for checking compatability with data files that
-    were generated with older versions of 21cmFAST.
-
-    If this test fails DO NOT replace the file in the database, unless you
-    are absolutely sure of what you are doing.
-    """
-    fname = DATA_PATH / "global_evolution.h5"
-    # The file uses old parameter names (e.g. USE_MINI_HALOS, F_STAR10, M_TURN), and
-    # loading it emits one DeprecatedWarning per old name.
-    with pytest.warns(deprecation.DeprecatedWarning, match="is deprecated as of"):
-        global_evolution = GlobalEvolution.from_file(fname)
-    assert isinstance(global_evolution, GlobalEvolution)
 
 
 def test_linear_perturbation_theory(default_input_struct_ts):

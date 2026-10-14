@@ -79,6 +79,46 @@ method. Any output which depends on the new array must also have it added to its
 If the C backend uses new input or output fields, they must be added to the structs
 in the header files ``_inputparams_wrapper.h`` or ``_outputstructs_wrapper.h``.
 
+Changing the File Format
+------------------------
+Any change that affects what is written to (or read from) output files -- renaming,
+adding or removing an input parameter, an output struct or one of its fields, or
+changing the meaning of a field -- must be recorded as a change of the release in
+which it will appear. This is what allows files written by older versions to be read
+(and migrated with ``21cmfast migrate``), and it doubles as a changelog of the file
+format.
+
+The changes live in modules of ``src/py21cmfast/io/_compat/``, one for each release
+that changed the format, named after the versions it converts between (e.g.
+``_v4_2_v4_3.py`` converts files from the format of v4.2 to that of v4.3). Each
+defines a ``RELEASE`` (with an explicit ``from_version`` and ``to_version``) built
+from the kinds of change defined in ``src/py21cmfast/io/_compat_framework.py``
+(renamed parameters, renamed fields, conversions, etc.), along with any helper
+functions those changes need. To record changes for a new release, add a module for
+it (converting from the last release that changed the format), and add its
+``RELEASE`` to ``FORMAT_HISTORY`` in ``src/py21cmfast/io/_compat/__init__.py``.
+Tests check that the history is a continuous chain, starting from the oldest version
+whose files are still supported, and that the module names match the versions. Add a
+test of each new change to ``tests/io/test_compat.py``.
+
+Patch releases work the same way. A patch release that changes the format gets its
+own module, with the patch version in its name (e.g. ``_v4_3_v4_3_1.py``, followed by
+``_v4_3_1_v4_4.py``). A patch release that doesn't change the format needs nothing:
+its files get every step converting to a later version.
+
+Support for old files follows a deprecation policy: files from the previous major
+version are deprecated (reading them warns), and files from older major versions are
+not supported. When releasing a new major version N, nothing needs to be done for
+files from N-1 (they become deprecated automatically). Support for files from N-2
+must then be removed, by deleting the modules of ``_compat`` that convert *from*
+version N-2 (including the one converting to N-1.0), along with their tests and
+legacy-format descriptions. ``test_no_steps_from_unsupported_versions`` fails until
+this is done.
+
+The tests use descriptions of the files written by each older release, stored in
+``tests/test_data/legacy_formats/``. After a release that changes the format, add a
+description for it using the scripts in ``devel/legacy_formats/``.
+
 C Function Standards
 ~~~~~~~~~~~~~~~~~~~~
 The C-level functions are split into two groups -- low-level "private" functions, and
