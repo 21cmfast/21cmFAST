@@ -1,5 +1,6 @@
 """Test high-level I/O."""
 
+import copy
 from pathlib import Path
 
 import attrs
@@ -230,8 +231,8 @@ def test_read_inputs_from_filepath(tmp_path: Path):
 
 def test_read_inputs_badfile(ic: InitialConditions, perturbed_field, tmp_path: Path):
     pth = tmp_path / "ics.h5"
-    h5.write_output_to_hdf5(ic, pth)
-    h5.write_output_to_hdf5(perturbed_field, pth, mode="a")
+    h5.write_output_to_hdf5(copy.copy(ic), pth)
+    h5.write_output_to_hdf5(copy.copy(perturbed_field), pth, mode="a")
 
     with pytest.raises(h5.HDF5FileStructureError, match="Multiple sub-groups found"):
         h5.read_inputs(pth)
@@ -251,7 +252,7 @@ def test_read_inputs_version_warning(tmp_path: Path):
 
 def test_read_outputs_version_warning(ic: InitialConditions, tmp_path: Path):
     pth = tmp_path / "ics.h5"
-    h5.write_output_to_hdf5(ic, pth)
+    h5.write_output_to_hdf5(copy.copy(ic), pth)
 
     # Mock the version as newer than it really is.
     with h5py.File(pth, "a") as fl:
@@ -263,7 +264,7 @@ def test_read_outputs_version_warning(ic: InitialConditions, tmp_path: Path):
 
 def test_read_output_struct_missing_arrays(ic: InitialConditions, tmp_path: Path):
     pth = tmp_path / "ics.h5"
-    h5.write_output_to_hdf5(ic, pth)
+    h5.write_output_to_hdf5(copy.copy(ic), pth)
 
     # Artificially remove an array
     with h5py.File(pth, "a") as fl:
@@ -277,7 +278,7 @@ def test_read_output_struct_missing_arrays(ic: InitialConditions, tmp_path: Path
 
 def test_read_output_struct_badshape_arrays(ic: InitialConditions, tmp_path: Path):
     pth = tmp_path / "ics.h5"
-    h5.write_output_to_hdf5(ic, pth)
+    h5.write_output_to_hdf5(copy.copy(ic), pth)
 
     # Artificially remove an array
     with h5py.File(pth, "a") as fl:
@@ -305,7 +306,7 @@ def test_read_inputs_non_existent_version(tmp_path: Path):
 
 def test_read_output_struct_no_version(ic: InitialConditions, tmp_path: Path):
     pth = tmp_path / "ics.h5"
-    h5.write_output_to_hdf5(ic, pth)
+    h5.write_output_to_hdf5(copy.copy(ic), pth)
 
     # Artificially remove an array
     with h5py.File(pth, "a") as fl:
