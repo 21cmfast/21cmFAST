@@ -932,7 +932,8 @@ def migrate(
     safe
         Fail to migrate files with unknown input parameters.
     explain
-        Print the changes to the file format since v4.0 and exit.
+        Print the changes to the file format since the oldest supported version
+        and exit.
     verbose
         Print the result for every file, rather than a summary.
     """

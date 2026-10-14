@@ -248,7 +248,7 @@ def read_output_struct(
     """
     Read an output struct from an HDF5 file.
 
-    Files written by older versions of 21cmFAST (since v4.0) are converted to the
+    Files written by older (supported) versions of 21cmFAST are converted to the
     current format on the fly (see :mod:`py21cmfast.io.migrate`).
 
     Parameters
@@ -296,7 +296,8 @@ def _check_file_version(version: str | None, filename: str) -> Version:
     """Parse the version of 21cmFAST that wrote a file, warning if it is too new."""
     if version is None:
         raise NotImplementedError(
-            f"The file {filename} is not a valid 21cmFAST v4 file."
+            f"The file {filename} is not a valid 21cmFAST file: it does not record "
+            "the version of 21cmFAST that wrote it."
         )
 
     version = _compat_framework.check_support(version)
@@ -468,7 +469,7 @@ def read_inputs(
 ) -> InputParameters:
     """Read the InputParameters from a cache file.
 
-    Files written by older versions of 21cmFAST (since v4.0) are converted to the
+    Files written by older (supported) versions of 21cmFAST are converted to the
     current format on the fly (see :mod:`py21cmfast.io.migrate`).
 
     Parameters

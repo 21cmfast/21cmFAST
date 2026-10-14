@@ -4,8 +4,8 @@ Reading Outputs from Older Versions
 From time to time, new versions of ``21cmFAST`` change the format of the files that
 it writes: input parameters and output fields are renamed, added or removed, and the
 meaning of some fields changes. ``21cmFAST`` keeps a record of every such change since
-v4.0, and uses it to read files written by older versions, converting them to
-objects of the current version.
+the oldest version whose files it still supports (see below), and uses it to read
+files written by older versions, converting them to objects of the current version.
 
 Reading old files
 -----------------
@@ -33,7 +33,7 @@ as closely as possible. For example, ``USE_METALLICITY`` (new in v4.3) is set to
 value of ``USE_UPPER_STELLAR_TURNOVER`` for older files, since that switched on the
 metallicity-dependence of the X-ray luminosity in older versions.
 
-To see every change to the file format since v4.0, use::
+To see every recorded change to the file format, use::
 
     $ 21cmfast migrate --explain
 
@@ -48,8 +48,14 @@ an :class:`~py21cmfast.io.migrate.UnsupportedVersionError`. For example, v5 will
 files from v4 with a warning, and v6 will not read them at all. To keep using files
 from a deprecated version, migrate them (see below) before upgrading.
 
-Files written before v4.0 have never been supported. Their arrays can still be read
-directly with ``h5py``.
+Patch releases are treated like any other release of their major version: a file
+written by, say, v4.1.1 is supported (and converted) exactly like one written by
+v4.1.0, and a patch release that changes the file format records its changes like any
+other release.
+
+Files written before v4.0 have never been supported, since they don't record the
+version of ``21cmFAST`` that wrote them. Their arrays can still be read directly with
+``h5py``.
 
 Migrating a cache
 -----------------

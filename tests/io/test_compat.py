@@ -104,6 +104,27 @@ class TestSupportPolicy:
         ):
             h5.read_output_struct(path)
 
+    @pytest.mark.parametrize(
+        ("current", "oldest"),
+        [
+            ("4.3.0", "4.0.0.dev0"),
+            ("4.3.dev12", "4.0.0.dev0"),
+            ("5.0.0", "4.0.0.dev0"),
+            ("6.0.0", "5.0.0.dev0"),
+            ("6.2.1", "5.0.0.dev0"),
+        ],
+    )
+    def test_oldest_supported_version(self, current, oldest):
+        """The oldest supported version is the start of the previous major version."""
+        assert framework.oldest_supported_version(current) == Version(oldest)
+
+    @pytest.mark.parametrize("version", ["4.1.1", "5.2.3", "5.0.0rc1"])
+    def test_patch_and_pre_releases_follow_their_major(self, version):
+        """Patch and pre-releases are supported/deprecated like their major version."""
+        assert framework.support_status(version, "5.3.0") == framework.support_status(
+            f"{Version(version).major}.0.0", "5.3.0"
+        )
+
     def test_no_steps_from_unsupported_versions(self):
         """Fails when support for files of an old major version must be removed.
 
@@ -125,9 +146,50 @@ class TestFormatHistory:
     def test_history_is_a_chain(self):
         """Each step converts from the version the previous step converted to."""
         history = _compat.FORMAT_HISTORY
-        assert history[0].from_version.major >= 4
+        assert history[0].from_version >= framework.FIRST_FORMAT_VERSION
         for previous, release in itertools.pairwise(history):
             assert release.from_version == previous.to_version
+
+    @pytest.mark.parametrize(
+        ("version", "steps"),
+        [
+            ("4.2.0", ["4.3.0", "4.3.1", "4.4.0"]),
+            ("4.2.5", ["4.3.0", "4.3.1", "4.4.0"]),
+            ("4.3.0", ["4.3.1", "4.4.0"]),
+            ("4.3.1.dev3", ["4.3.1", "4.4.0"]),
+            ("4.3.1", ["4.4.0"]),
+            ("4.3.2", ["4.4.0"]),
+            ("4.4.0", []),
+        ],
+    )
+    def test_patch_releases(self, monkeypatch, version, steps):
+        """Patch releases can be steps in the history, and their files are converted.
+
+        Files of patch releases that didn't change the format (e.g. 4.2.5, 4.3.2) get
+        all steps converting to later versions.
+        """
+        applied = []
+
+        def step(frm, to):
+            return framework.FormatRelease(
+                frm,
+                to,
+                [framework.ConvertParameters(lambda _: applied.append(to), to)],
+            )
+
+        history = (
+            step("4.2.0", "4.3.0"),
+            step("4.3.0", "4.3.1"),
+            step("4.3.1", "4.4.0"),
+        )
+        assert [r.module_name for r in history] == [
+            "_v4_2_v4_3",
+            "_v4_3_v4_3_1",
+            "_v4_3_1_v4_4",
+        ]
+        monkeypatch.setattr(_compat, "FORMAT_HISTORY", history)
+        _compat.upgrade_inputs(framework.RawInputs(structs={}, version=version))
+        assert applied == steps
 
     def test_every_release_module_is_in_history(self):
         """Each module of _compat is a step in the history, named after its versions."""
@@ -608,6 +670,18 @@ class TestReadLegacyFiles:
 
         # Also via the generic loader.
         assert isinstance(h5.load_high_level_simulation(path), p21c.Coeval)
+
+    def test_global_evolution(self, legacy, tmp_path: Path):
+        """Old global-evolution files can be read, with renamed quantities."""
+        path = legacy.write_global_evolution(tmp_path / "global.h5", "halo")
+        with warnings.catch_warnings():
+            # Old parameter names in the file are not the user's fault.
+            warnings.simplefilter("error", DeprecationWarning)
+            glob = p21c.GlobalEvolution.from_file(path)
+        assert "brightness_temp" in glob.quantities
+        assert "sfrd_acg" in glob.quantities
+        assert "halo_sfr" not in glob.quantities
+        assert isinstance(h5.load_high_level_simulation(path), p21c.GlobalEvolution)
 
     def test_lightcone(self, legacy, tmp_path: Path):
         """Old lightcone files can be read, with renamed quantities."""

@@ -11,8 +11,10 @@ the current version raise an :class:`UnconvertibleError`.
 
 Files written by the current major version of 21cmFAST are supported. Files written
 by the previous major version are deprecated (reading them emits a
-:class:`FormatDeprecationWarning`), and files written by any older version (or before
-v4.0) raise an :class:`UnsupportedVersionError`. To keep using files of a deprecated
+:class:`FormatDeprecationWarning`), and files written by any older version raise an
+:class:`UnsupportedVersionError` (as do files written before v4.0, which don't record
+the version that wrote them). Patch releases are treated like any other release of
+their major version. To keep using files of a deprecated
 version, migrate them before upgrading to the next major version.
 
 However, the cache of a simulation (see :class:`~py21cmfast.io.caching.OutputCache`)

@@ -97,9 +97,14 @@ from the kinds of change defined in ``src/py21cmfast/io/_compat_framework.py``
 functions those changes need. To record changes for a new release, add a module for
 it (converting from the last release that changed the format), and add its
 ``RELEASE`` to ``FORMAT_HISTORY`` in ``src/py21cmfast/io/_compat/__init__.py``.
-Tests check that the history is a continuous chain from v4.0, and that the module
-names match the versions. Add a test of each new change to
-``tests/io/test_compat.py``.
+Tests check that the history is a continuous chain, starting from the oldest version
+whose files are still supported, and that the module names match the versions. Add a
+test of each new change to ``tests/io/test_compat.py``.
+
+Patch releases work the same way. A patch release that changes the format gets its
+own module, with the patch version in its name (e.g. ``_v4_3_v4_3_1.py``, followed by
+``_v4_3_1_v4_4.py``). A patch release that doesn't change the format needs nothing:
+its files get every step converting to a later version.
 
 Support for old files follows a deprecation policy: files from the previous major
 version are deprecated (reading them warns), and files from older major versions are

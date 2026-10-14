@@ -122,6 +122,23 @@ class LegacyFiles:
             fl["lightcone_distances"] = np.linspace(1000, 1100, desc["n_distances"])
         return path
 
+    def write_global_evolution(self, path: Path, run: str) -> Path:
+        """Write a global-evolution file for a run in the manifest.
+
+        The manifests don't describe global-evolution files directly, but they have
+        the same inputs as the lightcones, and their quantities are named in the same
+        way as the global quantities of the lightcones.
+        """
+        desc = self.manifest["lightcone"][run]
+        with h5py.File(path, "w") as fl:
+            fl.attrs["global_evolution"] = True
+            fl.attrs["__version__"] = self.version
+            _write_inputs(fl, self.manifest["inputs"][desc["inputs"]])
+            grp = fl.create_group("quantities")
+            for name, shape in desc["global_quantities"].items():
+                grp[name] = self.rng.uniform(0.1, 1, size=shape)
+        return path
+
 
 @pytest.fixture(params=LEGACY_VERSIONS)
 def legacy(request) -> LegacyFiles:

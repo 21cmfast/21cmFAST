@@ -1,6 +1,7 @@
 """Compatibility with files written by older versions of 21cmFAST.
 
-Every change to the on-disk format of 21cmFAST outputs since v4.0 is recorded in
+Every change to the on-disk format of 21cmFAST outputs since the oldest supported
+version is recorded in
 :data:`FORMAT_HISTORY`. Each step of the history is a
 :class:`~py21cmfast.io._compat_framework.FormatRelease`, which converts files from the
 format of one release to that of the next release that changed the format, with a
@@ -9,7 +10,15 @@ changed: renamed, added or removed input parameters, renamed output structs, ren
 or removed fields of those output structs, and so on. Each step is defined in its own
 module of this package, named after the versions it converts between (e.g.
 ``_v4_2_v4_3.py``), using the building blocks in
-:mod:`py21cmfast.io._compat_framework`. The history serves two purposes:
+:mod:`py21cmfast.io._compat_framework`.
+
+Patch releases are supported in the same way as any other release. A file written by
+a patch release that didn't change the format (e.g. v4.1.1) gets all the steps that
+convert to later versions (here, from v4.2 onwards). A patch release that *does*
+change the format gets its own step (e.g. ``_v4_3_v4_3_1.py``, converting from v4.3.0
+to v4.3.1), and the next step then converts from it.
+
+The history serves two purposes:
 
 1. When a file written by an older version of 21cmFAST is read, the changes made
    since that version are applied, in order, to the raw contents of the file, so that
@@ -54,8 +63,8 @@ from .._compat_framework import (
 )
 from . import _v4_0_v4_1, _v4_1_v4_2, _v4_2_v4_3
 
-#: The history of changes to the format of 21cmFAST's output files, since v4.0, in
-#: the order in which they were made.
+#: The history of changes to the format of 21cmFAST's output files, since the oldest
+#: supported version, in the order in which they were made.
 FORMAT_HISTORY: tuple[FormatRelease, ...] = (
     _v4_0_v4_1.RELEASE,
     _v4_1_v4_2.RELEASE,
@@ -242,7 +251,7 @@ def describe_format_changes(since: str | Version | None = None) -> str:
     ----------
     since
         Only describe the changes affecting files written by this version. By default,
-        all changes since v4.0 are described.
+        all recorded changes are described.
     """
     releases = FORMAT_HISTORY if since is None else releases_since(since)
     lines = []

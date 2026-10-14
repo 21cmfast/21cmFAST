@@ -139,7 +139,7 @@ def test_not_a_directory(tmp_path: Path):
         migrate_cache(tmp_path / "nope")
 
 
-@pytest.mark.parametrize("kind", ["coeval", "lightcone"])
+@pytest.mark.parametrize("kind", ["coeval", "lightcone", "global_evolution"])
 def test_migrate_high_level_file(legacy, tmp_path: Path, kind: str):
     """High-level outputs are migrated to the current format."""
     old = getattr(legacy, f"write_{kind}")(tmp_path / "old.h5", "halo")
@@ -161,7 +161,12 @@ def test_migrate_high_level_file(legacy, tmp_path: Path, kind: str):
                     new.output_structs[name].get(array), struct.get(array)
                 )
     else:
-        for attr in ("lightcones", "global_quantities"):
+        attrs = (
+            ("lightcones", "global_quantities")
+            if kind == "lightcone"
+            else ("quantities",)
+        )
+        for attr in attrs:
             for name, val in getattr(orig, attr).items():
                 np.testing.assert_array_equal(getattr(new, attr)[name], val)
 

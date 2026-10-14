@@ -30,9 +30,16 @@ from packaging.version import InvalidVersion, Version
 from .. import __version__
 from ..wrapper.arrays import H5Backend
 
-#: Files written before this version (i.e. before v4.0, including its pre-releases)
-#: have never been supported.
+#: The first version whose file format is supported at all (including its
+#: pre-releases): files written before it don't record the version that wrote them.
+#: The oldest version that is *currently* supported also depends on the current
+#: version (see :func:`oldest_supported_version`).
 FIRST_FORMAT_VERSION = Version("4.0.0.dev0")
+
+
+def _short(version: Version) -> str:
+    """Return a short form of a version for messages, e.g. 4.0 for 4.0.0.dev0."""
+    return f"{version.major}.{version.minor}"
 
 
 class CompatibilityWarning(UserWarning):
@@ -67,16 +74,17 @@ def parse_version(version: str | Version | None) -> Version:
     Raises
     ------
     UnsupportedVersionError
-        If the version is None (as for files written before v4), or can't be parsed.
+        If the version is None (as for files written before the first supported
+        format), or can't be parsed.
         Whether files of the version are supported is checked by
         :func:`check_support`.
     """
     if version is None:
         raise UnsupportedVersionError(
             "The file does not record the version of 21cmFAST that wrote it, so it "
-            "was most likely written by a version older than v4.0, which is not "
-            "supported. The arrays in such files can still be read directly using "
-            "h5py."
+            "was most likely written by a version older than "
+            f"v{_short(FIRST_FORMAT_VERSION)}, which is not supported. The arrays in "
+            "such files can still be read directly using h5py."
         )
     if isinstance(version, Version):
         return version
@@ -96,6 +104,22 @@ CURRENT_VERSION = Version(__version__)
 SupportStatus = Literal["supported", "deprecated", "unsupported"]
 
 
+def oldest_supported_version(current: str | Version | None = None) -> Version:
+    """Return the oldest version of 21cmFAST whose files can be read.
+
+    This is the first release of the previous major version (whose files are
+    deprecated), but never older than :data:`FIRST_FORMAT_VERSION`. Pre-releases are
+    included.
+
+    Parameters
+    ----------
+    current
+        The version of 21cmFAST reading the files. By default, this version.
+    """
+    current = CURRENT_VERSION if current is None else parse_version(current)
+    return max(FIRST_FORMAT_VERSION, Version(f"{current.major - 1}.0.0.dev0"))
+
+
 def support_status(
     version: str | Version, current: str | Version | None = None
 ) -> SupportStatus:
@@ -106,7 +130,9 @@ def support_status(
     still be read and migrated, with a warning), and files written by any older
     version are not supported. For example, v5 supports files from v5, and
     deprecates files from v4, while v6 no longer supports files from v4 at all.
-    Files written before v4.0 have never been supported.
+    Files written before :data:`FIRST_FORMAT_VERSION` are never supported (see
+    :func:`oldest_supported_version`). Patch releases are treated like any other
+    release of their major version.
 
     Parameters
     ----------
@@ -118,7 +144,7 @@ def support_status(
     version = parse_version(version)
     current = CURRENT_VERSION if current is None else parse_version(current)
 
-    if version < FIRST_FORMAT_VERSION or version.major < current.major - 1:
+    if version < oldest_supported_version(current):
         return "unsupported"
     if version.major < current.major:
         return "deprecated"
@@ -143,7 +169,10 @@ def check_support(version: str | Version) -> Version:
     major = CURRENT_VERSION.major
 
     if status == "unsupported":
-        msg = f"Files written by 21cmFAST v{version} are not supported."
+        msg = (
+            f"Files written by 21cmFAST v{version} are not supported (the oldest "
+            f"supported version is v{_short(oldest_supported_version())})."
+        )
         if version >= FIRST_FORMAT_VERSION:
             msg += (
                 f" Support for files written by v{version.major} was removed in "
@@ -553,8 +582,10 @@ class FormatRelease:
     Parameters
     ----------
     from_version
-        The previous release that changed the file format (or v4.0.0 for the first
-        set of changes recorded). The changes convert files from this format.
+        The previous release that changed the file format (or the oldest supported
+        version, for the first step of the history). The changes convert files from
+        this format, and from any later version before ``to_version`` (including
+        patch releases that didn't change the format).
     to_version
         The release in which the changes were made.
     changes
