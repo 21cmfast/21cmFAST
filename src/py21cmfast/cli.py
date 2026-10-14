@@ -1,6 +1,7 @@
 """Module that contains the command line app."""
 
 import logging
+import sys
 import uuid
 import warnings
 from dataclasses import dataclass, field, fields
@@ -8,6 +9,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import attrs
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 from cyclopts import App, Group, Parameter
@@ -31,6 +33,12 @@ from .drivers.lightcone import run_lightcone
 from .drivers.single_field import compute_initial_conditions
 from .input_serialization import convert_inputs_to_dict
 from .io.caching import CacheConfig, OutputCache, RunCache
+from .io.h5 import load_high_level_simulation
+from .io.migrate import (
+    describe_format_changes,
+    migrate_cache,
+    migrate_high_level_file,
+)
 from .lightconers import RectilinearLightconer
 from .wrapper.inputs import (
     AstroOptions,
@@ -554,6 +562,8 @@ def coeval(
         bool, Parameter(name=("--save-all-redshifts", "-a", "--all"))
     ] = False,
     nodez_params: NodeRedshiftParameters | None = None,
+    plot: bool = False,
+    show: bool | None = None,
 ):
     """Generate coeval cubes at given redshifts.
 
@@ -572,6 +582,12 @@ def coeval(
     save_all_redshifts
         Whether to save all redshifts in `node_redshifts` (i.e. all those
         in the evolution of the simulation), or only those in the redshifts given.
+    plot
+        Whether to write a simple summary plot alongside each saved coeval box.
+    show
+        Whether to open the summary plot in an interactive window. By default,
+        shown only if you're at a terminal with a GUI matplotlib backend -- never
+        in a batch job or a pipeline, where it would block the run.
     min_evolved_redshift
         The minimum redshift down to which to evolve the simulation. For some simulation
         configurations, this is not used at all, while for others it will subtly change
@@ -579,6 +595,7 @@ def coeval(
     """
     inputs = _run_setup(options, params, nodez_params=nodez_params)
 
+    outfile = None
     for coeval, in_outputs in generate_coeval(
         out_redshifts=redshifts,
         inputs=inputs,
@@ -598,6 +615,13 @@ def coeval(
             f"[spring_green3]:duck: Saved z={coeval.redshift:.2f} coeval box to [purple]{outfile}."
         )
 
+        _make_summary_plot(
+            coeval, _summary_plot_path(outfile) if plot else None, show=show
+        )
+
+    if not plot and outfile is not None:
+        _plot_hint(outfile)
+
 
 @run.command()
 def lightcone(
@@ -612,6 +636,8 @@ def lightcone(
         "brightness_temp",
     ),
     nodez_params: NodeRedshiftParameters | None = None,
+    plot: bool = False,
+    show: bool | None = None,
 ):
     """Generate a lightcone between given redshifts.
 
@@ -628,6 +654,12 @@ def lightcone(
         The filename to which to save the lightcone data.
     lightcone_quantities
         Computed fields to generate lightcones for.
+    plot
+        Whether to write a simple summary plot alongside the saved lightcone.
+    show
+        Whether to open the summary plot in an interactive window. By default,
+        shown only if you're at a terminal with a GUI matplotlib backend -- never
+        in a batch job or a pipeline, where it would block the run.
     """
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -658,6 +690,11 @@ def lightcone(
 
     cns.print(f"[spring_green3]:duck: Saved Lightcone to {out}.")
 
+    _make_summary_plot(lc, _summary_plot_path(out) if plot else None, show=show)
+
+    if not plot:
+        _plot_hint(out)
+
 
 @run.command(name="global")
 def global_evolution(
@@ -674,6 +711,8 @@ def global_evolution(
         Path,
         Parameter(validator=(vld.Path(dir_okay=False, file_okay=False, ext=("h5",)),)),
     ] = Path("global-evolution.h5"),
+    plot: bool = False,
+    show: bool | None = None,
 ):
     """Generate the global evolution between given redshifts.
 
@@ -688,6 +727,12 @@ def global_evolution(
         The minimum redshift down to which to generate the global evolution.
     out
         The filename to which to save the global evolution data.
+    plot
+        Whether to write a simple summary plot alongside the saved data.
+    show
+        Whether to open the summary plot in an interactive window. By default,
+        shown only if you're at a terminal with a GUI matplotlib backend -- never
+        in a batch job or a pipeline, where it would block the run.
     """
     if not out.parent.exists():
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -718,6 +763,271 @@ def global_evolution(
     lc.save(out)
 
     cns.print(f"[spring_green3]:duck: Saved Global Evolution to {out}.")
+
+    _make_summary_plot(lc, _summary_plot_path(out) if plot else None, show=show)
+
+    if not plot:
+        _plot_hint(out)
+
+
+def _can_show_plots() -> bool:
+    """Whether it makes sense to pop a plot up in a window right now.
+
+    ``plt.show()`` *blocks* until the window is closed, so showing a plot in a
+    batch job (or a pipeline, or CI) would hang the run -- holding the whole
+    simulation in memory -- until something killed it. And with a non-GUI
+    backend it can't show anything anyway, it just warns. So we only show when
+    we're plausibly sitting in front of a terminal with a GUI available.
+    """
+    if not sys.stdout.isatty():
+        return False
+
+    # Non-GUI backends ("agg", "pdf", "svg", the notebook-inline one, ...) can't
+    # open a window; asking them to just produces a warning. Ask matplotlib which
+    # GUI framework the current backend drives -- None means there isn't one.
+    # (We resolve the backend rather than matching it against the list of
+    # *builtin* interactive backends, so that third-party and "module://"
+    # backends are classified correctly too.)
+    backend = matplotlib.get_backend()
+    try:
+        from matplotlib.backends import backend_registry
+
+        _, gui_framework = backend_registry.resolve_backend(backend)
+    except (ImportError, AttributeError):  # pragma: no cover - matplotlib < 3.9
+        gui_framework = (
+            backend
+            if backend.lower() in {b.lower() for b in matplotlib.rcsetup.interactive_bk}
+            else None
+        )
+
+    logger.debug(f"Backend {backend!r} -> GUI framework {gui_framework!r}")
+    return gui_framework is not None
+
+
+def _as_url(path: Path) -> str:
+    """Render a path as a file:// URL, which most terminals make clickable."""
+    return path.resolve().as_uri()
+
+
+def _make_summary_plot(obj, out: Path | None = None, show: bool | None = None):
+    """Make a default summary plot of ``obj``, writing it to ``out`` and/or showing it.
+
+    ``show=None`` (the default) means "show it if we can" -- see
+    :func:`_can_show_plots`. Does nothing at all if neither is wanted.
+    """
+    if show is None:
+        show = _can_show_plots()
+
+    if out is None and not show:
+        return
+
+    fig, _ = plotting.summary_plot(obj)
+
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        fig.savefig(out, bbox_inches="tight", dpi=150)
+        cns.print(
+            f"[spring_green3]:duck: Saved summary plot to [link={_as_url(out)}]"
+            f"[purple]{out}[/purple][/link]"
+        )
+
+    if show:
+        plt.show()
+
+    plt.close(fig)
+
+
+def _summary_plot_path(datafile: Path) -> Path:
+    """Get the default path of the summary plot associated with a data file."""
+    return datafile.with_name(f"{datafile.stem}_summary.png")
+
+
+def _plot_hint(datafile: Path):
+    """Tell the user how to make plots of a file they just created."""
+    cns.print(
+        f"[cyan]:bar_chart: Use [bold]21cmfast plot {datafile}[/bold] to get "
+        "summary plots of this simulation!"
+    )
+
+
+@app.command(name="plot")
+def plot_output(
+    filename: cyctp.ExistingFile,
+    out: Annotated[Path | None, Parameter(name=("--out", "-o"))] = None,
+    show: bool | None = None,
+):
+    """Make a default summary plot of a saved 21cmFAST simulation output.
+
+    The kind of plot produced depends on the kind of file given: a coeval box
+    produces slices through the box, a lightcone produces a lightcone slice along
+    with the global evolution, and a global evolution file produces the global
+    signal, ionization and temperature histories.
+
+    Parameters
+    ----------
+    filename
+        The path to a saved coeval, lightcone or global-evolution file.
+    out
+        Where to write the plot. By default, written alongside `filename` with a
+        "_summary.png" suffix.
+    show
+        Whether to open the plot in an interactive window. By default, shown only
+        if you're at a terminal with a GUI matplotlib backend.
+    """
+    obj = load_high_level_simulation(filename)
+
+    if out is None:
+        out = _summary_plot_path(Path(filename))
+
+    _make_summary_plot(obj, out, show=show)
+
+
+_MIGRATION_STYLES = {
+    "migrated": "spring_green3",
+    "up-to-date": "cyan",
+    "exists": "yellow",
+    "skipped": "grey50",
+    "unconvertible": "orange1",
+    "failed": "red",
+}
+
+
+@app.command(name="migrate")
+def migrate(
+    source: Path | None = None,
+    destination: Annotated[Path | None, Parameter(name=("--out", "-o"))] = None,
+    kind: Annotated[list[str] | None, Parameter(consume_multiple=True)] = None,
+    overwrite: bool = False,
+    dry_run: bool = False,
+    safe: bool = True,
+    explain: bool = False,
+    verbose: Annotated[bool, Parameter(name=("--verbose", "-v"))] = False,
+):
+    """Migrate outputs written by an older version of 21cmFAST to the current version.
+
+    If SOURCE is a directory, it is treated as a cache of boxes (written by the
+    simulation drivers): every file in it is converted to the current format and
+    written into the cache at --out (by default, SOURCE itself) at the location the
+    current version expects, so that simulations can find and re-use them. If
+    SOURCE is a saved coeval, lightcone or global-evolution file, it is converted to
+    the current format and written to --out (by default, alongside SOURCE with a
+    "-migrated" suffix). Original files are never removed.
+
+    Note that migrating a box only changes its format, not its contents: boxes that
+    depend on physics that has changed since they were written are not the same as
+    what this version would compute.
+
+    Parameters
+    ----------
+    source
+        A cache directory, or a saved coeval/lightcone/global-evolution file.
+    destination
+        Where to write the migrated outputs.
+    kind
+        Only migrate cache files of these kinds of box (e.g. InitialConditions).
+    overwrite
+        Overwrite existing files at the destination.
+    dry_run
+        Only report what would be done, without writing anything.
+    safe
+        Fail to migrate files with unknown input parameters.
+    explain
+        Print the changes to the file format since the oldest supported version
+        and exit.
+    verbose
+        Print the result for every file, rather than a summary.
+    """
+    if explain:
+        cns.print(Rule("Changes to the file format of 21cmFAST", characters="="))
+        cns.print(describe_format_changes(), highlight=False, markup=False)
+        return
+
+    if source is None:
+        raise ValueError("Provide a SOURCE to migrate (or use --explain).")
+
+    if source.is_dir():
+        results = migrate_cache(
+            source,
+            destination,
+            kinds=kind,
+            overwrite=overwrite,
+            dry_run=dry_run,
+            safe=safe,
+        )
+    elif source.is_file():
+        if dry_run:
+            raise ValueError("--dry-run is only supported for cache directories.")
+        destination = destination or source.with_name(f"{source.stem}-migrated.h5")
+        results = [
+            migrate_high_level_file(source, destination, overwrite=overwrite, safe=safe)
+        ]
+    else:
+        raise FileNotFoundError(f"{source} does not exist.")
+
+    _print_migration_results(
+        results,
+        verbose=verbose or source.is_file(),
+        source_root=source if source.is_dir() else source.parent,
+        dest_root=(destination or source) if source.is_dir() else None,
+    )
+    if dry_run:
+        cns.print("[yellow]This was a dry run: nothing was written.")
+
+
+def _relative(path: Path | None, root: Path | None) -> str:
+    if path is None:
+        return ""
+    if root is not None and path.is_relative_to(root):
+        return str(path.relative_to(root))
+    return str(path)
+
+
+def _print_migration_results(
+    results, verbose: bool, source_root: Path, dest_root: Path | None
+):
+    """Print a summary of the results of a migration."""
+    table = Table(box=box.SIMPLE)
+    for col in ("File", "Version", "Kind", "Status", "Details"):
+        table.add_column(col)
+
+    counts = {}
+    for res in results:
+        counts[res.status] = counts.get(res.status, 0) + 1
+        if not verbose and res.status in ("skipped", "up-to-date"):
+            continue
+        style = _MIGRATION_STYLES[res.status]
+        details = "\n".join(
+            x
+            for x in (
+                (
+                    f"-> {_relative(res.destination, dest_root)}"
+                    if res.status == "migrated"
+                    else ""
+                ),
+                res.message,
+                *res.warnings,
+            )
+            if x
+        )
+        table.add_row(
+            _relative(res.source, source_root),
+            res.version or "",
+            res.kind or "",
+            f"[{style}]{res.status}",
+            Text(details),
+        )
+
+    if table.rows:
+        cns.print(table)
+    cns.print(
+        "Summary: "
+        + ", ".join(
+            f"[{_MIGRATION_STYLES[k]}]{v} {k}[/{_MIGRATION_STYLES[k]}]"
+            for k, v in counts.items()
+        )
+        if counts
+        else "No files found to migrate."
+    )
 
 
 @dev.command(name="feature")
@@ -875,21 +1185,20 @@ def pr_feature(
     start = 0
     cns.print(ncells)
     while start + ncells <= lc_new.shape[-1]:
-        # Note that earlier versions of powerbox would only return (p,k) but newer
-        # versions always return (p,k,var,nsamples) even if the latter are None.
-        # So we need to slice the output to get just (p,k) for compatibility with both versions.
-        pd, k = powerbox.get_power(
+        default_result = powerbox.get_power(
             lc_default.lightcones["brightness_temp"][:, :, start : start + ncells],
             (*lc_default.lightcone_dimensions[:2], chunk_size),
             bins_upto_boxlen=True,
-        )[:2]
+        )
+        pd, k = default_result.power, default_result.bin_avg
         p_default.append(pd)
 
-        pn, k = powerbox.get_power(
+        new_result = powerbox.get_power(
             lc_new.lightcones["brightness_temp"][:, :, start : start + ncells],
             (*lc_new.lightcone_dimensions[:2], chunk_size),
             bins_upto_boxlen=True,
-        )[:2]
+        )
+        pn, k = new_result.power, new_result.bin_avg
         p_new.append(pn)
         z.append(lc_new.lightcone_redshifts[start])
 

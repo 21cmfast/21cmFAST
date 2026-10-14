@@ -88,7 +88,7 @@ class StructWrapper:
             )
 
         try:
-            setattr(self.cstruct, name, _ary2buf(array.value))
+            setattr(self.cstruct, name, _ary2buf(array._value))
         except TypeError as e:
             raise TypeError(f"Error setting {name}") from e
 

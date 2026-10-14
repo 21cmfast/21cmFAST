@@ -59,6 +59,7 @@ DEFAULT_INPUTS_TESTRUNS = {
     "CELL_RECOMB": False,
     "USE_TS_FLUCT": False,
     "USE_UPPER_STELLAR_TURNOVER": False,
+    "USE_METALLICITY": False,
     "N_THREADS": 2,
 }
 
@@ -85,41 +86,42 @@ OPTIONS_TESTRUNS = {
     "simple": [18, {}],
     "no-mdz": [
         18,
-        {
-            "SOURCE_MODEL": "CONST-ION-EFF",
-        },
+        {"SOURCE_MODEL": "CONST-ION-EFF"},
     ],
-    "mini": [
+    "mcgs": [
         18,
         {
-            "USE_MINI_HALOS": True,
+            "USE_MCGS": True,
             "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "USE_TS_FLUCT": True,
-            "M_TURN": 5.0,
+            "M_TURN_STELLAR_FEEDBACK": 5.0,
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
             "N_THREADS": 4,
             "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
             "K_MAX_FOR_CLASS": 1.0,
+            "USE_REIONIZATION_PHOTOHEATING_FEEDBACK": True,
         },
     ],
-    "mini_gamma_approx": [
+    "mcgs_gamma_approx": [
         18,
         {
-            "USE_MINI_HALOS": True,
+            "USE_MCGS": True,
             "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "USE_TS_FLUCT": True,
-            "M_TURN": 5.0,
+            "M_TURN_STELLAR_FEEDBACK": 5.0,
             "Z_HEAT_MAX": 25,
             "ZPRIME_STEP_FACTOR": 1.1,
             "N_THREADS": 4,
-            "INTEGRATION_METHOD_MINI": "GAMMA-APPROX",
-            "INTEGRATION_METHOD_ATOMIC": "GAMMA-APPROX",
+            "INTEGRATION_METHOD_MCGS": "GAMMA-APPROX",
+            "INTEGRATION_METHOD_ACGS": "GAMMA-APPROX",
+            "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
             "K_MAX_FOR_CLASS": 1.0,
+            "USE_REIONIZATION_PHOTOHEATING_FEEDBACK": True,
         },
     ],
     "ts": [
@@ -172,18 +174,19 @@ OPTIONS_TESTRUNS = {
             "SOURCE_MODEL": "L-INTEGRAL",
         },
     ],
-    "sampler_mini": [
+    "sampler_mcgs": [
         18,
         {
             "SOURCE_MODEL": "CHMF-SAMPLER",
-            "USE_MINI_HALOS": True,
+            "USE_MCGS": True,
             "USE_TS_FLUCT": True,
             "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
-            "M_TURN": 5.0,
+            "M_TURN_STELLAR_FEEDBACK": 5.0,
             "K_MAX_FOR_CLASS": 1.0,
+            "USE_REIONIZATION_PHOTOHEATING_FEEDBACK": True,
         },
     ],
     "sampler_ts": [
@@ -242,7 +245,6 @@ OPTIONS_TESTRUNS = {
     "minimize_mem": [
         18,
         {
-            "USE_TS_FLUCT": True,
             "RECOMB_MODEL": "inhomogeneous",
             "R_BUBBLE_MAX": 50.0,
             "MINIMIZE_MEMORY": True,
@@ -257,20 +259,21 @@ OPTIONS_TESTRUNS = {
             "USE_TS_FLUCT": True,
         },
     ],
-    "multiple_scattering_mini": [
+    "multiple_scattering_mcgs": [
         18,
         {
             "LYA_MULTIPLE_SCATTERING": True,
             "SOURCE_MODEL": "L-INTEGRAL",
             "USE_TS_FLUCT": True,
-            "USE_MINI_HALOS": True,
+            "USE_MCGS": True,
             "RECOMB_MODEL": "inhomogeneous",
             "N_THREADS": 4,
             "V_CB_MODEL": "FLUCTS",
             "POWER_SPECTRUM": "CLASS",
             "K_MAX_FOR_CLASS": 1.0,
             "R_BUBBLE_MAX": 50.0,
-            "M_TURN": 5.0,
+            "M_TURN_STELLAR_FEEDBACK": 5.0,
+            "USE_REIONIZATION_PHOTOHEATING_FEEDBACK": True,
         },
     ],
 }
@@ -294,6 +297,9 @@ def get_node_z(redshift, lc=False, **kwargs):
 
     Values for the spacing and maximum go kwargs --> test defaults --> struct defaults
     """
+    if "node_redshifts" in kwargs:
+        return kwargs["node_redshifts"]
+
     node_redshifts = None
     max_redshift = redshift + 2
     if (
@@ -327,6 +333,7 @@ def get_node_z(redshift, lc=False, **kwargs):
 
 def get_all_options_struct(redshift, lc=False, **kwargs):
     node_redshifts = get_node_z(redshift, lc=lc, **kwargs)
+    kwargs.pop("node_redshifts", None)  # Remove node_redshifts from kwargs if present
 
     inputs = InputParameters(
         node_redshifts=node_redshifts,
@@ -364,11 +371,12 @@ def produce_coeval_power_spectra(redshift: float, cache: OutputCache, **kwargs):
 
     for field in fields_to_compute:
         if hasattr(coeval, field):
-            p[field], k = get_power(
+            result = get_power(
                 getattr(coeval, field),
                 boxlength=coeval.simulation_options.BOX_LEN,
                 bins_upto_boxlen=True,
-            )[:2]
+            )
+            p[field], k = result.power, result.bin_avg
 
     return k, p, coeval
 
@@ -384,7 +392,7 @@ def get_lc_fields(inputs):
                 "kinetic_temp_neutral",
             )
         ]
-    if not inputs.astro_options.USE_MINI_HALOS:
+    if not inputs.astro_options.USE_MCGS:
         quantities.remove("J_21_LW")
     if inputs.astro_options.RECOMB_MODEL == "none":
         quantities.remove("cumulative_recombinations")
@@ -417,11 +425,12 @@ def produce_lc_power_spectra(redshift: float, cache: OutputCache, **kwargs):
     p = {}
     for field in LIGHTCONE_FIELDS:
         if field in lightcone.lightcones:
-            p[field], k = get_power(
+            result = get_power(
                 lightcone.lightcones[field],
                 boxlength=lightcone.lightcone_dimensions,
                 bins_upto_boxlen=True,
-            )[:2]
+            )
+            p[field], k = result.power, result.bin_avg
 
     return k, p, lightcone
 
@@ -435,16 +444,18 @@ def produce_perturb_field_data(redshift, **kwargs):
     init_box = compute_initial_conditions(**options)
     pt_box = perturb_field(redshift=redshift, initial_conditions=init_box)
 
-    p_dens, k_dens = get_power(
+    dens_result = get_power(
         pt_box.get("density"),
         boxlength=options["inputs"].simulation_options.BOX_LEN,
         bins_upto_boxlen=True,
-    )[:2]
-    p_vel, k_vel = get_power(
+    )
+    p_dens, k_dens = dens_result.power, dens_result.bin_avg
+    vel_result = get_power(
         pt_box.get("velocity_z") * velocity_normalisation,
         boxlength=options["inputs"].simulation_options.BOX_LEN,
         bins_upto_boxlen=True,
-    )[:2]
+    )
+    p_vel, k_vel = vel_result.power, vel_result.bin_avg
 
     def hist(kind, xmin, xmax, nbins):
         data = pt_box.get(kind)
@@ -582,18 +593,30 @@ def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
     return fname
 
 
-def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
+def failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
+    """Compare test with truth.
+
+    Return (summary, message) describing where they differ beyond tolerance,
+    or None if they agree.
+    """
     sel_failed = np.fabs(truth - test) > (abs_tol + np.fabs(truth) * rel_tol)
 
     if not np.any(sel_failed):
-        return False
+        return None
 
     failed_idx = np.where(sel_failed)
+    abs_diff = np.fabs(truth - test)
+    rel_diff = np.divide(
+        abs_diff,
+        truth,
+        out=np.full_like(abs_diff, np.inf),
+        where=(truth != 0),
+    )
     message = (
         f"{name}: atol {abs_tol} rtol {rel_tol} failed {sel_failed.sum()} of {sel_failed.size} {sel_failed.sum() / sel_failed.size * 100:.4f}\n"
         f"subcube of failures [min] [max] {[f.min() for f in failed_idx]} {[f.max() for f in failed_idx]}\n"
         f"failure range truth ({truth[sel_failed].min():.3e},{truth[sel_failed].max():.3e}) test ({test[sel_failed].min():.3e},{test[sel_failed].max():.3e})\n"
-        f"max abs diff of failures {np.fabs(truth - test)[sel_failed].max():.4e} relative {(np.fabs(truth - test) / truth)[sel_failed].max():.4e}\n"
+        f"max abs diff of failures {abs_diff[sel_failed].max():.4e} relative {rel_diff[sel_failed].max():.4e}\n"
     )
 
     failed_inp = [
@@ -611,7 +634,19 @@ def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
             + f"  {truth[sel_failed].flatten()[j]:.4e} {test[sel_failed].flatten()[j]:.4e}\n"
         )
 
-    warnings.warn(message, stacklevel=2)
+    summary = (
+        f"{name} {sel_failed.sum()}/{sel_failed.size} "
+        f"(max rel {rel_diff[sel_failed].max():.4e})"
+    )
+    return summary, message
+
+
+def print_failure_stats(test, truth, inputs, abs_tol, rel_tol, name):
+    """Warn with the failure details if test and truth differ; return whether they do."""
+    stats = failure_stats(test, truth, inputs, abs_tol, rel_tol, name)
+    if stats is None:
+        return False
+    warnings.warn(stats[1], stacklevel=2)
     return True
 
 

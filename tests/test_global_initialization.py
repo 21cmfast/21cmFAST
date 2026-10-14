@@ -1,14 +1,48 @@
 """Test the GlobalInitializationManager class."""
 
-import pytest
+from contextlib import contextmanager
 
-from py21cmfast import InputParameters
+import numpy as np
+import pytest
+from py21cmfast.c_21cmfast import lib
+
+from py21cmfast import Coeval, InputParameters, run_coeval
+from py21cmfast.drivers import _global_initialization
 from py21cmfast.drivers._global_initialization import (
     GlobalInitializationManager,
     _GlobalInitManagerSingleton,
+    c_state,
+    init_c_state,
 )
 
 N_REPEAT = 10
+
+
+@pytest.fixture(autouse=True)
+def _isolate_backend_state():
+    """Give each test a freed backend and the singleton's original inputs.
+
+    These tests drive the singleton directly, so without this they would leak both C
+    allocations and parameter changes into one another and into the rest of the suite.
+    """
+    original_inputs = _GlobalInitManagerSingleton.inputs
+    _GlobalInitManagerSingleton.free()
+    yield
+    _GlobalInitManagerSingleton.free()
+    _GlobalInitManagerSingleton.inputs = original_inputs
+
+
+def _count_frees(monkeypatch) -> list[int]:
+    """Record a value in the returned list every time the backend is freed."""
+    frees = []
+    real_free = GlobalInitializationManager.free
+
+    def counting_free(self):
+        frees.append(1)
+        real_free(self)
+
+    monkeypatch.setattr(GlobalInitializationManager, "free", counting_free)
+    return frees
 
 
 def test_global_initialization_is_singleton():
@@ -58,19 +92,18 @@ def test_direct_initializations(_run):
     NOTE: it is NOT a good idea to call directly these initialization functions, as they could lead to segfaults
     with uncautious usage!
     """
-    # Ensure we start with a clean slate
-    _GlobalInitManagerSingleton.free()
-
+    # NOTE: these inputs are built from a fresh InputParameters rather than from whatever
+    # the singleton currently holds, so that repeated runs of this test don't accumulate
+    # parameter changes into combinations that the input validators reject.
     # Let's give the initializer inputs that will prevent the initialization of sigma and recombination rate tables,
     # as well as the CLASS transfer function tables
-    _GlobalInitManagerSingleton.inputs = (
-        _GlobalInitManagerSingleton.inputs.evolve_input_structs(
-            SOURCE_MODEL="L-INTEGRAL",
-            USE_UPPER_STELLAR_TURNOVER=False,
-            USE_INTERPOLATION_TABLES="no-interpolation",
-            RECOMB_MODEL="none",
-        )
+    inputs_no_tables = InputParameters(random_seed=0).evolve_input_structs(
+        SOURCE_MODEL="L-INTEGRAL",
+        USE_UPPER_STELLAR_TURNOVER=False,
+        USE_INTERPOLATION_TABLES="no-interpolation",
+        RECOMB_MODEL="none",
     )
+    _GlobalInitManagerSingleton.inputs = inputs_no_tables
 
     _GlobalInitManagerSingleton._broadcast_input_struct()
     _GlobalInitManagerSingleton._initialize_power_spectrum()
@@ -90,12 +123,18 @@ def test_direct_initializations(_run):
     _GlobalInitManagerSingleton.free()
 
     # Now let's change the inputs to ones that will allow the initialization of all tables, and check that it works as expected
-    _GlobalInitManagerSingleton.inputs = _GlobalInitManagerSingleton.inputs.with_logspaced_redshifts().evolve_input_structs(
-        POWER_SPECTRUM="CLASS",
-        V_CB_MODEL="FLUCTS",
-        K_MAX_FOR_CLASS=1.0,
-        USE_INTERPOLATION_TABLES="sigma-interpolation",
-        RECOMB_MODEL="inhomogeneous",
+    _GlobalInitManagerSingleton.inputs = (
+        inputs_no_tables.with_logspaced_redshifts().evolve_input_structs(
+            POWER_SPECTRUM="CLASS",
+            V_CB_MODEL="FLUCTS",
+            USE_MCGS=True,
+            USE_TS_FLUCT=True,
+            K_MAX_FOR_CLASS=1.0,
+            USE_INTERPOLATION_TABLES="sigma-interpolation",
+            RECOMB_MODEL="inhomogeneous",
+            R_BUBBLE_MAX=50.0,
+            M_TURN_STELLAR_FEEDBACK=5.0,
+        )
     )
 
     _GlobalInitManagerSingleton._broadcast_input_struct()
@@ -113,7 +152,14 @@ def test_direct_initializations(_run):
 
 def test_free():
     """Test that the free method works as expected."""
-    # After the above test, all tables should be initialized, so let's call free and check that they are indeed all freed
+    # Initialize everything we can, then check that free really does free it all
+    _GlobalInitManagerSingleton.init(
+        inputs=InputParameters(random_seed=0),
+        broadcast_inputs=True,
+        ps=True,
+        sigma=True,
+        heat=True,
+    )
     _GlobalInitManagerSingleton.free()
     assert not _GlobalInitManagerSingleton.inputs_are_broadcast
     assert not _GlobalInitManagerSingleton.ps_inited
@@ -130,10 +176,108 @@ def test_free():
     assert not _GlobalInitManagerSingleton.recomb_inited
 
 
+class _CleanFFTWCounter:
+    """Stand-in for the C library that counts the calls to clean_fftw."""
+
+    def __init__(self):
+        self.n_calls = 0
+
+    def __getattr__(self, name):
+        return getattr(lib, name)
+
+    def clean_fftw(self):
+        self.n_calls += 1
+        lib.clean_fftw()
+
+
+def _count_clean_fftw(monkeypatch) -> _CleanFFTWCounter:
+    """Count every call to clean_fftw made from the global initialization module."""
+    counter = _CleanFFTWCounter()
+    monkeypatch.setattr(_global_initialization, "lib", counter)
+    return counter
+
+
+@pytest.fixture(scope="module")
+def ts_coeval_inputs() -> InputParameters:
+    """Small inputs whose coeval evolves through several redshifts, doing many FFTs.
+
+    There's no photon-conservation calibration, which runs with other inputs (and so
+    frees the backend, as any change of inputs does).
+    """
+    return (
+        InputParameters.from_template(["simple", "tiny"], random_seed=1234)
+        .evolve_input_structs(Z_HEAT_MAX=20)
+        .with_logspaced_redshifts(zmin=10, zmax=20)
+        .evolve_input_structs(USE_TS_FLUCT=True)
+    )
+
+
+def _run_ts_coeval(inputs: InputParameters) -> Coeval:
+    (coeval,) = run_coeval(
+        inputs=inputs, out_redshifts=min(inputs.node_redshifts), write=False
+    )
+    return coeval
+
+
+def test_fftw_is_cleaned_once_per_run(monkeypatch, ts_coeval_inputs):
+    """FFTW is only cleaned up when the inputs change, not by each computation.
+
+    The Compute* functions leave FFTW's state (threads and wisdom) in place, so that it
+    is reused throughout a run, and free (called when the inputs change) cleans it up.
+    """
+    counter = _count_clean_fftw(monkeypatch)
+    _run_ts_coeval(ts_coeval_inputs)
+    assert counter.n_calls == 1
+
+
+def test_cleaning_fftw_every_step_gives_same_results(monkeypatch, ts_coeval_inputs):
+    """Keeping FFTW's state between computations doesn't change the results.
+
+    Compare with cleaning up FFTW after every computation, as the Compute* functions
+    used to do.
+    """
+    reference = _run_ts_coeval(ts_coeval_inputs)
+
+    real_c_state = _global_initialization.c_state
+
+    @contextmanager
+    def c_state_cleaning_fftw(*args, **kwargs):
+        try:
+            with real_c_state(*args, **kwargs):
+                yield
+        finally:
+            _global_initialization.lib.clean_fftw()
+
+    _GlobalInitManagerSingleton.free()
+    counter = _count_clean_fftw(monkeypatch)
+    monkeypatch.setattr(_global_initialization, "c_state", c_state_cleaning_fftw)
+    cleaned = _run_ts_coeval(ts_coeval_inputs)
+
+    # Check that FFTW was indeed cleaned up during the run, many times
+    assert counter.n_calls > len(ts_coeval_inputs.node_redshifts)
+    for field in ("brightness_temp", "neutral_fraction", "spin_temperature", "density"):
+        expected = getattr(reference, field)
+        np.testing.assert_allclose(
+            getattr(cleaned, field),
+            expected,
+            rtol=0,
+            atol=1e-5 * np.abs(expected).max(),
+            err_msg=field,
+        )
+
+
 def test_direct_initializations_for_heat_and_recomb():
     """Test that direct initializations for heat and recombination rate work as expected."""
     # Ensure we start with a clean slate
     _GlobalInitManagerSingleton.free()
+
+    # Now let's change the inputs to ones that will allow the initialization of the recombination
+    # rate tables, and check that it works as expected
+    _GlobalInitManagerSingleton.inputs = (
+        InputParameters(random_seed=0)
+        .with_logspaced_redshifts()
+        .evolve_input_structs(RECOMB_MODEL="inhomogeneous", R_BUBBLE_MAX=50.0)
+    )
 
     # Let's begin with a direct initialization of the heating tables
     _GlobalInitManagerSingleton._initialize_heat()
@@ -148,7 +292,8 @@ def test_direct_initializations_for_heat_and_recomb():
 
     # Now let's change the inputs to ones that will allow the initialization of the recombination rate, and check that it works as expected
     _GlobalInitManagerSingleton.inputs = _GlobalInitManagerSingleton.inputs.with_logspaced_redshifts().evolve_input_structs(
-        RECOMB_MODEL="inhomogeneous"
+        RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
     )
     _GlobalInitManagerSingleton._initialize_recombination_rate()
     assert _GlobalInitManagerSingleton.inputs_are_broadcast
@@ -156,3 +301,114 @@ def test_direct_initializations_for_heat_and_recomb():
     assert not _GlobalInitManagerSingleton.sigma_inited
     assert not _GlobalInitManagerSingleton.heat_inited
     assert _GlobalInitManagerSingleton.recomb_inited
+
+
+def _two_differing_inputs() -> tuple[InputParameters, InputParameters]:
+    """Build two input sets that differ in a parameter the backend cares about.
+
+    ``USE_INTERPOLATION_TABLES`` is the parameter at issue in the bug these tests guard
+    against; a source model free of discrete halos is needed to be allowed to vary it.
+    """
+    base = InputParameters(random_seed=0).evolve_input_structs(
+        SOURCE_MODEL="L-INTEGRAL",
+        USE_UPPER_STELLAR_TURNOVER=False,
+    )
+    return (
+        base.evolve_input_structs(USE_INTERPOLATION_TABLES="sigma-interpolation"),
+        base.evolve_input_structs(USE_INTERPOLATION_TABLES="no-interpolation"),
+    )
+
+
+def test_nested_call_with_other_inputs_restores_the_outer_inputs():
+    """A nested call with its own inputs must not leave them broadcast to C.
+
+    The outer function may go on to call the backend directly after the nested call
+    returns, and those calls have to see the outer function's own inputs.
+    """
+    outer_inputs, inner_inputs = _two_differing_inputs()
+
+    @init_c_state(broadcast_inputs=True)
+    def inner(*, inputs):
+        assert _GlobalInitManagerSingleton.inputs == inputs
+
+    @init_c_state(broadcast_inputs=True)
+    def outer(*, inputs):
+        inner(inputs=inner_inputs)
+        assert _GlobalInitManagerSingleton.inputs == inputs
+
+    outer(inputs=outer_inputs)
+
+
+def test_outer_inputs_restored_when_nested_call_raises():
+    """The outer inputs must be restored even if the nested call fails."""
+    outer_inputs, inner_inputs = _two_differing_inputs()
+
+    @init_c_state(broadcast_inputs=True)
+    def inner(*, inputs):
+        raise RuntimeError("boom")
+
+    @init_c_state(broadcast_inputs=True)
+    def outer(*, inputs):
+        with pytest.raises(RuntimeError, match="boom"):
+            inner(inputs=inner_inputs)
+        assert _GlobalInitManagerSingleton.inputs == inputs
+
+    outer(inputs=outer_inputs)
+
+
+def test_top_level_calls_keep_their_initializations():
+    """Initializations must survive a top-level call, so that the next one can reuse them."""
+    inputs, _ = _two_differing_inputs()
+
+    @init_c_state(ps=True)
+    def func(*, inputs):
+        pass
+
+    func(inputs=inputs)
+    assert _GlobalInitManagerSingleton.ps_inited
+
+    func(inputs=inputs)
+    assert _GlobalInitManagerSingleton.ps_inited
+
+
+def test_outermost_scope_leaves_its_state_in_place():
+    """The outermost scope has nothing to return into, so it keeps what it set up.
+
+    The state it would otherwise wind back to is itself just a leftover of whatever ran
+    before it, and winding back would throw away tables that the next call would only
+    have to build again.
+    """
+    inputs, _ = _two_differing_inputs()
+
+    with c_state(inputs, ps=True):
+        pass
+
+    assert _GlobalInitManagerSingleton.inputs == inputs
+    assert _GlobalInitManagerSingleton.ps_inited
+
+
+@pytest.mark.parametrize("n_calls", [2, 5])
+def test_scope_is_not_rebuilt_per_call(monkeypatch, n_calls):
+    """Calls sharing a scope must set the backend up once, not once each.
+
+    Restoring the outer inputs after every single nested call would be correct but
+    ruinously slow, so the number of times the backend is torn down has to be
+    independent of how many calls are made inside the scope.
+    """
+    outer_inputs, inner_inputs = _two_differing_inputs()
+
+    @init_c_state(ps=True)
+    def inner(*, inputs):
+        pass
+
+    @init_c_state(ps=True)
+    def outer(*, inputs):
+        with c_state(inner_inputs):
+            for _ in range(n_calls):
+                inner(inputs=inner_inputs)
+
+    frees = _count_frees(monkeypatch)
+    outer(inputs=outer_inputs)
+
+    # One on entering the outer function, one on entering the scope, one on leaving it.
+    assert len(frees) == 3

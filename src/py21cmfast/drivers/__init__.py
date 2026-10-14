@@ -10,11 +10,12 @@ from .coeval import Coeval, generate_coeval, run_coeval
 from .global_evolution import GlobalEvolution, run_global_evolution
 from .lightcone import LightCone, generate_lightcone, run_lightcone
 from .single_field import (
+    compute_emissivity_fields,
     compute_halo_grid,
     compute_initial_conditions,
     compute_ionization_field,
+    compute_radiation_fields,
     compute_spin_temperature,
-    compute_xray_source_field,
     perturb_field,
     perturb_halo_catalog,
 )
@@ -23,11 +24,12 @@ __all__ = [
     "Coeval",
     "GlobalEvolution",
     "LightCone",
+    "compute_emissivity_fields",
     "compute_halo_grid",
     "compute_initial_conditions",
     "compute_ionization_field",
+    "compute_radiation_fields",
     "compute_spin_temperature",
-    "compute_xray_source_field",
     "generate_coeval",
     "generate_lightcone",
     "perturb_field",

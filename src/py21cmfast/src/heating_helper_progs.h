@@ -43,11 +43,11 @@ float zmax(float z, int n);
 // Lyman-Alpha heating functions
 double Energy_Lya_heating(double Tk, double Ts, double tau_gp, int flag);
 
-// rootfind to get the distance at which GP optical depth tau==1
-double nu_tau_one_MINI(double zp, double zpp, double x_e, double HI_filling_factor_zp,
-                       double log10_Mturn_MINI, ScalingConstants *sc);
-double nu_tau_one(double zp, double zpp, double x_e, double HI_filling_factor_zp,
-                  ScalingConstants *sc);
+// rootfind to get the distance at which X-ray optical depth tau==1
+double nu_tau_one_mcg(double zp, double zpp, double x_e, double log10_Mturn_acg,
+                      double log10_Mturn_mcg, ScalingConstants *sc);
+double nu_tau_one_acg(double zp, double zpp, double x_e, double log10_Mturn_acg,
+                      ScalingConstants *sc);
 
 // xray heating integrals over frequency
 double integrate_over_nu(double zp, double local_x_e, double lower_int_limit, int FLAG);

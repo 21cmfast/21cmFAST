@@ -5,12 +5,16 @@ They do not test for correctness of simulations, but whether different parameter
 work/don't work as intended.
 """
 
+import gc
+from collections import Counter
+
 import attrs
 import numpy as np
 import pytest
 
 import py21cmfast as p21c
 from py21cmfast import CacheConfig, Coeval, InputParameters, OutputCache, run_coeval
+from py21cmfast.io.caching import RunCache
 from py21cmfast.wrapper.arrays import Array
 from py21cmfast.wrapper.outputs import OutputStruct
 
@@ -47,6 +51,8 @@ def test_coeval_lowerz_than_photon_cons(
         )
 
 
+# Uncached halo runs also emit purge advisories.
+@pytest.mark.filterwarnings("ignore:^Trying to purge array:UserWarning")
 def test_coeval_warnings(default_input_struct_lc, cache):
     # test for no caching with halo fields
     inputs = default_input_struct_lc.evolve_input_structs(
@@ -84,28 +90,8 @@ def test_coeval_fields():
                 assert field.name in fields
 
 
-def test_coeval_resume_reconstructs_hbox_history(tmp_path_factory):
-    """Regression test for a resume-correctness bug in ``_redshift_loop_generator``.
-
-    When resuming a coeval run partway through the redshift scroll (e.g. across
-    separate ``run_coeval``/job invocations sharing a cache), the generator used to
-    skip both computing *and* loading ``HaloBox`` for the already-completed
-    redshifts. But ``compute_xray_source_field`` needs the *entire* HaloBox history
-    within ``R_MAX_TS`` of each new redshift (via the accumulated ``hbox_arr``) to
-    build its filtered source shells. Without reloading the skipped HaloBoxes from
-    cache, the X-ray source field -- and therefore spin temperature and brightness
-    temperature -- computed after a resume would silently be wrong.
-
-    This is exercised together with ``write=CacheConfig(xray_source_box=False)``,
-    matching production usage where XraySourceBox is not cached (it is never read
-    back as an input, so this must not affect resumability -- see
-    ``RunCache.is_complete_at``).
-
-    We run the same simulation twice against separate caches: once straight
-    through, and once split into two separate ``run_coeval`` calls that force a
-    resume partway through. The resulting BrightnessTemp at the final redshift
-    must be identical.
-    """
+def test_coeval_resume_reconstructs_radiation_fields_history(tmp_path_factory):
+    """Test that a coeval run can be resumed from a previous run, and that the resumed run produces the same results as a full run."""
     inputs = InputParameters.from_template(
         "tiny", random_seed=1234, node_redshifts=np.arange(12, 24, 2.0)[::-1]
     ).evolve_input_structs(
@@ -129,16 +115,16 @@ def test_coeval_resume_reconstructs_hbox_history(tmp_path_factory):
     )[0]
 
     cache_resume = OutputCache(tmp_path_factory.mktemp("resume_partial"))
-    write_no_xrsb = CacheConfig(xray_source_box=False)
+    write_no_radfields = CacheConfig(radiation_fields=False)
     mid_z = inputs.node_redshifts[len(inputs.node_redshifts) // 2]
 
     # First run only partway (up to and including a middle node), matching
-    # production usage of not writing XraySourceBox to disk.
+    # production usage of not writing RadiationFields to disk.
     run_coeval(
         inputs=inputs,
         out_redshifts=mid_z,
         cache=cache_resume,
-        write=write_no_xrsb,
+        write=write_no_radfields,
         regenerate=True,
     )
     # Now request the final redshift; this should trigger a resume from cache.
@@ -146,32 +132,93 @@ def test_coeval_resume_reconstructs_hbox_history(tmp_path_factory):
         inputs=inputs,
         out_redshifts=inputs.node_redshifts[-1],
         cache=cache_resume,
-        write=write_no_xrsb,
+        write=write_no_radfields,
     )[0]
 
     np.testing.assert_array_equal(
-        coeval_full.brightness_temperature.brightness_temp.value,
-        coeval_resumed.brightness_temperature.brightness_temp.value,
+        coeval_full.brightness_temperature.brightness_temp,
+        coeval_resumed.brightness_temperature.brightness_temp,
     )
 
 
-def test_obtain_starting_point_carries_cached_halobox(tmp_path_factory):
-    """Regression test: the resume starting-point Coeval must carry its cached HaloBox.
+# The size-tiny profile uses R_BUBBLE_MAX=16 with recombinations,
+# triggering the nonstandard-radius advisory (see #778).
+@pytest.mark.filterwarnings(
+    "ignore:^You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL:UserWarning"
+)
+def test_coeval_resume_cached_ts_without_radiation_fields(tmp_path):
+    """Resuming with cached TsBox but uncached RadiationFields must not crash (#791)."""
+    inputs = InputParameters.from_template(
+        ["latest-discrete", "size-tiny"], random_seed=1
+    )
+    cache = OutputCache(tmp_path)
+    write = CacheConfig(radiation_fields=False)
+    zs = inputs.node_redshifts
 
-    ``_obtain_starting_point_for_scrolling`` builds a ``Coeval`` from
-    ``RunCache.get_all_boxes_at_z()``, whose dict keys are the RunCache
-    attribute names (i.e. ``"HaloBox"``, not ``"Halobox"``). A casing typo
-    (``outputs.get("Halobox", None)``) meant the returned Coeval's ``halobox``
-    field was always ``None``, even when a HaloBox was cached on disk.
+    for out_z in (zs[:2], zs[2:4]):
+        # The second call restarts the loop with the first nodes' TsBox cached.
+        out = [
+            c
+            for c, is_output in p21c.generate_coeval(
+                inputs=inputs, out_redshifts=out_z, cache=cache, write=write
+            )
+            if is_output
+        ]
+        assert len(out) == len(out_z)
 
-    This currently has no effect on simulated physics -- ``_redshift_loop_generator``
-    never reads ``prev_coeval.halobox`` (the X-ray source integral is instead
-    reconstructed from cache into ``hbox_arr``, see
-    ``test_coeval_resume_reconstructs_hbox_history`` above) -- but it is still a
-    real bug that silently discards cached data, and would reintroduce ``None``
-    for any future code relying on ``prev_coeval.halobox``, analogous to how
-    ``ionized_box``/``ts_box`` are already relied upon there.
+
+def _collect_cyclic_garbage() -> Counter:
+    """Collect all garbage reference cycles, returning the types of the objects in them."""
+    gc.set_debug(gc.DEBUG_SAVEALL)
+    try:
+        gc.collect()
+        garbage = Counter(type(obj).__name__ for obj in gc.garbage)
+    finally:
+        gc.set_debug(0)
+        gc.garbage.clear()
+    # The cycles are still there after clearing gc.garbage; now really free them.
+    gc.collect()
+    return garbage
+
+
+@pytest.mark.filterwarnings("ignore:The maximum halo mass:UserWarning")
+@pytest.mark.filterwarnings("ignore:You are setting R_BUBBLE_MAX:UserWarning")
+def test_coeval_redshift_steps_create_no_reference_cycles(tmp_path):
+    """Test that no redshift step of a coeval run leaves reference cycles behind (#796).
+
+    The high-level drivers run with the garbage collector disabled, so anything caught
+    in a reference cycle -- along with everything it references, e.g. the boxes held by
+    the frames that a cycle keeps alive -- stays in memory until the run ends. A cycle
+    created at every redshift therefore makes memory grow with the length of the run,
+    whatever creates it. This checks both a run that computes every box and one that
+    replays them all from the cache.
     """
+    inputs = InputParameters.from_template(
+        ["latest-discrete", "size-tiny"], random_seed=1
+    )
+    cache = OutputCache(tmp_path)
+    redshifts = inputs.node_redshifts[:4]
+
+    for run in ("computed", "replayed from cache"):
+        if run == "replayed from cache":
+            # With discrete halos, the run is replayed from the first node redshift.
+            rc = RunCache.from_inputs(inputs, cache)
+            assert all(rc.is_complete_at(z=z) for z in redshifts)
+
+        garbage = [
+            _collect_cyclic_garbage()
+            for _ in p21c.generate_coeval(
+                inputs=inputs, out_redshifts=redshifts, cache=cache
+            )
+        ]
+
+        # The first step also contains the one-off set-up of the run.
+        cyclic = {i: g.most_common(5) for i, g in enumerate(garbage) if i and g}
+        assert not cyclic, f"Steps of the {run} run left reference cycles: {cyclic}"
+
+
+def test_obtain_starting_point_carries_cached_emissivity_fields(tmp_path_factory):
+    """Test that the _obtain_starting_point_for_scrolling function correctly carries over cached EmissivityFields data when resuming a run."""
     from py21cmfast.drivers.coeval import _obtain_starting_point_for_scrolling
     from py21cmfast.io.caching import RunCache
 
@@ -187,7 +234,7 @@ def test_obtain_starting_point_carries_cached_halobox(tmp_path_factory):
     )
     assert inputs.matter_options.lagrangian_source_grid
 
-    cache = OutputCache(tmp_path_factory.mktemp("resume_halobox_casing"))
+    cache = OutputCache(tmp_path_factory.mktemp("resume_emissivity_fields_casing"))
     run_coeval(
         inputs=inputs,
         out_redshifts=inputs.node_redshifts[-1],
@@ -207,4 +254,4 @@ def test_obtain_starting_point_carries_cached_halobox(tmp_path_factory):
 
     assert idx >= 0
     assert coeval is not None
-    assert coeval.halobox is not None
+    assert coeval.emissivity_fields is not None

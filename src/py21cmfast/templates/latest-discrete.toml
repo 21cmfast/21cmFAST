@@ -13,6 +13,7 @@ R_BUBBLE_MAX = 50.0
 [AstroOptions]
 USE_EXP_FILTER = true
 CELL_RECOMB = true
-USE_MINI_HALOS = false
+USE_MCGS = false
 USE_TS_FLUCT = true
 RECOMB_MODEL = 'inhomogeneous'
+USE_REIONIZATION_PHOTOHEATING_FEEDBACK = false

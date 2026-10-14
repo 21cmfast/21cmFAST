@@ -82,7 +82,7 @@ jobs:
 
       - name: Run Unit Tests
         run: |
-          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} \
+          python -m pytest -W error -n 2 -l ${{ env.extra_pytest_args }} \
           --ignore tests/test_integration_features.py \
           --cov=py21cmfast --cov-config=.coveragerc \
           -vv --cov-report xml:./coverage.xml --durations=25
@@ -90,7 +90,7 @@ jobs:
 
       - name: Run Integration Tests
         run: |
-          python -m pytest -n 2 -l ${{ env.extra_pytest_args }} \
+          python -m pytest -W error -n 2 -l ${{ env.extra_pytest_args }} \
             tests/test_integration_features.py \
             --cov=py21cmfast --cov-config=.coveragerc \
             -vv  --cov-append --cov-report xml:./coverage.xml \

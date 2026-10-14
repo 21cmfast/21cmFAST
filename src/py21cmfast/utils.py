@@ -96,7 +96,7 @@ def show_references(inputs: InputParameters, lightcone=True, print_to_stdout=Tru
             "vol. 484, no. 1, pp. 933–949, 2019. https://doi.org/10.1093/mnras/stz032.\n\n"
         )
 
-    if inputs.astro_options.USE_MINI_HALOS:
+    if inputs.astro_options.USE_MCGS:
         ref_string += (
             "The minihalo model was first introduced in:\n"
             "===========================================\n"

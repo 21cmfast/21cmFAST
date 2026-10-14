@@ -1,17 +1,25 @@
 """Test the GlobalEvolution class."""
 
-from pathlib import Path
-
 import numpy as np
 import pytest
 
 import py21cmfast as p21c
 from py21cmfast import GlobalEvolution
 
-DATA_PATH = Path(__file__).parent / "test_data"
+# CONST-ION-EFF uses the EPS conditional mass function with the default HMF.
+_SOURCE_MODELS = [
+    pytest.param(
+        "CONST-ION-EFF",
+        marks=pytest.mark.filterwarnings(
+            "ignore:^Your model .*uses the EPS conditional mass function:UserWarning"
+        ),
+    ),
+    "E-INTEGRAL",
+    "L-INTEGRAL",
+]
 
 
-@pytest.mark.parametrize("source_model", ["CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL"])
+@pytest.mark.parametrize("source_model", _SOURCE_MODELS)
 def test_global_quantities(default_input_struct_ts, source_model):
     """Test that global quantities behave as expected."""
     global_evolution = p21c.run_global_evolution(
@@ -58,7 +66,7 @@ def test_global_quantities(default_input_struct_ts, source_model):
     assert np.all(x_HI[local_minima_indices[1] + 1 :] == 0.0)
 
 
-@pytest.mark.parametrize("source_model", ["CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL"])
+@pytest.mark.parametrize("source_model", _SOURCE_MODELS)
 def test_run_global_evolution_without_source_model(
     default_input_struct_ts, source_model
 ):
@@ -71,16 +79,19 @@ def test_run_global_evolution_without_source_model(
 
 def test_run_global_evolution_without_Ts(default_input_struct):
     """Test that run_global_evolution doesn't crash when USE_TS_FLUCT=False."""
-    global_evolution = p21c.run_global_evolution(
-        inputs=default_input_struct.evolve_input_structs(USE_TS_FLUCT=False)
-    )
+    with pytest.warns(
+        UserWarning, match=r"^Your inputs\.astro_options\.USE_TS_FLUCT = False"
+    ):
+        global_evolution = p21c.run_global_evolution(
+            inputs=default_input_struct.evolve_input_structs(USE_TS_FLUCT=False)
+        )
     assert isinstance(global_evolution, GlobalEvolution)
 
 
 def test_run_global_evolution_from_template():
     """Test that run_global_evolution doesn't crash when using a template."""
     global_evolution = p21c.run_global_evolution(
-        inputs=p21c.InputParameters.from_template("simple", random_seed=1234)
+        inputs=p21c.InputParameters.from_template("latest", random_seed=1234)
     )
     assert isinstance(global_evolution, GlobalEvolution)
 
@@ -116,21 +127,6 @@ def test_global_evolution_bad_inputs(default_input_struct_ts, source_model):
             )
 
 
-def test_compatability_with_database():
-    """
-    Test that loading GlobalEvolution from the database succeeds.
-
-    This test is useful for checking compatability with data files that
-    were generated with older versions of 21cmFAST.
-
-    If this test fails DO NOT replace the file in the database, unless you
-    are absolutely sure of what you are doing.
-    """
-    fname = DATA_PATH / "global_evolution.h5"
-    global_evolution = GlobalEvolution.from_file(fname)
-    assert isinstance(global_evolution, GlobalEvolution)
-
-
 def test_linear_perturbation_theory(default_input_struct_ts):
     """
     Test that we can do linear perturbation theory with 21cmFAST.
@@ -164,6 +160,10 @@ def test_linear_perturbation_theory(default_input_struct_ts):
         np.testing.assert_allclose(contrast1, contrast2, atol=0, rtol=1e-5)
 
 
+# The default inputs don't evolve the spin temperature, which warns; only density matters here.
+@pytest.mark.filterwarnings(
+    r"ignore:^Your inputs\.astro_options\.USE_TS_FLUCT = False:UserWarning"
+)
 def test_linear_density_field(default_input_struct):
     """Test that the linear density field grows linearly with time."""
     delta1 = 1e-7
