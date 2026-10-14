@@ -3,7 +3,8 @@
 ## Do
 - use uv run for all project tooling commands (pytest, ruff, etc.)
 - setup environment with `CC=gcc uv pip install -e ".[dev]"`
-- add type hints for all new parameters
+- add precise type annotations for all new functions, parameters and return values
+  (avoid `Any` unless the value is genuinely dynamic)
 - write or update tests for every behavior change
 - add numpydoc-style docstrings for new public modules, classes, and functions
 - update docstrings whenever parameters are added or changed
@@ -22,6 +23,7 @@
 #### File-scoped quality checks (preferred)
 uv run ruff format path/to/file.py
 uv run ruff check --fix path/to/file.py
+uvx ty@0.0.87 check --python .venv
 
 #### Targeted tests (preferred)
 uv run pytest tests/path/to/test_file.py

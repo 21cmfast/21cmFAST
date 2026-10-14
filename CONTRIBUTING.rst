@@ -47,6 +47,13 @@ pre-commit hooks will run that enforce the ``ruff`` checks. If you do not
 install these requirements, you must manually run ``ruff`` before committing your changes,
 otherwise your changes will likely fail continuous integration.
 
+All functions and methods in the package must be fully type-annotated (enforced by
+``ruff``), and the package is type-checked with `ty <https://docs.astral.sh/ty/>`_ in
+continuous integration. To run the type checker locally (with 21cmFAST installed in the
+``.venv`` environment)::
+
+    uvx ty@0.0.87 check --python .venv
+
 As a *member*:
 
 1. Clone the repo::

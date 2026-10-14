@@ -22,7 +22,7 @@ extend-select = [
   "I",    # isort
   "N",    # pep8-naming
   "D",    # docstyle
-  # "ANN"   # type annotations
+  "ANN",  # type annotations
   "B",    # bugbear
   "A",    # builtins
   "C4",   # comprehensions
@@ -63,10 +63,14 @@ ignore = [
     "A005",
     "RUF009",
     "B008",
+    # Any is sometimes the honest type (e.g. values delegated via __getattr__, or
+    # decoded YAML/JSON), so we don't forbid it outright.
+    "ANN401",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*.py" = [
+"tests/**/*.py" = [
+    "ANN",   # type annotations are not required in tests
     "D103",  # ignore missing docstring in tests
     "DTZ",   # ignore datetime in tests
     "T",     # print statements
@@ -101,6 +105,13 @@ property-decorators = [
 ]
 [tool.ruff.lint.mccabe]
 max-complexity = 20
+
+[tool.ty.environment]
+# Check against the oldest supported Python version.
+python-version = "3.12"
+
+[tool.ty.src]
+include = ["src"]
 
 [dependency-groups]
 dev = [

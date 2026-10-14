@@ -1,0 +1,40 @@
+name: Type Check
+
+# Test on all pushes, except when the push is literally just a tag (because we
+# tag automatically via CI, and therefore there's no extra code in that push).
+on:
+  push:
+    tags-ignore:
+      - 'v*'
+  pull_request:
+    branches:
+      - '*'
+
+jobs:
+  ty:
+    name: ty
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@master
+        with:
+          fetch-depth: 0
+
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+
+      - name: Get C Libraries Linux
+        run: |
+          sudo apt-get install libfftw3-dev
+          sudo apt-get install libgsl0-dev
+
+      # ty needs the third-party dependencies installed to resolve their types.
+      - name: Install 21cmFAST
+        run: |
+          uv venv
+          CC=gcc uv pip install -e .
+
+      - name: Run ty
+        # Keep the version pinned: ty is pre-1.0, and its diagnostics change between
+        # releases. Bump deliberately.
+        run: uvx ty@0.0.87 check --python .venv --output-format github
