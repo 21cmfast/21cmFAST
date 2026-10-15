@@ -3,10 +3,10 @@
 import logging
 import warnings
 from collections.abc import Sequence
-from typing import Literal
+from typing import Literal, TypedDict, overload
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 from scipy.interpolate import interp1d
 
 from .._cfg import config
@@ -22,8 +22,19 @@ logger = logging.getLogger(__name__)
 # TODO: a lot of these assume input as numpy arrays via use of .shape, explicitly require this
 
 
+class HaloSample(TypedDict):
+    """The output of :func:`sample_halos_from_conditions`."""
+
+    n_halo_total: np.int32
+    halo_masses: NDArray[np.float32]
+    n_progenitors: NDArray[np.int32]
+    progenitor_mass: NDArray[np.float64]
+    expected_progenitors: NDArray[np.float64]
+    expected_progenitor_mass: NDArray[np.float64]
+
+
 @init_c_state(sigma=True)
-def get_expected_nhalo(*, redshift: float, inputs: InputParameters) -> int:
+def get_expected_nhalo(*, redshift: float, inputs: InputParameters) -> float:
     """Get the expected number of halos in a given box.
 
     Parameters
@@ -81,8 +92,8 @@ def get_halo_catalog_buffer_size(
 
 @init_c_state(broadcast_inputs=True)
 def get_atomic_cooling_mass_threshold(
-    *, redshifts: float | Sequence[float], inputs: InputParameters
-) -> float | np.ndarray:
+    *, redshifts: ArrayLike, inputs: InputParameters
+) -> NDArray[np.float64]:
     """Get the atomic cooling threshold mass at a given redshift.
 
     Parameters
@@ -94,8 +105,9 @@ def get_atomic_cooling_mass_threshold(
 
     Returns
     -------
-    M_turn_acg : array-like
-        The atomic cooling threshold mass at the given redshifts.
+    M_turn_acg : np.ndarray
+        The atomic cooling threshold mass at the given redshifts (a 0-d array for
+        scalar input).
     """
     vfunc = np.vectorize(lib.atomic_cooling_threshold, otypes=[np.float64])
     return vfunc(redshifts)
@@ -104,11 +116,11 @@ def get_atomic_cooling_mass_threshold(
 @init_c_state(broadcast_inputs=True)
 def get_molecular_cooling_threshold_with_feedbacks(
     *,
-    redshifts: float | Sequence[float],
+    redshifts: ArrayLike,
     inputs: InputParameters,
-    J_LW_21: float | Sequence[float],
-    v_cb: float | Sequence[float],
-) -> float | np.ndarray:
+    J_LW_21: ArrayLike,
+    v_cb: ArrayLike,
+) -> NDArray[np.float64]:
     """Get the molecular cooling threshold mass at a given redshift.
 
     Parameters
@@ -124,8 +136,9 @@ def get_molecular_cooling_threshold_with_feedbacks(
 
     Returns
     -------
-    M_turn_m : array-like
-        The molecular cooling threshold mass at the given redshifts.
+    M_turn_m : np.ndarray
+        The molecular cooling threshold mass at the given redshifts (a 0-d array for
+        scalar input).
     """
     inputs_to_check = {
         "J_LW_21": J_LW_21,
@@ -150,11 +163,11 @@ def get_molecular_cooling_threshold_with_feedbacks(
 @init_c_state(broadcast_inputs=True)
 def get_reionization_feedback_mass(
     *,
-    redshifts: float | Sequence[float],
+    redshifts: ArrayLike,
     inputs: InputParameters,
-    ionisation_rate_G12: float | Sequence[float],
-    z_reion: float | Sequence[float],
-) -> float | np.ndarray:
+    ionisation_rate_G12: ArrayLike,
+    z_reion: ArrayLike,
+) -> NDArray[np.float64]:
     """Get the reionization feedback mass at a given redshift.
 
     Parameters
@@ -170,8 +183,9 @@ def get_reionization_feedback_mass(
 
     Returns
     -------
-    M_turn_r : array-like
-        The reionization feedback mass at the given redshifts.
+    M_turn_r : np.ndarray
+        The reionization feedback mass at the given redshifts (a 0-d array for scalar
+        input).
     """
     inputs_to_check = {
         "ionisation_rate_G12": ionisation_rate_G12,
@@ -191,16 +205,40 @@ def get_reionization_feedback_mass(
     return vfunc(redshifts, ionisation_rate_G12, z_reion)
 
 
+# All inputs must have the same shape as `redshifts`, so a scalar `redshifts` means
+# scalar outputs.
+@overload
+def compute_mturns(
+    *,
+    inputs: InputParameters,
+    redshifts: float,
+    J_LW_21: ArrayLike,
+    v_cb: ArrayLike,
+    ionisation_rate_G12: ArrayLike,
+    z_reion: ArrayLike,
+) -> tuple[float, float | None]: ...
+@overload
+def compute_mturns(
+    *,
+    inputs: InputParameters,
+    redshifts: ArrayLike,
+    J_LW_21: ArrayLike,
+    v_cb: ArrayLike,
+    ionisation_rate_G12: ArrayLike,
+    z_reion: ArrayLike,
+) -> tuple[NDArray[np.float32], NDArray[np.float32] | None]: ...
 @init_c_state(broadcast_inputs=True)
 def compute_mturns(
     *,
     inputs: InputParameters,
-    redshifts: float | Sequence[float],
-    J_LW_21: float | Sequence[float],
-    v_cb: float | Sequence[float],
-    ionisation_rate_G12: float | Sequence[float],
-    z_reion: float | Sequence[float],
-) -> tuple[float, float]:
+    redshifts: ArrayLike,
+    J_LW_21: ArrayLike,
+    v_cb: ArrayLike,
+    ionisation_rate_G12: ArrayLike,
+    z_reion: ArrayLike,
+) -> (
+    tuple[float, float | None] | tuple[NDArray[np.float32], NDArray[np.float32] | None]
+):
     """
     Compute the turnover masses for both ACGs and MCGs at a given redshift.
 
@@ -219,9 +257,10 @@ def compute_mturns(
 
     Returns
     -------
-    M_turn_acg : array-like
-        The turnover mass for atomic cooling halos at the given redshifts.
-    M_turn_mcg : array-like or None
+    M_turn_acg : float or np.ndarray
+        The turnover mass for atomic cooling halos at the given redshifts (a float
+        if `redshifts` is a scalar).
+    M_turn_mcg : float or np.ndarray or None
         The turnover mass for molecular cooling halos at the given redshifts.
         Will be None if `USE_MCGS` is False.
 
@@ -249,17 +288,20 @@ def compute_mturns(
     M_turn_acg_ffi = ffi.new("float *")
     M_turn_mcg_ffi = ffi.new("float *")
 
-    def _scalar_call(z, j, v, g, zr):
+    def _scalar_call(
+        z: float, j: float, v: float, g: float, zr: float
+    ) -> tuple[float, float]:
         lib.compute_mturns(z, j, v, g, zr, M_turn_acg_ffi, M_turn_mcg_ffi)
         return M_turn_acg_ffi[0], M_turn_mcg_ffi[0]
 
     vfunc = np.vectorize(_scalar_call, otypes=[np.float32, np.float32])
-    M_turn_acg, M_turn_mcg = vfunc(
+    M_turn_acg: NDArray[np.float32]
+    M_turn_mcg_all: NDArray[np.float32]
+    M_turn_acg, M_turn_mcg_all = vfunc(
         redshifts, J_LW_21, v_cb, ionisation_rate_G12, z_reion
     )
 
-    if not inputs.astro_options.USE_MCGS:
-        M_turn_mcg = None
+    M_turn_mcg = M_turn_mcg_all if inputs.astro_options.USE_MCGS else None
 
     if M_turn_acg.ndim == 0:  # scalar input case
         M_turn_mcg_float = None if M_turn_mcg is None else float(M_turn_mcg)
@@ -270,8 +312,8 @@ def compute_mturns(
 @init_c_state(broadcast_inputs=True)
 def compute_tau(
     *,
-    redshifts: Sequence[float],
-    global_xHI: Sequence[float],
+    redshifts: Sequence[float] | NDArray[np.floating],
+    global_xHI: Sequence[float] | NDArray[np.floating],
     inputs: InputParameters,
     z_re_HeII: float = 3.0,
 ) -> float:
@@ -306,15 +348,15 @@ def compute_tau(
         raise ValueError("redshifts and global_xHI must be in ascending order")
 
     # Convert the data to the right type
-    redshifts = np.array(redshifts, dtype="float32")
-    global_xHI = np.array(global_xHI, dtype="float32")
+    redshifts_f32 = np.array(redshifts, dtype="float32")
+    global_xHI_f32 = np.array(global_xHI, dtype="float32")
 
-    z = ffi.cast("float *", ffi.from_buffer(redshifts))
-    xHI = ffi.cast("float *", ffi.from_buffer(global_xHI))
+    z = ffi.cast("float *", ffi.from_buffer(redshifts_f32))
+    xHI = ffi.cast("float *", ffi.from_buffer(global_xHI_f32))
 
     # Run the C code
     return lib.ComputeTau(
-        len(redshifts),
+        len(redshifts_f32),
         z,
         xHI,
         z_re_HeII,
@@ -324,7 +366,7 @@ def compute_tau(
 @init_c_state(sigma=True)
 def compute_luminosity_function(
     *,
-    redshifts: Sequence[float],
+    redshifts: ArrayLike,
     inputs: InputParameters,
     nbins: int = 100,
     mturnovers: np.ndarray | None = None,
@@ -332,7 +374,7 @@ def compute_luminosity_function(
     lightcone: LightCone | None = None,
     global_evolution: GlobalEvolution | None = None,
     component: Literal["both", "acg", "mcg"] = "both",
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """Compute a the luminosity function over a given number of bins and redshifts.
 
     Parameters
@@ -359,14 +401,15 @@ def compute_luminosity_function(
     Muvfunc : np.ndarray
         Magnitude array (i.e. brightness). Shape [nredshifts, nbins]
     Mhfunc : np.ndarray
-        Halo mass array. Shape [nredshifts, nbins]
+        Halo mass array. Shape [nredshifts, nbins], or [nredshifts, nbins, 2] (ACG
+        and MCG) if `component` is 'both'.
     lfunc : np.ndarray
         Number density of haloes corresponding to each bin defined by `Muvfunc`.
         Shape [nredshifts, nbins].
     """
     astro_options = inputs.astro_options
 
-    redshifts = np.array(redshifts, dtype="float64")
+    zs = np.array(redshifts, dtype="float64")
 
     if (mturnovers is not None) or (mturnovers_mini is not None):
         raise TypeError(
@@ -384,7 +427,7 @@ def compute_luminosity_function(
 
     log10mturns_acg, log10mturns_mcg = _get_log10mturns_helper(
         inputs=inputs,
-        redshifts=redshifts,
+        redshifts=zs,
         lightcone=lightcone,
         global_evolution=global_evolution,
         component=component if component == "acg" else "both",
@@ -393,17 +436,17 @@ def compute_luminosity_function(
     mturns_acg = pow(10.0, log10mturns_acg)
     mturns_mcg = pow(10.0, log10mturns_mcg)
 
-    lfunc_acg = np.zeros((len(redshifts), nbins))
-    Muvfunc_acg = np.zeros((len(redshifts), nbins))
-    Mhfunc_acg = np.zeros((len(redshifts), nbins))
+    lfunc_acg = np.zeros((len(zs), nbins))
+    Muvfunc_acg = np.zeros((len(zs), nbins))
+    Mhfunc_acg = np.zeros((len(zs), nbins))
 
     c_Muvfunc_acg = ffi.cast("double *", ffi.from_buffer(Muvfunc_acg))
     c_Mhfunc_acg = ffi.cast("double *", ffi.from_buffer(Mhfunc_acg))
     c_lfunc_acg = ffi.cast("double *", ffi.from_buffer(lfunc_acg))
 
-    lfunc_mcg = np.zeros((len(redshifts), nbins))
-    Muvfunc_mcg = np.zeros((len(redshifts), nbins))
-    Mhfunc_mcg = np.zeros((len(redshifts), nbins))
+    lfunc_mcg = np.zeros((len(zs), nbins))
+    Muvfunc_mcg = np.zeros((len(zs), nbins))
+    Mhfunc_mcg = np.zeros((len(zs), nbins))
 
     c_Muvfunc_mcg = ffi.cast("double *", ffi.from_buffer(Muvfunc_mcg))
     c_Mhfunc_mcg = ffi.cast("double *", ffi.from_buffer(Mhfunc_mcg))
@@ -414,8 +457,8 @@ def compute_luminosity_function(
         errcode = lib.ComputeLF(
             nbins,
             1,
-            len(redshifts),
-            ffi.cast("double *", ffi.from_buffer(redshifts)),
+            len(zs),
+            ffi.cast("double *", ffi.from_buffer(zs)),
             ffi.cast("double *", ffi.from_buffer(mturns_acg)),
             ffi.cast("double *", ffi.from_buffer(mturns_mcg)),
             c_Muvfunc_acg,
@@ -429,7 +472,7 @@ def compute_luminosity_function(
             (
                 nbins,
                 1,
-                len(redshifts),
+                len(zs),
             ),
         )
 
@@ -438,8 +481,8 @@ def compute_luminosity_function(
         errcode = lib.ComputeLF(
             nbins,
             2,
-            len(redshifts),
-            ffi.cast("double *", ffi.from_buffer(redshifts)),
+            len(zs),
+            ffi.cast("double *", ffi.from_buffer(zs)),
             ffi.cast("double *", ffi.from_buffer(mturns_acg)),
             ffi.cast("double *", ffi.from_buffer(mturns_mcg)),
             c_Muvfunc_mcg,
@@ -453,17 +496,17 @@ def compute_luminosity_function(
             (
                 nbins,
                 2,
-                len(redshifts),
+                len(zs),
             ),
         )
 
     if component == "both":
         # redo the Muv range using the faintest (most likely MINI) and the brightest (most likely massive)
-        lfunc_all = np.zeros((len(redshifts), nbins))
-        Muvfunc_all = np.zeros((len(redshifts), nbins))
-        Mhfunc_all = np.zeros((len(redshifts), nbins, 2))
+        lfunc_all = np.zeros((len(zs), nbins))
+        Muvfunc_all = np.zeros((len(zs), nbins))
+        Mhfunc_all = np.zeros((len(zs), nbins, 2))
 
-        for iz in range(len(redshifts)):
+        for iz in range(len(zs)):
             Muvfunc_all[iz] = np.linspace(
                 np.min([Muvfunc_acg.min(), Muvfunc_mcg.min()]),
                 np.max([Muvfunc_acg.max(), Muvfunc_mcg.max()]),
@@ -511,8 +554,8 @@ def compute_luminosity_function(
 def get_matter_power_values(
     *,
     inputs: InputParameters,
-    k_values: Sequence[float],
-):
+    k_values: ArrayLike,
+) -> NDArray[np.float64]:
     """Evaluate the matter density power spectrum (at z=0) at a certain scale from the 21cmFAST backend."""
     return np.vectorize(lib.power_in_k)(k_values)
 
@@ -521,8 +564,8 @@ def get_matter_power_values(
 def get_vcb_power_values(
     *,
     inputs: InputParameters,
-    k_values: Sequence[float],
-):
+    k_values: ArrayLike,
+) -> NDArray[np.float64]:
     """Evaluate the vcb power spectrum (at kinematic decoupling) at a certain scale from the 21cmFAST backend."""
     if inputs.matter_options.V_CB_MODEL == "FLUCTS":
         return np.vectorize(lib.power_in_vcb)(k_values)
@@ -537,7 +580,7 @@ def evaluate_sigma(
     *,
     inputs: InputParameters,
     masses: NDArray[np.floating],
-):
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Evaluate the variance of a mass scale.
 
@@ -562,16 +605,16 @@ def get_growth_factor(
     *,
     inputs: InputParameters,
     redshift: float,
-):
+) -> float:
     """Get the growth factor at a given redshift."""
     return lib.dicke(redshift)
 
 
-def get_condition_mass(inputs: InputParameters, R: float):
+def get_condition_mass(inputs: InputParameters, R: float | Literal["cell"]) -> float:
     """Determine condition masses for backend routines.
 
-    Returns either mass contained within a radius,
-    or mass of the Lagrangian cell on HII_DIM
+    Returns either mass contained within a radius `R` (in Mpc),
+    or mass of the Lagrangian cell on HII_DIM (if `R` is "cell").
     """
     rhocrit = (
         inputs.cosmo_params.cosmo.critical_density(0).to("M_sun Mpc-3").value
@@ -588,14 +631,14 @@ def get_condition_mass(inputs: InputParameters, R: float):
 
 
 @init_c_state(broadcast_inputs=True)
-def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float):
+def get_delta_crit(*, inputs: InputParameters, mass: float, redshift: float) -> float:
     """Get the critical collapse density given a mass, redshift and parameters."""
     sigma, _ = evaluate_sigma(inputs=inputs, masses=np.array([mass]))
     growth = get_growth_factor(inputs=inputs, redshift=redshift)
     return get_delta_crit_nu(inputs.matter_options.cdict["HMF"], sigma[0], growth)
 
 
-def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):
+def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float) -> float:
     """Get the critical density from sigma and growth factor."""
     # None of the parameter structs are used in this function so we don't need a broadcast
     return lib.get_delta_crit(hmf_int_flag, sigma, growth)
@@ -603,11 +646,12 @@ def get_delta_crit_nu(hmf_int_flag: int, sigma: float, growth: float):
 
 @init_c_state(sigma=True)
 def evaluate_condition_integrals(
+    *,
     inputs: InputParameters,
     cond_array: NDArray[np.floating],
     redshift: float,
     redshift_prev: float | None = None,
-):
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Get the expected number and mass of halos given a condition.
 
     If USE_INTERPOLATION_TABLES is set to 'hmf-interpolation': Will crash if the table
@@ -632,13 +676,14 @@ def evaluate_condition_integrals(
 
 @init_c_state(sigma=True)
 def integrate_chmf_interval(
+    *,
     inputs: InputParameters,
     redshift: float,
     lnm_lower: NDArray[np.floating],
     lnm_upper: NDArray[np.floating],
     cond_values: NDArray[np.floating],
     redshift_prev: float | None = None,
-):
+) -> NDArray[np.float64]:
     """Evaluate conditional mass function integrals at a range of mass intervals."""
     if lnm_lower.shape != lnm_upper.shape:
         raise ValueError("the shapes of the two mass-limit arrays must be equal")
@@ -665,12 +710,13 @@ def integrate_chmf_interval(
 
 @init_c_state(sigma=True)
 def evaluate_inverse_table(
+    *,
     inputs: InputParameters,
     cond_array: NDArray[np.floating],
     probabilities: NDArray[np.floating],
     redshift: float,
     redshift_prev: float | None = None,
-):
+) -> NDArray[np.float64]:
     """Get the expected number and mass of halos given a condition."""
     if cond_array.shape != probabilities.shape:
         raise ValueError(
@@ -699,11 +745,12 @@ def evaluate_inverse_table(
 
 @init_c_state(sigma=True)
 def evaluate_FgtrM_cond(
+    *,
     inputs: InputParameters,
     densities: NDArray[np.floating],
     redshift: float,
     R: float,
-):
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Get the collapsed fraction from the backend, given a density and condition sigma."""
     densities = densities.astype("f8")
     fcoll = np.zeros_like(densities)
@@ -724,11 +771,11 @@ def evaluate_FgtrM_cond(
 def evaluate_SFRD_z(
     *,
     inputs: InputParameters,
-    redshifts: NDArray[np.floating],
+    redshifts: ArrayLike,
     log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
     global_evolution: GlobalEvolution | None = None,
-):
+) -> tuple[NDArray[np.float64], NDArray[np.float64] | None]:
     """
     Evaluate the global star formation rate density (in units of M_sun/s/Mpc^3) expected at a range of redshifts.
 
@@ -794,11 +841,11 @@ def evaluate_SFRD_z(
 def evaluate_Nion_z(
     *,
     inputs: InputParameters,
-    redshifts: NDArray[np.floating],
+    redshifts: ArrayLike,
     log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
     global_evolution: GlobalEvolution | None = None,
-):
+) -> tuple[NDArray[np.float64], NDArray[np.float64] | None]:
     """
     Evaluate the global number of ionising photons per baryon, expected at a range of redshifts.
 
@@ -871,7 +918,7 @@ def evaluate_SFRD_cond(
     log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
     global_evolution: GlobalEvolution | None = None,
-):
+) -> tuple[NDArray[np.float64], NDArray[np.float64] | None]:
     """
     Evaluate the conditional star formation rate density (in units of M_sun/s/Mpc^3) expected at a range of densities.
 
@@ -957,7 +1004,7 @@ def evaluate_Nion_cond(
     l10mturns_mcg: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
     global_evolution: GlobalEvolution | None = None,
-):
+) -> tuple[NDArray[np.float64], NDArray[np.float64] | None]:
     """
     Evaluate the global number of ionising photons per baryon, expected at a range of densities.
 
@@ -1042,7 +1089,7 @@ def evaluate_Xray_cond(
     log10mturns: NDArray[np.floating] | None = None,
     lightcone: LightCone | None = None,
     global_evolution: GlobalEvolution | None = None,
-):
+) -> NDArray[np.float64]:
     """
     Evaluate the conditional X-ray emissivity (in units of erg/s/Mpc^3) expected at a range of densities.
 
@@ -1115,10 +1162,10 @@ def sample_halos_from_conditions(
     *,
     inputs: InputParameters,
     redshift: float,
-    cond_array,
+    cond_array: NDArray[np.floating],
     redshift_prev: float | None = None,
     buffer_size: int | None = None,
-):
+) -> HaloSample:
     """Construct a halo sample given a descendant catalogue and redshifts."""
     z_prev = -1 if redshift_prev is None else redshift_prev
     if buffer_size is None:
@@ -1135,7 +1182,8 @@ def sample_halos_from_conditions(
     exp_M = np.zeros(n_cond).astype("f8")
     exp_N = np.zeros(n_cond).astype("f8")
     halomass_out = np.zeros(buffer_size).astype("f4")
-    halocrd_out = np.zeros(int(3 * buffer_size)).astype("i4")
+    # The C function writes the halo coordinates as floats
+    halocrd_out = np.zeros(int(3 * buffer_size)).astype("f4")
 
     lib.single_test_sample(
         inputs.random_seed,
@@ -1177,7 +1225,7 @@ def convert_halo_properties(
     J_21_LW_grid: NDArray[np.floating] | None = None,
     z_re_grid: NDArray[np.floating] | None = None,
     Gamma12_grid: NDArray[np.floating] | None = None,
-):
+) -> dict[str, NDArray[np.float32]]:
     """
     Convert a halo catalogue's mass and RNG fields to halo properties.
 
@@ -1312,8 +1360,8 @@ def return_uhmf_value(
     *,
     inputs: InputParameters,
     redshift: float,
-    mass_values: Sequence[float],
-):
+    mass_values: ArrayLike,
+) -> NDArray[np.float64]:
     """Return the value of the unconditional halo mass function at given parameters.
 
     Parameters
@@ -1322,7 +1370,7 @@ def return_uhmf_value(
         The input parameters defining the simulation run.
     redshift : float
         The redshift at which to evaluate the halo mass function.
-    mass_values : float
+    mass_values : array-like
         The mass values at which to evaluate the halo mass function.
     """
     growthf = lib.dicke(redshift)
@@ -1336,10 +1384,10 @@ def return_chmf_value(
     *,
     inputs: InputParameters,
     redshift: float,
-    mass_values: Sequence[float],
-    delta_values: Sequence[float],
-    condmass_values: Sequence[float],
-):
+    mass_values: NDArray[np.floating],
+    delta_values: NDArray[np.floating],
+    condmass_values: ArrayLike,
+) -> NDArray[np.float64]:
     """Return the value of the conditional halo mass function at given parameters.
 
     Parameters
@@ -1348,12 +1396,18 @@ def return_chmf_value(
         The input parameters defining the simulation run.
     redshift : float
         The redshift at which to evaluate the halo mass function.
-    mass_values : float
-        The mass values at which to evaluate the halo mass function.
-    delta : float
-        The overdensity at which to evaluate the halo mass function.
-    cond_mass : float
-        The condition mass at which to evaluate the halo mass function.
+    mass_values : np.ndarray
+        1D array of the mass values at which to evaluate the halo mass function.
+    delta_values : np.ndarray
+        1D array of the overdensities at which to evaluate the halo mass function.
+    condmass_values : array-like
+        1D array of the condition masses at which to evaluate the halo mass function.
+
+    Returns
+    -------
+    chmf : np.ndarray
+        The conditional mass function, with shape
+        ``(len(delta_values), len(condmass_values), len(mass_values))``.
     """
     growthf = lib.dicke(redshift)
     sigma = np.vectorize(lib.sigma_z0)(condmass_values)
@@ -1370,11 +1424,11 @@ def return_chmf_value(
 def _get_log10mturns_helper(
     *,
     inputs: InputParameters,
-    redshifts: Sequence[float],
+    redshifts: ArrayLike,
     lightcone: LightCone | None = None,
     global_evolution: GlobalEvolution | None = None,
     component: Literal["both", "acg", "mcg"] = "acg",
-):
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """
     Get the global log10 turnover masses for ACGs and MCGs at given redshifts, given a lightcone or global evolution objects.
 
@@ -1382,7 +1436,7 @@ def _get_log10mturns_helper(
     ----------
     inputs : InputParameters
         The input parameters defining the simulation run.
-    redshifts : Sequence[float]
+    redshifts : array-like
         The redshifts at which to evaluate the turnover masses.
     lightcone : LightCone or None, optional
         The lightcone object to use for the computation.
@@ -1398,11 +1452,16 @@ def _get_log10mturns_helper(
     Returns
     -------
     log10mturns_acg : np.ndarray
-        The log10 turnover masses for ACGs at the given redshifts.
-    log10mturns_mcg : np.ndarray or None
-        The log10 turnover masses for MCGs at the given redshifts. Will be None if `component` is "acg".
+        The log10 turnover masses for ACGs at the given redshifts. Zeros if
+        `component` is "mcg".
+    log10mturns_mcg : np.ndarray
+        The log10 turnover masses for MCGs at the given redshifts. Zeros if
+        `component` is "acg".
     """
+    zs = np.asarray(redshifts, dtype=np.float64)
+
     # We need to set from where we take the global turnover masses only if they cannot be determined deterministically (i.e. not from a simulation)
+    global_quantities: dict[str, np.ndarray] | None = None
     if (
         component
         in [
@@ -1419,31 +1478,44 @@ def _get_log10mturns_helper(
                 global_evolution = run_global_evolution(inputs=inputs)
             global_quantities = global_evolution.quantities
 
+        if global_quantities is None:
+            raise ValueError(
+                "The given lightcone or global evolution has no global quantities, "
+                "so the global turnover masses cannot be determined."
+            )
+        if inputs.node_redshifts is None:
+            raise ValueError(
+                "inputs.node_redshifts must be set to interpolate the global "
+                "turnover masses."
+            )
+        node_redshifts = np.asarray(inputs.node_redshifts)[::-1]
+
     if component in ("both", "acg"):
         # The ACG turnover mass can be set deterministically if reionization feedback is not applied,
         # no need to take if from lightcone or global evolution in this case
         if not inputs.astro_options.USE_REIONIZATION_PHOTOHEATING_FEEDBACK:
-            M_turn_acg = get_atomic_cooling_mass_threshold(
-                inputs=inputs, redshifts=redshifts
-            )
+            M_turn_acg = get_atomic_cooling_mass_threshold(inputs=inputs, redshifts=zs)
             M_turn_acg = np.maximum(
                 M_turn_acg, inputs.astro_params.M_TURN_STELLAR_FEEDBACK
             )
             log10mturns_acg = np.log10(M_turn_acg)
         else:
+            assert global_quantities is not None  # set above for this case
             log10mturns_acg_global = global_quantities["log10_mturn_acg"]
             log10mturns_acg = np.interp(
-                redshifts, inputs.node_redshifts[::-1], log10mturns_acg_global[::-1]
+                zs, node_redshifts, log10mturns_acg_global[::-1]
             )
     else:
-        log10mturns_acg = np.zeros_like(redshifts)
+        log10mturns_acg = np.zeros_like(zs)
 
     if component in ("both", "mcg"):
+        assert global_quantities is not None  # set above for this case
         log10mturns_mcg_global = global_quantities["log10_mturn_mcg"]
-        log10mturns_mcg = np.interp(
-            redshifts, inputs.node_redshifts[::-1], log10mturns_mcg_global[::-1]
-        )
+        log10mturns_mcg = np.interp(zs, node_redshifts, log10mturns_mcg_global[::-1])
     else:
-        log10mturns_mcg = np.zeros_like(redshifts)
+        log10mturns_mcg = np.zeros_like(zs)
 
-    return log10mturns_acg, log10mturns_mcg
+    return (
+        np.asarray(log10mturns_acg, dtype=np.float64),
+        np.asarray(log10mturns_mcg, dtype=np.float64),
+    )

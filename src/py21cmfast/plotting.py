@@ -3,16 +3,24 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any, Literal, TypedDict
 
 import matplotlib.pyplot as plt
 import numpy as np
 from astropy import units as un
-from astropy.cosmology import z_at_value
+from astropy.cosmology import FLRW, z_at_value
 from matplotlib import colormaps, colors
+from matplotlib.axes import Axes
+from matplotlib.axes._secondary_axes import SecondaryAxis
+from matplotlib.colorbar import Colorbar
+from matplotlib.colors import Colormap
+from matplotlib.figure import Figure, SubFigure
 from matplotlib.ticker import AutoLocator
+from numpy.typing import ArrayLike
 
 from .drivers.coeval import Coeval
+from .drivers.global_evolution import GlobalEvolution
 from .drivers.lightcone import LightCone
 from .wrapper import outputs
 
@@ -33,19 +41,19 @@ colormaps.register(cmap=eor_colour)
 
 
 def _imshow_slice(
-    cube,
-    slice_axis=-1,
-    slice_index=0,
-    fig=None,
-    ax=None,
-    fig_kw=None,
-    cbar=True,
-    cbar_horizontal=False,
-    rotate=False,
-    cmap="EoR",
+    cube: np.ndarray,
+    slice_axis: int = -1,
+    slice_index: int = 0,
+    fig: Figure | SubFigure | None = None,
+    ax: Axes | None = None,
+    fig_kw: dict[str, Any] | None = None,
+    cbar: bool = True,
+    cbar_horizontal: bool = False,
+    rotate: bool = False,
+    cmap: str | Colormap = "EoR",
     log: bool = False,
-    **imshow_kw,
-):
+    **imshow_kw: Any,
+) -> tuple[Figure | SubFigure, Axes]:
     """
     Plot a slice of some kind of cube.
 
@@ -58,7 +66,8 @@ def _imshow_slice(
     slice_index :
         The index of the slice.
     fig : Figure object
-        An optional matplotlib figure object on which to plot
+        An optional matplotlib figure object on which to plot. If ``ax`` is not
+        given, the current axes of this figure are used.
     ax : Axis object
         The matplotlib axis object on which to plot (created by default).
     fig_kw :
@@ -81,12 +90,13 @@ def _imshow_slice(
     # This allows the user to add this plot into an existing grid, or alter it afterwards.
     if fig_kw is None:
         fig_kw = {}
-    if ax is None and fig is None:
-        fig, ax = plt.subplots(1, 1, **fig_kw)
-    elif ax is None:
-        ax = plt.gca()
+    if ax is None:
+        if fig is None:
+            fig, ax = plt.subplots(1, 1, **fig_kw)
+        else:
+            ax = fig.gca()
     elif fig is None:
-        fig = plt.gcf()
+        fig = ax.figure
 
     plt.sca(ax)
 
@@ -134,17 +144,17 @@ def _imshow_slice(
 
 
 def coeval_sliceplot(
-    struct: outputs._OutputStruct | Coeval,
-    kind: str | None = None,
+    struct: outputs.OutputStruct | Coeval,
+    kind: str | np.ndarray | None = None,
     cbar_label: str | None = None,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> tuple[Figure | SubFigure, Axes]:
     """
     Show a slice of a given coeval box.
 
     Parameters
     ----------
-    struct : :class:`~outputs._OutputStruct` or :class:`~wrapper.Coeval` instance
+    struct : :class:`~outputs.OutputStruct` or :class:`~wrapper.Coeval` instance
         The output of a function such as `ionize_box` (a class containing several quantities), or
         `run_coeval`.
     kind : str or nd-array
@@ -209,7 +219,7 @@ def coeval_sliceplot(
     ax.set_xlabel(f"{xax}-axis [Mpc]")
     ax.set_ylabel(f"{yax}-axis [Mpc]")
 
-    cbar = fig._gci().colorbar
+    cbar = ax.images[-1].colorbar
 
     if cbar is not None:
         if cbar_label is None:
@@ -229,17 +239,17 @@ def coeval_sliceplot(
 def lightcone_sliceplot(
     lightcone: LightCone,
     kind: str = "brightness_temp",
-    lightcone2: LightCone = None,
+    lightcone2: LightCone | None = None,
     vertical: bool = False,
     xlabel: str | None = None,
     ylabel: str | None = None,
     cbar_label: str | None = None,
     zticks: str = "redshift",
-    fig: plt.Figure | None = None,
-    ax: plt.Axes | None = None,
-    z_range=None,
-    **kwargs,
-):
+    fig: Figure | SubFigure | None = None,
+    ax: Axes | None = None,
+    z_range: tuple[float, float] | None = None,
+    **kwargs: Any,
+) -> tuple[Figure | SubFigure, Axes]:
     """Create a 2D plot of a slice through a lightcone.
 
     Parameters
@@ -248,9 +258,9 @@ def lightcone_sliceplot(
         The lightcone object to plot
     kind : str, optional
         The attribute of the lightcone to plot. Must be an array.
-    lightcone2 : str, optional
+    lightcone2 : :class:`~py21cmfast.wrapper.Lightcone`, optional
         If provided, plot the _difference_ of the selected attribute between the two
-        lightcones.
+        lightcones (using the "bwr" colormap, unless ``cmap`` is given).
     vertical : bool, optional
         Whether to plot the redshift in the vertical direction.
     cbar_label : str, optional
@@ -259,8 +269,12 @@ def lightcone_sliceplot(
     zticks : str, optional
         Defines the co-ordinates of the ticks along the redshift axis.
         Can be "redshift" (default), "frequency", "distance" (which starts at zero
-        for the lowest redshift) or the name of any function in an astropy cosmology
-        that is purely a function of redshift.
+        for the lowest redshift), "none" (no ticks) or the name of any function in
+        an astropy cosmology that is purely a function of redshift.
+    fig, ax : optional
+        The matplotlib Figure and Axes on which to plot (created by default).
+    z_range : tuple of float, optional
+        The (min, max) redshift range of the lightcone to plot.
     kwargs :
         Passed through to ``imshow()``.
 
@@ -300,19 +314,20 @@ def lightcone_sliceplot(
         plot_crd[ax_idx][0] = lightcone.lightcone_coords[zmin_idx].to("Mpc").value
         plot_sel = slice(zmin_idx, zmax_idx, 1)
 
-    if fig is None and ax is None:
-        fig, ax = plt.subplots(
-            1,
-            1,
-            figsize=(
-                plot_shape[0] * 0.015 + 0.5,
-                plot_shape[1] * 0.015 + (2.5 if kwargs.get("cbar", True) else 0.05),
-            ),
-        )
+    if ax is None:
+        if fig is None:
+            fig, ax = plt.subplots(
+                1,
+                1,
+                figsize=(
+                    plot_shape[0] * 0.015 + 0.5,
+                    plot_shape[1] * 0.015 + (2.5 if kwargs.get("cbar", True) else 0.05),
+                ),
+            )
+        else:
+            ax = fig.gca()
     elif fig is None:
-        fig = ax._gci().figure
-    elif ax is None:
-        ax = fig.get_axes()
+        fig = ax.figure
 
     # Get x,y labels if they're not the redshift axis.
     if xlabel is None:
@@ -331,9 +346,14 @@ def lightcone_sliceplot(
         plot_crd[1][1],
     )
 
-    cmap = kwargs.pop(
-        "cmap", "EoR" if kind.startswith("brightness_temp") else "viridis"
-    )
+    cmap = kwargs.pop("cmap", None)
+    if cmap is None:
+        if lightcone2 is not None:
+            cmap = "bwr"
+        elif kind.startswith("brightness_temp"):
+            cmap = "EoR"
+        else:
+            cmap = "viridis"
     cbar_horizontal = kwargs.pop("cbar_horizontal", not vertical)
 
     if lightcone2 is None:
@@ -349,21 +369,23 @@ def lightcone_sliceplot(
             **kwargs,
         )
     else:
-        d = (lightcone.lightcones[kind][:, :, plot_sel] - lightcone2.lightcones[kind])[
-            :, :, plot_sel
-        ]
+        d = (
+            lightcone.lightcones[kind][:, :, plot_sel]
+            - lightcone2.lightcones[kind][:, :, plot_sel]
+        )
         fig, ax = _imshow_slice(
             d,
             extent=extent,
             slice_axis=slice_axis,
             rotate=not vertical,
             cbar_horizontal=cbar_horizontal,
-            cmap=kwargs.pop("cmap", "bwr"),
+            cmap=cmap,
             fig=fig,
             ax=ax,
             **kwargs,
         )
 
+    zlabel = ""
     if z_axis:
         zlabel = _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_range)
 
@@ -372,7 +394,7 @@ def lightcone_sliceplot(
     if xlabel != "":
         ax.set_xlabel(xlabel or zlabel)
 
-    cbar = fig._gci().colorbar
+    cbar = ax.images[-1].colorbar
 
     if cbar_label is None:
         if kind == "brightness_temp":
@@ -391,7 +413,13 @@ def lightcone_sliceplot(
     return fig, ax
 
 
-def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_range):
+def _set_zaxis_ticks(
+    ax: Axes,
+    lightcone: LightCone,
+    zticks: str,
+    z_axis: Literal["x", "y"],
+    z_range: tuple[float, float] | None,
+) -> str:
     if zticks == "none":
         getattr(ax, f"set_{z_axis}ticks")([])
         getattr(ax, f"set_{z_axis}ticklabels")([])
@@ -425,12 +453,13 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_range):
                 ) from e
 
         zlabel = " ".join(z.capitalize() for z in zticks.split("_"))
-        units = getattr(coords, "unit", None)
-        if units:
-            zlabel += f" [{coords.unit!s}]"
+        units = None
+        if isinstance(coords, un.Quantity):
+            units = coords.unit
+            zlabel += f" [{units!s}]"
             coords = coords.value
 
-        ticks = loc.tick_values(coords.min(), coords.max())
+        ticks = np.asarray(loc.tick_values(coords.min(), coords.max()))
 
         if ticks.min() < coords.min() / 1.00001:
             ticks = ticks[1:]
@@ -445,8 +474,10 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_range):
         elif zticks == "frequency":
             z_ticks = 1420 / ticks - 1
         else:
+            # z_at_value needs a Quantity, even for dimensionless functions.
+            fval_unit = units if units is not None else un.dimensionless_unscaled
             z_ticks = [
-                z_at_value(getattr(lightcone.cosmo_params.cosmo, zticks), z * units)
+                z_at_value(getattr(lightcone.cosmo_params.cosmo, zticks), z * fval_unit)
                 for z in ticks
             ]
 
@@ -463,14 +494,14 @@ def _set_zaxis_ticks(ax, lightcone, zticks, z_axis, z_range):
 
 
 def plot_global_history(
-    lightcone: LightCone,
+    lightcone: LightCone | GlobalEvolution,
     kind: str | None = None,
     ylabel: str | None = None,
     ylog: bool = False,
-    ax: plt.Axes | None = None,
+    ax: Axes | None = None,
     zmax: float | None = None,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> tuple[Figure | SubFigure, Axes]:
     """
     Plot the global history of a given quantity from a lightcone.
 
@@ -489,11 +520,16 @@ def plot_global_history(
         The matplotlib Axes object on which to plot. Otherwise, created.
     zmax : float, optional
         If given, only plot redshifts below this value.
+
+    Returns
+    -------
+    fig, ax
+        The matplotlib Figure and Axes objects.
     """
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(7, 4))
     else:
-        fig = ax.get_figure()
+        fig = ax.figure
 
     redshifts, quantities = get_global_quantities(lightcone)
 
@@ -558,7 +594,17 @@ _FIELD_LABELS = {
 
 # Panels used by the "default" global-evolution summary plot. Each panel is only
 # drawn if at least one of its quantities is present in the object being plotted.
-_GLOBAL_PANELS = {
+GlobalPanelName = Literal["signal", "ionization", "temperature"]
+
+
+class _GlobalPanel(TypedDict):
+    quantities: tuple[str, ...]
+    ylabel: str
+    ylog: bool
+    legend: bool
+
+
+_GLOBAL_PANELS: dict[GlobalPanelName, _GlobalPanel] = {
     "signal": {
         "quantities": ("brightness_temp",),
         "ylabel": r"$\overline{\delta T_b}$ [mK]",
@@ -599,7 +645,9 @@ def _field_label(kind: str) -> str:
     return _FIELD_LABELS.get(kind, kind)
 
 
-def get_global_quantities(obj) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+def get_global_quantities(
+    obj: LightCone | GlobalEvolution,
+) -> tuple[np.ndarray, dict[str, np.ndarray]]:
     """Get the redshifts and global quantities of a lightcone or global evolution.
 
     Parameters
@@ -628,14 +676,16 @@ def get_global_quantities(obj) -> tuple[np.ndarray, dict[str, np.ndarray]]:
 
 
 def _plot_global_panel(
-    ax: plt.Axes,
-    panel: dict,
+    ax: Axes,
+    panel: _GlobalPanel,
     redshifts: np.ndarray,
-    quantities: dict[str, np.ndarray],
+    quantities: Mapping[str, np.ndarray],
     x: np.ndarray | None = None,
-    cosmo=None,
-    **kwargs,
-):
+    # astropy's cosmology class decorator is annotated as returning
+    # ``type[Cosmology]``, so type checkers think FLRW is a variable, not a class.
+    cosmo: FLRW | None = None,  # ty: ignore[invalid-type-form]
+    **kwargs: Any,
+) -> None:
     """Draw a single panel of the default global-evolution plot.
 
     Callers are responsible for only passing panels that have data available (see
@@ -667,8 +717,8 @@ def _plot_global_panel(
 
 
 def _available_panels(
-    panels: Sequence[str] | None, quantities: dict[str, np.ndarray]
-) -> list[str]:
+    panels: Sequence[GlobalPanelName] | None, quantities: Mapping[str, np.ndarray]
+) -> list[GlobalPanelName]:
     """Filter ``panels`` down to those with at least one quantity available."""
     if panels is None:
         panels = list(_GLOBAL_PANELS.keys())
@@ -681,13 +731,13 @@ def _available_panels(
 
 
 def plot_global_evolution(
-    obj,
-    panels: Sequence[str] | None = None,
-    fig: plt.Figure | None = None,
-    axes: Sequence[plt.Axes] | None = None,
+    obj: LightCone | GlobalEvolution,
+    panels: Sequence[GlobalPanelName] | None = None,
+    fig: Figure | SubFigure | None = None,
+    axes: Sequence[Axes] | None = None,
     frequency_axis: bool = True,
-    **kwargs,
-) -> tuple[plt.Figure, list[plt.Axes]]:
+    **kwargs: Any,
+) -> tuple[Figure | SubFigure, list[Axes]]:
     """Plot a default set of global (mean) quantities as a function of redshift.
 
     This is a simple summary plot, giving a quick overview of a simulation: the
@@ -725,20 +775,22 @@ def plot_global_evolution(
     if not panels:
         raise ValueError("None of the requested panels have any data to plot!")
 
-    if fig is None and axes is None:
-        fig, axes = plt.subplots(
-            len(panels),
-            1,
-            sharex=True,
-            figsize=(7, 2.5 * len(panels)),
-            gridspec_kw={"hspace": 0.05},
-            squeeze=False,
-        )
-        axes = list(axes.flatten())
-    elif axes is None:
-        axes = list(fig.get_axes())
+    if axes is None:
+        if fig is None:
+            fig, axarr = plt.subplots(
+                len(panels),
+                1,
+                sharex=True,
+                figsize=(7, 2.5 * len(panels)),
+                gridspec_kw={"hspace": 0.05},
+                squeeze=False,
+            )
+            axes = list(axarr.flatten())
+        else:
+            axes = fig.get_axes()
     elif fig is None:
-        fig = axes[0].get_figure()
+        fig = axes[0].figure
+    axes = list(axes)
 
     for ax, panel in zip(axes, panels, strict=False):
         _plot_global_panel(
@@ -758,14 +810,14 @@ def plot_global_evolution(
     return fig, axes[: len(panels)]
 
 
-def _add_frequency_axis(ax: plt.Axes) -> plt.Axes:
+def _add_frequency_axis(ax: Axes) -> SecondaryAxis:
     """Add a secondary x-axis to ``ax`` showing observed 21-cm frequency."""
 
-    def z_to_nu(z):
+    def z_to_nu(z: ArrayLike) -> np.ndarray:
         with np.errstate(divide="ignore", invalid="ignore"):
             return _NU_21CM / (1 + np.asarray(z, dtype=float))
 
-    def nu_to_z(nu):
+    def nu_to_z(nu: ArrayLike) -> np.ndarray:
         with np.errstate(divide="ignore", invalid="ignore"):
             return _NU_21CM / np.asarray(nu, dtype=float) - 1
 
@@ -797,11 +849,11 @@ def _add_frequency_axis(ax: plt.Axes) -> plt.Axes:
 
 
 def plot_global_signal(
-    obj,
-    ax: plt.Axes | None = None,
+    obj: LightCone | GlobalEvolution,
+    ax: Axes | None = None,
     frequency_axis: bool = True,
-    **kwargs,
-) -> tuple[plt.Figure, plt.Axes]:
+    **kwargs: Any,
+) -> tuple[Figure | SubFigure, Axes]:
     """Plot the global 21-cm signal as a function of redshift.
 
     Parameters
@@ -833,7 +885,7 @@ def plot_global_signal(
     if ax is None:
         fig, ax = plt.subplots(1, 1, figsize=(7, 4), constrained_layout=True)
     else:
-        fig = ax.get_figure()
+        fig = ax.figure
 
     ax.plot(redshifts, quantities["brightness_temp"], **kwargs)
     ax.axhline(0, color="k", ls=":", lw=0.5)
@@ -846,13 +898,13 @@ def plot_global_signal(
     return fig, ax
 
 
-def _set_log_cbar_ticks(cbar, nticks: int = 4):
+def _set_log_cbar_ticks(cbar: Colorbar | None, nticks: int = 4) -> None:
     """Put a few readable, geometrically-spaced ticks on a log-scaled colorbar."""
     if cbar is None:
         return
 
     ticks = np.geomspace(*cbar.mappable.get_clim(), nticks)
-    cbar.set_ticks(ticks, labels=[f"{t:.3g}" for t in ticks])
+    cbar.set_ticks(ticks.tolist(), labels=[f"{t:.3g}" for t in ticks])
     cbar.minorticks_off()
 
 
@@ -873,8 +925,8 @@ def coeval_summary_plot(
     kinds: Sequence[str] | None = None,
     slice_index: int | None = None,
     log: bool | None = None,
-    **kwargs,
-) -> tuple[plt.Figure, list[plt.Axes]]:
+    **kwargs: Any,
+) -> tuple[Figure, list[Axes]]:
     """Make a simple summary plot of a coeval cube.
 
     This plots a slice through the box for each of a default set of fields, as a
@@ -914,14 +966,14 @@ def coeval_summary_plot(
 
     slice_axis = kwargs.get("slice_axis", -1)
 
-    fig, axes = plt.subplots(
+    fig, axarr = plt.subplots(
         1,
         len(kinds),
         figsize=(3.6 * len(kinds), 4.2),
         constrained_layout=True,
         squeeze=False,
     )
-    axes = list(axes.flatten())
+    axes: list[Axes] = list(axarr.flatten())
 
     for ax, kind in zip(axes, kinds, strict=True):
         # Some fields span several orders of magnitude, and are unreadable on a
@@ -973,11 +1025,11 @@ def coeval_summary_plot(
 def lightcone_summary_plot(
     lightcone: LightCone,
     kind: str = "brightness_temp",
-    panels: Sequence[str] | None = None,
+    panels: Sequence[GlobalPanelName] | None = None,
     width: float = 9.0,
     panel_height: float = 1.8,
-    **kwargs,
-) -> tuple[plt.Figure, list[plt.Axes]]:
+    **kwargs: Any,
+) -> tuple[Figure, list[Axes]]:
     """Make a simple summary plot of a lightcone.
 
     The top panel is a slice through the lightcone, and the panels below show the
@@ -1094,7 +1146,9 @@ def lightcone_summary_plot(
     return fig, axes
 
 
-def summary_plot(obj, **kwargs) -> tuple[plt.Figure, list[plt.Axes]]:
+def summary_plot(
+    obj: Coeval | LightCone | GlobalEvolution, **kwargs: Any
+) -> tuple[Figure | SubFigure, list[Axes]]:
     """Make a simple default summary plot of a 21cmFAST simulation output.
 
     The plot produced depends on the type of ``obj``: see

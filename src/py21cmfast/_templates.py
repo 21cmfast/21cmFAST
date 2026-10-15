@@ -13,12 +13,20 @@ import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal, NotRequired, TypedDict, cast
 
 import tomlkit
 
 from .input_serialization import deserialize_inputs, prepare_inputs_for_serialization
-from .wrapper.inputs import InputParameters, InputStruct
+from .wrapper.inputs import (
+    AstroOptions,
+    AstroParams,
+    CosmoParams,
+    CosmoTables,
+    InputParameters,
+    MatterOptions,
+    SimulationOptions,
+)
 
 TEMPLATE_PATH = Path(__file__).parent / "templates/"
 MANIFEST = TEMPLATE_PATH / "manifest.toml"
@@ -28,14 +36,27 @@ logger = logging.getLogger(__name__)
 TOMLMode = Literal["full", "minimal"]
 
 
-def list_templates() -> list[dict]:
+class TemplateParams(TypedDict):
+    """The parameters defined by a template, as keyword arguments of InputParameters."""
+
+    cosmo_params: CosmoParams
+    simulation_options: SimulationOptions
+    matter_options: MatterOptions
+    astro_params: AstroParams
+    astro_options: AstroOptions
+    cosmo_tables: NotRequired[CosmoTables]
+    random_seed: NotRequired[int]
+    node_redshifts: NotRequired[Sequence[float]]
+
+
+def list_templates() -> list[dict[str, Any]]:
     """Return a list of the available templates."""
     with MANIFEST.open("r") as fl:
         manifest = tomlkit.load(fl)
     return manifest["templates"]
 
 
-def load_template_file(template_name: str | Path):
+def load_template_file(template_name: str | Path) -> tomlkit.TOMLDocument:
     """
     Handle the loading of template TOML files.
 
@@ -51,7 +72,9 @@ def load_template_file(template_name: str | Path):
         manifest = tomlkit.load(fl)
 
     for manf_entry in manifest["templates"]:
-        if template_name.casefold() in [x.casefold() for x in manf_entry["aliases"]]:
+        if str(template_name).casefold() in [
+            x.casefold() for x in manf_entry["aliases"]
+        ]:
             with (TEMPLATE_PATH / manf_entry["file"]).open("r") as fl:
                 return tomlkit.load(fl)
 
@@ -67,17 +90,19 @@ def load_template_file(template_name: str | Path):
 
 
 def create_params_from_template(
-    template_name: str | Path | Sequence[str | Path], **kwargs
-) -> dict[str, InputStruct]:
+    template_name: str | Path | Sequence[str | Path], **kwargs: Any
+) -> TemplateParams:
     """
     Construct the required InputStruct instances for a run from a given template.
 
     Parameters
     ----------
-    template_name: str,
+    template_name: str, Path, or a sequence of them
         defines the name/alias of the native template (see templates/manifest.toml for a list)
         alternatively, is the path to a TOML file containing tables titled [CosmoParams],
-        [SimulationOptions], [AstroParams] and [AstroOptions] with parameter settings
+        [SimulationOptions], [AstroParams] and [AstroOptions] with parameter settings.
+        If a sequence, the templates are combined from left to right (later ones take
+        precedence).
 
     Other Parameters
     ----------------
@@ -98,13 +123,17 @@ def create_params_from_template(
             Instance containing astrophysical parameters
         astro_options : AstroOptions
             Instance containing astrophysical flags and enums
+        random_seed : int, optional
+            The random seed, if the template defines one.
+        node_redshifts : list of float, optional
+            The node redshifts, if the template defines them.
     """
     if isinstance(template_name, str | Path):
         templates = [template_name]
     else:
         templates = template_name
 
-    full_template = defaultdict(dict)
+    full_template: defaultdict[str, dict[str, Any]] = defaultdict(dict)
 
     random_seed = None
     node_redshifts = None
@@ -118,7 +147,10 @@ def create_params_from_template(
                 node_redshifts = v
             else:
                 full_template[k] |= v
-    out = deserialize_inputs(full_template, **kwargs)
+    # deserialize_inputs returns an instance of every InputStruct subclass, keyed by
+    # its snake-case name as an InputParameters attribute (and the CosmoTables, if
+    # asked for), i.e. a TemplateParams.
+    out = cast("TemplateParams", deserialize_inputs(full_template, **kwargs))
     if random_seed is not None:
         out["random_seed"] = random_seed
     if node_redshifts is not None:
@@ -131,7 +163,7 @@ def write_template(
     template_file: Path | str,
     mode: TOMLMode = "full",
     only_structs: bool | None = None,
-):
+) -> None:
     """Write a set of input parameters to a template file.
 
     Parameters

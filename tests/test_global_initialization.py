@@ -4,9 +4,9 @@ from contextlib import contextmanager
 
 import numpy as np
 import pytest
-from py21cmfast.c_21cmfast import lib
 
 from py21cmfast import Coeval, InputParameters, run_coeval
+from py21cmfast.c_21cmfast import lib
 from py21cmfast.drivers import _global_initialization
 from py21cmfast.drivers._global_initialization import (
     GlobalInitializationManager,

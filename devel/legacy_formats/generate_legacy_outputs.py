@@ -23,6 +23,7 @@ Usage: python generate_legacy_outputs.py <outdir>
 import shutil
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 
 import py21cmfast as p21c
@@ -41,13 +42,15 @@ SIZE_KW = {
 }
 
 
-def make_inputs(templates):
+def make_inputs(templates: Sequence[str]) -> p21c.InputParameters:
     """Create tiny inputs from the given templates."""
     inputs = p21c.InputParameters.from_template(templates, random_seed=1234, **SIZE_KW)
     return inputs.with_logspaced_redshifts(zmin=7.0)
 
 
-def run_all(label, templates, coeval_z, do_lightcone):
+def run_all(
+    label: str, templates: Sequence[str], coeval_z: float, do_lightcone: bool
+) -> None:
     """Write a full cache, a coeval and (optionally) a lightcone for the templates."""
     t0 = time.time()
     inputs = make_inputs(templates)
@@ -116,7 +119,7 @@ def run_all(label, templates, coeval_z, do_lightcone):
     print(f"[{label}] done in {time.time() - t0:.1f}s")
 
 
-def run_class():
+def run_class() -> None:
     """IC and PF with CLASS, relative velocities and explicit SIGMA_8.
 
     This exercises the cosmo_tables, the SIGMA_8 attribute and the lowres_vcb field.
@@ -147,7 +150,7 @@ def run_class():
     print("ok", list(ic.arrays), list(pf.arrays))
 
 
-def run_perturbed_halos():
+def run_perturbed_halos() -> None:
     """Write a PerturbedHaloCatalog, which the high-level drivers never cache."""
     cdir = out / "cache_phc"
     shutil.rmtree(cdir, ignore_errors=True)

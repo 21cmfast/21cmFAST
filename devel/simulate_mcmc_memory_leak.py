@@ -14,7 +14,7 @@ PROCESS = psutil.Process(os.getpid())
 oldmem = 0
 
 
-def trace_print():
+def trace_print() -> None:
     """Print a trace of memory leaks."""
     global snapshot
     global oldmem

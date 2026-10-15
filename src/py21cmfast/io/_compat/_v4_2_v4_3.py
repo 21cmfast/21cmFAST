@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 
 from .._compat_framework import (
@@ -18,6 +20,14 @@ from .._compat_framework import (
     load_array,
     warn,
 )
+
+#: The value of a field of an output struct that is transformed when it is renamed:
+#: the data of an array, or a scalar (non-array) field. Box quantities of
+#: lightcones (the per-redshift global values of scalar fields) are arrays.
+_FieldValue = float | np.ndarray
+
+#: A function transforming the value of a renamed field (see ``RenameField``).
+_FieldTransform = Callable[[_FieldValue, RawOutputStruct], _FieldValue | None]
 
 _LAGRANGIAN_SOURCE_MODELS = ("L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER")
 _DISCRETE_HALO_SOURCE_MODELS = ("DEXM-ESF", "CHMF-SAMPLER")
@@ -108,12 +118,12 @@ def _halobox_n_ion(struct: RawOutputStruct) -> None:
         struct.primitives["log10_Mcrit_MCG_ave"] = 0.0
 
 
-def _divide_by_rhocrit_omb(val, struct: RawOutputStruct):
+def _divide_by_rhocrit_omb(val: _FieldValue, struct: RawOutputStruct) -> _FieldValue:
     return val / _rhocrit_omb(struct.inputs)
 
 
-def _nion_unconditional(mcg: bool):
-    def transform(val, struct: RawOutputStruct):
+def _nion_unconditional(mcg: bool) -> _FieldTransform:
+    def transform(val: _FieldValue, struct: RawOutputStruct) -> _FieldValue | None:
         if _source_model(struct.inputs) in _LAGRANGIAN_SOURCE_MODELS:
             # Overwritten by the mean of the (halo) source field, which is n_ion of
             # the HaloBox (for ACGs, MCGs are included in the same field).
@@ -132,8 +142,8 @@ def _nion_unconditional(mcg: bool):
     return transform
 
 
-def _nion_conditional(mcg: bool):
-    def transform(val, struct: RawOutputStruct):
+def _nion_conditional(mcg: bool) -> _FieldTransform:
+    def transform(val: _FieldValue, struct: RawOutputStruct) -> _FieldValue | None:
         if _source_model(struct.inputs) in _LAGRANGIAN_SOURCE_MODELS:
             # This is not used (or saved) for Lagrangian source models any more.
             return None

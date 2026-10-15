@@ -5,10 +5,10 @@ import mpmath
 import numpy as np
 import pytest
 from matplotlib.colors import Normalize
-from py21cmfast.c_21cmfast import ffi, lib
 from scipy.stats import binned_statistic as binstat
 
 from py21cmfast import InputParameters
+from py21cmfast.c_21cmfast import ffi, lib
 from py21cmfast.drivers._global_initialization import init_c_state
 
 from . import produce_integration_test_data as prd

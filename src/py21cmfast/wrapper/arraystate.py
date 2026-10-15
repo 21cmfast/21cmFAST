@@ -13,10 +13,10 @@ class ArrayStateError(ValueError):
 class ArrayState:
     """Define the memory state of a struct array."""
 
-    initialized = attrs.field(default=False, converter=bool)
-    c_memory = attrs.field(default=False, converter=bool)
-    computed_in_mem = attrs.field(default=False, converter=bool)
-    on_disk = attrs.field(default=False, converter=bool)
+    initialized: bool = attrs.field(default=False, converter=bool)
+    c_memory: bool = attrs.field(default=False, converter=bool)
+    computed_in_mem: bool = attrs.field(default=False, converter=bool)
+    on_disk: bool = attrs.field(default=False, converter=bool)
 
     def deinitialize(self) -> Self:
         """Return new state that is not initialized."""

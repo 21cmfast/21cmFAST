@@ -330,7 +330,17 @@ def test_expose_arrays_rejects_a_public_array_field():
         @expose_arrays
         @attrs.define(slots=False, kw_only=True)
         class _Bad:
-            density = attrs.field(default=None, type=Array)
+            density: Array | None = attrs.field(default=None, metadata={"array": True})
+
+
+def test_expose_arrays_requires_a_declared_proxy():
+    """The public descriptor must be declared, so static type checkers can see it."""
+    with pytest.raises(TypeError, match="no ArrayProxy is declared"):
+
+        @expose_arrays
+        @attrs.define(slots=False, kw_only=True)
+        class _Bad:
+            _density: Array | None = attrs.field(default=None, metadata={"array": True})
 
 
 # ---------------------------------------------------------------------------

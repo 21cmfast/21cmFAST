@@ -81,9 +81,13 @@ def get_expected_sizes(
 
 def get_total_storage_size(
     inputs: InputParameters, cache_config: CacheConfig = CacheConfig.on()
-):
-    """Compute the total storage size of a simulation."""
-    out = {}
+) -> dict[str, tuple[int, int]]:
+    """Compute the total storage size of a simulation.
+
+    The returned dictionary maps each relevant output struct kind to a tuple of the
+    number of such structs written in the simulation and their total size in bytes.
+    """
+    out: dict[str, tuple[int, int]] = {}
     for i, z in enumerate(inputs.node_redshifts):
         sizes = get_expected_sizes(inputs, cache_config=cache_config, redshift=z)
         if i == 0:

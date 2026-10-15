@@ -16,6 +16,7 @@ from py21cmfast import (
     perturb_halo_catalog,
 )
 from py21cmfast.wrapper import outputs as ox
+from py21cmfast.wrapper.arrays import ArrayProxy
 
 
 @pytest.fixture
@@ -187,7 +188,8 @@ def test_all_fields_exist(struct: ox.OutputStruct):
     # fields are declared privately and exposed under the public name by a descriptor.
     for name in cstruct.pointer_fields:
         assert name in struct._array_field_names
-        assert this[f"_{name}"].type == ox.Array
+        assert this[f"_{name}"].metadata["array"]
+        assert isinstance(getattr(struct, name), ArrayProxy)
 
     for name in cstruct.primitive_fields:
         assert name in this

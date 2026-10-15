@@ -1,8 +1,7 @@
 """Tests of the C-level FFT wrappers."""
 
-from py21cmfast.c_21cmfast import lib
-
 import py21cmfast as p21c
+from py21cmfast.c_21cmfast import lib
 
 
 def test_fftw_wisdom_is_reused(tmp_path):

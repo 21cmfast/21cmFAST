@@ -10,7 +10,7 @@ from py21cmfast import OutputCache, RectilinearLightconer, run_lightcone
 
 here = Path(__file__).parent.resolve()
 
-sys.path.append(str(here / "tests"))
+sys.path.append(str(here.parent / "tests"))
 
 from produce_integration_test_data import (  # noqa: E402
     OPTIONS_TESTRUNS,
@@ -22,7 +22,7 @@ from produce_integration_test_data import (  # noqa: E402
 def get_at_it(
     case: str = "fixed_halogrids",
     sizefac: int = 1,
-):
+) -> None:
     """Run the lightcone."""
     t = time.time()
 

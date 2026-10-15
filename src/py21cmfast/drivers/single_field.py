@@ -7,12 +7,14 @@ example initial conditions, perturbed fields and ionization fields.
 
 import logging
 import warnings
+from typing import Any
 
 import deprecation
 import numpy as np
-from astropy import constants
 from astropy import units as un
+from astropy.constants.config import codata
 
+from ..io.caching import OutputCache
 from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
@@ -42,6 +44,9 @@ def compute_initial_conditions(
     *,
     inputs: InputParameters,
     initial_density: np.ndarray | float | None = None,
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+    write: bool = False,
 ) -> InitialConditions:
     r"""
     Compute initial conditions.
@@ -93,7 +98,10 @@ def compute_initial_conditions(
         return ics
     else:
         if initial_density is not None:
-            if np.abs(initial_density.mean() > 1e-3):
+            # A scalar is only meaningful for a single-cell box; here it gets the
+            # shape check below (and its error message) like any other wrong shape.
+            initial_density = np.asarray(initial_density)
+            if np.abs(initial_density.mean()) > 1e-3:
                 warnings.warn(
                     f"Your initial_density has mean {initial_density.mean()}. "
                     + "Make sure you know what you are doing.",
@@ -121,6 +129,9 @@ def perturb_field(
     redshift: float,
     inputs: InputParameters | None = None,
     initial_conditions: InitialConditions,
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+    write: bool = False,
 ) -> PerturbedField:
     r"""
     Compute a perturbed field at a given redshift.
@@ -150,6 +161,8 @@ def perturb_field(
     The user and cosmo parameter structures are by default inferred from the
     ``initial_conditions``.
     """
+    assert inputs is not None  # always filled in by @single_field_func
+
     # Initialize perturbed boxes.
     fields = PerturbedField.new(redshift=redshift, inputs=inputs)
 
@@ -165,6 +178,9 @@ def determine_halo_catalog(
     inputs: InputParameters | None = None,
     initial_conditions: InitialConditions,
     descendant_halos: HaloCatalog | None = None,
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+    write: bool = False,
 ) -> HaloCatalog:
     r"""
     Find a halo list, given a redshift.
@@ -189,6 +205,8 @@ def determine_halo_catalog(
     regenerate, write, cache:
         See docs of :func:`initial_conditions` for more information.
     """
+    assert inputs is not None  # always filled in by @single_field_func
+
     if inputs.matter_options.HMF != "ST":
         warnings.warn(
             "DexM Halofinder sses a fit to the Sheth-Tormen mass function."
@@ -225,6 +243,9 @@ def perturb_halo_catalog(
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
     halo_catalog: HaloCatalog,
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+    write: bool = False,
 ) -> PerturbedHaloCatalog:
     r"""
     Given a halo list, perturb the halos for a given redshift.
@@ -251,6 +272,8 @@ def perturb_halo_catalog(
     Fill this in once finalised
 
     """
+    assert inputs is not None  # always filled in by @single_field_func
+
     hbuffer_size = (
         halo_catalog.n_halos if halo_catalog.n_halos else halo_catalog.buffer_size
     )
@@ -304,6 +327,9 @@ def compute_emissivity_fields(
     perturbed_field: PerturbedField | None = None,
     previous_spin_temp: TsBox | None = None,
     previous_ionize_box: IonizedBox | None = None,
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+    write: bool = False,
 ) -> EmissivityFields:
     r"""
     Compute grids of halo properties from a catalogue.
@@ -340,6 +366,8 @@ def compute_emissivity_fields(
     regenerate, write, cache:
         See docs of :func:`initial_conditions` for more information.
     """
+    assert inputs is not None  # always filled in by @single_field_func
+
     box = EmissivityFields.new(redshift=redshift, inputs=inputs)
 
     if halo_catalog is None:
@@ -410,7 +438,7 @@ def compute_emissivity_fields(
     )
 
 
-def compute_halo_grid(**kwargs) -> EmissivityFields:
+def compute_halo_grid(**kwargs: Any) -> EmissivityFields:
     """Compute the emissivity fields.
 
     This is a deprecated function. Use `compute_emissivity_fields` instead.
@@ -537,6 +565,9 @@ def setup_radiation_fields(
     redshift: float,
     previous_rad_setup: RadiationFieldsSetup | None = None,
     previous_spin_temp: TsBox | None = None,
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+    write: bool = False,
 ) -> RadiationFieldsSetup:
     r"""
     Set up arrays and quantities that are needed for calculating the radiation fields at this redshift.
@@ -602,6 +633,13 @@ def setup_radiation_fields(
 
         # TODO: the whole code below is only required if we use mini-halos. It could be removed though, see comment below
         if inputs.astro_options.USE_MCGS:
+            # Allocated by RadiationFieldsSetup.new whenever USE_MCGS is True.
+            ave_log10_MturnLW = rad_setup.ave_log10_MturnLW
+            assert ave_log10_MturnLW is not None
+            # InputParameters.cosmo_tables always sets V_CB_AVG.
+            v_cb_avg = inputs.cosmo_tables.V_CB_AVG
+            assert v_cb_avg is not None
+
             # Get log10_mturn_mcg_ave for each shell
             # TODO: The reason why this field is evaluated separately is because it is already required in SetupRadiationFields() in the C code,
             # as it sets rad_setup->ave_log10_MturnLW. This array is needed (specifically, in global_reion_properties) for two purposese:
@@ -629,9 +667,9 @@ def setup_radiation_fields(
                         inputs=inputs,
                         redshifts=rad_setup.zpp_avg[i],
                         J_LW_21=0.0,
-                        v_cb=inputs.cosmo_tables.V_CB_AVG,
+                        v_cb=v_cb_avg,
                     )
-                    rad_setup.ave_log10_MturnLW[i] = np.log10(
+                    ave_log10_MturnLW[i] = np.log10(
                         np.max([mturn_MCG, inputs.astro_params.M_TURN_STELLAR_FEEDBACK])
                     )
                 else:
@@ -641,9 +679,7 @@ def setup_radiation_fields(
                         redshift=rad_setup.zpp_avg[i],
                         need_c=False,
                     )
-                    rad_setup.ave_log10_MturnLW[i] = (
-                        emissivity_fields_interp.log10_mturn_mcg_ave
-                    )
+                    ave_log10_MturnLW[i] = emissivity_fields_interp.log10_mturn_mcg_ave
 
         rad_setup.compute(
             redshift=redshift,
@@ -668,6 +704,9 @@ def compute_radiation_fields(
     perturbed_field: PerturbedField | None = None,
     previous_spin_temp: TsBox | None = None,
     hboxes: list[EmissivityFields] | None = None,
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+    write: bool = False,
 ) -> RadiationFields:
     r"""
     Compute the radiation fields, given the past emissivity fields.
@@ -720,22 +759,20 @@ def compute_radiation_fields(
     started_astrophysics = redshift <= inputs.simulation_options.Z_HEAT_MAX
 
     # Setup the radiation fields
+    # (if we set it up here, we also need to purge it once we're done).
+    rad_setup_to_purge: RadiationFieldsSetup | None = None
     if rad_setup is None and started_astrophysics:
         rad_setup = setup_radiation_fields(
             redshift=redshift,
             emissivity_fields_list=emissivity_fields_list,
             previous_spin_temp=previous_spin_temp,
         )
-        need_to_purge = True
-    else:
-        need_to_purge = False
+        rad_setup_to_purge = rad_setup
+    elif rad_setup is not None and started_astrophysics:
         emissivity_fields_redshifts = [
             emissivity_fields.redshift for emissivity_fields in emissivity_fields_list
         ]
-        if (
-            started_astrophysics
-            and emissivity_fields_redshifts != rad_setup.emissivity_fields_redshifts
-        ):
+        if emissivity_fields_redshifts != rad_setup.emissivity_fields_redshifts:
             raise ValueError(
                 "The redshifts of the input emissivity_fields do not match those of the input rad_setup!"
             )
@@ -751,19 +788,17 @@ def compute_radiation_fields(
             for emissivity_fields in emissivity_fields_list
         ]
     )
-    if rad_setup is not None:
-        lowest_shell_above_zmax = rad_setup.zpp_avg.min() >= rad_setup.source_z_max
-        need_c = not (sfr_allzero or lowest_shell_above_zmax or rad_setup.NO_LIGHT)
-    else:
-        need_c = False
-
-    if need_c:
-        for name, box in {
-            "perturbed_field": perturbed_field,
-            "previous_spin_temp": previous_spin_temp,
-        }.items():
-            if box is None:
-                raise ValueError(f"You must specify the {name} at z={redshift}.")
+    if rad_setup is not None and not (
+        sfr_allzero
+        or rad_setup.zpp_avg.min() >= rad_setup.source_z_max  # lowest shell above zmax
+        or rad_setup.NO_LIGHT
+    ):
+        if perturbed_field is None:
+            raise ValueError(f"You must specify the perturbed_field at z={redshift}.")
+        if previous_spin_temp is None:
+            raise ValueError(
+                f"You must specify the previous_spin_temp at z={redshift}."
+            )
 
         # Compute the comoving diffusion scale in the case of Lyman alpha multiple scattering
         if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
@@ -779,11 +814,16 @@ def compute_radiation_fields(
                 (1.0 - inputs.cosmo_params.Y_He)
                 * inputs.cosmo_params.cosmo.critical_density(0)
                 * inputs.cosmo_params.OMb
-                / constants.m_p
+                / codata.m_p
             )
             # Eq. (24) in arxiv: 2601.14360
             R_star = (
-                3.0 * constants.c**4 * A_alpha**2 * n_H_z0 * x_HI * (1.0 + redshift)
+                3.0
+                * codata.c**4
+                * A_alpha**2
+                * n_H_z0
+                * x_HI
+                * (1.0 + redshift)
             )
             R_star /= (
                 32.0
@@ -805,7 +845,7 @@ def compute_radiation_fields(
         # If we had reveresed the order (i.e. going from the smallest to the largest shell), we might have not
         # entered the C code at the last iteration, due to the logic below.
         # Note that we always enter the C code at the smallest shell, since if z_avg.min would have been larger than source_z_max,
-        # this would have been caught earlier by the need_c logic.
+        # this would have been caught earlier by the check above.
         for i in range(inputs.astro_params.N_STEP_TS)[::-1]:
             if rad_setup.zpp_avg[i] >= rad_setup.source_z_max:
                 logger.debug(f"ignoring Radius {i} which is above Z_HEAT_MAX")
@@ -835,10 +875,10 @@ def compute_radiation_fields(
         for name, array in radiation_fields.arrays.items():
             setattr(radiation_fields, name, array.computed())
 
-    if need_to_purge:
+    if rad_setup_to_purge is not None:
         # Purge the radiation fields setup once we have the radiation fields
         # NOTE: There is a need to purge rad_setup, since its arrays have been exposed to C
-        rad_setup.purge(force=True)
+        rad_setup_to_purge.purge(force=True)
 
     return radiation_fields
 
@@ -852,6 +892,9 @@ def compute_spin_temperature(
     inputs: InputParameters | None = None,
     radiation_fields: RadiationFields | None = None,
     previous_spin_temp: TsBox | None = None,
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+    write: bool = False,
 ) -> TsBox:
     r"""
     Compute spin temperature boxes at a given redshift.
@@ -883,6 +926,8 @@ def compute_spin_temperature(
     regenerate, write, cache:
         See docs of :func:`initial_conditions` for more information.
     """
+    assert inputs is not None  # always filled in by @single_field_func
+
     redshift = perturbed_field.redshift
 
     if redshift >= inputs.simulation_options.Z_HEAT_MAX:
@@ -924,6 +969,9 @@ def compute_ionization_field(
     spin_temp: TsBox | None = None,
     emissivity_fields: EmissivityFields | None = None,
     halobox: EmissivityFields | None = None,  # deprecated
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+    write: bool = False,
 ) -> IonizedBox:
     r"""
     Compute an ionized box at a given redshift.
@@ -971,6 +1019,8 @@ def compute_ionization_field(
     flag options) are used, no evolution needs to be done. If the redshift is beyond
     Z_HEAT_MAX, previous fields are not required either.
     """
+    assert inputs is not None  # always filled in by @single_field_func
+
     if halobox is not None:
         warnings.warn(
             deprecation.DeprecatedWarning(
@@ -1063,6 +1113,9 @@ def brightness_temperature(
     ionized_box: IonizedBox,
     perturbed_field: PerturbedField,
     spin_temp: TsBox | None = None,
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+    write: bool = False,
 ) -> BrightnessTemp:
     r"""
     Compute a coeval brightness temperature box.

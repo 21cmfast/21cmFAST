@@ -1,16 +1,30 @@
 """Module for computing quantities with CLASS."""
 
 from collections.abc import Sequence
+from typing import Literal
 
 import numpy as np
 import scipy.integrate as intg
-from astropy import constants, units
+from astropy import units
+from astropy.constants.config import codata
 from astropy.cosmology import FlatLambdaCDM
 from classy import Class
 from hmf import transfer_models
+from numpy.typing import ArrayLike, NDArray
 from scipy.interpolate import interp1d
 
 _not4_ = 3.9715  # This is the ratio between Helium to Hydrogen mass. It is not 4!
+
+# The speed of light from the CODATA release that astropy is configured to use (this is
+# what ``astropy.constants.c`` is, but the latter is set dynamically, so type checkers
+# cannot see it).
+_SPEED_OF_LIGHT: units.Quantity = codata.c
+
+type ClassyParamValue = float | str | units.Quantity
+"""The type of a parameter value that can be passed to CLASS."""
+
+type TransferKind = Literal["d_b", "d_cdm", "d_m", "v_b", "v_cdm", "v_cb"]
+"""The fields for which transfer functions can be computed with CLASS."""
 
 # Pivot wavenumber for primoridial power spectrum: A_s * (k/k_pivot)^{n_s-1}
 k_pivot = 0.05 / units.Mpc
@@ -29,7 +43,7 @@ k_transfer = (
     / units.Mpc
 )
 
-classy_params_default = {
+classy_params_default: dict[str, ClassyParamValue] = {
     "h": 0.6766,
     "Omega_cdm": 0.11933 / 0.6766**2,
     "Omega_b": 0.02242 / 0.6766**2,
@@ -50,11 +64,15 @@ classy_params_default = {
 }
 
 
-def run_classy(**kwargs) -> Class:
+def run_classy(
+    *, level: str | Sequence[str] = "distortions", **kwargs: ClassyParamValue
+) -> Class:
     """Run CLASS with specified input parameters.
 
     Parameters
     ----------
+    level : str or list of str, optional
+        The last CLASS module(s) to compute. Default is "distortions" (everything).
     kwargs :
         Optional keywords to pass to CLASS.
 
@@ -79,9 +97,6 @@ def run_classy(**kwargs) -> Class:
     if ("m_ncdm" in kwargs) and ("N_ncdm" in kwargs) and kwargs["N_ncdm"] == 0:
         raise KeyError("You specified m_ncdm, but set N_ncdm=0.")
 
-    # Set level to highest order, unless it is specified in kwargs
-    level = kwargs.pop("level", "distortions")
-
     for k, value in kwargs.items():
         # "P_k_max_1/Mpc" cannot serve as a kwarg, but this is the input that CLASS expects to receive,
         # so we control this input with "P_k_max" instead
@@ -96,11 +111,8 @@ def run_classy(**kwargs) -> Class:
         params.pop("m_ncdm")
 
     # If we don't need to evaluate CMB anisotropies, we don't need these kwargs in params
-    if not (
-        params["output"].find("tCl") >= 0
-        or params["output"].find("pCl") >= 0
-        or params["output"].find("lCl") >= 0
-    ):
+    output_kinds = str(params["output"])
+    if not ("tCl" in output_kinds or "pCl" in output_kinds or "lCl" in output_kinds):
         params.pop("lensing")
         params.pop("l_max_scalars")
 
@@ -113,8 +125,8 @@ def run_classy(**kwargs) -> Class:
 
 
 def get_transfer_function(
-    classy_output: Class, kind: str = "d_m", z: float = 0
-) -> Sequence[float]:
+    classy_output: Class, kind: TransferKind = "d_m", z: float = 0
+) -> units.Quantity:
     """Get the transfer function of a field at a given redshift.
 
     Parameters
@@ -136,8 +148,9 @@ def get_transfer_function(
 
     Returns
     -------
-    transfer : np.array
-        Array of the desired transfer function at the given redshift.
+    transfer : astropy.units.Quantity
+        Array of the desired transfer function at the given redshift (evaluated at
+        ``k_transfer``). Dimensionless for densities, and in m/s for velocities.
     """
     transfers = classy_output.get_transfer(z=z)
     k_CLASS = transfers["k (h/Mpc)"] * classy_output.h() / units.Mpc
@@ -146,7 +159,7 @@ def get_transfer_function(
     elif kind in {"v_b", "v_cdm"}:
         try:
             kind_v = f"t{kind[1:]}"
-            transfer_CLASS = transfers[kind_v] / units.Mpc * constants.c / k_CLASS
+            transfer_CLASS = transfers[kind_v] / units.Mpc * _SPEED_OF_LIGHT / k_CLASS
         except KeyError:  # We might get a KeyError if we are in synchronous gauge, in this case, the CDM peculiar velocity is zero
             return 0.0 * units.Mpc / units.s
     elif kind == "v_cb":
@@ -154,11 +167,11 @@ def get_transfer_function(
             transfer_CLASS = (
                 (transfers["t_cdm"] - transfers["t_b"])
                 / units.Mpc
-                * constants.c
+                * _SPEED_OF_LIGHT
                 / k_CLASS
             )
         except KeyError:  # We might get a KeyError if we are in synchronous gauge, in this case, the CDM peculiar velocity is zero
-            transfer_CLASS = -transfers["t_b"] / units.Mpc * constants.c / k_CLASS
+            transfer_CLASS = -transfers["t_b"] / units.Mpc * _SPEED_OF_LIGHT / k_CLASS
     else:
         raise ValueError("'kind' can only be d_b, d_cdm, d_m, v_b, v_cdm or v_cb")
 
@@ -230,10 +243,10 @@ def get_transfer_function(
 
 def compute_rms(
     classy_output: Class,
-    kind: str = "d_m",
-    redshifts: Sequence[float] = 0,
-    smoothing_radius: float = 0,
-) -> Sequence[float]:
+    kind: TransferKind = "d_m",
+    redshifts: ArrayLike = 0,
+    smoothing_radius: float | units.Quantity = 0,
+) -> units.Quantity:
     """Compute the root-mean-square of a field at given redshifts.
 
     Parameters
@@ -260,10 +273,10 @@ def compute_rms(
 
     Returns
     -------
-    rms : np.array
+    rms : astropy.units.Quantity
         Array of the rms of the desired field at the given redshifts.
     """
-    if hasattr(smoothing_radius, "unit"):
+    if isinstance(smoothing_radius, units.Quantity):
         if smoothing_radius.unit.physical_type != "length":
             raise ValueError("The units of R_smooth are not of type length!")
     else:
@@ -320,13 +333,13 @@ def find_redshift_kinematic_decoupling(classy_output: Class) -> float:
         / (1.0 - (1.0 - 1.0 / _not4_) * YHe)
     )
     z_dec = interp1d(x_e_array, z_array, kind="cubic")(0.1)
-    return z_dec
+    return float(z_dec)
 
 
 class EHTransferFunction:
     """Wrapper for hmf EH transfer function with simple interface."""
 
-    def __init__(self, classy_output):
+    def __init__(self, classy_output: Class) -> None:
         """
         Initialize EH transfer function.
 
@@ -335,17 +348,18 @@ class EHTransferFunction:
         classy_output : classy.Class instance
             CLASS cosmology object
         """
-        self.h = classy_output.h()
-        self._transfer = transfer_models.EH(
-            cosmo=FlatLambdaCDM(
-                H0=100.0 * self.h,
-                Om0=classy_output.Omega_m(),
-                Ob0=classy_output.Omega_b(),
-                Tcmb0=classy_output.T_cmb(),
-            )
-        )
+        self.h: float = classy_output.h()
+        H0 = 100.0 * self.h
+        Om0: float = classy_output.Omega_m()
+        Ob0: float = classy_output.Omega_b()
+        Tcmb0: float = classy_output.T_cmb()
+        # astropy annotates the decorator of its cosmology classes as returning
+        # ``type[Cosmology]``, which hides the parameters of the FlatLambdaCDM
+        # constructor from type checkers.
+        cosmo = FlatLambdaCDM(H0=H0, Om0=Om0, Ob0=Ob0, Tcmb0=Tcmb0)  # ty: ignore[unknown-argument]
+        self._transfer = transfer_models.EH(cosmo=cosmo)
 
-    def __call__(self, k):
+    def __call__(self, k: ArrayLike | units.Quantity) -> NDArray[np.float64]:
         """
         Compute transfer function at k.
 
@@ -361,7 +375,7 @@ class EHTransferFunction:
             Transfer function values
         """
         # Handle astropy units
-        if hasattr(k, "unit"):
+        if isinstance(k, units.Quantity):
             # Convert to h/Mpc
             k_hmpc = k.to(units.Mpc**-1).value / self.h
         else:

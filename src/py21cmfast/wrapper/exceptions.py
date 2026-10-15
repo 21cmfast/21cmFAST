@@ -1,6 +1,8 @@
 """Exceptions raised when running C code."""
 
 import logging
+from collections.abc import Sequence
+from typing import Any, Protocol
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +12,7 @@ class ParameterError(RuntimeError):
 
     default_message = "21cmFAST does not support this combination of parameters."
 
-    def __init__(self, msg=None):
+    def __init__(self, msg: str | None = None) -> None:
         super().__init__(msg or self.default_message)
 
 
@@ -19,7 +21,7 @@ class FatalCError(Exception):
 
     default_message = "21cmFAST is exiting."
 
-    def __init__(self, msg=None):
+    def __init__(self, msg: str | None = None) -> None:
         super().__init__(msg or self.default_message)
 
 
@@ -93,7 +95,22 @@ MASSDEPZETAERROR = 8
 MEMORYALLOCERROR = 9
 
 
-def _process_exitcode(exitcode, fnc, args):
+class CFunction(Protocol):
+    """A function of the compiled C library that returns an integer status code.
+
+    For example ``lib.ComputeTsBox``. The cffi ``lib`` object is untyped, so this only
+    documents what the wrapper relies on: that it can be called, returns a status code
+    (one of the constants in this module) and has a ``__name__`` for error messages.
+    """
+
+    __name__: str
+
+    def __call__(self, *args: Any) -> int:
+        """Call the C function, returning its status code."""
+        ...
+
+
+def _process_exitcode(exitcode: int, fnc: CFunction, args: Sequence[Any]) -> None:
     """Determine what happens for different values of the (integer) exit code from a C function."""
     if exitcode != SUCCESS:
         logger.error(f"In function: {fnc.__name__}.  Arguments: {args}")

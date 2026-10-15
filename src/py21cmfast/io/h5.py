@@ -33,7 +33,8 @@ structure::
 
 import warnings
 from pathlib import Path
-from typing import Any
+from types import EllipsisType
+from typing import TYPE_CHECKING, Any, Literal
 
 import attrs
 import deprecation
@@ -42,13 +43,20 @@ import numpy as np
 from packaging.version import Version
 
 from .. import __version__
-from .._cfg import config
+from .._cfg import ConfigOptions, config
 from ..input_serialization import deserialize_inputs, prepare_inputs_for_serialization
 from ..wrapper import outputs as ostruct
 from ..wrapper.arrays import Array, H5Backend
 from ..wrapper.arraystate import ArrayState
 from ..wrapper.inputs import InputParameters
 from . import _compat, _compat_framework
+
+if TYPE_CHECKING:
+    # Only imported for annotations, to avoid a circular import (the drivers use
+    # this module to do their own reading and writing).
+    from ..drivers.coeval import Coeval
+    from ..drivers.global_evolution import GlobalEvolution
+    from ..drivers.lightcone import LightCone
 
 
 def hdf5_to_dict(grp: h5py.Group) -> dict[str, Any]:
@@ -73,11 +81,11 @@ class HDF5FileStructureError(ValueError):
 
 def write_output_to_hdf5(
     output: ostruct.OutputStruct,
-    path: Path,
+    path: str | Path,
     group: str | None = None,
-    mode: str = "w",
+    mode: Literal["w", "w-", "x", "a", "r+"] = "w",
     keep_in_memory: bool = True,
-):
+) -> None:
     """
     Write an output struct in standard HDF5 format.
 
@@ -85,12 +93,13 @@ def write_output_to_hdf5(
     ----------
     output
         The OutputStruct to write.
-    path : Path
+    path : str or Path
         The path to write the output struct to.
     group : str, optional
         The HDF5 group into which to write the object. By default, this is the root.
     mode : str
-        The mode in which to open the file.
+        The mode in which to open the file (any of the writeable modes of
+        :class:`h5py.File`).
     keep_in_memory
         Whether to keep all arrays in memory after writing. If False, arrays are
         loaded and written one at a time, and purged from memory once written, so
@@ -109,18 +118,18 @@ def write_output_to_hdf5(
 
     with h5py.File(path, mode) as fl:
         if group is not None:
-            group = fl[group] if group in fl else fl.create_group(group)
+            parent = fl[group] if group in fl else fl.create_group(group)
         else:
-            group = fl
+            parent = fl
 
-        group.attrs["21cmFAST-version"] = __version__
-        group = group.create_group(output._name)
+        parent.attrs["21cmFAST-version"] = __version__
+        grp = parent.create_group(output._name)
 
         if hasattr(output, "redshift"):
-            group.attrs["redshift"] = output.redshift
+            grp.attrs["redshift"] = output.redshift
 
-        write_outputs_to_group(output, group, keep_in_memory=keep_in_memory)
-        _write_inputs_to_group(output.inputs, group)
+        write_outputs_to_group(output, grp, keep_in_memory=keep_in_memory)
+        _write_inputs_to_group(output.inputs, grp)
 
 
 def _write_inputs_to_group(
@@ -190,7 +199,7 @@ def write_outputs_to_group(
     output: ostruct.OutputStruct,
     group: h5py.Group | h5py.File | str | Path,
     keep_in_memory: bool = True,
-):
+) -> None:
     """
     Write the compute fields of an OutputStruct to a particular HDF5 subgroup.
 
@@ -209,11 +218,11 @@ def write_outputs_to_group(
         Whether to keep all arrays in memory after writing. If False, arrays are
         loaded and written one at a time, and purged from memory once written.
     """
-    need_to_close = False
     if isinstance(group, str | Path):
-        file = h5py.File(group, "r")
-        group = file
-        need_to_close = True
+        # Open the file for writing (creating it if needed), and close it after.
+        with h5py.File(group, "a") as fl:
+            write_outputs_to_group(output, fl, keep_in_memory=keep_in_memory)
+        return
 
     # Go through all fields in this struct, and save
     group = group.create_group("OutputFields")
@@ -238,12 +247,9 @@ def write_outputs_to_group(
 
     group.attrs["21cmFAST-version"] = __version__
 
-    if need_to_close:
-        file.close()
-
 
 def read_output_struct(
-    path: Path, group: str = "/", struct: str | None = None, safe: bool = True
+    path: str | Path, group: str = "/", struct: str | None = None, safe: bool = True
 ) -> ostruct.OutputStruct:
     """
     Read an output struct from an HDF5 file.
@@ -253,7 +259,7 @@ def read_output_struct(
 
     Parameters
     ----------
-    path : Path
+    path : str or Path
         The path to the HDF5 file.
     group : str, optional
         A path within the HDF5 heirarchy to the top-level of the OutputStruct. This is
@@ -292,7 +298,7 @@ def _find_struct_group(group: h5py.Group, struct: str | None) -> h5py.Group:
     raise KeyError(f"struct {struct} not found in the H5DF group {group}")
 
 
-def _check_file_version(version: str | None, filename: str) -> Version:
+def _check_file_version(version: str | bytes | None, filename: str) -> Version:
     """Parse the version of 21cmFAST that wrote a file, warning if it is too new."""
     if version is None:
         raise NotImplementedError(
@@ -300,18 +306,18 @@ def _check_file_version(version: str | None, filename: str) -> Version:
             "the version of 21cmFAST that wrote it."
         )
 
-    version = _compat_framework.check_support(version)
-    if version > _compat_framework.CURRENT_VERSION:
+    parsed = _compat_framework.check_support(version)
+    if parsed > _compat_framework.CURRENT_VERSION:
         warnings.warn(
-            f"File created with a newer version {version} of 21cmFAST than this "
+            f"File created with a newer version {parsed} of 21cmFAST than this "
             f"{__version__}. Reading may break. Consider updating 21cmFAST.",
             stacklevel=3,
         )
-    return version
+    return parsed
 
 
 def _read_raw_output_struct(
-    path: Path, group: str = "/", struct: str | None = None
+    path: str | Path, group: str = "/", struct: str | None = None
 ) -> _compat_framework.RawOutputStruct:
     """Read the raw contents of an output struct from an HDF5 file.
 
@@ -321,7 +327,7 @@ def _read_raw_output_struct(
 
     Parameters
     ----------
-    path : Path
+    path : str or Path
         The path to the HDF5 file.
     group : str, optional
         A path within the HDF5 heirarchy to the top-level of the OutputStruct.
@@ -329,13 +335,13 @@ def _read_raw_output_struct(
         The kind of OutputStruct to read (if there is more than one in the group).
     """
     with h5py.File(path, "r") as fl:
-        group = _find_struct_group(fl[group], struct)
-        if "InputParameters" not in group or "OutputFields" not in group:
+        grp = _find_struct_group(fl[group], struct)
+        if "InputParameters" not in grp or "OutputFields" not in grp:
             raise HDF5FileStructureError(
-                f"The group {group.name} in {path} is not a valid output struct."
+                f"The group {grp.name} in {path} is not a valid output struct."
             )
 
-        fields = group["OutputFields"]
+        fields = grp["OutputFields"]
         version = _check_file_version(
             fields.attrs.get("21cmFAST-version", None), fl.filename
         )
@@ -343,8 +349,8 @@ def _read_raw_output_struct(
         del primitives["21cmFAST-version"]
 
         return _compat_framework.RawOutputStruct(
-            kind=group.name.split("/")[-1],
-            inputs=_read_raw_inputs(group["InputParameters"]),
+            kind=grp.name.split("/")[-1],
+            inputs=_read_raw_inputs(grp["InputParameters"]),
             arrays={
                 name: _compat_framework.ArrayOnDisk(
                     backend=H5Backend(path=fl.filename, dataset=dataset.name),
@@ -355,7 +361,7 @@ def _read_raw_output_struct(
                 if isinstance(dataset, h5py.Dataset)
             },
             primitives=primitives,
-            redshift=group.attrs.get("redshift"),
+            redshift=grp.attrs.get("redshift"),
             version=version,
         )
 
@@ -405,7 +411,7 @@ def _output_struct_from_raw(
 
     # Create the object with those attributes. Extra emissivity fields are included
     # if they are in the file, regardless of the current configuration.
-    extra = {}
+    extra: ConfigOptions = {}
     if issubclass(kls, ostruct.EmissivityFields):
         extra["EXTRA_EMISSIVITY_FIELDS"] = "halo_number" in raw.arrays
     with config.use(**extra):
@@ -465,7 +471,7 @@ def _array_from_source(
 
 
 def read_inputs(
-    group: h5py.Group | Path | h5py.File, safe: bool = True
+    group: h5py.Group | h5py.File | str | Path, safe: bool = True
 ) -> InputParameters:
     """Read the InputParameters from a cache file.
 
@@ -474,7 +480,7 @@ def read_inputs(
 
     Parameters
     ----------
-    group : h5py.Group | Path | h5py.File
+    group : h5py.Group | h5py.File | str | Path
         A file, or HDF5 Group within a file, to read the input parameters from.
     safe : bool, optional
         If in safe mode, errors will be raised if keys exist in the file that are not
@@ -506,8 +512,14 @@ def read_inputs(
     return _inputs_from_raw(raw, safe=safe, legacy=legacy)
 
 
+#: An index of a dataset (as used with numpy arrays), e.g. ``(..., slice(2, 5))``.
+_DatasetIndex = (
+    int | slice | EllipsisType | tuple[int | slice | EllipsisType | None, ...]
+)
+
+
 def _read_box_quantities(
-    group: h5py.Group, inputs_group: h5py.Group, index: Any = ...
+    group: h5py.Group, inputs_group: h5py.Group, index: _DatasetIndex = ...
 ) -> dict[str, np.ndarray]:
     """Read a group of quantities named after arrays of OutputStructs.
 
@@ -540,9 +552,14 @@ def _read_raw_inputs(group: h5py.Group) -> _compat_framework.RawInputs:
         kwargs.pop("21cmFAST-version", None), group.file.filename
     )
 
+    # node_redshifts are written as an empty dataset if they are None.
+    node_redshifts = kwargs.pop("node_redshifts", None)
+    if isinstance(node_redshifts, h5py.Empty):
+        node_redshifts = None
+
     return _compat_framework.RawInputs(
         # The node_redshifts and random_seed are treated differently.
-        node_redshifts=kwargs.pop("node_redshifts", None),
+        node_redshifts=node_redshifts,
         random_seed=kwargs.pop("random_seed", None),
         cosmo_tables=kwargs.pop("cosmo_tables", None),
         structs=kwargs,
@@ -566,6 +583,11 @@ def _inputs_from_raw(
     else:
         kwargs = deserialize_inputs(structs, safe=safe, include_cosmo_tables=True)
 
+    if raw.random_seed is None:
+        raise HDF5FileStructureError(
+            "The input parameters in the file do not contain the random seed."
+        )
+
     cosmo_tables = kwargs.pop("cosmo_tables", None)
     out = InputParameters(
         node_redshifts=raw.node_redshifts, random_seed=raw.random_seed, **kwargs
@@ -579,7 +601,9 @@ def _inputs_from_raw(
     return out
 
 
-def load_high_level_simulation(path: str | Path, safe: bool = True):
+def load_high_level_simulation(
+    path: str | Path, safe: bool = True
+) -> "Coeval | LightCone | GlobalEvolution":
     """Read a saved high-level simulation output, determining its type automatically.
 
     This is a convenience wrapper around the ``from_file`` methods of the high-level

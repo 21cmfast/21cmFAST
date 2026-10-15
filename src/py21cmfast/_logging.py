@@ -14,7 +14,7 @@ class PIDFormatter(logging.Formatter):
 
     _mylogger = logging.getLogger(__name__)  # really bad hack
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         """Set the format of the log."""
         fmt = "{asctime} | {levelname} |"
 
@@ -29,7 +29,7 @@ class PIDFormatter(logging.Formatter):
         return logging.Formatter.format(self, record)
 
 
-def configure_logging():
+def configure_logging() -> None:
     """Configure logging for the '21cmFAST' logger."""
     hdlr = logging.StreamHandler(sys.stderr)
     hdlr.setFormatter(PIDFormatter())

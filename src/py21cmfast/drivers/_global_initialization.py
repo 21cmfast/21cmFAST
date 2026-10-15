@@ -16,6 +16,7 @@ import functools
 import logging
 from collections.abc import Callable, Generator
 from contextlib import AbstractContextManager, contextmanager
+from typing import ClassVar, Protocol, Self
 
 import attrs
 
@@ -53,7 +54,10 @@ class GlobalInitializationManager:
     # The state as it was on entry to each currently-open scope, innermost last.
     _scopes: list[_BackendState] = attrs.field(factory=list, init=False, repr=False)
 
-    def __new__(cls, *args, **kwargs):
+    # Set once the singleton has been instantiated (deliberately unset until then).
+    exists: ClassVar[bool]
+
+    def __new__(cls, *args: object, **kwargs: object) -> Self:
         """Ensure this class is a singleton."""
         if not hasattr(cls, "exists"):
             out = super().__new__(cls)
@@ -64,7 +68,7 @@ class GlobalInitializationManager:
                 "GlobalInitializationManager is a singleton and has already been instantiated."
             )
 
-    def free(self):
+    def free(self) -> None:
         """Free all global state in the C backend."""
         if self.recomb_inited:
             lib.free_MHR()
@@ -94,7 +98,7 @@ class GlobalInitializationManager:
         sigma: bool = False,
         heat: bool = False,
         recomb: bool = False,
-    ):
+    ) -> None:
         """Initialize the global state for a given set of inputs."""
         # First check that we're consistent with existing inputs, if any.
         # If not, free everything and start again. This ensures that we don't have
@@ -162,7 +166,7 @@ class GlobalInitializationManager:
             recomb_inited=self.recomb_inited,
         )
 
-    def _restore(self, state: _BackendState):
+    def _restore(self, state: _BackendState) -> None:
         """Return the backend to a previously recorded state."""
         # `init` rebinds self.inputs only when the values actually differ, so identity
         # is an exact -- and much cheaper -- test for whether the inputs have changed.
@@ -181,7 +185,7 @@ class GlobalInitializationManager:
             recomb=state.recomb_inited,
         )
 
-    def _broadcast_input_struct(self):
+    def _broadcast_input_struct(self) -> None:
         """Broadcast the parameters to the C library, and construct FFTW wisdoms if necessary."""
         if not self.inputs_are_broadcast:
             lib.Broadcast_struct_global_all(
@@ -197,7 +201,7 @@ class GlobalInitializationManager:
 
             self.inputs_are_broadcast = True
 
-    def _initialize_power_spectrum(self):
+    def _initialize_power_spectrum(self) -> None:
         """Initialize power spectrum at the C backend."""
         if not self.inputs_are_broadcast:
             self._broadcast_input_struct()
@@ -206,7 +210,7 @@ class GlobalInitializationManager:
             lib.init_ps()
             self.ps_inited = True
 
-    def _initialize_sigma_tables(self):
+    def _initialize_sigma_tables(self) -> None:
         """Initialize sigma interpolation tables at the C backend."""
         if not self.ps_inited:
             self._initialize_power_spectrum()
@@ -220,7 +224,7 @@ class GlobalInitializationManager:
             lib.initialize_sigma_tables(sigma_min_mass, sigma_max_mass)
             self.sigma_inited = True
 
-    def _initialize_heat(self):
+    def _initialize_heat(self) -> None:
         """Initialize heat interpolation tables at the C backend."""
         if not self.inputs_are_broadcast:
             self._broadcast_input_struct()
@@ -229,7 +233,7 @@ class GlobalInitializationManager:
             lib.init_heat()
             self.heat_inited = True
 
-    def _initialize_recombination_rate(self):
+    def _initialize_recombination_rate(self) -> None:
         """Initialize recombination rate interpolation tables at the C backend."""
         if not self.inputs_are_broadcast:
             self._broadcast_input_struct()
@@ -244,7 +248,7 @@ class GlobalInitializationManager:
             lib.init_MHR()
             self.recomb_inited = True
 
-    def __atexit__(self):
+    def __atexit__(self) -> None:
         """Free the global state when the program exits."""
         self.free()
 
@@ -275,6 +279,12 @@ def c_state(
     )
 
 
+class _CStateDecorator(Protocol):
+    """A signature-preserving decorator, as returned by :func:`init_c_state`."""
+
+    def __call__[**P, R](self, func: Callable[P, R], /) -> Callable[P, R]: ...
+
+
 def init_c_state(
     *,
     broadcast_inputs: bool = False,
@@ -282,12 +292,21 @@ def init_c_state(
     sigma: bool = False,
     heat: bool = False,
     recomb: bool = False,
-) -> Callable:
-    """Build a decorator that sets up the backend state required by the wrapped function."""
+) -> _CStateDecorator:
+    """Build a decorator that sets up the backend state required by the wrapped function.
 
-    def _make_wrapper(func):
+    The wrapped function must be called with keyword arguments only, as the inputs for
+    which to set up the backend are found from the ``inputs`` keyword argument (or from
+    the OutputStructs passed as keyword arguments).
+    """
+
+    def _make_wrapper[**P, R](func: Callable[P, R]) -> Callable[P, R]:
+        funcname = getattr(func, "__name__", repr(func))
+
         @functools.wraps(func)
-        def wrapper(**kwargs):
+        def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+            if len(args) > 0:
+                raise TypeError(f"{funcname}() only accepts keyword arguments.")
             inputs = _OutputStructComputationInspect._get_inputs(kwargs)
             with c_state(
                 inputs,
@@ -297,7 +316,7 @@ def init_c_state(
                 heat=heat,
                 recomb=recomb,
             ):
-                return func(**kwargs)
+                return func(*args, **kwargs)
 
         return wrapper
 

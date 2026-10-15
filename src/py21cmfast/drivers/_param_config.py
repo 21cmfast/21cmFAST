@@ -7,8 +7,8 @@ import functools
 import gc
 import inspect
 import logging
-from collections.abc import Sequence
-from typing import Any, get_args
+from collections.abc import Callable, Generator, Iterable, Mapping, Sequence
+from typing import Any, cast, get_args
 
 from .._cfg import config
 from ..input_serialization import convert_inputs_to_dict
@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 
 
 @contextlib.contextmanager
-def _disable_gc_context():
+def _disable_gc_context() -> Generator[None, None, None]:
     """Context manager that disables GC for its block, restoring prior state."""
     was_enabled = gc.isenabled()
     gc.disable()
@@ -38,7 +38,7 @@ def _disable_gc_context():
 
 
 def check_redshift_consistency(
-    redshift: float, output_structs: list[OutputStruct], funcname: str = "unknown"
+    redshift: float, output_structs: Sequence[OutputStructZ], funcname: str = "unknown"
 ) -> None:
     """
     Check if all given :class:`OutputStruct` objects have the same redshift.
@@ -53,7 +53,7 @@ def check_redshift_consistency(
         The reference redshift value to compare with the redshifts of the OutputStruct
         objects.
     output_structs
-        A list of :class:`OutputStruct` objects to check for redshift consistency.
+        A list of :class:`OutputStructZ` objects to check for redshift consistency.
     funcname (str, optional)
         The name of the function or method where this check is being performed. Used
         in the error raised. Default is "unknown".
@@ -131,8 +131,8 @@ def check_output_consistency(outputs: dict[str, OutputStruct]) -> None:
 
 
 def check_consistency_of_outputs_with_inputs(
-    inputs: InputParameters, outputs: Sequence[OutputStruct]
-):
+    inputs: InputParameters, outputs: Iterable[OutputStruct]
+) -> None:
     """Check that all structs in `outputs` are compatible with the `inputs`.
 
     See Also
@@ -159,19 +159,14 @@ class _OutputStructComputationInspect:
     It is an internal toolset, not meant to be used by users directly.
     """
 
-    def __init__(self, _func: callable):
+    def __init__(self, _func: Callable[..., object]) -> None:
         self._func = _func
+        self._funcname: str = getattr(_func, "__name__", repr(_func))
         self._signature = inspect.signature(_func)
-        self._kls = self._signature.return_annotation
-
-        if not issubclass(self._signature.return_annotation, OutputStruct):
-            raise TypeError(
-                f"{_func.__name__} must return an instance of OutputStruct (and be annotated as such)."
-            )
 
     @staticmethod
     def _get_all_output_struct_inputs(
-        kwargs, recurse: bool = False
+        kwargs: Mapping[str, Any], recurse: bool = False
     ) -> dict[str, OutputStruct]:
         """Return all the arguments that are OutputStructs.
 
@@ -187,7 +182,7 @@ class _OutputStructComputationInspect:
         return d
 
     @staticmethod
-    def _get_inputs(kwargs: dict[str, Any]) -> InputParameters:
+    def _get_inputs(kwargs: Mapping[str, Any]) -> InputParameters:
         """Return the most detailed input parameters available.
 
         For a given set of parameters to a single-field function, find the "inputs"
@@ -203,14 +198,15 @@ class _OutputStructComputationInspect:
         example) and this is fine. So, here we return the inputs of the "most advanced"
         OutputStruct that is given.
         """
-        inputs = kwargs.get("inputs")
-        if inputs is not None and isinstance(inputs, InputParameters):
-            return inputs
+        given_inputs = kwargs.get("inputs")
+        if isinstance(given_inputs, InputParameters):
+            return given_inputs
 
         outputs = _OutputStructComputationInspect._get_all_output_struct_inputs(
             kwargs, recurse=True
         )
 
+        inputs: InputParameters | None = None
         minreq = _HashType(0)
         for output in outputs.values():
             if output._compat_hash.value >= minreq.value:
@@ -225,14 +221,16 @@ class _OutputStructComputationInspect:
         return inputs
 
     @staticmethod
-    def check_consistency(kwargs: dict[str, Any], outputs: dict[str, OutputStruct]):
+    def check_consistency(
+        kwargs: Mapping[str, Any], outputs: dict[str, OutputStruct]
+    ) -> None:
         """Check consistency of input parameters amongst output struct inputs."""
         check_output_consistency(outputs)
         given_inputs = kwargs.get("inputs")
         if given_inputs is not None:
             check_consistency_of_outputs_with_inputs(given_inputs, outputs.values())
 
-    def check_output_struct_types(self, outputs: dict[str, OutputStruct]):
+    def check_output_struct_types(self, outputs: Mapping[str, OutputStruct]) -> None:
         """Check given OutputStruct parameters.
 
         This method checks each OutputStruct given to the compuation function to ensure
@@ -275,15 +273,13 @@ class _OutputStructComputationInspect:
                         # So for now, just ignore it.
                         continue
 
-                    kls = kls[0]
-
-                    if not isinstance(val, kls):
+                    if not isinstance(val, kls[0]):
                         raise TypeError(
-                            f"{name} should be of type {kls.__name__}, got {type(val)}"
+                            f"{name} should be of type {kls[0].__name__}, got {type(val)}"
                         )
 
     def _get_current_redshift(
-        self, outputs: dict[str, OutputStructZ], kwargs: dict[str, Any]
+        self, outputs: Mapping[str, OutputStructZ], kwargs: Mapping[str, Any]
     ) -> float | None:
         """Get the current redshift of evolution from the given parameters.
 
@@ -305,15 +301,18 @@ class _OutputStructComputationInspect:
         return redshift
 
     def ensure_redshift_consistency(
-        self, current_redshift: float, outputs: dict[str, OutputStructZ]
-    ):
+        self, current_redshift: float | None, outputs: Mapping[str, OutputStructZ]
+    ) -> None:
         """Ensure that each OutputStruct has the same redshift, if it exists.
 
         Checks all given OutputStruct objects that have redshifts to check if their
         redshifts are the same. It does this in three groups: previous, descendant and
         current-redshift boxes.
         """
-        if not outputs:
+        if not outputs or current_redshift is None:
+            # Without a current redshift there are no current-redshift outputs (they
+            # would have defined it), and nothing to place previous/descendant
+            # redshifts relative to.
             return
 
         if current_outputs := [
@@ -322,7 +321,7 @@ class _OutputStructComputationInspect:
             if not k.startswith("previous_") and not k.startswith("descendant_")
         ]:
             check_redshift_consistency(
-                current_redshift, current_outputs, funcname=self._func.__name__
+                current_redshift, current_outputs, funcname=self._funcname
             )
 
         inputs = next(iter(outputs.values())).inputs
@@ -330,29 +329,63 @@ class _OutputStructComputationInspect:
             previous_outputs = [
                 v for k, v in outputs.items() if k.startswith("previous_")
             ]
-            previous_z = [z for z in inputs.node_redshifts if z > current_redshift]
-            if previous_outputs and previous_z:
-                previous_z = previous_z[-1]
+            previous_zs = [z for z in inputs.node_redshifts if z > current_redshift]
+            if previous_outputs and previous_zs:
                 check_redshift_consistency(
-                    previous_z,
+                    previous_zs[-1],
                     previous_outputs,
-                    funcname=f"{self._func.__name__} (previous z)",
+                    funcname=f"{self._funcname} (previous z)",
                 )
 
             descendant_outputs = [
                 v for k, v in outputs.items() if k.startswith("descendant_")
             ]
-            descendant_z = [z for z in inputs.node_redshifts if z < current_redshift]
+            descendant_zs = [z for z in inputs.node_redshifts if z < current_redshift]
 
-            if descendant_outputs and descendant_z:
-                descendant_z = descendant_z[0]
+            if descendant_outputs and descendant_zs:
                 check_redshift_consistency(
-                    descendant_z,
+                    descendant_zs[0],
                     descendant_outputs,
-                    funcname=f"{self._func.__name__} (descendant z)",
+                    funcname=f"{self._funcname} (descendant z)",
                 )
 
-    def check_backend_state(self, inputs: InputParameters):
+
+class single_field_func[**P, R: OutputStruct](_OutputStructComputationInspect):  # noqa: N801
+    """A decorator for functions that compute single fields.
+
+    The decorated function keeps its signature. Before calling it, the decorator fills
+    in ``inputs`` (if the function accepts it) with the most advanced
+    :class:`InputParameters` available from the arguments, checks the consistency of
+    the given OutputStructs, and handles the cache-control keyword arguments
+    ``cache``, ``regenerate`` and ``write``: these are consumed here and never reach
+    the body of the decorated function, which declares them only so that they are
+    part of its signature.
+
+    The decorated function must take keyword arguments only.
+
+    This decorator is meant for internal use only.
+    """
+
+    def __init__(self, _func: Callable[P, R]) -> None:
+        super().__init__(_func)
+
+        kls = self._signature.return_annotation
+        if not (isinstance(kls, type) and issubclass(kls, OutputStruct)):
+            raise TypeError(
+                f"{self._funcname} must return an instance of OutputStruct (and be annotated as such)."
+            )
+        # The return annotation of a `Callable[P, R]` is the class R itself.
+        self._kls = cast("type[R]", kls)
+
+        # The decorator rebuilds the keyword arguments before calling the function
+        # (consuming the cache-control ones and filling in `inputs`), so the call is
+        # made with a plain dict rather than with `P.kwargs`.
+        self._impl: Callable[..., R] = _func
+
+        # Explicitly update the wrapper instance with the original function's metadata
+        functools.update_wrapper(self, _func)
+
+    def check_backend_state(self, inputs: InputParameters) -> None:
         """Check the backend state of the computation function.
 
         Currently only holds the check for whether the photon conservation is
@@ -377,8 +410,8 @@ class _OutputStructComputationInspect:
         inputs: InputParameters,
         current_redshift: float | None,
         cache: OutputCache | None,
-        regen: bool = True,
-    ) -> OutputStruct | None:
+        regen: bool | None = True,
+    ) -> R | None:
         """Handle potential reading from cache.
 
         Checks the given input parameters for cache-related keywords and manages reading
@@ -397,7 +430,11 @@ class _OutputStructComputationInspect:
         if path is not None:
             with contextlib.suppress(OSError):
                 this = h5.read_output_struct(path, safe=config["safe_read"])
-                if hasattr(this, "redshift"):
+                # The cache found this file for an object of our class, so this check
+                # only fails for a corrupted cache, in which case we recompute.
+                if not isinstance(this, self._kls):
+                    return None
+                if isinstance(this, OutputStructZ):
                     logger.info(
                         f"Existing {obj._name} found at z={this.redshift} and read in (seed={this.random_seed})."
                     )
@@ -406,49 +443,40 @@ class _OutputStructComputationInspect:
                         f"Existing {obj._name} found and read in (seed={this.random_seed})."
                     )
                 return this
+        return None
 
     def _handle_write_to_cache(
-        self, cache: OutputCache | None, write, obj: OutputStruct
-    ):
+        self, cache: OutputCache | None, write: bool, obj: OutputStruct
+    ) -> None:
         """Handle writing a box to cache."""
-        if write and not cache:
-            raise ValueError("Cannot write to cache without a cache object.")
-
         if write:
+            if cache is None:
+                raise ValueError("Cannot write to cache without a cache object.")
             cache.write(obj)
 
-
-class single_field_func(_OutputStructComputationInspect):  # noqa: N801
-    """A decorator for functions that compute single fields.
-
-    This decorator is meant for internal use only.
-    """
-
-    def __init__(self, _func: callable):
-        super().__init__(_func)
-
-        # Explicitly update the wrapper instance with the original function's metadata
-        functools.update_wrapper(self, _func)
-
-    def __call__(self, **kwargs) -> OutputStruct:
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> R:
         """Call the single field function."""
-        inputs = self._get_inputs(kwargs)
-        outputs = self._get_all_output_struct_inputs(kwargs)
-        outputs_rec = self._get_all_output_struct_inputs(kwargs, recurse=True)
+        if args:
+            raise TypeError(f"{self._funcname}() only accepts keyword arguments.")
+
+        kw: dict[str, Any] = dict(kwargs)
+        inputs = self._get_inputs(kw)
+        outputs = self._get_all_output_struct_inputs(kw)
+        outputs_rec = self._get_all_output_struct_inputs(kw, recurse=True)
         outputsz = {k: v for k, v in outputs.items() if isinstance(v, OutputStructZ)}
 
         # Get current redshift (could be None)
-        current_redshift = self._get_current_redshift(outputsz, kwargs)
+        current_redshift = self._get_current_redshift(outputsz, kw)
 
-        self.check_consistency(kwargs, outputs_rec)
+        self.check_consistency(kw, outputs_rec)
         self.check_output_struct_types(outputs)
         # The following checks both current and previous redshifts, if applicable
         self.ensure_redshift_consistency(current_redshift, outputsz)
         self.check_backend_state(inputs)
 
-        cache = kwargs.pop("cache", None)
-        regen = kwargs.pop("regenerate", cache is None)
-        write = kwargs.pop("write", False)
+        cache: OutputCache | None = kw.pop("cache", None)
+        regen: bool | None = kw.pop("regenerate", cache is None)
+        write: bool = kw.pop("write", False)
 
         out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)
 
@@ -457,38 +485,47 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
             # to the most advanced ones. This is the explicitly-passed inputs if
             # they exist, but otherwise the inputs derived from the dependency
             # that is the most advanced in the computation.
-            kwargs["inputs"] = inputs
+            kw["inputs"] = inputs
 
         if out is None:
-            out = self._func(**kwargs)
+            out = self._impl(**kw)
             self._handle_write_to_cache(cache, write, out)
 
         return out
 
 
-class high_level_func(_OutputStructComputationInspect):  # noqa: N801
-    """A decorator for high-level functions like ``run_coeval``."""
+class high_level_func[**P, Y](_OutputStructComputationInspect):  # noqa: N801
+    """A decorator for high-level generator functions like ``generate_coeval``.
 
-    def __init__(self, _func: callable):
-        self._func = _func
-        self._signature = inspect.signature(_func)
-        self._kls = self._signature.return_annotation
+    The decorated function keeps its signature (it must take keyword arguments only).
+    Before it runs, ``inputs`` (if the function accepts it) is filled in with the most
+    advanced :class:`InputParameters` available from the arguments.
+    """
+
+    def __init__(self, _func: Callable[P, Iterable[Y]]) -> None:
+        super().__init__(_func)
+        # As for `single_field_func`, the call is made with rebuilt keyword arguments.
+        self._impl: Callable[..., Iterable[Y]] = _func
         functools.update_wrapper(self, _func)
 
-    def __call__(self, **kwargs):
+    def __call__(self, *args: P.args, **kwargs: P.kwargs) -> Generator[Y, None, None]:
         """Call the function."""
-        outputs = self._get_all_output_struct_inputs(kwargs, recurse=True)
-        inputs = self._get_inputs(kwargs)
+        if args:
+            raise TypeError(f"{self._funcname}() only accepts keyword arguments.")
+
+        kw: dict[str, Any] = dict(kwargs)
+        outputs = self._get_all_output_struct_inputs(kw, recurse=True)
+        inputs = self._get_inputs(kw)
         if "inputs" in self._signature.parameters:
             # Here we set the inputs (if accepted by the function signature)
             # to the most advanced ones. This is the explicitly-passed inputs if
             # they exist, but otherwise the inputs derived from the dependency
             # that is the most advanced in the computation.
-            kwargs["inputs"] = inputs
+            kw["inputs"] = inputs
 
-        self.check_consistency(kwargs, outputs)
+        self.check_consistency(kw, outputs)
         # Disable the garbage collector: when enabled, it interferes with glibc's
         # memory recycling, causing memory fragmentation. Disabling it allows glibc
         # to recycle memory more efficiently.
         with _disable_gc_context():
-            yield from self._func(**kwargs)
+            yield from self._impl(**kw)

@@ -3,13 +3,14 @@
 import os
 import sys
 from pathlib import Path
+from typing import Literal
 
 from cffi import FFI
 
 
 # Get the compiler. We support gcc and clang.
 # The compiler is determnined from the environment and uses sysconfig as a fallback.
-def detect_default_compiler():
+def detect_default_compiler() -> Literal["gcc", "clang", "unknown"]:
     """Detect the default compiler using its "--version" command.
 
     CFFI gives us no control over which compiler is used, so we have to

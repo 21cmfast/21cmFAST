@@ -20,7 +20,7 @@ development versions that may have only some of the changes of a given release.
 from __future__ import annotations
 
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any, Literal
 
 import attrs
@@ -62,14 +62,14 @@ class UnconvertibleError(ValueError):
     """Error raised when an object in an old file has no equivalent in this version."""
 
 
-def parse_version(version: str | Version | None) -> Version:
+def parse_version(version: str | bytes | Version | None) -> Version:
     """Parse a 21cmFAST version string, as written into its output files.
 
     Parameters
     ----------
     version
-        The version string. Development versions (e.g. ``4.3.dev12+g1234abc``) are
-        supported.
+        The version string (as a str, or bytes as read from some HDF5 files).
+        Development versions (e.g. ``4.3.dev12+g1234abc``) are supported.
 
     Raises
     ------
@@ -117,11 +117,14 @@ def oldest_supported_version(current: str | Version | None = None) -> Version:
         The version of 21cmFAST reading the files. By default, this version.
     """
     current = CURRENT_VERSION if current is None else parse_version(current)
-    return max(FIRST_FORMAT_VERSION, Version(f"{current.major - 1}.0.0.dev0"))
+    # For major version 0 (e.g. an install from a git checkout without tags), there
+    # is no previous major version.
+    previous_major = max(current.major - 1, 0)
+    return max(FIRST_FORMAT_VERSION, Version(f"{previous_major}.0.0.dev0"))
 
 
 def support_status(
-    version: str | Version, current: str | Version | None = None
+    version: str | bytes | Version, current: str | Version | None = None
 ) -> SupportStatus:
     """Return whether files written by a version of 21cmFAST are supported.
 
@@ -151,7 +154,7 @@ def support_status(
     return "supported"
 
 
-def check_support(version: str | Version) -> Version:
+def check_support(version: str | bytes | Version) -> Version:
     """Check that files written by a version of 21cmFAST can be read.
 
     Raises
@@ -217,7 +220,7 @@ class RawInputs:
 
     structs: dict[str, dict[str, Any]]
     random_seed: int | None = None
-    node_redshifts: Any = None
+    node_redshifts: Sequence[float] | np.ndarray | None = None
     cosmo_tables: dict[str, Any] | None = None
     version: Version = attrs.field(default=CURRENT_VERSION, converter=parse_version)
 
@@ -268,7 +271,7 @@ class RawOutputStruct:
     version: Version = attrs.field(default=CURRENT_VERSION, converter=parse_version)
 
 
-def warn(msg: str):
+def warn(msg: str) -> None:
     """Emit a :class:`CompatibilityWarning`."""
     warnings.warn(msg, CompatibilityWarning, stacklevel=4)
 
@@ -575,6 +578,15 @@ class AddField(FormatChange):
             struct.primitives[self.name] = val
 
 
+def _to_version_after_from_version(
+    inst: FormatRelease, att: attrs.Attribute[Version], val: Version
+) -> None:
+    if val <= inst.from_version:
+        raise ValueError(
+            f"to_version ({val}) must be after from_version ({inst.from_version})"
+        )
+
+
 @attrs.define(frozen=True)
 class FormatRelease:
     """The changes to the file format made in a release of 21cmFAST.
@@ -593,15 +605,10 @@ class FormatRelease:
     """
 
     from_version: Version = attrs.field(converter=Version)
-    to_version: Version = attrs.field(converter=Version)
+    to_version: Version = attrs.field(
+        converter=Version, validator=_to_version_after_from_version
+    )
     changes: tuple[FormatChange, ...] = attrs.field(converter=tuple)
-
-    @to_version.validator
-    def _to_version_vld(self, att, val):
-        if val <= self.from_version:
-            raise ValueError(
-                f"to_version ({val}) must be after from_version ({self.from_version})"
-            )
 
     @property
     def module_name(self) -> str:

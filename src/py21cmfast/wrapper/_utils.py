@@ -1,19 +1,21 @@
 """Utilities that help with wrapping various C structures."""
 
 import logging
+from collections.abc import Sequence
+from typing import Any
 
 import numpy as np
 from cffi import FFI
 
 from ..c_21cmfast import ffi, lib
-from .exceptions import _process_exitcode
+from .exceptions import CFunction, _process_exitcode
 
 _ffi = FFI()
 
 logger = logging.getLogger(__name__)
 
 
-ctype2dtype = {}
+ctype2dtype: dict[str, np.dtype] = {}
 
 # Integer types
 for prefix in ("int", "uint"):
@@ -28,8 +30,12 @@ ctype2dtype["double"] = np.dtype("f8")
 ctype2dtype["int"] = np.dtype("i4")
 
 
-def asarray(ptr, shape):
-    """Get the canonical C type of the elements of ptr as a string."""
+def asarray(ptr: Any, shape: Sequence[int]) -> np.ndarray:
+    """Return a numpy array that views the memory of a C array, without copying.
+
+    ``ptr`` is a cffi pointer (``cdata``) to the first element of the C array, whose
+    element type determines the dtype of the returned array.
+    """
     ctype = _ffi.getctype(_ffi.typeof(ptr).item).split("*")[0].strip()
 
     if ctype not in ctype2dtype:
@@ -43,11 +49,14 @@ def asarray(ptr, shape):
     return array.reshape(shape)
 
 
-def _call_c_simple(fnc, *args):
+def _call_c_simple(fnc: CFunction, *args: Any) -> Any:
     """Call a simple C function that just returns an object.
 
     Any such function should be defined such that the last argument is an int pointer generating
     the status.
+
+    The return value is whatever C type that output pointer points to (converted to
+    the equivalent python type by cffi), so it cannot be typed more precisely here.
     """
     # Parse the function to get the type of the last argument
     cdata = str(ffi.addressof(lib, fnc.__name__))
@@ -58,7 +67,7 @@ def _call_c_simple(fnc, *args):
     return result[0]
 
 
-def camel_to_snake(word: str, depublicize: bool = False):
+def camel_to_snake(word: str, depublicize: bool = False) -> str:
     """Convert came case to snake case."""
     word = "".join(f"_{i.lower()}" if i.isupper() else i for i in word)
 
@@ -68,7 +77,7 @@ def camel_to_snake(word: str, depublicize: bool = False):
     return word
 
 
-def snake_to_camel(word: str, publicize: bool = True):
+def snake_to_camel(word: str, publicize: bool = True) -> str:
     """Convert snake case to camel case."""
     if "_" not in word:
         return word
@@ -78,9 +87,9 @@ def snake_to_camel(word: str, publicize: bool = True):
     return "".join(x.capitalize() or "_" for x in word.split("_"))
 
 
-def get_all_subclasses(cls):
+def get_all_subclasses[T](cls: type[T]) -> list[type[T]]:
     """Get a list of all subclasses of a given class, recursively."""
-    all_subclasses = []
+    all_subclasses: list[type[T]] = []
 
     for subclass in cls.__subclasses__():
         all_subclasses.append(subclass)
@@ -89,7 +98,7 @@ def get_all_subclasses(cls):
     return all_subclasses
 
 
-def float_to_string_precision(x, n):
+def float_to_string_precision(x: float, n: int) -> str:
     """Print out a standard float number at a given number of significant digits.
 
     Code here: https://stackoverflow.com/a/48812729

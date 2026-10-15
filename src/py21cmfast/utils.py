@@ -1,5 +1,6 @@
 """Utilities for interacting with 21cmFAST data structures."""
 
+from collections.abc import Callable, Mapping
 from operator import eq
 from typing import Any
 
@@ -10,8 +11,10 @@ from .wrapper.inputs import InputParameters
 
 
 def recursive_difference(
-    dct1: dict | Any, dct2: dict | Any, cmprules: dict[type, callable] | None = None
-) -> dict:
+    dct1: Mapping[Any, Any],
+    dct2: Mapping[Any, Any],
+    cmprules: Mapping[type, Callable[[Any, Any], bool]] | None = None,
+) -> dict[Any, Any]:
     """Return the recursive difference between two dicts.
 
     This is an *asymmetric* difference, i.e. we only end with values from dct1, and
@@ -22,6 +25,10 @@ def recursive_difference(
     treated as primitive types to be compared. If you need to recurse into custom
     structures, first "unstructure" your objects into dictionaries (e.g. with
     ``attrs.asdict(obj)``) then use this function.
+
+    ``cmprules`` maps the type of a value in `dct1` to a function that compares it to
+    the corresponding value in `dct2` (returning True if they are equal). By default,
+    values are compared with ``==``.
     """
     cmprules = cmprules or {}
 
@@ -42,7 +49,9 @@ def recursive_difference(
     return out
 
 
-def show_references(inputs: InputParameters, lightcone=True, print_to_stdout=True):
+def show_references(
+    inputs: InputParameters, lightcone: bool = True, print_to_stdout: bool = True
+) -> str:
     """Print out all the relevant references for a simulation based on input parameters."""
     ref_string = (
         "The main reference for 21cmFAST v3+:\n"

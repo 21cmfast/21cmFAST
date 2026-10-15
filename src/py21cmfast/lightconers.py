@@ -4,15 +4,16 @@ from __future__ import annotations
 
 import warnings
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from functools import cached_property, partial
+from typing import TYPE_CHECKING, Any, Literal, Self, TypedDict
 
 import attrs
 import deprecation
 import numpy as np
 from astropy import units
 from astropy.cosmology import FLRW, z_at_value
-from astropy.units import Mpc, Quantity, pixel, pixel_scale
+from astropy.units import Mpc, pixel, pixel_scale
 from classy import Class
 from cosmotile import (
     make_lightcone_slice_interpolator,
@@ -28,8 +29,47 @@ from .wrapper.inputs import (
     SimulationOptions,
 )
 
-_LIGHTCONERS = {}
-_LENGTH = "length"
+if TYPE_CHECKING:
+    from .drivers.coeval import Coeval
+
+_LIGHTCONERS: dict[str, type[Lightconer]] = {}
+
+type InterpKind = Literal["mean", "mean_max"]
+"""The kinds of redshift interpolation supported by :meth:`Lightconer.redshift_interpolation`."""
+
+type LightconeSlice = tuple[str, int, np.ndarray] | tuple[None, np.ndarray, None]
+"""A slice yielded by :meth:`Lightconer.make_lightcone_slices`.
+
+Either ``(quantity, lightcone_index, slice)``, or ``(None, empty_index_array, None)``
+when no lightcone slices lie between the two coeval boxes.
+"""
+
+
+def _lc_distances_default(self: Lightconer) -> units.Quantity:
+    if self._lc_redshifts is None:
+        raise ValueError("Either lc_distances or lc_redshifts must be provided")
+    return self.cosmo.comoving_distance(self._lc_redshifts)
+
+
+def _lc_distances_validator(
+    inst: Lightconer, attribute: attrs.Attribute, value: units.Quantity
+) -> None:
+    if np.any(value < 0):
+        raise ValueError("lc_distances must be non-negative")
+
+
+def _lc_redshifts_validator(
+    inst: Lightconer, attribute: attrs.Attribute, value: np.ndarray | None
+) -> None:
+    if value is None:
+        return
+
+    if np.any(value < 0):
+        raise ValueError("lc_redshifts must be non-negative")
+
+
+def _interp_kinds_default() -> dict[str, InterpKind]:
+    return {"z_reion": "mean_max"}
 
 
 @attrs.define(kw_only=True, slots=False)
@@ -49,43 +89,37 @@ class Lightconer(ABC):
     quantities
         An iteratable of quantities to include in the lightcone slices. These should
         be attributes of the :class:~`outputs.Coeval` class that are arrays of
-        shape ``HII_DIM^3``. A *special* value here is `velocity_los`, which  Defaults to ``("brightness_temp",)``.
+        shape ``HII_DIM^3``. A *special* value here is ``los_velocity``, which gives
+        the line-of-sight velocity. Defaults to ``("brightness_temp",)``.
+    interp_kinds
+        The kind of redshift interpolation (see :meth:`redshift_interpolation`) to use
+        for each quantity. Quantities not in this dict use ``"mean"``.
     """
 
-    cosmo: FLRW = attrs.field(
+    # FLRW is wrapped by astropy's ``dataclass_decorator`` (annotated as returning
+    # ``type[Cosmology]``), so ty treats it as a variable rather than a class.
+    cosmo: FLRW = attrs.field(  # ty: ignore[invalid-type-form]
         default=Planck18, validator=attrs.validators.instance_of(FLRW)
     )
 
-    _lc_redshifts: np.ndarray = attrs.field(default=None, eq=False)
-    lc_distances: Quantity[_LENGTH] = attrs.field(
-        eq=attrs.cmp_using(eq=partial(np.allclose, rtol=1e-5, atol=0))
+    _lc_redshifts: np.ndarray | None = attrs.field(
+        default=None,
+        eq=False,
+        alias="lc_redshifts",
+        validator=_lc_redshifts_validator,
+    )
+    lc_distances: units.Quantity = attrs.field(
+        default=attrs.Factory(_lc_distances_default, takes_self=True),
+        eq=attrs.cmp_using(eq=partial(np.allclose, rtol=1e-5, atol=0)),
+        validator=_lc_distances_validator,
     )
 
-    quantities: tuple[str] = attrs.field(
+    quantities: tuple[str, ...] = attrs.field(
         default=("brightness_temp",),
         converter=tuple,
         validator=attrs.validators.deep_iterable(attrs.validators.instance_of(str)),
     )
-    interp_kinds: dict[str, str] = attrs.field()
-
-    @lc_distances.default
-    def _lcd_default(self):
-        if self._lc_redshifts is None:
-            raise ValueError("Either lc_distances or lc_redshifts must be provided")
-        return self.cosmo.comoving_distance(self._lc_redshifts)
-
-    @lc_distances.validator
-    def _lcd_vld(self, attribute, value):
-        if np.any(value < 0):
-            raise ValueError("lc_distances must be non-negative")
-
-    @_lc_redshifts.validator
-    def _lcz_vld(self, attribute, value):
-        if value is None:
-            return
-
-        if np.any(value < 0):
-            raise ValueError("lc_redshifts must be non-negative")
+    interp_kinds: dict[str, InterpKind] = attrs.field(factory=_interp_kinds_default)
 
     @cached_property
     def lc_redshifts(self) -> np.ndarray:
@@ -101,15 +135,11 @@ class Lightconer(ABC):
         dgrid = self.cosmo.comoving_distance(zgrid)
         return np.interp(d.value, dgrid.value, zgrid)
 
-    def get_lc_distances_in_pixels(self, resolution: Quantity[_LENGTH]):
-        """Get the lightcone distances in pixels, given a resolution."""
+    def get_lc_distances_in_pixels(self, resolution: units.Quantity) -> units.Quantity:
+        """Get the lightcone distances in pixels, given a resolution (a length)."""
         return self.lc_distances.to(pixel, pixel_scale(resolution / pixel))
 
-    @interp_kinds.default
-    def _interp_kinds_def(self):
-        return {"z_reion": "mean_max"}
-
-    def get_shape(self, simulation_options: SimulationOptions) -> tuple[int, int, int]:
+    def get_shape(self, simulation_options: SimulationOptions) -> tuple[int, ...]:
         """Get the shape of the lightcone slices."""
         raise NotImplementedError
 
@@ -118,11 +148,15 @@ class Lightconer(ABC):
         cls,
         min_redshift: float,
         max_redshift: float,
-        resolution: Quantity[_LENGTH],
-        cosmo=Planck18,
-        **kw,
-    ):
-        """Construct a Lightconer with regular comoving dist. slices between two z's."""
+        resolution: units.Quantity,
+        cosmo: FLRW = Planck18,  # ty: ignore[invalid-type-form]  # see Lightconer.cosmo
+        **kw: Any,
+    ) -> Self:
+        """Construct a Lightconer with regular comoving dist. slices between two z's.
+
+        ``resolution`` is the comoving distance between slices (a length). All other
+        keyword arguments are passed through to the constructor.
+        """
         d_at_redshift = cosmo.comoving_distance(min_redshift).to_value(Mpc)
         dmax = cosmo.comoving_distance(max_redshift).to_value(Mpc)
         res = resolution.to_value(Mpc)
@@ -136,10 +170,10 @@ class Lightconer(ABC):
         cls,
         min_redshift: float,
         max_redshift: float,
-        resolution: Quantity[_LENGTH],
-        cosmo=Planck18,
-        **kw,
-    ):
+        resolution: units.Quantity,
+        cosmo: FLRW = Planck18,  # ty: ignore[invalid-type-form]  # see Lightconer.cosmo
+        **kw: Any,
+    ) -> Self:
         """
         Create a lightconer with equally spaced slices in comoving distance.
 
@@ -169,9 +203,9 @@ class Lightconer(ABC):
 
     def make_lightcone_slices(
         self,
-        c1: Coeval,  # noqa: F821
-        c2: Coeval,  # noqa: F821
-    ) -> tuple[dict[str, np.ndarray], np.ndarray]:
+        c1: Coeval,
+        c2: Coeval,
+    ) -> Iterator[LightconeSlice]:
         """
         Make lightcone slices out of two coeval objects.
 
@@ -180,15 +214,17 @@ class Lightconer(ABC):
         c1, c2 : Coeval
             The coeval boxes to interpolate.
 
-        Returns
-        -------
+        Yields
+        ------
         quantity
-            The field names of the quantities required by the lightcone.
+            The field name of the quantity of this slice (or None if there are no
+            lightcone slices within the redshift range spanned by ``c1`` and ``c2``).
         lcidx
-            The indices of the lightcone to which these slices belong.
-        scalar_field_slices
-            The scalar fields evaluated on the "lightcone" slices that exist within
-            the redshift range spanned by ``c1`` and ``c2``.
+            The index of the lightcone to which this slice belongs (or an empty
+            index array if there are no slices).
+        slice
+            The field evaluated on the "lightcone" slice (or None if there are no
+            slices).
         """
         if c1.simulation_options != c2.simulation_options:
             raise ValueError("c1 and c2 must have the same user parameters")
@@ -234,80 +270,84 @@ class Lightconer(ABC):
                     lcd, box1, box2, dc1, dc2, kind=self.interp_kinds.get(q, "mean")
                 )
 
-                yield q, idx, self.construct_lightcone(lcd, box)
+                yield q, int(idx), self.construct_lightcone(lcd, box)
 
-                if "los_velocity" in self.quantities and q == self.quantities[0]:
-                    # While doing the first quantity, also add in the los velocity, if desired.
-                    # Doing it now means we can keep whatever cached interpolation setup
-                    # is used to do construct_lightcone().
-                    if isinstance(self, AngularLightconer):
-                        boxes1 = [
-                            self.coeval_subselect(
-                                lcd,
-                                getattr(c1, f"velocity_{q}"),
-                                c1.simulation_options.cell_size,
-                            )
-                            for q in "xyz"
-                        ]
-                        boxes2 = [
-                            self.coeval_subselect(
-                                lcd,
-                                getattr(c2, f"velocity_{q}"),
-                                c2.simulation_options.cell_size,
-                            )
-                            for q in "xyz"
-                        ]
+            if "los_velocity" in lc_quantities:
+                # After doing the scalar quantities at this slice, also add in the los
+                # velocity, if desired. Doing it at the same slice means we can keep
+                # whatever cached interpolation setup is used to do
+                # construct_lightcone().
+                if isinstance(self, AngularLightconer):
+                    boxes1 = [
+                        self.coeval_subselect(
+                            lcd,
+                            getattr(c1, f"velocity_{ax}"),
+                            c1.simulation_options.cell_size,
+                        )
+                        for ax in "xyz"
+                    ]
+                    boxes2 = [
+                        self.coeval_subselect(
+                            lcd,
+                            getattr(c2, f"velocity_{ax}"),
+                            c2.simulation_options.cell_size,
+                        )
+                        for ax in "xyz"
+                    ]
 
-                        interpolated_boxes = [
-                            self.redshift_interpolation(
-                                lcd,
-                                box1,
-                                box2,
-                                dc1,
-                                dc2,
-                                kind=self.interp_kinds.get("velocity", "mean"),
-                            )
-                            for (box1, box2) in zip(boxes1, boxes2, strict=True)
-                        ]
-                    else:
-                        # TODO: get the correct component according to self.line_of_sight_axis
-                        box1 = self.coeval_subselect(
-                            lcd, c1.velocity_z, c1.simulation_options.cell_size
-                        )
-                        box2 = self.coeval_subselect(
-                            lcd, c2.velocity_z, c2.simulation_options.cell_size
-                        )
-                        interpolated_boxes = self.redshift_interpolation(
+                    interpolated_boxes = [
+                        self.redshift_interpolation(
                             lcd,
                             box1,
                             box2,
                             dc1,
                             dc2,
-                            kind=self.interp_kinds.get("velocity_z", "mean"),
+                            kind=self.interp_kinds.get("velocity", "mean"),
                         )
-                    yield (
-                        "los_velocity",
-                        idx,
-                        self.construct_los_velocity_lightcone(
-                            lcd,
-                            interpolated_boxes,
-                        ),
+                        for (box1, box2) in zip(boxes1, boxes2, strict=True)
+                    ]
+                    los_velocity = self.construct_los_velocity_lightcone(
+                        lcd, interpolated_boxes
                     )
+                else:
+                    # TODO: get the correct component according to self.line_of_sight_axis
+                    box1 = self.coeval_subselect(
+                        lcd, c1.velocity_z, c1.simulation_options.cell_size
+                    )
+                    box2 = self.coeval_subselect(
+                        lcd, c2.velocity_z, c2.simulation_options.cell_size
+                    )
+                    interpolated_box = self.redshift_interpolation(
+                        lcd,
+                        box1,
+                        box2,
+                        dc1,
+                        dc2,
+                        kind=self.interp_kinds.get("velocity_z", "mean"),
+                    )
+                    los_velocity = self.construct_los_velocity_lightcone(
+                        lcd, interpolated_box
+                    )
+                yield "los_velocity", int(idx), los_velocity
 
     def coeval_subselect(
-        self, lcd: float, coeval: np.ndarray, coeval_res: Quantity[_LENGTH]
+        self, lcd: units.Quantity, coeval: np.ndarray, coeval_res: units.Quantity
     ) -> np.ndarray:
-        """Sub-Select the coeval box required for interpolation at one slice."""
+        """Sub-Select the coeval box required for interpolation at one slice.
+
+        ``lcd`` is the comoving distance of the slice (in pixels), and ``coeval_res``
+        is the cell size of the coeval box (a length).
+        """
         return coeval
 
     def redshift_interpolation(
         self,
-        dc: float,
+        dc: float | units.Quantity,
         coeval_a: np.ndarray,
         coeval_b: np.ndarray,
-        dc_a: float,
-        dc_b: float,
-        kind: str = "mean",
+        dc_a: float | units.Quantity,
+        dc_b: float | units.Quantity,
+        kind: InterpKind = "mean",
     ) -> np.ndarray:
         """Perform redshift interpolation to a new box given two bracketing coevals."""
         if coeval_a.shape != coeval_b.shape:
@@ -328,18 +368,38 @@ class Lightconer(ABC):
     @abstractmethod
     def construct_lightcone(
         self,
-        lc_distances: np.ndarray,
-        boxes: Sequence[np.ndarray],
+        lcd: units.Quantity,
+        box: np.ndarray,
+        /,
     ) -> np.ndarray:
-        """Abstract method for constructing the lightcone slices."""
+        """Construct the lightcone slice at distance ``lcd`` from an interpolated box.
+
+        Parameters
+        ----------
+        lcd
+            The comoving distance of the slice, in pixels.
+        box
+            The coeval box, interpolated to the redshift of the slice.
+        """
 
     @abstractmethod
     def construct_los_velocity_lightcone(
         self,
-        lc_distances: np.ndarray,
-        velocities: tuple[np.ndarray, np.ndarray, np.ndarray],
+        lcd: units.Quantity,
+        velocities: np.ndarray,
+        /,
     ) -> np.ndarray:
-        """Abstract method for constructing the LoS velocity lightcone slices."""
+        """Construct the LoS velocity lightcone slice at distance ``lcd``.
+
+        Parameters
+        ----------
+        lcd
+            The comoving distance of the slice, in pixels.
+        velocities
+            The velocity box(es), interpolated to the redshift of the slice.
+            Subclasses may accept other forms of the velocity field (e.g. the
+            :class:`AngularLightconer` accepts the three Cartesian components).
+        """
 
     def validate_options(
         self,
@@ -347,7 +407,7 @@ class Lightconer(ABC):
         include_dvdr_in_tau21: bool,
         apply_rsds: bool,
         classy_output: Class | None = None,
-    ) -> Lightconer:
+    ) -> Self:
         """Validate 21cmFAST options."""
         if len(inputs.node_redshifts) == 0:
             raise ValueError(
@@ -487,25 +547,31 @@ class Lightconer(ABC):
         return super().__init_subclass__()
 
 
+def _index_offset_default(self: RectilinearLightconer) -> int:
+    # While it probably makes more sense to use zero as the default offset,
+    # we use n_lightcone to maintain default backwards compatibility.
+    return len(self.lc_distances)
+
+
 @attrs.define(kw_only=True, slots=False)
 class RectilinearLightconer(Lightconer):
     """The class rectilinear lightconer."""
 
-    index_offset: int = attrs.field()
+    index_offset: int = attrs.field(
+        default=attrs.Factory(_index_offset_default, takes_self=True)
+    )
     line_of_sight_axis: int = attrs.field(
         default=-1, converter=int, validator=attrs.validators.in_([-1, 0, 1, 2])
     )
 
-    @index_offset.default
-    def _index_offset_default(self) -> int:
-        # While it probably makes more sense to use zero as the default offset,
-        # we use n_lightcone to maintain default backwards compatibility.
-        return len(self.lc_distances)
-
     def coeval_subselect(
-        self, lcd: Quantity[pixel], coeval: np.ndarray, coeval_res: Quantity[_LENGTH]
-    ):
-        """Sub-select the coeval slice corresponding to this coeval distance."""
+        self, lcd: units.Quantity, coeval: np.ndarray, coeval_res: units.Quantity
+    ) -> np.ndarray:
+        """Sub-select the coeval slice corresponding to this coeval distance.
+
+        ``lcd`` is the comoving distance of the slice (in pixels), and ``coeval_res``
+        is the cell size of the coeval box (a length).
+        """
         # This makes the back of the lightcone exactly line up with the back of the
         # coeval box at that redshift, modulo the index_offset.
         lcpix = self.get_lc_distances_in_pixels(coeval_res)
@@ -514,15 +580,15 @@ class RectilinearLightconer(Lightconer):
 
     def construct_lightcone(
         self,
-        lcd: np.ndarray,
+        lcd: units.Quantity,
         box: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> np.ndarray:
         """Construct slices of the lightcone between two coevals."""
         return box
 
     def construct_los_velocity_lightcone(
         self,
-        lcd: np.ndarray,
+        lcd: units.Quantity,
         velocity: np.ndarray,
     ) -> np.ndarray:
         """Construct slices of the lightcone between two coevals."""
@@ -537,12 +603,34 @@ class RectilinearLightconer(Lightconer):
         )
 
 
-def _rotation_eq(x, y):
+def _rotation_eq(x: Rotation | None, y: Rotation | None) -> bool:
     """Compare two rotations."""
-    if x is None and y is None:
-        return True
+    if x is None or y is None:
+        return x is y
 
-    return np.allclose(x.as_matrix(), y.as_matrix())
+    return bool(np.allclose(x.as_matrix(), y.as_matrix()))
+
+
+def _longitude_validator(
+    inst: AngularLightconer, attribute: attrs.Attribute, value: np.ndarray
+) -> None:
+    if value.ndim != 1:
+        raise ValueError("longitude must be 1-dimensional")
+    if np.any(value < 0) or np.any(value > 2 * np.pi):
+        raise ValueError("longitude must be in the range [0, 2pi]")
+    if value.shape != inst.latitude.shape:
+        raise ValueError("longitude and latitude must have the same shape")
+
+
+def _origin_default() -> units.Quantity:
+    return np.zeros(3) * pixel
+
+
+class _InterpolatorCache(TypedDict):
+    """Cache of the slice interpolator of an :class:`AngularLightconer`."""
+
+    lcd: units.Quantity | None
+    interpolator: partial[np.ndarray] | None
 
 
 @attrs.define(kw_only=True, slots=False)
@@ -550,14 +638,17 @@ class AngularLightconer(Lightconer):
     """Angular lightcone slices constructed from rectlinear coevals."""
 
     latitude: np.ndarray = attrs.field(eq=attrs.cmp_using(eq=np.allclose))
-    longitude: np.ndarray = attrs.field(eq=attrs.cmp_using(eq=np.allclose))
+    longitude: np.ndarray = attrs.field(
+        eq=attrs.cmp_using(eq=np.allclose), validator=_longitude_validator
+    )
     interpolation_order: int = attrs.field(
         default=1, converter=int, validator=attrs.validators.in_([0, 1, 3, 5])
     )
-    origin: Quantity[pixel, (3,), float] = attrs.field(
-        eq=attrs.cmp_using(eq=np.allclose)
+    # The position of the observer, in pixel units, shape (3,).
+    origin: units.Quantity = attrs.field(
+        factory=_origin_default, eq=attrs.cmp_using(eq=np.allclose)
     )
-    rotation: Rotation = attrs.field(
+    rotation: Rotation | None = attrs.field(
         default=None,
         eq=attrs.cmp_using(eq=_rotation_eq),
         validator=attrs.validators.optional(attrs.validators.instance_of(Rotation)),
@@ -565,32 +656,19 @@ class AngularLightconer(Lightconer):
 
     def __attrs_post_init__(self) -> None:
         """Post-init."""
-        self._cache = {
+        self._cache: _InterpolatorCache = {
             "lcd": None,
             "interpolator": None,
         }
-
-    @longitude.validator
-    def _longitude_validator(self, attribute, value):
-        if value.ndim != 1:
-            raise ValueError("longitude must be 1-dimensional")
-        if np.any(value < 0) or np.any(value > 2 * np.pi):
-            raise ValueError("longitude must be in the range [0, 2pi]")
-        if value.shape != self.latitude.shape:
-            raise ValueError("longitude and latitude must have the same shape")
-
-    @origin.default
-    def _origin_default(self):
-        return np.zeros(3) * pixel
 
     @classmethod
     def like_rectilinear(
         cls,
         simulation_options: SimulationOptions,
         match_at_z: float,
-        cosmo: FLRW = Planck18,
-        **kw,
-    ):
+        cosmo: FLRW = Planck18,  # ty: ignore[invalid-type-form]  # see Lightconer.cosmo
+        **kw: Any,
+    ) -> Self:
         """Create an angular lightconer with the same pixel size as a rectilinear one.
 
         This is useful for comparing the two lightconer types.
@@ -635,6 +713,7 @@ class AngularLightconer(Lightconer):
         return cls.between_redshifts(
             min_redshift=match_at_z,
             resolution=simulation_options.cell_size,
+            cosmo=cosmo,
             latitude=LAT,
             longitude=LON,
             origin=origin,
@@ -642,37 +721,45 @@ class AngularLightconer(Lightconer):
             **kw,
         )
 
+    def _get_interpolator(self, lcd: units.Quantity) -> partial[np.ndarray]:
+        """Get the (cached) slice interpolator for the slice at distance ``lcd``."""
+        interpolator = self._cache["interpolator"]
+        if interpolator is None or self._cache["lcd"] != lcd:
+            interpolator = self._refresh_cache(lcd)
+        return interpolator
+
     def construct_lightcone(
         self,
-        lcd: Quantity[pixel],
+        lcd: units.Quantity,
         box: np.ndarray,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> np.ndarray:
         """Construct the lightcone slices from bracketing coevals."""
-        if self._cache["lcd"] == lcd:
-            interpolator = self._cache["interpolator"]
-        else:
-            interpolator = self._refresh_cache(lcd)
-        return interpolator(box)
+        return self._get_interpolator(lcd)(box)
 
     def construct_los_velocity_lightcone(
         self,
-        lcd: Quantity[pixel],
-        velocities: Sequence[np.ndarray],
-    ):
-        """Construct the LoS velocity lightcone from 3D velocities."""
-        if self._cache["lcd"] == lcd:
-            interpolator = self._cache["interpolator"]
-        else:
-            interpolator = self._refresh_cache(lcd)
-        return next(make_lightcone_slice_vector_field([velocities], interpolator))
+        lcd: units.Quantity,
+        velocities: np.ndarray | Sequence[np.ndarray],
+    ) -> np.ndarray:
+        """Construct the LoS velocity lightcone from 3D velocities.
 
-    def _refresh_cache(self, lcd):
+        ``velocities`` are the three Cartesian components of the velocity field
+        (either a sequence of three boxes, or an array of shape ``(3, ...)``).
+        """
+        return next(
+            make_lightcone_slice_vector_field(
+                [list(velocities)], self._get_interpolator(lcd)
+            )
+        )
+
+    def _refresh_cache(self, lcd: units.Quantity) -> partial[np.ndarray]:
+        # cosmotile works with plain floats in units of the coeval cell size (pixels).
         result = make_lightcone_slice_interpolator(
             latitude=self.latitude,
             longitude=self.longitude,
-            distance_to_shell=lcd,
+            distance_to_shell=lcd.to_value(pixel),
             interpolation_order=self.interpolation_order,
-            origin=self.origin,
+            origin=self.origin.to_value(pixel),
             rotation=self.rotation,
         )
         self._cache["lcd"] = lcd
@@ -689,7 +776,7 @@ class AngularLightconer(Lightconer):
         include_dvdr_in_tau21: bool,
         apply_rsds: bool,
         classy_output: Class | None = None,
-    ) -> Lightconer:
+    ) -> Self:
         """Validate 21cmFAST options."""
         lightconer = super().validate_options(
             inputs=inputs,

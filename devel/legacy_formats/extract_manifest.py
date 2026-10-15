@@ -15,6 +15,7 @@ h5py and numpy, and can be run with any version of 21cmFAST installed.
 import json
 import sys
 from pathlib import Path
+from typing import Any
 
 import h5py
 import numpy as np
@@ -23,7 +24,8 @@ import numpy as np
 N_HALOS = 5
 
 
-def _jsonify(val):
+def _jsonify(val: Any) -> Any:
+    """Convert a value read from an HDF5 file to a JSON-serializable one."""
     if isinstance(val, np.ndarray):
         return [_jsonify(v) for v in val.tolist()]
     if isinstance(val, bytes):
@@ -74,7 +76,7 @@ def _describe_struct(grp: h5py.Group, manifest: dict) -> dict:
     }
 
 
-def main(direc: Path, outfile: Path):
+def main(direc: Path, outfile: Path) -> None:
     """Write the manifest of the outputs in `direc` to `outfile`."""
     manifest = {"inputs": [], "cache": {}, "coeval": {}, "lightcone": {}}
 

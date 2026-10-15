@@ -59,6 +59,7 @@ from .._compat_framework import (
     RenameField,
     RenameOutputStruct,
     UnconvertibleOutputStruct,
+    load_array,
     parse_version,
 )
 from . import _v4_0_v4_1, _v4_1_v4_2, _v4_2_v4_3
@@ -193,10 +194,13 @@ def upgrade_box_quantities(
                 struct = RawOutputStruct(
                     kind=change.struct,
                     inputs=inputs,
-                    arrays=quantities,
+                    arrays=dict(quantities),
                     version=inputs.version,
                 )
                 change.upgrade_output_struct(struct)
+                # All the arrays are in memory, so load_array just returns them.
+                quantities.clear()
+                quantities.update({k: load_array(v) for k, v in struct.arrays.items()})
     return quantities
 
 

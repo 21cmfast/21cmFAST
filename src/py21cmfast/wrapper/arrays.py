@@ -8,13 +8,14 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Self, overload
+from typing import TYPE_CHECKING, Any, Literal, Protocol, Self, overload
 
 import attrs
 import deprecation
 import h5py
 import numpy as np
 from attrs.validators import instance_of, optional
+from numpy.typing import ArrayLike, DTypeLike
 
 from .arraystate import ArrayState
 
@@ -24,7 +25,7 @@ if TYPE_CHECKING:  # pragma: no cover
 logger = logging.getLogger(__name__)
 
 
-def _tuple_of_ints(x: Sequence[float | int]) -> tuple[int]:
+def _tuple_of_ints(x: Sequence[float | int]) -> tuple[int, ...]:
     return tuple(int(i) for i in x)
 
 
@@ -90,6 +91,25 @@ def _array_value_repr(x: np.ndarray | None) -> str:
         )
 
 
+class ArrayInitializer(Protocol):
+    """A function that allocates a new array, like :func:`numpy.zeros`."""
+
+    def __call__(self, shape: tuple[int, ...], /, *, dtype: DTypeLike) -> np.ndarray:
+        """Return a new array of the given shape and dtype."""
+        ...
+
+
+def _value_validator(inst: Array, att: attrs.Attribute, val: np.ndarray | None) -> None:
+    if val is None:
+        return
+
+    if val.shape != inst.shape:
+        raise ValueError(f"Shape mismatch: expected {inst.shape}, got {val.shape}")
+
+    if val.dtype != inst.dtype:
+        raise ValueError(f"Data type mismatch: expected {inst.dtype}, got {val.dtype}")
+
+
 @attrs.define(slots=False, frozen=True)
 class Array:
     """
@@ -141,34 +161,23 @@ class Array:
 
     """
 
-    shape = attrs.field(converter=_tuple_of_ints)
-    dtype = attrs.field(default=float, kw_only=True)
-    state = attrs.field(factory=ArrayState, kw_only=True)
-    initfunc = attrs.field(default=np.zeros, kw_only=True)
-    _value = attrs.field(
+    shape: tuple[int, ...] = attrs.field(converter=_tuple_of_ints)
+    dtype: DTypeLike = attrs.field(default=float, kw_only=True)
+    state: ArrayState = attrs.field(factory=ArrayState, kw_only=True)
+    initfunc: ArrayInitializer = attrs.field(default=np.zeros, kw_only=True)
+    _value: np.ndarray | None = attrs.field(
         converter=attrs.converters.optional(np.asarray),
         default=None,
         kw_only=True,
         repr=_array_value_repr,
+        validator=_value_validator,
+        alias="value",
     )
-    cache_backend = attrs.field(
+    cache_backend: CacheBackend | None = attrs.field(
         default=None, validator=optional(instance_of(CacheBackend)), kw_only=True
     )
 
-    @_value.validator
-    def _value_validator(self, att, val):
-        if val is None:
-            return
-
-        if val.shape != self.shape:
-            raise ValueError(f"Shape mismatch: expected {self.shape}, got {val.shape}")
-
-        if val.dtype != self.dtype:
-            raise ValueError(
-                f"Data type mismatch: expected {self.dtype}, got {val.dtype}"
-            )
-
-    def initialize(self):
+    def initialize(self) -> Self:
         """Initialize the array to its initial/default allocated state."""
         if self.state.initialized:
             return self
@@ -207,6 +216,10 @@ class Array:
         if backend is None:
             raise ValueError("backend must be specified")
 
+        if self._value is None:
+            raise ValueError(
+                "Cannot write an array to disk when its value is not in memory."
+            )
         backend.write(self._value)
         return attrs.evolve(self, cache_backend=backend, state=self.state.written())
 
@@ -238,10 +251,10 @@ class Array:
             state=self.state.loaded_from_disk(),
         )
 
-    def trimmed(self, trimmed_shape: tuple[int]) -> Self:
+    def trimmed(self, trimmed_shape: tuple[int, ...]) -> Self:
         """Return a new Array with the same data but a different shape, by slicing the original array."""
         slc = tuple(slice(0, n) for n in trimmed_shape)
-        trimmed_value = self._value[slc]
+        trimmed_value = self._resolve_value()[slc]
         return attrs.evolve(self, shape=trimmed_shape, value=trimmed_value)
 
     def _resolve_value(self) -> np.ndarray:
@@ -265,12 +278,16 @@ class Array:
 
         loaded = self.loaded_from_disk()
 
+        value = loaded._value
+        # loaded_from_disk() always reads a value, but the type checker can't know.
+        assert value is not None
+
         if config["CACHE_ARRAYS_ON_ACCESS"]:
-            object.__setattr__(self, "_value", loaded._value)
+            object.__setattr__(self, "_value", value)
             object.__setattr__(self, "state", loaded.state)
             object.__setattr__(self, "cache_backend", loaded.cache_backend)
 
-        return loaded._value
+        return value
 
     @property
     def value(self) -> np.ndarray:
@@ -300,14 +317,16 @@ class Array:
         )
         return self._resolve_value()
 
-    def __array__(self, dtype=None, copy=None) -> np.ndarray:
+    def __array__(
+        self, dtype: DTypeLike | None = None, copy: bool | None = None
+    ) -> np.ndarray:
         """Support `np.asarray(array)` and other numpy-protocol consumers."""
         # Some numpy versions' np.asarray() don't accept `copy=None`.
         if copy is None:
             return np.asarray(self._resolve_value(), dtype=dtype)
         return np.asarray(self._resolve_value(), dtype=dtype, copy=copy)
 
-    def __getattr__(self, name: str):
+    def __getattr__(self, name: str) -> Any:
         """Delegate unknown attributes (e.g. `.mean()`, `.sum()`) to the value.
 
         Leading-underscore names are never delegated, and a `ValueError` raised
@@ -372,7 +391,7 @@ class _LegacyArrayView(np.ndarray):
     #: `ArrayProxy.__get__` answers the legacy API.
     _array: Array | None = None
 
-    def __array_finalize__(self, obj):
+    def __array_finalize__(self, obj: np.ndarray | None, /) -> None:
         """Deliberately do not carry the originating `Array` into derived arrays.
 
         Slices, views and computed results are new data, not the struct's array, so
@@ -385,7 +404,14 @@ class _LegacyArrayView(np.ndarray):
         operators or `__getitem__`, so `ic.hires_density[0].value` never worked.
         """
 
-    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
+    def __array_ufunc__(
+        self,
+        ufunc: np.ufunc,
+        method: Literal["__call__", "reduce", "reduceat", "accumulate", "outer", "at"],
+        /,
+        *inputs: Any,
+        **kwargs: Any,
+    ) -> Any:
         """Compute on plain arrays, so this transitional type never leaks into results."""
         inputs = tuple(
             np.asarray(i) if type(i) is _LegacyArrayView else i for i in inputs
@@ -434,7 +460,7 @@ def _as_legacy_view(value: np.ndarray, array: Array) -> _LegacyArrayView:
     return view
 
 
-class ArrayProxy:
+class ArrayProxy[T: (np.ndarray, np.ndarray | None)]:
     """Exposes an `OutputStruct`'s `Array` field as a plain numpy array.
 
     The `Array` itself is stored in a private attrs field (`_<name>`) and remains
@@ -447,26 +473,40 @@ class ArrayProxy:
     cheap; with it disabled, each access re-reads from disk and nothing is retained.
     Either way the read is logged at DEBUG level, so unexpected memory growth or
     repeated disk traffic is traceable.
+
+    The type parameter is the type of the data handed back: ``np.ndarray`` for a
+    field that always exists, ``np.ndarray | None`` for an optional one. Declare the
+    proxy in the class body, next to its private field, so that the public attribute
+    is visible to static type checkers::
+
+        _hires_vx: Array | None = _arrayfield(alias="hires_vx", default=None)
+        hires_vx = ArrayProxy[np.ndarray | None]()
     """
 
-    def __init__(self, name: str):
-        self.public = name
-        self.private = f"_{name}"
+    #: The public attribute name of the descriptor, e.g. ``hires_density``.
+    public: str
+    #: The name of the private attrs field holding the `Array`, e.g. ``_hires_density``.
+    private: str
+
+    def __init__(self, name: str | None = None) -> None:
+        if name is not None:
+            self.public = name
+            self.private = f"_{name}"
 
     def __set_name__(self, owner: type, name: str) -> None:
-        """Support declaring the proxy directly in a class body as well."""
+        """Bind the proxy to the public name it is declared under in a class body."""
         self.public = name
         self.private = f"_{name}"
 
     @overload
-    def __get__(self, obj: None, owner: type | None = ...) -> ArrayProxy: ...
+    def __get__(self, obj: None, owner: type | None = None) -> Self: ...
 
     @overload
-    def __get__(
-        self, obj: OutputStruct, owner: type | None = ...
-    ) -> np.ndarray | None: ...
+    def __get__(self, obj: OutputStruct, owner: type | None = None) -> T: ...
 
-    def __get__(self, obj, owner=None):
+    def __get__(
+        self, obj: OutputStruct | None, owner: type | None = None
+    ) -> Self | np.ndarray | None:
         """Return the array's data, loading it from disk if it has been purged."""
         if obj is None:
             # Class-level access, e.g. `InitialConditions.hires_density`. Hand back the
@@ -486,11 +526,11 @@ class ArrayProxy:
             and not array.state.computed_in_mem
         ):
             # Resolve without retaining: don't put it back on the struct.
-            return _as_legacy_view(array.loaded_from_disk()._value, array)
+            return _as_legacy_view(array.loaded_from_disk()._resolve_value(), array)
 
         return _as_legacy_view(obj.get(self.public), array)
 
-    def __set__(self, obj, value: np.ndarray | Array | None) -> None:
+    def __set__(self, obj: OutputStruct, value: Array | ArrayLike | None) -> None:
         """Set the array's data, or replace the underlying `Array` wholesale.
 
         Assigning an `Array` (or `None`) replaces the field directly - this is how the
@@ -511,25 +551,28 @@ class ArrayProxy:
         setattr(obj, self.private, current.with_value(np.asarray(value)))
 
 
-def expose_arrays(cls: type) -> type:
-    """Class decorator exposing every private `Array` field as a plain numpy array.
+def expose_arrays[S: OutputStruct](cls: type[S]) -> type[S]:
+    """Class decorator registering every private `Array` field's public `ArrayProxy`.
 
     Must be applied *outside* `attrs.define`, so that it runs once `attrs` has finished
-    building the class::
+    building the class (`outputs._output_struct` does both)::
 
         @expose_arrays
         @attrs.define(slots=False, kw_only=True)
         class InitialConditions(OutputStruct):
-            _hires_density = _arrayfield()
+            _hires_density: Array = _arrayfield(alias="hires_density")
+            hires_density = ArrayProxy[np.ndarray]()
 
     Keeping the `Array` in the private field means `attrs`' generated `__repr__`, `eq`
     and `asdict` continue to see it, so inspecting a purged struct still never touches
-    the disk. The public name is purely this descriptor. `attrs` strips the leading
-    underscore for `__init__`, so `InitialConditions(hires_density=...)` is unchanged.
+    the disk. The public name is purely the `ArrayProxy` descriptor, which must be
+    declared in the class body (so that static type checkers know about it). `attrs`
+    strips the leading underscore for `__init__`, so
+    `InitialConditions(hires_density=...)` is unchanged.
     """
     names = []
     for field in attrs.fields(cls):
-        if field.type is not Array:
+        if not field.metadata.get("array", False):
             continue
         if not field.name.startswith("_"):
             raise TypeError(
@@ -538,7 +581,13 @@ def expose_arrays(cls: type) -> type:
                 "numpy array."
             )
         public = field.name[1:]
-        setattr(cls, public, ArrayProxy(public))
+        if not isinstance(getattr(cls, public, None), ArrayProxy):
+            raise TypeError(
+                f"{cls.__name__}.{field.name} is an Array field, but no ArrayProxy is "
+                f"declared for it. Add `{public} = ArrayProxy[np.ndarray]()` (or "
+                f"`ArrayProxy[np.ndarray | None]()` for an optional field) to the "
+                "class body."
+            )
         names.append(public)
 
     cls._array_field_names = tuple(names)

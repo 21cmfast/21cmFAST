@@ -14,20 +14,30 @@ listed in the documentation for each class below.
 import logging
 import warnings
 from collections import OrderedDict
-from collections.abc import Sequence
+from collections.abc import Callable, Iterable, Sequence
 from functools import cached_property
 from pathlib import Path
-from typing import Annotated, Any, ClassVar, Literal, Self, get_args
+from typing import (
+    Annotated,
+    Any,
+    ClassVar,
+    Literal,
+    Self,
+    dataclass_transform,
+    get_args,
+    overload,
+)
 
 import attrs
 import deprecation
 import numpy as np
-from astropy import constants
 from astropy import units as un
+from astropy.constants.config import codata
 from astropy.cosmology import FLRW, Planck15
 from attrs import asdict, evolve, validators
 from attrs import field as _field
 from cyclopts import Parameter
+from numpy.typing import NDArray
 
 from .._cfg import config
 from ..c_21cmfast import ffi
@@ -43,14 +53,29 @@ from .structs import StructWrapper
 
 logger = logging.getLogger(__name__)
 
+# NOTE on ``FLRW`` annotations: astropy decorates its cosmology classes with a
+# decorator annotated as returning ``type[Cosmology]``, so type checkers see ``FLRW``
+# as a *variable* rather than a class, and reject it in annotations. The annotations
+# are nevertheless correct (the runtime contract is an FLRW instance), hence the
+# ``ty: ignore[invalid-type-form]`` comments on them below.
+
 # Astropy cosmologies shared between CosmoParams instances, keyed on the identity of the
 # base cosmology and the parameters that override it (astropy cosmologies are immutable,
 # but not hashable). See _shared_cosmology.
-_SHARED_COSMOLOGIES: OrderedDict[tuple, tuple[FLRW, FLRW]] = OrderedDict()
+_SHARED_COSMOLOGIES: OrderedDict[
+    tuple[int, float, float, float],
+    tuple[FLRW, FLRW],  # ty: ignore[invalid-type-form]  (see NOTE above)
+] = OrderedDict()
 _SHARED_COSMOLOGIES_MAXSIZE = 64
 
 
-def _shared_cosmology(base: FLRW, *, hlittle: float, OMm: float, OMb: float) -> FLRW:
+def _shared_cosmology(
+    base: FLRW,  # ty: ignore[invalid-type-form]  (see NOTE above)
+    *,
+    hlittle: float,
+    OMm: float,
+    OMb: float,
+) -> FLRW:  # ty: ignore[invalid-type-form]  (see NOTE above)
     """Return ``base`` cloned with the given parameters, re-using an earlier clone.
 
     Every new :class:`CosmoParams` (and every set of inputs read from a cache file has
@@ -74,16 +99,39 @@ def _shared_cosmology(base: FLRW, *, hlittle: float, OMm: float, OMb: float) -> 
     return cosmo
 
 
-def field(*, transformer=None, deprecated: bool = False, **kw):
+# A transformer converts the (python-side) value of a field to the value used in C.
+# It is called as ``transformer(value, attribute)``. The value can be of any type
+# (it depends on the field), so it is ``Any`` here: a transformer typed for e.g.
+# ``str`` values would otherwise not be assignable (parameters are contravariant).
+type Transformer = Callable[[Any, attrs.Attribute[Any]], float | None]
+
+# An attrs validator: called as ``validator(instance, attribute, value)``. The
+# instance is ``Any`` for the same reason as above (validators are written for a
+# specific class).
+type Validator[T] = Callable[[Any, attrs.Attribute[T], T], None]
+
+
+def field(
+    *, transformer: Transformer | None = None, deprecated: bool = False, **kw: Any
+) -> Any:
     """Define an attrs field with a 'transformer' property.
 
-    The transformer, if given, should be a function of a single variable, which will
-    be the attribute's value. It will be used to transform the value before usage in
-    C-code (e.g. by transformin from log to linear space).
+    The transformer, if given, should be a function of two variables (the
+    attribute's value and the :class:`attrs.Attribute` itself). It will be used to
+    transform the value before usage in C-code (e.g. by transformin from log to
+    linear space).
 
     If ``deprecated`` is True, the field is a deprecated alias of another field (which
     takes its value from this one). Such fields are excluded from equality checks,
     the repr and :meth:`InputStruct.asdict`.
+
+    All other keyword arguments are passed through to :func:`attrs.field`.
+
+    Returns
+    -------
+    Any
+        An attrs field definition (like :func:`attrs.field`, the return type is
+        ``Any`` so that it can be assigned to an annotated class attribute).
     """
     if deprecated:
         # Deprecated aliases only exist to pass their value on to the field that
@@ -94,20 +142,27 @@ def field(*, transformer=None, deprecated: bool = False, **kw):
     return _field(metadata={"transformer": transformer, "deprecated": deprecated}, **kw)
 
 
-def _is_not_deprecated(att: attrs.Attribute, value: Any) -> bool:
+def _is_not_deprecated(att: "attrs.Attribute[Any]", value: Any) -> bool:
     """Filter for attrs.asdict that removes deprecated alias fields."""
     return not att.metadata.get("deprecated", False)
 
 
-def choice_field(*, validator=None, **kwargs):
-    """Create an attrs.field that is a choice."""
-    vld = (choice_validator,)
+def choice_field(*, validator: Validator[str] | None = None, **kwargs: Any) -> Any:
+    """Create an attrs.field that is a choice.
+
+    The choices are the arguments of the ``Literal`` annotation of the field. The
+    given ``validator`` (if any) is run after checking that the value is a valid
+    choice. All other keyword arguments are passed through to :func:`field`.
+    """
+    vld: tuple[Validator[str], ...] = (choice_validator,)
     if validator is not None:
         vld = (choice_validator, validator)
     return field(validator=vld, transformer=choice_transformer, converter=str, **kwargs)
 
 
-def logtransformer(x: float | None, att: attrs.Attribute):
+def logtransformer(
+    x: float | None, att: "attrs.Attribute[float | None]"
+) -> float | None:
     """Convert from log to linear space."""
     if x is None:
         return None
@@ -115,7 +170,7 @@ def logtransformer(x: float | None, att: attrs.Attribute):
         return 10**x
 
 
-def dex2exp_transformer(x, att: attrs.Attribute):
+def dex2exp_transformer(x: float, att: "attrs.Attribute[float]") -> float:
     """
     Convert from dex to exponential space.
 
@@ -142,27 +197,29 @@ def dex2exp_transformer(x, att: attrs.Attribute):
     return np.log(10) * x
 
 
-def choice_transformer(choice: str, att: attrs.Attribute) -> int:
-    """Produce a transformer that converts a string to int.
+def choice_transformer(choice: str, att: "attrs.Attribute[str]") -> int:
+    """Transform a choice (string) into an int.
 
-    The function must be passed a list of string choices. The resulting int is the
-    index of the choice made.
+    The choices are the arguments of the ``Literal`` type of the attribute. The
+    resulting int is the index of the choice made.
     """
     choices = get_args(att.type)
     return choices.index(choice)
 
 
-def choice_validator(inst, att: attrs.Attribute, val):
+def choice_validator(
+    inst: "InputStruct", att: "attrs.Attribute[str]", val: str
+) -> None:
     """Validate that a value is one of the choices."""
     choices = get_args(att.type)
     if val not in choices:
         raise ValueError(f"{att.name} must be one of {choices}, got {val} instead.")
 
 
-def between(mn, mx):
-    """Validate that a value is between two values."""
+def between(mn: float, mx: float) -> Validator[float]:
+    """Create a validator checking that a value is between two values (inclusive)."""
 
-    def vld(inst, att, val):
+    def vld(inst: "InputStruct", att: "attrs.Attribute[float]", val: float) -> None:
         if val < mn or val > mx:
             raise ValueError(f"{att.name} must be between {mn} and {mx}")
 
@@ -174,10 +231,15 @@ IntegralMethods = Literal["GSL-QAG", "GAUSS-LEGENDRE", "GAMMA-APPROX"]
 
 # Cosmology is from https://arxiv.org/pdf/1807.06209.pdf
 # Table 2, last column. [TT,TE,EE+lowE+lensing+BAO]
+# The parameters are also kept as plain floats (used as the defaults of CosmoParams),
+# since type checkers can't see the FLRW attributes of the cosmology (see NOTE at top).
+_PLANCK18_H0 = 67.66
+_PLANCK18_OMM = (0.02242 + 0.11933) / 0.6766**2
+_PLANCK18_OMB = 0.02242 / 0.6766**2
 Planck18 = Planck15.clone(
-    Om0=(0.02242 + 0.11933) / 0.6766**2,
-    Ob0=0.02242 / 0.6766**2,
-    H0=67.66,
+    Om0=_PLANCK18_OMM,
+    Ob0=_PLANCK18_OMB,
+    H0=_PLANCK18_H0,
     Neff=3.044,
     name="Planck18",
 )
@@ -187,7 +249,23 @@ Planck18 = Planck15.clone(
 V_CB_AVG_DEFAULT = 27.0
 
 
-@attrs.define(frozen=True, kw_only=True)
+@dataclass_transform(
+    frozen_default=True,
+    kw_only_default=True,
+    field_specifiers=(attrs.field, field, choice_field),
+)
+def _define[C: type](cls: C) -> C:
+    """Define a frozen, keyword-only attrs class (``attrs.define(frozen=True, kw_only=True)``).
+
+    This is exactly equivalent to ``attrs.define(frozen=True, kw_only=True)`` at
+    runtime. It exists only so that type checkers recognise the :func:`field` and
+    :func:`choice_field` helpers as field specifiers (and therefore see the
+    ``default``, ``factory`` and ``alias`` arguments passed through them).
+    """
+    return attrs.define(frozen=True, kw_only=True)(cls)
+
+
+@_define
 class InputStruct:
     """
     A convenient interface to create a C structure with defaults specified.
@@ -205,18 +283,13 @@ class InputStruct:
     .. warning:: This class will *not* deal well with parameters of the struct which are
                  pointers. All parameters should be primitive types, except for strings,
                  which are dealt with specially.
-
-    Parameters
-    ----------
-    ffi : cffi object
-        The ffi object from any cffi-wrapped library.
     """
 
-    _subclasses: ClassVar = {}
-    _write_exclude_fields = ()
+    _subclasses: ClassVar[dict[str, type["InputStruct"]]] = {}
+    _write_exclude_fields: ClassVar[tuple[str, ...]] = ()
 
     @classmethod
-    def new(cls, x: dict | Self | None = None, **kwargs):
+    def new(cls, x: dict[str, Any] | Self | None = None, **kwargs: Any) -> Self:
         """
         Create a new instance of the struct.
 
@@ -250,7 +323,7 @@ class InputStruct:
         """
         if isinstance(x, dict):
             return cls(**x, **kwargs)
-        elif isinstance(x, InputStruct):
+        elif isinstance(x, cls):
             return x.clone(**kwargs)
         elif x is None:
             return cls(**kwargs)
@@ -269,8 +342,11 @@ class InputStruct:
         return StructWrapper(self.__class__.__name__)
 
     @cached_property
-    def _cstruct(self) -> StructWrapper:
-        """The object pointing to the memory accessed by C-code for this struct."""
+    def _cstruct(self) -> Any:
+        """The object pointing to the memory accessed by C-code for this struct.
+
+        This is a cffi pointer to the C struct (hence typed as ``Any``).
+        """
         cdict = self.cdict
         for k in self._struct.fieldnames:
             val = cdict[k]
@@ -278,17 +354,17 @@ class InputStruct:
             # TODO: is this really required here? (I don't think the wrapper can satisfy this condition)
             if isinstance(val, str):
                 # If it is a string, need to convert it to C string ourselves.
-                val = self.ffi.new("char[]", val.encode())
+                val = ffi.new("char[]", val.encode())
 
             setattr(self._struct.cstruct, k, val)
 
         return self._struct.cstruct
 
-    def clone(self, **kwargs):
+    def clone(self, **kwargs: Any) -> Self:
         """Make a fresh copy of the instance with arbitrary parameters updated."""
         return evolve(self, **kwargs)
 
-    def asdict(self) -> dict:
+    def asdict(self) -> dict[str, Any]:
         """Return a dict representation of the instance.
 
         Examples
@@ -303,7 +379,7 @@ class InputStruct:
         return asdict(self, filter=_is_not_deprecated)
 
     @cached_property
-    def cdict(self) -> dict:
+    def cdict(self) -> dict[str, Any]:
         """A python dictionary containing the properties of the wrapped C-struct.
 
         The memory pointed to by this dictionary is *not* owned by the wrapped C-struct,
@@ -316,18 +392,17 @@ class InputStruct:
         python instance are there only to guide setting of defaults, and don't appear
         in the C-struct at all).
         """
-        fields = attrs.fields(self.__class__)
-        transformers = {
-            field.name: field.metadata.get("transformer", None) for field in fields
-        }
+        fields = attrs.fields_dict(self.__class__)
 
         out = {}
         for k in self._struct.fieldnames:
             val = getattr(self, k)
-            att = attrs.fields_dict(self.__class__).get(k, None)
+            att = fields.get(k)
             # we assume properties (as opposed to attributes) are already converted
-            trns = transformers.get(k)
-            out[k] = val if trns is None else trns(val, att)
+            trns: Transformer | None = (
+                None if att is None else att.metadata.get("transformer")
+            )
+            out[k] = val if trns is None or att is None else trns(val, att)
         return out
 
     def __str__(self) -> str:
@@ -377,25 +452,25 @@ class InputStruct:
         return cls.new(dct)
 
 
-@attrs.define(frozen=True, kw_only=True)
+@_define
 class Table1D:
     """Class for setting 1D interpolation table."""
 
     size: int = field(converter=int, validator=validators.gt(0))
-    x_values: np.ndarray = field(
+    x_values: NDArray[np.float64] = field(
         converter=lambda v: np.asarray(v, dtype=np.float64),
         validator=validators.instance_of(np.ndarray),
         eq=attrs.cmp_using(eq=np.array_equal),
     )
-    y_values: np.ndarray = field(
+    y_values: NDArray[np.float64] = field(
         converter=lambda v: np.asarray(v, dtype=np.float64),
         validator=validators.instance_of(np.ndarray),
         eq=attrs.cmp_using(eq=np.array_equal),
     )
 
     @cached_property
-    def _cstruct(self):
-        """Cached pointer to the memory of the object in C."""
+    def _cstruct(self) -> Any:
+        """Cached pointer to the memory of the object in C (a cffi pointer)."""
         ctab = ffi.new("Table1D *")
         ctab.size = self.size
         ctab.x_values = ffi.cast("double *", ffi.from_buffer(self.x_values))
@@ -403,7 +478,7 @@ class Table1D:
         return ctab
 
 
-@attrs.define(frozen=True, kw_only=True)
+@_define
 class CosmoTables:
     """Class for storing interpolation tables of cosmological functions (e.g. transfer functions, growth factor).
 
@@ -431,7 +506,7 @@ class CosmoTables:
     V_CB_AVG: float | None = field(default=None)
 
     @classmethod
-    def new(cls, x: dict | Self | None = None, **kwargs):
+    def new(cls, x: dict[str, Any] | Self | None = None, **kwargs: Any) -> Self:
         """
         Create a new instance of the struct.
 
@@ -450,7 +525,7 @@ class CosmoTables:
         """
         if isinstance(x, dict):
             return cls(**x, **kwargs)
-        elif isinstance(x, CosmoTables):
+        elif isinstance(x, cls):
             return x.clone(**kwargs)
         elif x is None:
             return cls(**kwargs)
@@ -460,13 +535,16 @@ class CosmoTables:
             )
 
     @cached_property
-    def _struct(self):
+    def _struct(self) -> StructWrapper:
         """The python-wrapped struct associated with this input object."""
         return StructWrapper("CosmoTables")
 
     @cached_property
-    def _cstruct(self) -> StructWrapper:
-        """The object pointing to the memory accessed by C-code for this struct."""
+    def _cstruct(self) -> Any:
+        """The object pointing to the memory accessed by C-code for this struct.
+
+        This is a cffi pointer to the C struct (hence typed as ``Any``).
+        """
         for k in self._struct.fieldnames:
             val = getattr(self, k)
             if isinstance(val, Table1D):
@@ -476,12 +554,24 @@ class CosmoTables:
 
         return self._struct.cstruct
 
-    def clone(self, **kwargs):
+    def clone(self, **kwargs: Any) -> Self:
         """Make a fresh copy of the instance with arbitrary parameters updated."""
         return evolve(self, **kwargs)
 
 
-@attrs.define(frozen=True, kw_only=True)
+def _cosmo_params_sigma_8_validator(
+    inst: "CosmoParams", att: "attrs.Attribute[float | None]", val: float | None
+) -> None:
+    if inst._A_s is not None and val is not None:
+        raise ValueError(
+            "Cannot set both SIGMA_8 and A_s! "
+            "If this error arose when loading from template/file or evolving an "
+            "existing object, then explicitly set either SIGMA_8 or A_s "
+            "to None while setting the other to the desired value."
+        )
+
+
+@_define
 class CosmoParams(InputStruct):
     r"""
     Cosmological parameters.
@@ -541,35 +631,47 @@ class CosmoParams(InputStruct):
     _DEFAULT_SIGMA_8: ClassVar[float] = 0.8102
     _DEFAULT_A_s: ClassVar[float] = 2.105e-9
 
-    _base_cosmo: Annotated[FLRW, Parameter(show=False, parse=False)] = field(
-        default=Planck18, validator=validators.instance_of(FLRW), eq=False, repr=False
+    _base_cosmo: Annotated[
+        FLRW,  # ty: ignore[invalid-type-form]  (see NOTE at top)
+        Parameter(show=False, parse=False),
+    ] = field(
+        default=Planck18,
+        validator=validators.instance_of(FLRW),
+        eq=False,
+        repr=False,
+        alias="base_cosmo",
     )
 
-    _SIGMA_8: float = field(
+    _SIGMA_8: float | None = field(
         default=None,
         converter=attrs.converters.optional(float),
-        validator=validators.optional(validators.gt(0)),
+        validator=[
+            validators.optional(validators.gt(0)),
+            _cosmo_params_sigma_8_validator,
+        ],
+        alias="SIGMA_8",
     )
 
     hlittle: float = field(
-        default=Planck18.h, converter=float, validator=validators.gt(0)
+        default=_PLANCK18_H0 / 100, converter=float, validator=validators.gt(0)
     )
     OMm: float = field(
-        default=Planck18.Om0, converter=float, validator=validators.gt(0)
+        default=_PLANCK18_OMM, converter=float, validator=validators.gt(0)
     )
 
     OMb: float = field(
-        default=Planck18.Ob0, converter=float, validator=validators.gt(0)
+        default=_PLANCK18_OMB, converter=float, validator=validators.gt(0)
     )
 
     POWER_INDEX: float = field(
         default=0.9665, converter=float, validator=validators.gt(0)
     )
 
-    _A_s: float = field(
+    _A_s: float | None = field(
         default=None,
         converter=attrs.converters.optional(float),
         validator=validators.optional(validators.gt(0)),
+        alias="A_s",
     )
 
     OMn: float = field(default=0.0, converter=float, validator=validators.ge(0))
@@ -587,16 +689,6 @@ class CosmoParams(InputStruct):
     wl: float = field(default=-1.0, converter=float)
 
     # TODO: Combined validation via Astropy?
-
-    @_SIGMA_8.validator
-    def _sigma_8_vld(self, att, val):
-        if self._A_s is not None and val is not None:
-            raise ValueError(
-                "Cannot set both SIGMA_8 and A_s! "
-                "If this error arose when loading from template/file or evolving an "
-                "existing object, then explicitly set either SIGMA_8 or A_s "
-                "to None while setting the other to the desired value."
-            )
 
     @cached_property
     def SIGMA_8(self) -> float:
@@ -645,12 +737,12 @@ class CosmoParams(InputStruct):
             return self._DEFAULT_A_s
 
     @property
-    def OMl(self):
+    def OMl(self) -> float:
         """Omega lambda, dark energy density."""
         return 1 - self.OMm
 
     @cached_property
-    def cosmo(self):
+    def cosmo(self) -> FLRW:  # ty: ignore[invalid-type-form]  (see NOTE at top)
         """An astropy cosmology object for this cosmology.
 
         Instances with the same base cosmology and parameters share the same object.
@@ -660,7 +752,11 @@ class CosmoParams(InputStruct):
         )
 
     @classmethod
-    def from_astropy(cls, cosmo: FLRW, **kwargs):
+    def from_astropy(
+        cls,
+        cosmo: FLRW,  # ty: ignore[invalid-type-form]  (see NOTE at top)
+        **kwargs: Any,
+    ) -> Self:
         """Create a CosmoParams object from an astropy cosmology object.
 
         Pass SIGMA_8 and POWER_INDEX as kwargs if you want to override the default
@@ -687,7 +783,86 @@ class CosmoParams(InputStruct):
         return d
 
 
-@attrs.define(frozen=True, kw_only=True)
+# NOTE: these must be plain (not PEP 695 ``type``) aliases, since the choices of a
+# choice_field are read from its annotation at runtime with ``get_args``.
+VCBModel = Literal["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"]
+PowerSpectrumModel = Literal["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"]
+SourceModel = Literal[
+    "CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"
+]
+
+
+def _matter_options_power_spectrum_default(inst: "MatterOptions") -> PowerSpectrumModel:
+    return "CLASS" if inst.V_CB_MODEL == "FLUCTS" else "EH"
+
+
+def _matter_options_power_spectrum_validator(
+    inst: "MatterOptions", att: "attrs.Attribute[str]", val: str
+) -> None:
+    if inst.V_CB_MODEL == "FLUCTS" and val != "CLASS":
+        raise ValueError(
+            "When using V_CB_MODEL='FLUCTS', you must use POWER_SPECTRUM = 'CLASS'! "
+            "Please set POWER_SPECTRUM to 'CLASS' or change V_CB_MODEL to something else."
+        )
+
+
+def _matter_options_v_cb_model_default(inst: "MatterOptions") -> VCBModel:
+    if inst._USE_RELATIVE_VELOCITIES is None:
+        return "NONE"
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "USE_RELATIVE_VELOCITIES",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "USE_RELATIVE_VELOCITIES is deprecated and will be removed in a future version. "
+                "Please use V_CB_MODEL directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return "FLUCTS" if inst._USE_RELATIVE_VELOCITIES else "NONE"
+
+
+def _matter_options_v_cb_model_validator(
+    inst: "MatterOptions", att: "attrs.Attribute[str]", val: str
+) -> None:
+    if inst._USE_RELATIVE_VELOCITIES is True and val == "NONE":
+        raise ValueError(
+            "V_CB_MODEL is set to 'NONE' but USE_RELATIVE_VELOCITIES is True! "
+            "Either set USE_RELATIVE_VELOCITIES to False or change V_CB_MODEL to 'FLUCTS'."
+        )
+    if inst._USE_RELATIVE_VELOCITIES is False and val != "NONE":
+        raise ValueError(
+            f"V_CB_MODEL is set to '{val}' but USE_RELATIVE_VELOCITIES is False! "
+            "Either set USE_RELATIVE_VELOCITIES to True or change V_CB_MODEL to 'FLUCTS'."
+        )
+
+
+def _matter_options_source_model_validator(
+    inst: "MatterOptions", att: "attrs.Attribute[str]", val: str
+) -> None:
+    """Validate SOURCE_MODEL dependencies."""
+    if val in ["DEXM-ESF", "CHMF-SAMPLER"] and inst.HMF not in ["ST", "PS"]:
+        msg = (
+            "The conditional mass functions requied for the discrete halo field are only currently"
+            "available for the Sheth-Tormen and Press-Schechter mass functions., use HMF='ST' or 'PS'"
+        )
+        raise NotImplementedError(msg)
+    if (
+        val in ["DEXM-ESF", "CHMF-SAMPLER"]
+        and inst.USE_INTERPOLATION_TABLES != "hmf-interpolation"
+    ):
+        msg = (
+            "SOURCE_MODEL settings using the halo sampler require the use of HMF interpolation tables."
+            "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation'"
+        )
+        raise ValueError(msg)
+
+
+@_define
 class MatterOptions(InputStruct):
     r"""
     Structure containing options which affect the matter field (ICs, perturbedfield, halos).
@@ -816,11 +991,18 @@ class MatterOptions(InputStruct):
         choice_field(default="ST")
     )
     _USE_RELATIVE_VELOCITIES: bool | None = field(
-        deprecated=True, default=None, converter=attrs.converters.optional(bool)
+        deprecated=True,
+        default=None,
+        converter=attrs.converters.optional(bool),
+        alias="USE_RELATIVE_VELOCITIES",
     )
-    V_CB_MODEL: Literal["NONE", "AVG-AUTO", "FLUCTS", "AVG-DEBUG"] = choice_field()
-    POWER_SPECTRUM: Literal["EH", "BBKS", "EFSTATHIOU", "PEEBLES", "WHITE", "CLASS"] = (
-        choice_field()
+    V_CB_MODEL: VCBModel = choice_field(
+        default=attrs.Factory(_matter_options_v_cb_model_default, takes_self=True),
+        validator=_matter_options_v_cb_model_validator,
+    )
+    POWER_SPECTRUM: PowerSpectrumModel = choice_field(
+        default=attrs.Factory(_matter_options_power_spectrum_default, takes_self=True),
+        validator=_matter_options_power_spectrum_validator,
     )
     PERTURB_ON_HIGH_RES: bool = field(default=False, converter=bool)
     USE_INTERPOLATION_TABLES: Literal[
@@ -845,21 +1027,9 @@ class MatterOptions(InputStruct):
     )
     USE_FFTW_WISDOM: bool = field(default=False, converter=bool)
 
-    SOURCE_MODEL: Literal[
-        "CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL", "DEXM-ESF", "CHMF-SAMPLER"
-    ] = choice_field(default="CHMF-SAMPLER")
-
-    @POWER_SPECTRUM.default
-    def _ps_default(self):
-        return "CLASS" if self.V_CB_MODEL == "FLUCTS" else "EH"
-
-    @POWER_SPECTRUM.validator
-    def _POWER_SPECTRUM_vld(self, att, val):
-        if self.V_CB_MODEL == "FLUCTS" and val != "CLASS":
-            raise ValueError(
-                "When using V_CB_MODEL='FLUCTS', you must use POWER_SPECTRUM = 'CLASS'! "
-                "Please set POWER_SPECTRUM to 'CLASS' or change V_CB_MODEL to something else."
-            )
+    SOURCE_MODEL: SourceModel = choice_field(
+        default="CHMF-SAMPLER", validator=_matter_options_source_model_validator
+    )
 
     @cached_property
     def USE_RELATIVE_VELOCITIES(self) -> bool:
@@ -872,58 +1042,6 @@ class MatterOptions(InputStruct):
             return self.V_CB_MODEL == "FLUCTS"
         else:
             return self._USE_RELATIVE_VELOCITIES
-
-    @V_CB_MODEL.default
-    def _default_v_cb_model(self):
-        if self._USE_RELATIVE_VELOCITIES is None:
-            return "NONE"
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "USE_RELATIVE_VELOCITIES",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "USE_RELATIVE_VELOCITIES is deprecated and will be removed in a future version. "
-                    "Please use V_CB_MODEL directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-
-        return "FLUCTS" if self._USE_RELATIVE_VELOCITIES else "NONE"
-
-    @V_CB_MODEL.validator
-    def _v_cb_model_vld(self, att, val):
-        if self._USE_RELATIVE_VELOCITIES is True and val == "NONE":
-            raise ValueError(
-                "V_CB_MODEL is set to 'NONE' but USE_RELATIVE_VELOCITIES is True! "
-                "Either set USE_RELATIVE_VELOCITIES to False or change V_CB_MODEL to 'FLUCTS'."
-            )
-        if self._USE_RELATIVE_VELOCITIES is False and val != "NONE":
-            raise ValueError(
-                f"V_CB_MODEL is set to '{val}' but USE_RELATIVE_VELOCITIES is False! "
-                "Either set USE_RELATIVE_VELOCITIES to True or change V_CB_MODEL to 'FLUCTS'."
-            )
-
-    @SOURCE_MODEL.validator
-    def _SOURCE_MODEL_vld(self, att, val):
-        """Validate SOURCE_MODEL dependencies."""
-        if val in ["DEXM-ESF", "CHMF-SAMPLER"] and self.HMF not in ["ST", "PS"]:
-            msg = (
-                "The conditional mass functions requied for the discrete halo field are only currently"
-                "available for the Sheth-Tormen and Press-Schechter mass functions., use HMF='ST' or 'PS'"
-            )
-            raise NotImplementedError(msg)
-        if (
-            val in ["DEXM-ESF", "CHMF-SAMPLER"]
-            and self.USE_INTERPOLATION_TABLES != "hmf-interpolation"
-        ):
-            msg = (
-                "SOURCE_MODEL settings using the halo sampler require the use of HMF interpolation tables."
-                "Switch USE_INTERPOLATION_TABLES to 'hmf-interpolation'"
-            )
-            raise ValueError(msg)
 
     @property
     def has_discrete_halos(self) -> bool:
@@ -946,7 +1064,77 @@ class MatterOptions(InputStruct):
         ]
 
 
-@attrs.define(frozen=True, kw_only=True)
+def _simulation_options_hires_to_lowres_validator(
+    inst: "SimulationOptions", att: "attrs.Attribute[float | None]", val: float | None
+) -> None:
+    if inst._DIM is not None and val is not None:
+        raise ValueError(
+            "Cannot set both DIM and HIRES_TO_LOWRES_FACTOR! "
+            "If this error arose when loading from template/file or evolving an "
+            "existing object, then explicitly set either DIM or HIRES_TO_LOWRES_FACTOR "
+            "to None while setting the other to the desired value."
+        )
+
+
+def _simulation_options_lowres_cell_size_validator(
+    inst: "SimulationOptions", att: "attrs.Attribute[float | None]", val: float | None
+) -> None:
+    if inst._BOX_LEN is not None and val is not None:
+        raise ValueError(
+            "Cannot set both BOX_LEN and LOWRES_CELL_SIZE_MPC! "
+            "If this error arose when loading from template/file or evolving an "
+            "existing object, then explicitly set either BOX_LEN or "
+            "LOWRES_CELL_SIZE_MPC to None while setting the other to the desired "
+            "value."
+        )
+
+
+def _simulation_options_min_xe_for_nion_in_taux_default(
+    inst: "SimulationOptions",
+) -> float:
+    if inst._MIN_XE_FOR_FCOLL_IN_TAUX is None:
+        return 1e-3
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "MIN_XE_FOR_FCOLL_IN_TAUX",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "MIN_XE_FOR_FCOLL_IN_TAUX is deprecated and will be removed in a "
+                "future version. Please use MIN_XE_FOR_NION_IN_TAUX directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+    return inst._MIN_XE_FOR_FCOLL_IN_TAUX
+
+
+def _simulation_options_min_xe_for_nion_in_taux_validator(
+    inst: "SimulationOptions", att: "attrs.Attribute[float]", val: float
+) -> None:
+    if (
+        inst._MIN_XE_FOR_FCOLL_IN_TAUX is not None
+        and val != inst._MIN_XE_FOR_FCOLL_IN_TAUX
+    ):
+        raise ValueError(
+            f"MIN_XE_FOR_NION_IN_TAUX is set to {val} but MIN_XE_FOR_FCOLL_IN_TAUX "
+            f"is {inst._MIN_XE_FOR_FCOLL_IN_TAUX}! Only set one of them."
+        )
+
+
+def _simulation_options_non_cubic_factor_validator(
+    inst: "SimulationOptions", att: "attrs.Attribute[float]", val: float
+) -> None:
+    dcf = inst.DIM * val
+    hdcf = inst.HII_DIM * val
+    if dcf % int(dcf) or hdcf % int(hdcf):
+        raise ValueError(
+            "NON_CUBIC_FACTOR * DIM and NON_CUBIC_FACTOR * HII_DIM must be integers"
+        )
+
+
+@_define
 class SimulationOptions(InputStruct):
     """
     Structure containing broad simulation options.
@@ -1067,26 +1255,39 @@ class SimulationOptions(InputStruct):
 
     HII_DIM: int = field(default=256, converter=int, validator=validators.gt(0))
 
-    _BOX_LEN: float = field(
+    _BOX_LEN: float | None = field(
         default=None,
         converter=attrs.converters.optional(float),
         validator=validators.optional(validators.gt(0)),
+        alias="BOX_LEN",
     )
-    _DIM: int | None = field(default=None, converter=attrs.converters.optional(int))
+    _DIM: int | None = field(
+        default=None, converter=attrs.converters.optional(int), alias="DIM"
+    )
 
-    _HIRES_TO_LOWRES_FACTOR: float = field(
+    _HIRES_TO_LOWRES_FACTOR: float | None = field(
         default=None,
         converter=attrs.converters.optional(float),
-        validator=attrs.validators.optional(validators.gt(1)),
+        validator=[
+            attrs.validators.optional(validators.gt(1)),
+            _simulation_options_hires_to_lowres_validator,
+        ],
+        alias="HIRES_TO_LOWRES_FACTOR",
     )
-    _LOWRES_CELL_SIZE_MPC: float = field(
+    _LOWRES_CELL_SIZE_MPC: float | None = field(
         default=None,
         converter=attrs.converters.optional(float),
-        validator=attrs.validators.optional(validators.gt(0)),
+        validator=[
+            attrs.validators.optional(validators.gt(0)),
+            _simulation_options_lowres_cell_size_validator,
+        ],
+        alias="LOWRES_CELL_SIZE_MPC",
     )
 
     NON_CUBIC_FACTOR: float = field(
-        default=1.0, converter=float, validator=validators.gt(0)
+        default=1.0,
+        converter=float,
+        validator=[validators.gt(0), _simulation_options_non_cubic_factor_validator],
     )
     N_THREADS: int = field(default=1, converter=int, validator=validators.gt(0))
     SAMPLER_MIN_MASS: float = field(
@@ -1110,8 +1311,15 @@ class SimulationOptions(InputStruct):
         deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
+        alias="MIN_XE_FOR_FCOLL_IN_TAUX",
     )
-    MIN_XE_FOR_NION_IN_TAUX: float = field(converter=float)
+    MIN_XE_FOR_NION_IN_TAUX: float = field(
+        default=attrs.Factory(
+            _simulation_options_min_xe_for_nion_in_taux_default, takes_self=True
+        ),
+        converter=float,
+        validator=_simulation_options_min_xe_for_nion_in_taux_validator,
+    )
 
     INITIAL_REDSHIFT: float = field(default=300.0, converter=float)
     DELTA_R_FACTOR: float = field(
@@ -1165,27 +1373,6 @@ class SimulationOptions(InputStruct):
         else:
             return np.round(self.HII_DIM * self.LOWRES_CELL_SIZE_MPC, 3)
 
-    @_HIRES_TO_LOWRES_FACTOR.validator
-    def _hires_to_lowres_vld(self, att, val):
-        if self._DIM is not None and val is not None:
-            raise ValueError(
-                "Cannot set both DIM and HIRES_TO_LOWRES_FACTOR! "
-                "If this error arose when loading from template/file or evolving an "
-                "existing object, then explicitly set either DIM or HIRES_TO_LOWRES_FACTOR "
-                "to None while setting the other to the desired value."
-            )
-
-    @_LOWRES_CELL_SIZE_MPC.validator
-    def _lowres_cellsize_vld(self, att, val):
-        if self._BOX_LEN is not None and val is not None:
-            raise ValueError(
-                "Cannot set both BOX_LEN and LOWRES_CELL_SIZE_MPC! "
-                "If this error arose when loading from template/file or evolving an "
-                "existing object, then explicitly set either BOX_LEN or "
-                "LOWRES_CELL_SIZE_MPC to None while setting the other to the desired "
-                "value."
-            )
-
     @property
     def HIRES_TO_LOWRES_FACTOR(self) -> float:
         """The downsampling factor from high to low-res."""
@@ -1215,67 +1402,210 @@ class SimulationOptions(InputStruct):
         """
         return self.MIN_XE_FOR_NION_IN_TAUX
 
-    @MIN_XE_FOR_NION_IN_TAUX.default
-    def _min_xe_for_nion_in_taux_default(self):
-        if self._MIN_XE_FOR_FCOLL_IN_TAUX is None:
-            return 1e-3
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "MIN_XE_FOR_FCOLL_IN_TAUX",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "MIN_XE_FOR_FCOLL_IN_TAUX is deprecated and will be removed in a "
-                    "future version. Please use MIN_XE_FOR_NION_IN_TAUX directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-        return self._MIN_XE_FOR_FCOLL_IN_TAUX
-
-    @MIN_XE_FOR_NION_IN_TAUX.validator
-    def _min_xe_for_nion_in_taux_vld(self, att, val):
-        if (
-            self._MIN_XE_FOR_FCOLL_IN_TAUX is not None
-            and val != self._MIN_XE_FOR_FCOLL_IN_TAUX
-        ):
-            raise ValueError(
-                f"MIN_XE_FOR_NION_IN_TAUX is set to {val} but MIN_XE_FOR_FCOLL_IN_TAUX "
-                f"is {self._MIN_XE_FOR_FCOLL_IN_TAUX}! Only set one of them."
-            )
-
-    @NON_CUBIC_FACTOR.validator
-    def _NON_CUBIC_FACTOR_validator(self, att, val):
-        dcf = self.DIM * val
-        hdcf = self.HII_DIM * val
-        if dcf % int(dcf) or hdcf % int(hdcf):
-            raise ValueError(
-                "NON_CUBIC_FACTOR * DIM and NON_CUBIC_FACTOR * HII_DIM must be integers"
-            )
-
     @property
-    def tot_fft_num_pixels(self):
+    def tot_fft_num_pixels(self) -> int:
         """Total number of pixels in the high-res box."""
         return int(self.NON_CUBIC_FACTOR * self.DIM**3)
 
     @property
-    def HII_tot_num_pixels(self):
+    def HII_tot_num_pixels(self) -> int:
         """Total number of pixels in the low-res box."""
         return int(self.NON_CUBIC_FACTOR * self.HII_DIM**3)
 
     @property
-    def cell_size(self) -> un.Quantity[un.Mpc]:
-        """The resolution of a low-res cell."""
+    def cell_size(self) -> un.Quantity:
+        """The resolution of a low-res cell (in Mpc)."""
         return (self.BOX_LEN / self.HII_DIM) * un.Mpc
 
     @property
-    def cell_size_hires(self) -> un.Quantity[un.Mpc]:
-        """The resolution of a hi-res cell."""
+    def cell_size_hires(self) -> un.Quantity:
+        """The resolution of a hi-res cell (in Mpc)."""
         return (self.BOX_LEN / self.DIM) * un.Mpc
 
 
-@attrs.define(frozen=True, kw_only=True)
+RecombModel = Literal["none", "homogeneous", "inhomogeneous"]
+
+
+def _astro_options_use_reionization_photoheating_feedback_default(
+    inst: "AstroOptions",
+) -> bool:
+    return inst.USE_MCGS
+
+
+def _astro_options_use_mcgs_default(inst: "AstroOptions") -> bool:
+    if inst._USE_MINI_HALOS is None:
+        return False
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "USE_MINI_HALOS",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "USE_MINI_HALOS is deprecated and will be removed in a future version. "
+                "Please use USE_MCGS directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return inst._USE_MINI_HALOS
+
+
+def _astro_options_recomb_model_default(inst: "AstroOptions") -> RecombModel:
+    if inst._INHOMO_RECO is None:
+        return "none"
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "INHOMO_RECO",
+            deprecated_in="4.2.0",
+            removed_in="5.0.0",
+            details=(
+                "INHOMO_RECO is deprecated and will be removed in a future version. "
+                "Please use RECOMB_MODEL directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return "inhomogeneous" if inst._INHOMO_RECO else "none"
+
+
+def _astro_options_integration_method_acgs_default(
+    inst: "AstroOptions",
+) -> IntegralMethods:
+    if inst._INTEGRATION_METHOD_ATOMIC is None:
+        return "GAUSS-LEGENDRE"
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "INTEGRATION_METHOD_ATOMIC",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "INTEGRATION_METHOD_ATOMIC is deprecated and will be removed in a future version. "
+                "Please use INTEGRATION_METHOD_ACGS directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+    return inst._INTEGRATION_METHOD_ATOMIC
+
+
+def _astro_options_integration_method_mcgs_default(
+    inst: "AstroOptions",
+) -> IntegralMethods:
+    if inst._INTEGRATION_METHOD_MINI is None:
+        return "GAUSS-LEGENDRE"
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "INTEGRATION_METHOD_MINI",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "INTEGRATION_METHOD_MINI is deprecated and will be removed in a future version. "
+                "Please use INTEGRATION_METHOD_MCGS directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+    return inst._INTEGRATION_METHOD_MINI
+
+
+def _astro_options_use_mcgs_validator(
+    inst: "AstroOptions", att: "attrs.Attribute[bool]", val: bool
+) -> None:
+    """
+    Raise an error USE_MCGS is True with incompatible flags.
+
+    This happens when RECOMB_MODEL='none' or USE_TS_FLUCT is False.
+    """
+    if val and inst.RECOMB_MODEL == "none":
+        raise ValueError("You have set USE_MCGS to True but RECOMB_MODEL is 'none'! ")
+    if val and not inst.USE_TS_FLUCT:
+        raise ValueError("You have set USE_MCGS to True but USE_TS_FLUCT is False! ")
+
+    if inst._USE_MINI_HALOS is not None and val != inst._USE_MINI_HALOS:
+        raise ValueError(
+            f"USE_MCGS is set to {val} but USE_MINI_HALOS is {inst._USE_MINI_HALOS}! "
+            f"Either set USE_MINI_HALOS to {val} or change USE_MCGS to {inst._USE_MINI_HALOS}."
+        )
+
+
+def _astro_options_recomb_model_validator(
+    inst: "AstroOptions", att: "attrs.Attribute[str]", val: str
+) -> None:
+    if inst._INHOMO_RECO is True and val == "none":
+        raise ValueError(
+            "RECOMB_MODEL is set to 'none' but INHOMO_RECO is True! "
+            "Either set INHOMO_RECO to False or change RECOMB_MODEL to 'homogeneous' or 'inhomogeneous'."
+        )
+    if inst._INHOMO_RECO is False and val != "none":
+        raise ValueError(
+            f"RECOMB_MODEL is set to '{val}' but INHOMO_RECO is False! "
+            "Either set INHOMO_RECO to True or change RECOMB_MODEL to 'none'."
+        )
+    if not inst.CELL_RECOMB and val == "homogeneous":
+        raise ValueError(
+            "CELL_RECOMB cannot be False when RECOMB_MODEL is 'homogeneous'!"
+        )
+
+
+def _astro_options_photon_cons_type_validator(
+    inst: "AstroOptions", att: "attrs.Attribute[str]", val: str
+) -> None:
+    """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MCGS is True."""
+    if inst.USE_MCGS and val == "z-photoncons":
+        raise ValueError(
+            "USE_MCGS is not compatible with the redshift-based"
+            " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
+        )
+
+
+def _astro_options_use_exp_filter_validator(
+    inst: "AstroOptions", att: "attrs.Attribute[bool]", val: bool
+) -> None:
+    """Raise an error if USE_EXP_FILTER is False and HII_FILTER!=0."""
+    if val and inst.HII_FILTER != "spherical-tophat":
+        raise ValueError(
+            "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
+        )
+
+    if val and not inst.CELL_RECOMB:
+        raise ValueError("USE_EXP_FILTER is True but CELL_RECOMB is False")
+
+
+def _astro_options_integration_method_acgs_validator(
+    inst: "AstroOptions", att: "attrs.Attribute[str]", val: str
+) -> None:
+    """Raise an error if INTEGRATION_METHOD_ACGS is set to a different value than INTEGRATION_METHOD_ATOMIC."""
+    if (
+        inst._INTEGRATION_METHOD_ATOMIC is not None
+        and val != inst._INTEGRATION_METHOD_ATOMIC
+    ):
+        raise ValueError(
+            f"INTEGRATION_METHOD_ACGS is set to {val} but INTEGRATION_METHOD_ATOMIC is {inst._INTEGRATION_METHOD_ATOMIC}! "
+            f"Either set INTEGRATION_METHOD_ATOMIC to {val} or change INTEGRATION_METHOD_ACGS to {inst._INTEGRATION_METHOD_ATOMIC}."
+        )
+
+
+def _astro_options_integration_method_mcgs_validator(
+    inst: "AstroOptions", att: "attrs.Attribute[str]", val: str
+) -> None:
+    """Raise an error if INTEGRATION_METHOD_MCGS is set to a different value than INTEGRATION_METHOD_MINI."""
+    if (
+        inst._INTEGRATION_METHOD_MINI is not None
+        and val != inst._INTEGRATION_METHOD_MINI
+    ):
+        raise ValueError(
+            f"INTEGRATION_METHOD_MCGS is set to {val} but INTEGRATION_METHOD_MINI is {inst._INTEGRATION_METHOD_MINI}! "
+            f"Either set INTEGRATION_METHOD_MINI to {val} or change INTEGRATION_METHOD_MCGS to {inst._INTEGRATION_METHOD_MINI}."
+        )
+
+
+@_define
 class AstroOptions(InputStruct):
     """
     Options for the ionization routines which enable/disable certain modules.
@@ -1409,27 +1739,43 @@ class AstroOptions(InputStruct):
     """
 
     _USE_MINI_HALOS: bool | None = field(
-        deprecated=True, default=None, converter=attrs.converters.optional(bool)
+        deprecated=True,
+        default=None,
+        converter=attrs.converters.optional(bool),
+        alias="USE_MINI_HALOS",
     )
-    USE_MCGS: bool = field(converter=bool)
+    USE_MCGS: bool = field(
+        default=attrs.Factory(_astro_options_use_mcgs_default, takes_self=True),
+        converter=bool,
+        validator=_astro_options_use_mcgs_validator,
+    )
     USE_X_RAY_HEATING: bool = field(default=True, converter=bool)
     USE_CMB_HEATING: bool = field(default=True, converter=bool)
     USE_LYA_HEATING: bool = field(default=True, converter=bool)
     _INHOMO_RECO: bool | None = field(
-        deprecated=True, default=None, converter=attrs.converters.optional(bool)
+        deprecated=True,
+        default=None,
+        converter=attrs.converters.optional(bool),
+        alias="INHOMO_RECO",
     )
     USE_TS_FLUCT: bool = field(default=False, converter=bool)
     _FIX_VCB_AVG: bool | None = field(
-        deprecated=True, default=None, converter=attrs.converters.optional(bool)
+        deprecated=True,
+        default=None,
+        converter=attrs.converters.optional(bool),
+        alias="FIX_VCB_AVG",
     )
-    USE_EXP_FILTER: bool = field(default=True, converter=bool)
+    USE_EXP_FILTER: bool = field(
+        default=True, converter=bool, validator=_astro_options_use_exp_filter_validator
+    )
     CELL_RECOMB: bool = field(default=True, converter=bool)
-    LYA_MULTIPLE_SCATTERING = field(default=False, converter=bool)
-    USE_ADIABATIC_FLUCTUATIONS = field(default=True, converter=bool)
+    LYA_MULTIPLE_SCATTERING: bool = field(default=False, converter=bool)
+    USE_ADIABATIC_FLUCTUATIONS: bool = field(default=True, converter=bool)
     PHOTON_CONS_TYPE: Literal[
         "no-photoncons", "z-photoncons", "alpha-photoncons", "f-photoncons"
     ] = choice_field(
         default="no-photoncons",
+        validator=_astro_options_photon_cons_type_validator,
     )
     USE_METALLICITY: bool = field(default=True, converter=bool)
     USE_UPPER_STELLAR_TURNOVER: bool = field(default=True, converter=bool)
@@ -1438,16 +1784,41 @@ class AstroOptions(InputStruct):
     HII_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     HEAT_FILTER: FilterOptions = choice_field(default="spherical-tophat")
     IONISE_ENTIRE_SPHERE: bool = field(default=False, converter=bool)
-    RECOMB_MODEL: Literal["none", "homogeneous", "inhomogeneous"] = choice_field()
-    USE_REIONIZATION_PHOTOHEATING_FEEDBACK: bool = field(converter=bool)
+    RECOMB_MODEL: RecombModel = choice_field(
+        default=attrs.Factory(_astro_options_recomb_model_default, takes_self=True),
+        validator=_astro_options_recomb_model_validator,
+    )
+    USE_REIONIZATION_PHOTOHEATING_FEEDBACK: bool = field(
+        default=attrs.Factory(
+            _astro_options_use_reionization_photoheating_feedback_default,
+            takes_self=True,
+        ),
+        converter=bool,
+    )
     _INTEGRATION_METHOD_ATOMIC: IntegralMethods | None = field(
-        deprecated=True, default=None, converter=attrs.converters.optional(str)
+        deprecated=True,
+        default=None,
+        converter=attrs.converters.optional(str),
+        alias="INTEGRATION_METHOD_ATOMIC",
     )
     _INTEGRATION_METHOD_MINI: IntegralMethods | None = field(
-        deprecated=True, default=None, converter=attrs.converters.optional(str)
+        deprecated=True,
+        default=None,
+        converter=attrs.converters.optional(str),
+        alias="INTEGRATION_METHOD_MINI",
     )
-    INTEGRATION_METHOD_ACGS: IntegralMethods = choice_field()
-    INTEGRATION_METHOD_MCGS: IntegralMethods = choice_field()
+    INTEGRATION_METHOD_ACGS: IntegralMethods = choice_field(
+        default=attrs.Factory(
+            _astro_options_integration_method_acgs_default, takes_self=True
+        ),
+        validator=_astro_options_integration_method_acgs_validator,
+    )
+    INTEGRATION_METHOD_MCGS: IntegralMethods = choice_field(
+        default=attrs.Factory(
+            _astro_options_integration_method_mcgs_default, takes_self=True
+        ),
+        validator=_astro_options_integration_method_mcgs_validator,
+    )
 
     @cached_property
     def USE_MINI_HALOS(self) -> bool:
@@ -1461,8 +1832,10 @@ class AstroOptions(InputStruct):
             return self._USE_MINI_HALOS
 
     @cached_property
-    def FIX_VCB_AVG(self) -> bool:
+    def FIX_VCB_AVG(self) -> bool | None:
         """Whether to fix the amplitude of the relative velocity between (cold) dark matter and baryons on a constant mean value from linear perturbation theory.
+
+        This is None if it was not set explicitly.
 
         This is a deprecated property, and will be removed in v5. Please use V_CB_MODEL instead.
         """
@@ -1502,173 +1875,320 @@ class AstroOptions(InputStruct):
         else:
             return self._INTEGRATION_METHOD_MINI
 
-    @USE_REIONIZATION_PHOTOHEATING_FEEDBACK.default
-    def _default_use_reionization_photoheating_feedback(self):
-        return self.USE_MCGS
 
-    @USE_MCGS.default
-    def _default_use_mcgs(self):
-        if self._USE_MINI_HALOS is None:
-            return False
+def _astro_params_x_ray_tvir_min_default(inst: "AstroParams") -> float:
+    return inst.ION_Tvir_MIN
 
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "USE_MINI_HALOS",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "USE_MINI_HALOS is deprecated and will be removed in a future version. "
-                    "Please use USE_MCGS directly instead."
-                ),
-            ),
-            stacklevel=2,
+
+def _astro_params_nu_x_thresh_validator(
+    inst: "AstroParams", att: "attrs.Attribute[float]", val: float
+) -> None:
+    """Check if the choice of NU_X_THRESH is sensible."""
+    if val < 100.0:
+        raise ValueError(
+            "Chosen NU_X_THRESH is < 100 eV. NU_X_THRESH must be above 100 eV as it describes X-ray photons"
+        )
+    elif val >= inst.NU_X_BAND_MAX:
+        raise ValueError(
+            f"""
+                Chosen NU_X_THRESH > {inst.NU_X_BAND_MAX}, which is the upper limit of the adopted X-ray band
+                (fiducially the soft band 0.5 - 2.0 keV). If you know what you are doing with this
+                choice, please modify the parameter: NU_X_BAND_MAX"""
+        )
+    elif inst.NU_X_BAND_MAX > inst.NU_X_MAX:
+        raise ValueError(
+            f"""
+                Chosen NU_X_BAND_MAX > {inst.NU_X_MAX}, which is the upper limit of X-ray integrals (fiducially 10 keV)
+                If you know what you are doing, please modify the parameter:
+                NU_X_MAX
+                """
         )
 
-        return self._USE_MINI_HALOS
 
-    @RECOMB_MODEL.default
-    def _default_recomb_model(self):
-        if self._INHOMO_RECO is None:
-            return "none"
+def _astro_params_v_cb_avg_debug_default(inst: "AstroParams") -> float:
+    if inst._FIXED_VAVG is None:
+        return V_CB_AVG_DEFAULT
 
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "INHOMO_RECO",
-                deprecated_in="4.2.0",
-                removed_in="5.0.0",
-                details=(
-                    "INHOMO_RECO is deprecated and will be removed in a future version. "
-                    "Please use RECOMB_MODEL directly instead."
-                ),
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "FIXED_VAVG",
+            deprecated_in="4.2.0",
+            removed_in="5.0.0",
+            details=(
+                "FIXED_VAVG is deprecated and will be removed in a future version. "
+                "Please use V_CB_AVG_DEBUG directly instead."
             ),
-            stacklevel=2,
+        ),
+        stacklevel=2,
+    )
+
+    return inst._FIXED_VAVG
+
+
+def _astro_params_m_turn_stellar_feedback_default(inst: "AstroParams") -> float:
+    if inst._M_TURN is None:
+        return 8.7
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "M_TURN",
+            deprecated_in="4.2.0",
+            removed_in="5.0.0",
+            details=(
+                "M_TURN is deprecated and will be removed in a future version. "
+                "Please use M_TURN_STELLAR_FEEDBACK directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return inst._M_TURN
+
+
+def _astro_params_f_star10_acg_default(inst: "AstroParams") -> float:
+    if inst._F_STAR10 is None:
+        return -1.3
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "F_STAR10",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "F_STAR10 is deprecated and will be removed in a future version. "
+                "Please use F_STAR10_ACG directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return inst._F_STAR10
+
+
+def _astro_params_f_star7_mcg_default(inst: "AstroParams") -> float:
+    if inst._F_STAR7_MINI is None:
+        # set the default of the MCGs scalings to continue the same PL
+        return (
+            inst.F_STAR10_ACG - 3 * inst.ALPHA_STAR_ACG
+        )  # -3*alpha since 1e7/1e10 = 1e-3
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "F_STAR7_MINI",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "F_STAR7_MINI is deprecated and will be removed in a future version. "
+                "Please use F_STAR7_MCG directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return inst._F_STAR7_MINI
+
+
+def _astro_params_f_esc10_acg_default(inst: "AstroParams") -> float:
+    if inst._F_ESC10 is None:
+        return -1.0
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "F_ESC10",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "F_ESC10 is deprecated and will be removed in a future version. "
+                "Please use F_ESC10_ACG directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return inst._F_ESC10
+
+
+def _astro_params_f_esc7_mcg_default(inst: "AstroParams") -> float:
+    if inst._F_ESC7_MINI is None:
+        return -2.0
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "F_ESC7_MINI",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "F_ESC7_MINI is deprecated and will be removed in a future version. "
+                "Please use F_ESC7_MCG directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return inst._F_ESC7_MINI
+
+
+def _astro_params_alpha_star_acg_default(inst: "AstroParams") -> float:
+    if inst._ALPHA_STAR is None:
+        return 0.5
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "ALPHA_STAR",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "ALPHA_STAR is deprecated and will be removed in a future version. "
+                "Please use ALPHA_STAR_ACG directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return inst._ALPHA_STAR
+
+
+def _astro_params_alpha_star_mcg_default(inst: "AstroParams") -> float:
+    if inst._ALPHA_STAR_MINI is None:
+        return inst.ALPHA_STAR_ACG
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "ALPHA_STAR_MINI",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "ALPHA_STAR_MINI is deprecated and will be removed in a future version. "
+                "Please use ALPHA_STAR_MCG directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return inst._ALPHA_STAR_MINI
+
+
+def _astro_params_lx_over_sfr_acg_default(inst: "AstroParams") -> float:
+    if inst._L_X is None:
+        return 40.5
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "L_X",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "L_X is deprecated and will be removed in a future version. "
+                "Please use LX_OVER_SFR_ACG directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return inst._L_X
+
+
+def _astro_params_lx_over_sfr_mcg_default(inst: "AstroParams") -> float:
+    if inst._L_X_MINI is None:
+        return inst.LX_OVER_SFR_ACG
+
+    warnings.warn(
+        deprecation.DeprecatedWarning(
+            "L_X_MINI",
+            deprecated_in="4.3.0",
+            removed_in="5.0.0",
+            details=(
+                "L_X_MINI is deprecated and will be removed in a future version. "
+                "Please use LX_OVER_SFR_MCG directly instead."
+            ),
+        ),
+        stacklevel=2,
+    )
+
+    return inst._L_X_MINI
+
+
+def _astro_params_f_star10_acg_validator(
+    inst: "AstroParams", att: "attrs.Attribute[float]", val: float
+) -> None:
+    if inst._F_STAR10 is not None and val != inst._F_STAR10:
+        raise ValueError(
+            f"F_STAR10_ACG is set to {val} but F_STAR10 is {inst._F_STAR10}! "
+            f"Either set F_STAR10 to {val} or change F_STAR10_ACG to {inst._F_STAR10}."
         )
 
-        return "inhomogeneous" if self._INHOMO_RECO else "none"
 
-    @INTEGRATION_METHOD_ACGS.default
-    def _default_integration_method_acgs(self):
-        if self._INTEGRATION_METHOD_ATOMIC is None:
-            return "GAUSS-LEGENDRE"
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "INTEGRATION_METHOD_ATOMIC",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "INTEGRATION_METHOD_ATOMIC is deprecated and will be removed in a future version. "
-                    "Please use INTEGRATION_METHOD_ACGS directly instead."
-                ),
-            ),
-            stacklevel=2,
+def _astro_params_f_star7_mcg_validator(
+    inst: "AstroParams", att: "attrs.Attribute[float]", val: float
+) -> None:
+    if inst._F_STAR7_MINI is not None and val != inst._F_STAR7_MINI:
+        raise ValueError(
+            f"F_STAR7_MCG is set to {val} but F_STAR7_MINI is {inst._F_STAR7_MINI}! "
+            f"Either set F_STAR7_MINI to {val} or change F_STAR7_MCG to {inst._F_STAR7_MINI}."
         )
-        return self._INTEGRATION_METHOD_ATOMIC
 
-    @INTEGRATION_METHOD_MCGS.default
-    def _default_integration_method_mcgs(self):
-        if self._INTEGRATION_METHOD_MINI is None:
-            return "GAUSS-LEGENDRE"
 
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "INTEGRATION_METHOD_MINI",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "INTEGRATION_METHOD_MINI is deprecated and will be removed in a future version. "
-                    "Please use INTEGRATION_METHOD_MCGS directly instead."
-                ),
-            ),
-            stacklevel=2,
+def _astro_params_f_esc10_acg_validator(
+    inst: "AstroParams", att: "attrs.Attribute[float]", val: float
+) -> None:
+    if inst._F_ESC10 is not None and val != inst._F_ESC10:
+        raise ValueError(
+            f"F_ESC10_ACG is set to {val} but F_ESC10 is {inst._F_ESC10}! "
+            f"Either set F_ESC10 to {val} or change F_ESC10_ACG to {inst._F_ESC10}."
         )
-        return self._INTEGRATION_METHOD_MINI
-
-    @USE_MCGS.validator
-    def _use_mcgs_vld(self, att, val):
-        """
-        Raise an error USE_MCGS is True with incompatible flags.
-
-        This happens when RECOMB_MODEL='none' or USE_TS_FLUCT is False.
-        """
-        if val and self.RECOMB_MODEL == "none":
-            raise ValueError(
-                "You have set USE_MCGS to True but RECOMB_MODEL is 'none'! "
-            )
-        if val and not self.USE_TS_FLUCT:
-            raise ValueError(
-                "You have set USE_MCGS to True but USE_TS_FLUCT is False! "
-            )
-
-        if self._USE_MINI_HALOS is not None and val != self._USE_MINI_HALOS:
-            raise ValueError(
-                f"USE_MCGS is set to {val} but USE_MINI_HALOS is {self._USE_MINI_HALOS}! "
-                f"Either set USE_MINI_HALOS to {val} or change USE_MCGS to {self._USE_MINI_HALOS}."
-            )
-
-    @RECOMB_MODEL.validator
-    def _recomb_model_vld(self, att, val):
-        if self._INHOMO_RECO is True and val == "none":
-            raise ValueError(
-                "RECOMB_MODEL is set to 'none' but INHOMO_RECO is True! "
-                "Either set INHOMO_RECO to False or change RECOMB_MODEL to 'homogeneous' or 'inhomogeneous'."
-            )
-        if self._INHOMO_RECO is False and val != "none":
-            raise ValueError(
-                f"RECOMB_MODEL is set to '{val}' but INHOMO_RECO is False! "
-                "Either set INHOMO_RECO to True or change RECOMB_MODEL to 'none'."
-            )
-        if not self.CELL_RECOMB and val == "homogeneous":
-            raise ValueError(
-                "CELL_RECOMB cannot be False when RECOMB_MODEL is 'homogeneous'!"
-            )
-
-    @PHOTON_CONS_TYPE.validator
-    def _PHOTON_CONS_TYPE_vld(self, att, val):
-        """Raise an error if using PHOTON_CONS_TYPE='z_photoncons' and USE_MCGS is True."""
-        if self.USE_MCGS and val == "z-photoncons":
-            raise ValueError(
-                "USE_MCGS is not compatible with the redshift-based"
-                " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! "
-            )
-
-    @USE_EXP_FILTER.validator
-    def _USE_EXP_FILTER_vld(self, att, val):
-        """Raise an error if USE_EXP_FILTER is False and HII_FILTER!=0."""
-        if val and self.HII_FILTER != "spherical-tophat":
-            raise ValueError(
-                "USE_EXP_FILTER can only be used with a real-space tophat HII_FILTER==0"
-            )
-
-        if val and not self.CELL_RECOMB:
-            raise ValueError("USE_EXP_FILTER is True but CELL_RECOMB is False")
-
-    @INTEGRATION_METHOD_ACGS.validator
-    def _integration_method_acgs_vld(self, att, val):
-        """Raise an error if INTEGRATION_METHOD_ACGS is set to a different value than INTEGRATION_METHOD_ATOMIC."""
-        if (
-            self._INTEGRATION_METHOD_ATOMIC is not None
-            and val != self._INTEGRATION_METHOD_ATOMIC
-        ):
-            raise ValueError(
-                f"INTEGRATION_METHOD_ACGS is set to {val} but INTEGRATION_METHOD_ATOMIC is {self._INTEGRATION_METHOD_ATOMIC}! "
-                f"Either set INTEGRATION_METHOD_ATOMIC to {val} or change INTEGRATION_METHOD_ACGS to {self._INTEGRATION_METHOD_ATOMIC}."
-            )
-
-    @INTEGRATION_METHOD_MCGS.validator
-    def _integration_method_mcgs_vld(self, att, val):
-        """Raise an error if INTEGRATION_METHOD_MCGS is set to a different value than INTEGRATION_METHOD_MINI."""
-        if (
-            self._INTEGRATION_METHOD_MINI is not None
-            and val != self._INTEGRATION_METHOD_MINI
-        ):
-            raise ValueError(
-                f"INTEGRATION_METHOD_MCGS is set to {val} but INTEGRATION_METHOD_MINI is {self._INTEGRATION_METHOD_MINI}! "
-                f"Either set INTEGRATION_METHOD_MINI to {val} or change INTEGRATION_METHOD_MCGS to {self._INTEGRATION_METHOD_MINI}."
-            )
 
 
-@attrs.define(frozen=True, kw_only=True)
+def _astro_params_f_esc7_mcg_validator(
+    inst: "AstroParams", att: "attrs.Attribute[float]", val: float
+) -> None:
+    if inst._F_ESC7_MINI is not None and val != inst._F_ESC7_MINI:
+        raise ValueError(
+            f"F_ESC7_MCG is set to {val} but F_ESC7_MINI is {inst._F_ESC7_MINI}! "
+            f"Either set F_ESC7_MINI to {val} or change F_ESC7_MCG to {inst._F_ESC7_MINI}."
+        )
+
+
+def _astro_params_alpha_star_acg_validator(
+    inst: "AstroParams", att: "attrs.Attribute[float]", val: float
+) -> None:
+    if inst._ALPHA_STAR is not None and val != inst._ALPHA_STAR:
+        raise ValueError(
+            f"ALPHA_STAR_ACG is set to {val} but ALPHA_STAR is {inst._ALPHA_STAR}! "
+            f"Either set ALPHA_STAR to {val} or change ALPHA_STAR_ACG to {inst._ALPHA_STAR}."
+        )
+
+
+def _astro_params_alpha_star_mcg_validator(
+    inst: "AstroParams", att: "attrs.Attribute[float]", val: float
+) -> None:
+    if inst._ALPHA_STAR_MINI is not None and val != inst._ALPHA_STAR_MINI:
+        raise ValueError(
+            f"ALPHA_STAR_MCG is set to {val} but ALPHA_STAR_MINI is {inst._ALPHA_STAR_MINI}! "
+            f"Either set ALPHA_STAR_MINI to {val} or change ALPHA_STAR_MCG to {inst._ALPHA_STAR_MINI}."
+        )
+
+
+def _astro_params_lx_over_sfr_acg_validator(
+    inst: "AstroParams", att: "attrs.Attribute[float]", val: float
+) -> None:
+    if inst._L_X is not None and val != inst._L_X:
+        raise ValueError(
+            f"LX_OVER_SFR_ACG is set to {val} but L_X is {inst._L_X}! "
+            f"Either set L_X to {val} or change LX_OVER_SFR_ACG to {inst._L_X}."
+        )
+
+
+def _astro_params_lx_over_sfr_mcg_validator(
+    inst: "AstroParams", att: "attrs.Attribute[float]", val: float
+) -> None:
+    if inst._L_X_MINI is not None and val != inst._L_X_MINI:
+        raise ValueError(
+            f"LX_OVER_SFR_MCG is set to {val} but L_X_MINI is {inst._L_X_MINI}! "
+            f"Either set L_X_MINI to {val} or change LX_OVER_SFR_MCG to {inst._L_X_MINI}."
+        )
+
+
+@_define
 class AstroParams(InputStruct):
     """
     Astrophysical parameters.
@@ -1846,34 +2366,62 @@ class AstroParams(InputStruct):
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
+        alias="F_STAR10",
     )
     F_STAR10_ACG: float = field(
-        converter=float, validator=between(-3.0, 0.0), transformer=logtransformer
+        default=attrs.Factory(_astro_params_f_star10_acg_default, takes_self=True),
+        converter=float,
+        validator=[between(-3.0, 0.0), _astro_params_f_star10_acg_validator],
+        transformer=logtransformer,
     )
     _ALPHA_STAR: float | None = field(
         deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
+        alias="ALPHA_STAR",
     )
-    ALPHA_STAR_ACG: float = field(converter=float)
+    ALPHA_STAR_ACG: float = field(
+        default=attrs.Factory(_astro_params_alpha_star_acg_default, takes_self=True),
+        converter=float,
+        validator=_astro_params_alpha_star_acg_validator,
+    )
     _F_STAR7_MINI: float | None = field(
         deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
+        alias="F_STAR7_MINI",
     )
-    F_STAR7_MCG: float = field(converter=float, transformer=logtransformer)
+    F_STAR7_MCG: float = field(
+        default=attrs.Factory(_astro_params_f_star7_mcg_default, takes_self=True),
+        converter=float,
+        validator=_astro_params_f_star7_mcg_validator,
+        transformer=logtransformer,
+    )
     _ALPHA_STAR_MINI: float | None = field(
-        deprecated=True, default=None, converter=attrs.converters.optional(float)
+        deprecated=True,
+        default=None,
+        converter=attrs.converters.optional(float),
+        alias="ALPHA_STAR_MINI",
     )
-    ALPHA_STAR_MCG: float = field(converter=float)
+    ALPHA_STAR_MCG: float = field(
+        default=attrs.Factory(_astro_params_alpha_star_mcg_default, takes_self=True),
+        converter=float,
+        validator=_astro_params_alpha_star_mcg_validator,
+    )
     _F_ESC10: float | None = field(
         deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
+        alias="F_ESC10",
     )
-    F_ESC10_ACG: float = field(converter=float, transformer=logtransformer)
+    F_ESC10_ACG: float = field(
+        default=attrs.Factory(_astro_params_f_esc10_acg_default, takes_self=True),
+        converter=float,
+        validator=_astro_params_f_esc10_acg_validator,
+        transformer=logtransformer,
+    )
 
     ALPHA_ESC: float = field(
         default=-0.5,
@@ -1884,16 +2432,26 @@ class AstroParams(InputStruct):
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
+        alias="F_ESC7_MINI",
     )
-    F_ESC7_MCG: float = field(converter=float, transformer=logtransformer)
+    F_ESC7_MCG: float = field(
+        default=attrs.Factory(_astro_params_f_esc7_mcg_default, takes_self=True),
+        converter=float,
+        validator=_astro_params_f_esc7_mcg_validator,
+        transformer=logtransformer,
+    )
     _M_TURN: float | None = field(
         deprecated=True,
         default=None,
         converter=attrs.converters.optional(float),
         validator=validators.optional(validators.gt(0)),
         transformer=logtransformer,
+        alias="M_TURN",
     )
     M_TURN_STELLAR_FEEDBACK: float = field(
+        default=attrs.Factory(
+            _astro_params_m_turn_stellar_feedback_default, takes_self=True
+        ),
         converter=float,
         validator=validators.gt(0),
         transformer=logtransformer,
@@ -1916,10 +2474,12 @@ class AstroParams(InputStruct):
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
+        alias="L_X",
     )
     LX_OVER_SFR_ACG: float = field(
+        default=attrs.Factory(_astro_params_lx_over_sfr_acg_default, takes_self=True),
         converter=float,
-        validator=validators.gt(0),
+        validator=[validators.gt(0), _astro_params_lx_over_sfr_acg_validator],
         transformer=logtransformer,
     )
     _L_X_MINI: float | None = field(
@@ -1927,16 +2487,25 @@ class AstroParams(InputStruct):
         default=None,
         converter=attrs.converters.optional(float),
         transformer=logtransformer,
+        alias="L_X_MINI",
     )
     LX_OVER_SFR_MCG: float = field(
-        converter=float, validator=validators.gt(0), transformer=logtransformer
+        default=attrs.Factory(_astro_params_lx_over_sfr_mcg_default, takes_self=True),
+        converter=float,
+        validator=[validators.gt(0), _astro_params_lx_over_sfr_mcg_validator],
+        transformer=logtransformer,
     )
     NU_X_THRESH: float = field(
-        default=500.0, converter=float, validator=validators.gt(0)
+        default=500.0,
+        converter=float,
+        validator=[validators.gt(0), _astro_params_nu_x_thresh_validator],
     )
     X_RAY_SPEC_INDEX: float = field(default=1.0, converter=float)
     X_RAY_Tvir_MIN: float = field(
-        converter=float, validator=validators.gt(0), transformer=logtransformer
+        default=attrs.Factory(_astro_params_x_ray_tvir_min_default, takes_self=True),
+        converter=float,
+        validator=validators.gt(0),
+        transformer=logtransformer,
     )
     F_H2_SHIELD: float = field(default=0.0, converter=float)
     t_STAR: float = field(default=0.5, converter=float, validator=between(0, 1))
@@ -1963,9 +2532,16 @@ class AstroParams(InputStruct):
 
     T_RE: float = field(default=2e4, converter=float)
     _FIXED_VAVG: float | None = field(
-        deprecated=True, default=None, converter=attrs.converters.optional(float)
+        deprecated=True,
+        default=None,
+        converter=attrs.converters.optional(float),
+        alias="FIXED_VAVG",
     )
-    V_CB_AVG_DEBUG: float = field(converter=float, validator=validators.gt(0))
+    V_CB_AVG_DEBUG: float = field(
+        default=attrs.Factory(_astro_params_v_cb_avg_debug_default, takes_self=True),
+        converter=float,
+        validator=validators.gt(0),
+    )
 
     POP2_ION: float = field(default=5000.0, converter=float)
     POP3_ION: float = field(default=44021.0, converter=float)
@@ -1976,7 +2552,7 @@ class AstroParams(InputStruct):
     )
     ALPHA_UVB: float = field(default=5.0, converter=float)
     R_MAX_TS: float = field(default=500.0, converter=float, validator=validators.gt(0))
-    N_STEP_TS: float = field(default=40, converter=int, validator=validators.gt(0))
+    N_STEP_TS: int = field(default=40, converter=int, validator=validators.gt(0))
     MAX_DVDR: float = field(default=0.2, converter=float, validator=validators.ge(0))
 
     DELTA_R_HII_FACTOR: float = field(
@@ -1990,33 +2566,6 @@ class AstroParams(InputStruct):
         default=10000.0, converter=float, validator=validators.gt(0)
     )
 
-    @X_RAY_Tvir_MIN.default
-    def _X_RAY_Tvir_MIN_default(self):
-        return self.ION_Tvir_MIN
-
-    @NU_X_THRESH.validator
-    def _NU_X_THRESH_vld(self, att, val):
-        """Check if the choice of NU_X_THRESH is sensible."""
-        if val < 100.0:
-            raise ValueError(
-                "Chosen NU_X_THRESH is < 100 eV. NU_X_THRESH must be above 100 eV as it describes X-ray photons"
-            )
-        elif val >= self.NU_X_BAND_MAX:
-            raise ValueError(
-                f"""
-                Chosen NU_X_THRESH > {self.NU_X_BAND_MAX}, which is the upper limit of the adopted X-ray band
-                (fiducially the soft band 0.5 - 2.0 keV). If you know what you are doing with this
-                choice, please modify the parameter: NU_X_BAND_MAX"""
-            )
-        elif self.NU_X_BAND_MAX > self.NU_X_MAX:
-            raise ValueError(
-                f"""
-                Chosen NU_X_BAND_MAX > {self.NU_X_MAX}, which is the upper limit of X-ray integrals (fiducially 10 keV)
-                If you know what you are doing, please modify the parameter:
-                NU_X_MAX
-                """
-            )
-
     @cached_property
     def FIXED_VAVG(self) -> float | None:
         """A fixed constant value for the amplitude of the relative velocity between (cold) dark matter and baryons, in units of km/s.
@@ -2025,26 +2574,6 @@ class AstroParams(InputStruct):
 
         This is a deprecated property, and will be removed in v5. Please use V_CB_AVG_DEBUG instead.
         """
-        return self._FIXED_VAVG
-
-    @V_CB_AVG_DEBUG.default
-    def _default_v_cb_avg_debug(self):
-        if self._FIXED_VAVG is None:
-            return V_CB_AVG_DEFAULT
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "FIXED_VAVG",
-                deprecated_in="4.2.0",
-                removed_in="5.0.0",
-                details=(
-                    "FIXED_VAVG is deprecated and will be removed in a future version. "
-                    "Please use V_CB_AVG_DEBUG directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-
         return self._FIXED_VAVG
 
     @cached_property
@@ -2151,265 +2680,36 @@ class AstroParams(InputStruct):
         else:
             return self._L_X_MINI
 
-    @M_TURN_STELLAR_FEEDBACK.default
-    def _default_m_turn_stellar_feedback(self):
-        if self._M_TURN is None:
-            return 8.7
 
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "M_TURN",
-                deprecated_in="4.2.0",
-                removed_in="5.0.0",
-                details=(
-                    "M_TURN is deprecated and will be removed in a future version. "
-                    "Please use M_TURN_STELLAR_FEEDBACK directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-
-        return self._M_TURN
-
-    @F_STAR10_ACG.default
-    def _f_star10_acg_default(self):
-        if self._F_STAR10 is None:
-            return -1.3
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "F_STAR10",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "F_STAR10 is deprecated and will be removed in a future version. "
-                    "Please use F_STAR10_ACG directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-
-        return self._F_STAR10
-
-    @F_STAR7_MCG.default
-    def _f_star7_mcg_default(self):
-        if self._F_STAR7_MINI is None:
-            # set the default of the MCGs scalings to continue the same PL
-            return (
-                self.F_STAR10_ACG - 3 * self.ALPHA_STAR_ACG
-            )  # -3*alpha since 1e7/1e10 = 1e-3
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "F_STAR7_MINI",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "F_STAR7_MINI is deprecated and will be removed in a future version. "
-                    "Please use F_STAR7_MCG directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-
-        return self._F_STAR7_MINI
-
-    @F_ESC10_ACG.default
-    def _f_esc10_acg_default(self):
-        if self._F_ESC10 is None:
-            return -1.0
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "F_ESC10",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "F_ESC10 is deprecated and will be removed in a future version. "
-                    "Please use F_ESC10_ACG directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-
-        return self._F_ESC10
-
-    @F_ESC7_MCG.default
-    def _f_esc7_mcg_default(self):
-        if self._F_ESC7_MINI is None:
-            return -2.0
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "F_ESC7_MINI",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "F_ESC7_MINI is deprecated and will be removed in a future version. "
-                    "Please use F_ESC7_MCG directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-
-        return self._F_ESC7_MINI
-
-    @ALPHA_STAR_ACG.default
-    def _alpha_star_acg_default(self):
-        if self._ALPHA_STAR is None:
-            return 0.5
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "ALPHA_STAR",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "ALPHA_STAR is deprecated and will be removed in a future version. "
-                    "Please use ALPHA_STAR_ACG directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-
-        return self._ALPHA_STAR
-
-    @ALPHA_STAR_MCG.default
-    def _alpha_star_mcg_default(self):
-        if self._ALPHA_STAR_MINI is None:
-            return self.ALPHA_STAR_ACG
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "ALPHA_STAR_MINI",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "ALPHA_STAR_MINI is deprecated and will be removed in a future version. "
-                    "Please use ALPHA_STAR_MCG directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-
-        return self._ALPHA_STAR_MINI
-
-    @LX_OVER_SFR_ACG.default
-    def _lx_over_sfr_acg_default(self):
-        if self._L_X is None:
-            return 40.5
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "L_X",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "L_X is deprecated and will be removed in a future version. "
-                    "Please use LX_OVER_SFR_ACG directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-
-        return self._L_X
-
-    @LX_OVER_SFR_MCG.default
-    def _lx_over_sfr_mcg_default(self):
-        if self._L_X_MINI is None:
-            return self.LX_OVER_SFR_ACG
-
-        warnings.warn(
-            deprecation.DeprecatedWarning(
-                "L_X_MINI",
-                deprecated_in="4.3.0",
-                removed_in="5.0.0",
-                details=(
-                    "L_X_MINI is deprecated and will be removed in a future version. "
-                    "Please use LX_OVER_SFR_MCG directly instead."
-                ),
-            ),
-            stacklevel=2,
-        )
-
-        return self._L_X_MINI
-
-    @F_STAR10_ACG.validator
-    def _f_star10_acg_vld(self, att, val):
-        if self._F_STAR10 is not None and val != self._F_STAR10:
-            raise ValueError(
-                f"F_STAR10_ACG is set to {val} but F_STAR10 is {self._F_STAR10}! "
-                f"Either set F_STAR10 to {val} or change F_STAR10_ACG to {self._F_STAR10}."
-            )
-
-    @F_STAR7_MCG.validator
-    def _f_star7_mcg_vld(self, att, val):
-        if self._F_STAR7_MINI is not None and val != self._F_STAR7_MINI:
-            raise ValueError(
-                f"F_STAR7_MCG is set to {val} but F_STAR7_MINI is {self._F_STAR7_MINI}! "
-                f"Either set F_STAR7_MINI to {val} or change F_STAR7_MCG to {self._F_STAR7_MINI}."
-            )
-
-    @F_ESC10_ACG.validator
-    def _f_esc10_acg_vld(self, att, val):
-        if self._F_ESC10 is not None and val != self._F_ESC10:
-            raise ValueError(
-                f"F_ESC10_ACG is set to {val} but F_ESC10 is {self._F_ESC10}! "
-                f"Either set F_ESC10 to {val} or change F_ESC10_ACG to {self._F_ESC10}."
-            )
-
-    @F_ESC7_MCG.validator
-    def _f_esc7_mcg_vld(self, att, val):
-        if self._F_ESC7_MINI is not None and val != self._F_ESC7_MINI:
-            raise ValueError(
-                f"F_ESC7_MCG is set to {val} but F_ESC7_MINI is {self._F_ESC7_MINI}! "
-                f"Either set F_ESC7_MINI to {val} or change F_ESC7_MCG to {self._F_ESC7_MINI}."
-            )
-
-    @ALPHA_STAR_ACG.validator
-    def _alpha_star_acg_vld(self, att, val):
-        if self._ALPHA_STAR is not None and val != self._ALPHA_STAR:
-            raise ValueError(
-                f"ALPHA_STAR_ACG is set to {val} but ALPHA_STAR is {self._ALPHA_STAR}! "
-                f"Either set ALPHA_STAR to {val} or change ALPHA_STAR_ACG to {self._ALPHA_STAR}."
-            )
-
-    @ALPHA_STAR_MCG.validator
-    def _alpha_star_mcg_vld(self, att, val):
-        if self._ALPHA_STAR_MINI is not None and val != self._ALPHA_STAR_MINI:
-            raise ValueError(
-                f"ALPHA_STAR_MCG is set to {val} but ALPHA_STAR_MINI is {self._ALPHA_STAR_MINI}! "
-                f"Either set ALPHA_STAR_MINI to {val} or change ALPHA_STAR_MCG to {self._ALPHA_STAR_MINI}."
-            )
-
-    @LX_OVER_SFR_ACG.validator
-    def _lx_over_sfr_acg_vld(self, att, val):
-        if self._L_X is not None and val != self._L_X:
-            raise ValueError(
-                f"LX_OVER_SFR_ACG is set to {val} but L_X is {self._L_X}! "
-                f"Either set L_X to {val} or change LX_OVER_SFR_ACG to {self._L_X}."
-            )
-
-    @LX_OVER_SFR_MCG.validator
-    def _lx_over_sfr_mcg_vld(self, att, val):
-        if self._L_X_MINI is not None and val != self._L_X_MINI:
-            raise ValueError(
-                f"LX_OVER_SFR_MCG is set to {val} but L_X_MINI is {self._L_X_MINI}! "
-                f"Either set L_X_MINI to {val} or change LX_OVER_SFR_MCG to {self._L_X_MINI}."
-            )
+# Whether to include the CosmoTables in the dictionary representation of the inputs
+# (see InputParameters.asdict).
+type CosmoTablesInclusion = Literal["always", "if_cached", "never"]
+# Dictionary representation of the input structs of InputParameters (see
+# InputParameters.asdict): keys are the struct names, values are dictionaries of the
+# parameters of each struct (which are heterogeneous, hence ``Any``).
+type StructsDict = dict[str, dict[str, Any]]
+# Like StructsDict, but also including random_seed and node_redshifts.
+type InputsDict = dict[str, dict[str, Any] | int | tuple[float, ...]]
 
 
 class InputCrossValidationError(ValueError):
     """Error when two parameters from different structs aren't consistent."""
 
 
-def input_param_field(kls: InputStruct):
+def input_param_field[T: InputStruct](kls: type[T]) -> T:
     """Create an attrs field that must be an InputStruct.
 
     Parameters
     ----------
     kls : InputStruct subclass
         The parameter structure which should be returned as an attrs field
+
+    Returns
+    -------
+    field
+        An attrs field definition. Like :func:`attrs.field`, it is typed as the type
+        of the attribute it defines, so that it can be assigned to an annotated
+        class attribute.
     """
     return _field(
         default=kls.new(),
@@ -2436,12 +2736,227 @@ def get_logspaced_redshifts(
     return tuple(redshifts[::-1])
 
 
-def _node_redshifts_converter(value) -> tuple[float, ...] | None:
-    if value is None or len(value) == 0:
+def _node_redshifts_converter(
+    value: float | Iterable[float] | None,
+) -> tuple[float, ...]:
+    """Convert node redshifts to a tuple of floats, in descending order."""
+    if value is None:
         return ()
-    if hasattr(value, "__len__"):
+    if isinstance(value, Iterable):
         return tuple(sorted([float(v) for v in value], reverse=True))
     return (float(value),)
+
+
+def _inputs_node_redshifts_default(inst: "InputParameters") -> tuple[float, ...]:
+    return (
+        get_logspaced_redshifts(
+            min_redshift=5.5,
+            max_redshift=inst.simulation_options.Z_HEAT_MAX,
+            z_step_factor=inst.simulation_options.ZPRIME_STEP_FACTOR,
+        )
+        if inst.evolution_required
+        else ()
+    )
+
+
+def _inputs_node_redshifts_validator(
+    inst: "InputParameters",
+    att: "attrs.Attribute[tuple[float, ...]]",
+    val: tuple[float, ...],
+) -> None:
+    if (
+        inst.astro_options.RECOMB_MODEL != "none" or inst.astro_options.USE_TS_FLUCT
+    ) and ((max(val) if val else 0.0) < inst.simulation_options.Z_HEAT_MAX):
+        if not val:
+            raise ValueError(
+                "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
+                + "you passed no node_redshifts, but they are required for the simulation."
+            )
+        else:
+            raise ValueError(
+                "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
+                + f"your maximum passed node_redshifts {max(val)} must be above Z_HEAT_MAX {inst.simulation_options.Z_HEAT_MAX}"
+            )
+
+
+def _inputs_astro_options_validator(
+    inst: "InputParameters", att: "attrs.Attribute[AstroOptions]", val: AstroOptions
+) -> None:
+    if inst.matter_options is None:
+        return
+    if val.USE_MCGS:
+        if inst.matter_options.V_CB_MODEL == "NONE":
+            warnings.warn(
+                "USE_MCGS needs a non-trivial V_CB_MODEL to get the right evolution!",
+                stacklevel=2,
+            )
+        if inst.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
+            raise ValueError(
+                "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MCGS=True"
+            )
+    elif inst.matter_options.V_CB_MODEL != "NONE":
+        warnings.warn(
+            "USE_MCGS is False but V_CB_MODEL != 'NONE'. Note that the relative velocity between (cold) dark matter and baryons"
+            " is only relevant when mini-halos are present.",
+            stacklevel=2,
+        )
+
+    if inst.astro_options.FIX_VCB_AVG is not None:
+        # User set explicitly FIX_VCB_AVG, raise a warning that it is deprecated and will be removed in a future version
+        warnings.warn(
+            deprecation.DeprecatedWarning(
+                "FIX_VCB_AVG",
+                deprecated_in="4.3.0",
+                removed_in="5.0.0",
+                details=(
+                    "FIX_VCB_AVG is deprecated and will be removed in a future version. "
+                    "Please use V_CB_MODEL directly instead."
+                ),
+            ),
+            stacklevel=2,
+        )
+        if (
+            not inst.astro_options.FIX_VCB_AVG
+            and inst.matter_options.V_CB_MODEL == "AVG-DEBUG"
+        ):
+            raise ValueError(
+                "FIX_VCB_AVG=False is not compatible with V_CB_MODEL = 'AVG-DEBUG'! "
+                "Either change V_CB_MODEL or set FIX_VCB_AVG to True."
+            )
+        elif (
+            inst.astro_options.FIX_VCB_AVG
+            and inst.matter_options.V_CB_MODEL != "AVG-DEBUG"
+        ):
+            raise ValueError(
+                f"FIX_VCB_AVG=True is not compatible with V_CB_MODEL = {inst.matter_options.V_CB_MODEL}! "
+                "Either change V_CB_MODEL or set FIX_VCB_AVG to False."
+            )
+
+    if inst.matter_options.lagrangian_source_grid:
+        if val.PHOTON_CONS_TYPE == "z-photoncons":
+            raise ValueError(
+                f"SOURCE_MODEL={inst.matter_options.SOURCE_MODEL} is not compatible with the redshift-based"
+                " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! Use a "
+                " different PHOTON_CONS_TYPE or set SOURCE_MODEL='E-INTEGRAL' to use the old"
+                " source model"
+            )
+    else:
+        if val.USE_EXP_FILTER:
+            raise ValueError(
+                f"USE_EXP_FILTER is not compatible with SOURCE_MODEL == {inst.matter_options.SOURCE_MODEL}"
+            )
+
+    if not inst.matter_options.has_discrete_halos and val.USE_UPPER_STELLAR_TURNOVER:
+        raise NotImplementedError(
+            f"USE_UPPER_STELLAR_TURNOVER is not yet implemented for SOURCE_MODEL = {inst.matter_options.SOURCE_MODEL}"
+        )
+    if inst.matter_options.HMF not in ["PS", "ST", "DELOS"]:
+        warnings.warn(
+            "A selection of a mass function other than Press-Schechter, Sheth-Tormen or Delos will"
+            "Result in the use of the EPS conditional mass function, normalised the unconditional"
+            "mass function provided by the user as matter_options.HMF",
+            stacklevel=2,
+        )
+    elif (
+        val.INTEGRATION_METHOD_ACGS == "GAMMA-APPROX"
+        or val.INTEGRATION_METHOD_MCGS == "GAMMA-APPROX"
+        or inst.matter_options.SOURCE_MODEL == "CONST-ION-EFF"
+    ) and inst.matter_options.HMF != "PS":
+        warnings.warn(
+            "Your model (either SOURCE_MODEL=='CONST-ION-EFF' or INTEGRATION_METHOD_X=='GAMMA-APPROX')"
+            "uses the EPS conditional mass function normalised to the unconditional mass"
+            "function provided by the user as matter_options.HMF",
+            stacklevel=2,
+        )
+
+    if (
+        val.USE_REIONIZATION_PHOTOHEATING_FEEDBACK
+        and inst.matter_options.SOURCE_MODEL == "CONST-ION-EFF"
+    ):
+        raise NotImplementedError(
+            "USE_REIONIZATION_PHOTOHEATING_FEEDBACK is not yet compatible with SOURCE_MODEL == CONST-ION-EFF"
+        )
+
+    if val.USE_METALLICITY and inst.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
+        raise NotImplementedError(
+            "USE_METALLICITY is not yet compatible with SOURCE_MODEL == CONST-ION-EFF"
+        )
+
+
+def _inputs_astro_params_validator(
+    inst: "InputParameters", att: "attrs.Attribute[AstroParams]", val: AstroParams
+) -> None:
+    if val.R_BUBBLE_MAX > inst.simulation_options.BOX_LEN:
+        raise InputCrossValidationError(
+            f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {inst.simulation_options.BOX_LEN}). This is not allowed."
+        )
+
+    if val.R_BUBBLE_MAX != 50 and inst.astro_options.RECOMB_MODEL != "none":
+        warnings.warn(
+            "You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL != 'none'. "
+            "This is non-standard (but allowed), and usually occurs upon manual "
+            "update of RECOMB_MODEL or R_BUBBLE_MAX",
+            stacklevel=2,
+        )
+
+    if val.M_TURN_STELLAR_FEEDBACK > 8 and inst.astro_options.USE_MCGS:
+        warnings.warn(
+            "You are setting M_TURN_STELLAR_FEEDBACK > 8 when USE_MCGS=True. "
+            "The star formation in mini-halos with a mass smaller than M_TURN_STELLAR_FEEDBACK "
+            "is highly suppressed. Make sure you know what you are doing!",
+            stacklevel=2,
+        )
+
+    if (
+        inst.astro_options.HII_FILTER == "sharp-k"
+        and val.R_BUBBLE_MAX > inst.simulation_options.BOX_LEN / 3
+    ):
+        msg = (
+            "Your R_BUBBLE_MAX is > BOX_LEN/3 "
+            f"({val.R_BUBBLE_MAX} > {inst.simulation_options.BOX_LEN / 3})."
+            f" This can produce strange reionisation topologies"
+        )
+
+        if config["ignore_R_BUBBLE_MAX_error"]:
+            warnings.warn(msg, stacklevel=2)
+        else:
+            raise ValueError(
+                msg
+                + " To ignore this error, set `py21cmfast.config['ignore_R_BUBBLE_MAX_error'] = True`"
+            )
+
+
+def _inputs_simulation_options_validator(
+    inst: "InputParameters",
+    att: "attrs.Attribute[SimulationOptions]",
+    val: SimulationOptions,
+) -> None:
+    # perform a very rudimentary check to see if we are underresolved and not using the linear approx
+    if inst.matter_options is not None and (
+        val.cell_size_hires > 1 * un.Mpc
+        and inst.matter_options.PERTURB_ALGORITHM != "LINEAR"
+    ):
+        warnings.warn(
+            "Resolution is likely too low for accurate evolved density fields. "
+            "It is recommended that you either increase the resolution "
+            "(DIM/BOX_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to True. "
+            f"Got DIM={val.DIM}, BOX_LEN={val.BOX_LEN}, resolution={val.cell_size_hires} Mpc.",
+            stacklevel=2,
+        )
+
+    if (
+        inst.matter_options.POWER_SPECTRUM != "CLASS"
+        and inst.cosmo_params._A_s is not None
+    ):
+        warnings.warn(
+            f"You have chosen to work with POWER_SPECTRUM={inst.matter_options.POWER_SPECTRUM}, "
+            "but at the same time you work with A_s (rather than SIGMA_8). "
+            "While this is allowed, it is important to realize that it is impossible "
+            "to normalize correctly the power spectrum with A_s while using the "
+            f"{inst.matter_options.POWER_SPECTRUM} transfer function. "
+            "CLASS will convert your A_s to SIGMA_8.",
+            stacklevel=2,
+        )
 
 
 @attrs.define(kw_only=True, frozen=True)
@@ -2474,41 +2989,49 @@ class InputParameters:
 
     """
 
+    # NOTE: the InputStruct fields are equivalent to input_param_field(kls), but the
+    # default and converter are given explicitly here so that type checkers know
+    # about them (e.g. that a dict may be passed).
     random_seed: int = _field(converter=int)
-    cosmo_params: CosmoParams = input_param_field(CosmoParams)
-    matter_options: MatterOptions = input_param_field(MatterOptions)
-    simulation_options: SimulationOptions = input_param_field(SimulationOptions)
-    astro_options: AstroOptions = input_param_field(AstroOptions)
-    astro_params: AstroParams = input_param_field(AstroParams)
-    node_redshifts = _field(converter=_node_redshifts_converter)
-
-    @node_redshifts.default
-    def _node_redshifts_default(self):
-        return (
-            get_logspaced_redshifts(
-                min_redshift=5.5,
-                max_redshift=self.simulation_options.Z_HEAT_MAX,
-                z_step_factor=self.simulation_options.ZPRIME_STEP_FACTOR,
-            )
-            if self.evolution_required
-            else None
-        )
-
-    @node_redshifts.validator
-    def _node_redshifts_validator(self, att, val):
-        if (
-            self.astro_options.RECOMB_MODEL != "none" or self.astro_options.USE_TS_FLUCT
-        ) and ((max(val) if val else 0.0) < self.simulation_options.Z_HEAT_MAX):
-            if not val:
-                raise ValueError(
-                    "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
-                    + "you passed no node_redshifts, but they are required for the simulation."
-                )
-            else:
-                raise ValueError(
-                    "For runs with inhomogeneous recombinations or spin temperature fluctuations,\n"
-                    + f"your maximum passed node_redshifts {max(val)} must be above Z_HEAT_MAX {self.simulation_options.Z_HEAT_MAX}"
-                )
+    cosmo_params: CosmoParams = _field(
+        default=CosmoParams.new(),
+        converter=CosmoParams.new,
+        validator=validators.instance_of(CosmoParams),
+    )
+    matter_options: MatterOptions = _field(
+        default=MatterOptions.new(),
+        converter=MatterOptions.new,
+        validator=validators.instance_of(MatterOptions),
+    )
+    simulation_options: SimulationOptions = _field(
+        default=SimulationOptions.new(),
+        converter=SimulationOptions.new,
+        validator=[
+            validators.instance_of(SimulationOptions),
+            _inputs_simulation_options_validator,
+        ],
+    )
+    astro_options: AstroOptions = _field(
+        default=AstroOptions.new(),
+        converter=AstroOptions.new,
+        validator=[
+            validators.instance_of(AstroOptions),
+            _inputs_astro_options_validator,
+        ],
+    )
+    astro_params: AstroParams = _field(
+        default=AstroParams.new(),
+        converter=AstroParams.new,
+        validator=[
+            validators.instance_of(AstroParams),
+            _inputs_astro_params_validator,
+        ],
+    )
+    node_redshifts: tuple[float, ...] = _field(
+        default=attrs.Factory(_inputs_node_redshifts_default, takes_self=True),
+        converter=_node_redshifts_converter,
+        validator=_inputs_node_redshifts_validator,
+    )
 
     @cached_property
     def cosmo_tables(self) -> CosmoTables:
@@ -2569,13 +3092,13 @@ class InputParameters:
             if self.matter_options.V_CB_MODEL == "FLUCTS":
                 # Linear vcb transfer function at kinematic decoupling
                 transfer_vcb = (
-                    (
-                        get_transfer_function(
-                            classy_output=classy_output, kind="v_cb", z=z_dec
-                        )
-                        / constants.c  # Need to normalize by c, because ComputeInitialConditions() expects to receive a dimensionless transfer function
-                    ).to(un.dimensionless_unscaled)
-                )
+                    get_transfer_function(
+                        classy_output=classy_output, kind="v_cb", z=z_dec
+                    )
+                    # Need to normalize by c, because ComputeInitialConditions()
+                    # expects to receive a dimensionless transfer function.
+                    / codata.c
+                ).to(un.dimensionless_unscaled)
                 # Include a sample at k=0
                 transfer_vcb = np.concatenate(([0.0], transfer_vcb))
                 # Create a Table1D for the vcb transfer function
@@ -2620,182 +3143,7 @@ class InputParameters:
             )
         return cosmo_tables
 
-    @astro_options.validator
-    def _astro_options_validator(self, att, val):
-        if self.matter_options is None:
-            return
-        if val.USE_MCGS:
-            if self.matter_options.V_CB_MODEL == "NONE":
-                warnings.warn(
-                    "USE_MCGS needs a non-trivial V_CB_MODEL to get the right evolution!",
-                    stacklevel=2,
-                )
-            if self.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
-                raise ValueError(
-                    "SOURCE_MODEL == 'CONST-ION-EFF' is not compatible with USE_MCGS=True"
-                )
-        elif self.matter_options.V_CB_MODEL != "NONE":
-            warnings.warn(
-                "USE_MCGS is False but V_CB_MODEL != 'NONE'. Note that the relative velocity between (cold) dark matter and baryons"
-                " is only relevant when mini-halos are present.",
-                stacklevel=2,
-            )
-
-        if self.astro_options.FIX_VCB_AVG is not None:
-            # User set explicitly FIX_VCB_AVG, raise a warning that it is deprecated and will be removed in a future version
-            warnings.warn(
-                deprecation.DeprecatedWarning(
-                    "FIX_VCB_AVG",
-                    deprecated_in="4.3.0",
-                    removed_in="5.0.0",
-                    details=(
-                        "FIX_VCB_AVG is deprecated and will be removed in a future version. "
-                        "Please use V_CB_MODEL directly instead."
-                    ),
-                ),
-                stacklevel=2,
-            )
-            if (
-                not self.astro_options.FIX_VCB_AVG
-                and self.matter_options.V_CB_MODEL == "AVG-DEBUG"
-            ):
-                raise ValueError(
-                    "FIX_VCB_AVG=False is not compatible with V_CB_MODEL = 'AVG-DEBUG'! "
-                    "Either change V_CB_MODEL or set FIX_VCB_AVG to True."
-                )
-            elif (
-                self.astro_options.FIX_VCB_AVG
-                and self.matter_options.V_CB_MODEL != "AVG-DEBUG"
-            ):
-                raise ValueError(
-                    f"FIX_VCB_AVG=True is not compatible with V_CB_MODEL = {self.matter_options.V_CB_MODEL}! "
-                    "Either change V_CB_MODEL or set FIX_VCB_AVG to False."
-                )
-
-        if self.matter_options.lagrangian_source_grid:
-            if val.PHOTON_CONS_TYPE == "z-photoncons":
-                raise ValueError(
-                    f"SOURCE_MODEL={self.matter_options.SOURCE_MODEL} is not compatible with the redshift-based"
-                    " photon conservation corrections (PHOTON_CONS_TYPE=='z_photoncons')! Use a "
-                    " different PHOTON_CONS_TYPE or set SOURCE_MODEL='E-INTEGRAL' to use the old"
-                    " source model"
-                )
-        else:
-            if val.USE_EXP_FILTER:
-                raise ValueError(
-                    f"USE_EXP_FILTER is not compatible with SOURCE_MODEL == {self.matter_options.SOURCE_MODEL}"
-                )
-
-        if (
-            not self.matter_options.has_discrete_halos
-            and val.USE_UPPER_STELLAR_TURNOVER
-        ):
-            raise NotImplementedError(
-                f"USE_UPPER_STELLAR_TURNOVER is not yet implemented for SOURCE_MODEL = {self.matter_options.SOURCE_MODEL}"
-            )
-        if self.matter_options.HMF not in ["PS", "ST", "DELOS"]:
-            warnings.warn(
-                "A selection of a mass function other than Press-Schechter, Sheth-Tormen or Delos will"
-                "Result in the use of the EPS conditional mass function, normalised the unconditional"
-                "mass function provided by the user as matter_options.HMF",
-                stacklevel=2,
-            )
-        elif (
-            val.INTEGRATION_METHOD_ACGS == "GAMMA-APPROX"
-            or val.INTEGRATION_METHOD_MCGS == "GAMMA-APPROX"
-            or self.matter_options.SOURCE_MODEL == "CONST-ION-EFF"
-        ) and self.matter_options.HMF != "PS":
-            warnings.warn(
-                "Your model (either SOURCE_MODEL=='CONST-ION-EFF' or INTEGRATION_METHOD_X=='GAMMA-APPROX')"
-                "uses the EPS conditional mass function normalised to the unconditional mass"
-                "function provided by the user as matter_options.HMF",
-                stacklevel=2,
-            )
-
-        if (
-            val.USE_REIONIZATION_PHOTOHEATING_FEEDBACK
-            and self.matter_options.SOURCE_MODEL == "CONST-ION-EFF"
-        ):
-            raise NotImplementedError(
-                "USE_REIONIZATION_PHOTOHEATING_FEEDBACK is not yet compatible with SOURCE_MODEL == CONST-ION-EFF"
-            )
-
-        if val.USE_METALLICITY and self.matter_options.SOURCE_MODEL == "CONST-ION-EFF":
-            raise NotImplementedError(
-                "USE_METALLICITY is not yet compatible with SOURCE_MODEL == CONST-ION-EFF"
-            )
-
-    @astro_params.validator
-    def _astro_params_validator(self, att, val):
-        if val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN:
-            raise InputCrossValidationError(
-                f"R_BUBBLE_MAX is larger than BOX_LEN ({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN}). This is not allowed."
-            )
-
-        if val.R_BUBBLE_MAX != 50 and self.astro_options.RECOMB_MODEL != "none":
-            warnings.warn(
-                "You are setting R_BUBBLE_MAX != 50 when RECOMB_MODEL != 'none'. "
-                "This is non-standard (but allowed), and usually occurs upon manual "
-                "update of RECOMB_MODEL or R_BUBBLE_MAX",
-                stacklevel=2,
-            )
-
-        if val.M_TURN_STELLAR_FEEDBACK > 8 and self.astro_options.USE_MCGS:
-            warnings.warn(
-                "You are setting M_TURN_STELLAR_FEEDBACK > 8 when USE_MCGS=True. "
-                "The star formation in mini-halos with a mass smaller than M_TURN_STELLAR_FEEDBACK "
-                "is highly suppressed. Make sure you know what you are doing!",
-                stacklevel=2,
-            )
-
-        if (
-            self.astro_options.HII_FILTER == "sharp-k"
-            and val.R_BUBBLE_MAX > self.simulation_options.BOX_LEN / 3
-        ):
-            msg = (
-                "Your R_BUBBLE_MAX is > BOX_LEN/3 "
-                f"({val.R_BUBBLE_MAX} > {self.simulation_options.BOX_LEN / 3})."
-                f" This can produce strange reionisation topologies"
-            )
-
-            if config["ignore_R_BUBBLE_MAX_error"]:
-                warnings.warn(msg, stacklevel=2)
-            else:
-                raise ValueError(
-                    msg
-                    + " To ignore this error, set `py21cmfast.config['ignore_R_BUBBLE_MAX_error'] = True`"
-                )
-
-    @simulation_options.validator
-    def _simulation_options_validator(self, att, val):
-        # perform a very rudimentary check to see if we are underresolved and not using the linear approx
-        if self.matter_options is not None and (
-            val.cell_size_hires > 1 * un.Mpc
-            and self.matter_options.PERTURB_ALGORITHM != "LINEAR"
-        ):
-            warnings.warn(
-                "Resolution is likely too low for accurate evolved density fields. "
-                "It is recommended that you either increase the resolution "
-                "(DIM/BOX_LEN) or set the EVOLVE_DENSITY_LINEARLY flag to True. "
-                f"Got DIM={val.DIM}, BOX_LEN={val.BOX_LEN}, resolution={val.cell_size_hires} Mpc.",
-                stacklevel=2,
-            )
-
-        if (
-            self.matter_options.POWER_SPECTRUM != "CLASS"
-            and self.cosmo_params._A_s is not None
-        ):
-            warnings.warn(
-                f"You have chosen to work with POWER_SPECTRUM={self.matter_options.POWER_SPECTRUM}, "
-                "but at the same time you work with A_s (rather than SIGMA_8). "
-                "While this is allowed, it is important to realize that it is impossible "
-                "to normalize correctly the power spectrum with A_s while using the "
-                f"{self.matter_options.POWER_SPECTRUM} transfer function. "
-                "CLASS will convert your A_s to SIGMA_8.",
-                stacklevel=2,
-            )
-
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> Any:
         """Get an item from the instance in a dict-like manner."""
         # Also allow using **input_parameters
         return getattr(self, key)
@@ -2815,10 +3163,10 @@ class InputParameters:
 
         return not any(
             other[key] is not None and self[key] is not None and self[key] != other[key]
-            for key in self.merge_keys()
+            for key in attrs.fields_dict(InputParameters)
         )
 
-    def evolve_input_structs(self, **kwargs) -> Self:
+    def evolve_input_structs(self, **kwargs: Any) -> Self:
         """Return an altered clone of the `InputParameters` structs.
 
         Unlike clone(), this function takes fields from the constituent `InputStruct` classes
@@ -2849,8 +3197,8 @@ class InputParameters:
         cls,
         name: str | Path | Sequence[str | Path],
         random_seed: int | None = None,
-        node_redshifts: tuple[float] | None = None,
-        **kwargs,
+        node_redshifts: Sequence[float] | None = None,
+        **kwargs: Any,
     ) -> Self:
         """Construct full InputParameters instance from native or TOML file template.
 
@@ -2877,16 +3225,30 @@ class InputParameters:
         from .._templates import create_params_from_template
 
         dct = create_params_from_template(name, **kwargs)
-        dct.pop("cosmo_tables", None)
 
-        if random_seed is not None:
-            dct["random_seed"] = random_seed
-        if node_redshifts is not None:
-            dct["node_redshifts"] = node_redshifts
+        if random_seed is None:
+            if "random_seed" not in dct:
+                raise TypeError(
+                    "No random_seed was given, and the template does not define one."
+                )
+            random_seed = dct["random_seed"]
+        if node_redshifts is None:
+            node_redshifts = dct.get("node_redshifts")
 
-        return cls(**dct)
+        # Note that the template may also define cosmo_tables, which are derived
+        # quantities, and are therefore not passed on.
+        return cls(
+            random_seed=random_seed,
+            cosmo_params=dct["cosmo_params"],
+            simulation_options=dct["simulation_options"],
+            matter_options=dct["matter_options"],
+            astro_params=dct["astro_params"],
+            astro_options=dct["astro_options"],
+            # node_redshifts are only given if set, to get the default otherwise.
+            **({} if node_redshifts is None else {"node_redshifts": node_redshifts}),
+        )
 
-    def clone(self, **kwargs) -> Self:
+    def clone(self, **kwargs: Any) -> Self:
         """Generate a copy of the InputParameter structure with specified changes."""
         return evolve(self, **kwargs)
 
@@ -2908,7 +3270,7 @@ class InputParameters:
     # NOTE: These hashes are used to compare structs within a run, and so don't need to stay
     #   constant between sessions
     @cached_property
-    def _user_cosmo_hash(self):
+    def _user_cosmo_hash(self) -> int:
         """A hash generated from the user and cosmo params as well random seed."""
         return hash(
             (
@@ -2920,11 +3282,11 @@ class InputParameters:
         )
 
     @cached_property
-    def _zgrid_hash(self):
+    def _zgrid_hash(self) -> int:
         return hash((self._user_cosmo_hash, self.node_redshifts))
 
     @cached_property
-    def _full_hash(self):
+    def _full_hash(self) -> int:
         return hash(
             (
                 self.random_seed,
@@ -2967,6 +3329,8 @@ class InputParameters:
             Multiplicative step factor between consecutive ``(1 + z)`` values.
             Defaults to ``ZPRIME_STEP_FACTOR`` from :class:`SimulationOptions`.
             Ignored when ``nz`` is provided.
+        zstep_factor
+            Deprecated alias of ``step`` (takes precedence over it if given).
         nz
             If given, produce exactly ``nz`` redshifts equally spaced in
             ``log(1 + z)`` between ``zmin`` and ``zmax``, overriding
@@ -2978,15 +3342,15 @@ class InputParameters:
         if nz is not None:
             node_redshifts = tuple((np.geomspace(1 + zmin, 1 + zmax, nz) - 1).tolist())
         else:
-            if step is None and zstep_factor is None:
-                step = self.simulation_options.ZPRIME_STEP_FACTOR
-            elif zstep_factor is not None:
+            if zstep_factor is not None:
                 step = zstep_factor
                 warnings.warn(
                     "The `zstep_factor` argument is deprecated and will be removed in a future version. Please use `step` instead.",
                     DeprecationWarning,
                     stacklevel=2,
                 )
+            elif step is None:
+                step = self.simulation_options.ZPRIME_STEP_FACTOR
             node_redshifts = get_logspaced_redshifts(
                 min_redshift=zmin,
                 z_step_factor=step,
@@ -3011,7 +3375,7 @@ class InputParameters:
         zmax
             Maximum redshift of the node grid. Defaults to ``Z_HEAT_MAX`` from
             :class:`SimulationOptions`.
-        zstep
+        step
             Linear step size between consecutive redshifts. The grid will
             include ``zmin`` and extend up to at least ``zmax``. Ignored when
             ``nz`` is provided.
@@ -3032,6 +3396,17 @@ class InputParameters:
 
         return self.clone(node_redshifts=node_redshifts)
 
+    @overload
+    def asdict(
+        self,
+        only_structs: Literal[True],
+        camel: bool = False,
+        remove_base_cosmo: bool = True,
+        only_cstruct_params: bool = True,
+        use_aliases: bool = True,
+        include_cosmo_tables: CosmoTablesInclusion = "always",
+    ) -> StructsDict: ...
+    @overload
     def asdict(
         self,
         only_structs: bool = False,
@@ -3039,8 +3414,17 @@ class InputParameters:
         remove_base_cosmo: bool = True,
         only_cstruct_params: bool = True,
         use_aliases: bool = True,
-        include_cosmo_tables: Literal["always", "if_cached", "never"] = "always",
-    ) -> dict[str, dict[str, Any]]:
+        include_cosmo_tables: CosmoTablesInclusion = "always",
+    ) -> InputsDict: ...
+    def asdict(
+        self,
+        only_structs: bool = False,
+        camel: bool = False,
+        remove_base_cosmo: bool = True,
+        only_cstruct_params: bool = True,
+        use_aliases: bool = True,
+        include_cosmo_tables: CosmoTablesInclusion = "always",
+    ) -> StructsDict | InputsDict:
         """Convert the instance to a recursive dictionary.
 
         Parameters
@@ -3066,6 +3450,15 @@ class InputParameters:
             - ``"if_cached"``: include tables only if they were already materialized,
               which avoids triggering CLASS work during serialization.
             - ``"never"``: omit tables entirely, useful for portable templates.
+
+        Returns
+        -------
+        dict
+            A dictionary whose keys are the attribute names of the instance (or their
+            CamelCase versions, if ``camel``), and whose values are dictionaries of
+            parameters for each input struct (and ``cosmo_tables``). Unless
+            ``only_structs`` is True, it also contains ``random_seed`` (an int) and
+            ``node_redshifts`` (a tuple of floats).
         """
         dct = attrs.asdict(self, recurse=True, filter=_is_not_deprecated)
 

@@ -3,10 +3,10 @@
 import logging
 import warnings
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from functools import cached_property
 from pathlib import Path
-from typing import Self
+from typing import Any, Self
 
 import attrs
 import h5py
@@ -21,7 +21,15 @@ from ..io.caching import CacheConfig, OutputCache
 from ..lightconers import Lightconer, RectilinearLightconer
 from ..rsds import apply_rsds as _apply_rsds
 from ..rsds import include_dvdr_in_tau21 as _apply_dvdr_in_tau21
-from ..wrapper.inputs import InputParameters
+from ..wrapper.inputs import (
+    AstroOptions,
+    AstroParams,
+    CosmoParams,
+    CosmoTables,
+    InputParameters,
+    MatterOptions,
+    SimulationOptions,
+)
 from ..wrapper.outputs import (
     BrightnessTemp,
     EmissivityFields,
@@ -31,8 +39,11 @@ from ..wrapper.outputs import (
     PerturbedField,
     TsBox,
 )
+from ..wrapper.photoncons import PhotonConsData
 from ._param_config import high_level_func
 from .coeval import (
+    Coeval,
+    _IOKwargs,
     _obtain_starting_point_for_scrolling,
     _redshift_loop_generator,
     _setup_ics_and_pfs_for_scrolling,
@@ -59,7 +70,7 @@ class LightCone:
         Lightcone arrays, each of shape `(N, N, Nz)`.
     global_quantities: dict[str, np.ndarray] | None
         Arrays of length `node_redshifts` containing the mean field across redshift.
-    photon_nonconservation_data: dict
+    photon_nonconservation_data: PhotonConsData
         Data defining the conservation hack for photons.
     _last_completed_node: int
         Since the lightcone is filled up incrementally, this keeps track of the index
@@ -80,12 +91,12 @@ class LightCone:
         validator=attrs.validators.instance_of(dict)
     )
     global_quantities: dict[str, np.ndarray] | None = attrs.field(default=None)
-    photon_nonconservation_data: dict = attrs.field(factory=dict)
-    _last_completed_node: int = attrs.field(default=-1)
-    _last_completed_lcidx: int = attrs.field(default=-1)
+    photon_nonconservation_data: PhotonConsData = attrs.field(factory=dict)
+    _last_completed_node: int = attrs.field(default=-1, alias="last_completed_node")
+    _last_completed_lcidx: int = attrs.field(default=-1, alias="last_completed_lcidx")
 
     @classmethod
-    def get_fields(cls, inputs: InputParameters) -> tuple:
+    def get_fields(cls, inputs: InputParameters) -> tuple[str, ...]:
         """Get a list of the names of the available fields in the simulation."""
         possible_outputs = [
             PerturbedField.new(inputs, redshift=0),
@@ -95,7 +106,7 @@ class LightCone:
         ]
         if inputs.astro_options.USE_TS_FLUCT:
             possible_outputs.append(TsBox.new(inputs, redshift=0))
-        field_names = ("log10_mturn_acg", "log10_mturn_mcg")
+        field_names: tuple[str, ...] = ("log10_mturn_acg", "log10_mturn_mcg")
         for output in possible_outputs:
             field_names += tuple(output.arrays.keys())
         return field_names
@@ -115,8 +126,8 @@ class LightCone:
         )
 
     @property
-    def shape(self) -> tuple[int, int, int]:
-        """Shape of the lightcone as a 3-tuple."""
+    def shape(self) -> tuple[int, ...]:
+        """Shape of the lightcone (a 3-tuple, or a 2-tuple for angular lightcones)."""
         return self.lightcones[next(iter(self.lightcones.keys()))].shape
 
     @property
@@ -125,47 +136,47 @@ class LightCone:
         return self.shape[-1]
 
     @property
-    def lightcone_coords(self) -> tuple[float, float, float]:
+    def lightcone_coords(self) -> units.Quantity:
         """Co-ordinates [Mpc] of each slice along the redshift axis."""
         return self.lightcone_distances - self.lightcone_distances[0]
 
     @property
-    def simulation_options(self):
+    def simulation_options(self) -> SimulationOptions:
         """Matter params shared by all datasets."""
         return self.inputs.simulation_options
 
     @property
-    def matter_options(self):
+    def matter_options(self) -> MatterOptions:
         """Matter flags shared by all datasets."""
         return self.inputs.matter_options
 
     @property
-    def cosmo_params(self):
+    def cosmo_params(self) -> CosmoParams:
         """Cosmo params shared by all datasets."""
         return self.inputs.cosmo_params
 
     @property
-    def astro_options(self):
+    def astro_options(self) -> AstroOptions:
         """Flag Options shared by all datasets."""
         return self.inputs.astro_options
 
     @property
-    def astro_params(self):
+    def astro_params(self) -> AstroParams:
         """Astro params shared by all datasets."""
         return self.inputs.astro_params
 
     @property
-    def cosmo_tables(self):
+    def cosmo_tables(self) -> CosmoTables:
         """Cosmo tables shared by all datasets."""
         return self.inputs.cosmo_tables
 
     @property
-    def random_seed(self):
+    def random_seed(self) -> int:
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
 
     @property
-    def node_redshifts(self):
+    def node_redshifts(self) -> tuple[float, ...]:
         """Redshifts at which coeval boxes and global quantities are computed."""
         return self.inputs.node_redshifts
 
@@ -183,10 +194,10 @@ class LightCone:
     def save(
         self,
         path: str | Path,
-        clobber=False,
+        clobber: bool = False,
         lowz_buffer_pixels: int = 0,
         highz_buffer_pixels: int = 0,
-    ):
+    ) -> None:
         """Save the lightcone object to disk."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -212,14 +223,14 @@ class LightCone:
                 boxes[k] = val
 
             global_q = fl.create_group("global_quantities")
-            for k, v in self.global_quantities.items():
+            for k, v in (self.global_quantities or {}).items():
                 global_q[k] = v
 
             fl["lightcone_distances"] = self.lightcone_distances.to_value("Mpc")
 
         h5._write_inputs_to_group(self.inputs, path)
 
-    def make_checkpoint(self, path: str | Path, lcidx: int, node_index: int):
+    def make_checkpoint(self, path: str | Path, lcidx: int, node_index: int) -> None:
         """Write updated lightcone data to file."""
         with h5py.File(path, "a") as fl:
             last_completed_lcidx = fl.attrs["last_completed_lcidx"]
@@ -234,7 +245,7 @@ class LightCone:
                 fl["lightcones"][k][..., lcidx:save_idx] = v[..., lcidx:save_idx]
 
             global_q = fl["global_quantities"]
-            for k, v in self.global_quantities.items():
+            for k, v in (self.global_quantities or {}).items():
                 global_q[k][last_completed_node + 1 : node_index + 1] = v[
                     last_completed_node + 1 : node_index + 1
                 ]
@@ -252,7 +263,7 @@ class LightCone:
         n_rsd_subcells: int,
         inputs: InputParameters,
         lightconer: Lightconer,
-        lc_distances: np.ndarray,
+        lc_distances: units.Quantity,
         lowz_buffer_pixels: int,
         highz_buffer_pixels: int,
         lightcone_filename: str | Path | None,
@@ -319,14 +330,13 @@ class LightCone:
         cls, path: str | Path, safe: bool = True, remove_buffer: bool = True
     ) -> Self:
         """Create a new instance from a saved lightcone on disk."""
-        kwargs = {}
         with h5py.File(path, "r") as fl:
             if not fl.attrs.get("lightcone", False):
                 raise ValueError(f"The file {path} is not a lightcone file!")
 
-            kwargs["inputs"] = h5.read_inputs(fl, safe=safe)
-            kwargs["last_completed_node"] = fl.attrs["last_completed_node"]
-            kwargs["last_completed_lcidx"] = fl.attrs["last_completed_lcidx"]
+            inputs = h5.read_inputs(fl, safe=safe)
+            last_completed_node = fl.attrs["last_completed_node"]
+            last_completed_lcidx = fl.attrs["last_completed_lcidx"]
 
             if remove_buffer:
                 lowz_buffer_pixels = fl.attrs.get("lowz_buffer_pixels", 0)
@@ -338,34 +348,45 @@ class LightCone:
             highz_buffer_pixels = len(fl["lightcone_distances"]) - highz_buffer_pixels
 
             grp = fl["photon_nonconservation_data"]
-            kwargs["photon_nonconservation_data"] = {k: v[...] for k, v in grp.items()}
+            photon_nonconservation_data = {k: v[...] for k, v in grp.items()}
 
-            kwargs["lightcones"] = h5._read_box_quantities(
+            lightcones = h5._read_box_quantities(
                 fl["lightcones"],
                 fl["InputParameters"],
                 index=(..., slice(lowz_buffer_pixels, highz_buffer_pixels)),
             )
-            kwargs["global_quantities"] = h5._read_box_quantities(
+            global_quantities = h5._read_box_quantities(
                 fl["global_quantities"], fl["InputParameters"]
             )
-            kwargs["lightcone_distances"] = (
+            lightcone_distances = (
                 fl["lightcone_distances"][..., lowz_buffer_pixels:highz_buffer_pixels]
                 * units.Mpc
             )
 
-        return cls(**kwargs)
+        return cls(
+            inputs=inputs,
+            last_completed_node=last_completed_node,
+            last_completed_lcidx=last_completed_lcidx,
+            photon_nonconservation_data=photon_nonconservation_data,
+            lightcones=lightcones,
+            global_quantities=global_quantities,
+            lightcone_distances=lightcone_distances,
+        )
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Determine if this is equal to another object."""
         return (
             isinstance(other, self.__class__)
-            and np.all(
-                np.isclose(
-                    other.lightcone_redshifts, self.lightcone_redshifts, atol=1e-3
+            and bool(
+                np.all(
+                    np.isclose(
+                        other.lightcone_redshifts, self.lightcone_redshifts, atol=1e-3
+                    )
                 )
             )
             and self.inputs == other.inputs
-            and self.global_quantities.keys() == other.global_quantities.keys()
+            and (self.global_quantities or {}).keys()
+            == (other.global_quantities or {}).keys()
             and self.lightcones.keys() == other.lightcones.keys()
         )
 
@@ -374,7 +395,7 @@ class AngularLightcone(LightCone):
     """An angular lightcone."""
 
     @property
-    def lightcone_dimensions(self):
+    def lightcone_dimensions(self) -> tuple[float, float, float]:
         """Lightcone size over each dimension -- tuple of (x,y,z) in Mpc."""
         raise AttributeError("This is not an attribute of an AngularLightcone")
 
@@ -392,7 +413,9 @@ def _get_all_possible_arrays(inputs: InputParameters) -> list[str]:
     return [name for output in possible_outputs for name in output.arrays]
 
 
-def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParameters):
+def _check_desired_arrays_exist(
+    desired_arrays: Sequence[str], inputs: InputParameters
+) -> None:
     possible_arrays = _get_all_possible_arrays(inputs)
     unknown = [
         name
@@ -414,8 +437,8 @@ def setup_lightcone_instance(
     inputs: InputParameters,
     include_dvdr_in_tau21: bool,
     apply_rsds: bool,
-    photon_nonconservation_data: dict,
-    lightcone_filename: Path | None = None,
+    photon_nonconservation_data: PhotonConsData,
+    lightcone_filename: str | Path | None = None,
 ) -> LightCone:
     """Return a LightCone instance given a lightconer as input."""
     if lightcone_filename and Path(lightcone_filename).exists():
@@ -453,13 +476,24 @@ def setup_lightcone_instance(
             lightcone_distances=lightconer.lc_distances,
             inputs=inputs,
             lightcones=lc,
-            global_quantities={},
+            global_quantities={
+                quantity: np.zeros(len(scrollz))
+                for quantity in lcn_cls.get_fields(inputs)
+            },
             photon_nonconservation_data=photon_nonconservation_data,
         )
-        for quantity in lightcone.get_fields(inputs):
-            lightcone.global_quantities[quantity] = np.zeros(len(scrollz))
 
     return lightcone
+
+
+type LightconeStep = (
+    tuple[int, float, Coeval, LightCone] | tuple[None, None, None, LightCone]
+)
+"""A step of a lightcone run: ``(node_index, redshift, coeval, lightcone)``.
+
+If the lightcone was already complete (e.g. read from a checkpoint file), the only
+step is ``(None, None, None, lightcone)``.
+"""
 
 
 def _run_lightcone_from_perturbed_fields(
@@ -468,19 +502,22 @@ def _run_lightcone_from_perturbed_fields(
     perturbed_fields: Sequence[PerturbedField],
     lightconer: Lightconer,
     inputs: InputParameters,
-    lc_distances: np.array,
-    photon_nonconservation_data: dict,
+    lc_distances: units.Quantity,
+    photon_nonconservation_data: PhotonConsData,
     include_dvdr_in_tau21: bool,
     apply_rsds: bool,
     n_rsd_subcells: int,
-    halofield_list: list[HaloCatalog],
+    halofield_list: Sequence[HaloCatalog],
     write: CacheConfig = _cache,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
-    **iokw,
-):
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+) -> Iterator[LightconeStep]:
+    iokw: _IOKwargs = {"cache": cache, "regenerate": regenerate}
+
     # Get the redshift through which we scroll and evaluate the ionization field.
-    scrollz = np.array([pf.redshift for pf in perturbed_fields])
+    scrollz = [pf.redshift for pf in perturbed_fields]
 
     # Create the LightCone instance, loading from file if needed
     lightcone = setup_lightcone_instance(
@@ -495,19 +532,20 @@ def _run_lightcone_from_perturbed_fields(
     if lightcone._last_completed_node == len(scrollz) - 1:
         logger.info("Lightcone already full. Returning.")
         yield None, None, None, lightcone
+        return
 
     idx, prev_coeval = _obtain_starting_point_for_scrolling(
         inputs=inputs,
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
-        cache=iokw.get("cache"),
-        regenerate=iokw.get("regenerate"),
+        cache=cache,
+        regenerate=regenerate,
         minimum_node=lightcone._last_completed_node,
     )
 
     if idx < lightcone._last_completed_node:
         warnings.warn(
-            f"The cache at {iokw.get('cache')} only contains complete coeval boxes for {idx + 1} redshift nodes, "
+            f"The cache at {cache} only contains complete coeval boxes for {idx + 1} redshift nodes, "
             f"instead of {lightcone._last_completed_node + 1}, which is the current checkpointing "
             f"redshift of the lightcone. Repeating the higher-z calculations...",
             stacklevel=2,
@@ -516,8 +554,10 @@ def _run_lightcone_from_perturbed_fields(
     # Find how many pixels on either end of the lightcone are in the "buffer" region.
     # These are used to generate RSDs, but are then removed from the lightcone before
     # returning.
-    lowz_buffer_pixels = np.sum(lc_distances.min() > lightcone.lightcone_distances)
-    highz_buffer_pixels = np.sum(lc_distances.max() < lightcone.lightcone_distances)
+    lowz_buffer_pixels = int(np.sum(lc_distances.min() > lightcone.lightcone_distances))
+    highz_buffer_pixels = int(
+        np.sum(lc_distances.max() < lightcone.lightcone_distances)
+    )
 
     if lightcone_filename and not Path(lightcone_filename).exists():
         lightcone.save(
@@ -540,35 +580,35 @@ def _run_lightcone_from_perturbed_fields(
         iokw=iokw,
     ):
         # Save mean/global quantities
-        for quantity in lightcone.global_quantities:
+        global_quantities = lightcone.global_quantities
+        # Always set by setup_lightcone_instance (whether new or read from file).
+        assert global_quantities is not None
+        for quantity in global_quantities:
             if quantity == "log10_mturn_acg":
-                lightcone.global_quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_mturn_ave_acg
-                )
+                global_quantities[quantity][iz] = coeval.ionized_box.log10_mturn_ave_acg
             elif quantity == "log10_mturn_mcg":
-                lightcone.global_quantities[quantity][iz] = (
-                    coeval.ionized_box.log10_mturn_ave_mcg
-                )
+                global_quantities[quantity][iz] = coeval.ionized_box.log10_mturn_ave_mcg
             else:
-                lightcone.global_quantities[quantity][iz] = np.mean(
-                    getattr(coeval, quantity)
-                )
+                global_quantities[quantity][iz] = np.mean(getattr(coeval, quantity))
 
-        # Update photon conservation data in-place
-        lightcone.photon_nonconservation_data |= coeval.photon_nonconservation_data
+        # Update photon conservation data
+        lightcone.photon_nonconservation_data = {
+            **lightcone.photon_nonconservation_data,
+            **coeval.photon_nonconservation_data,
+        }
 
         # Get lightcone slices
         lc_index = None
         if prev_coeval is not None:
-            for quantity, idx, this_lc in lightconer.make_lightcone_slices(
-                coeval,
-                prev_coeval,
-            ):
-                if this_lc is not None:
-                    lightcone.lightcones[quantity][..., idx] = this_lc
-                    # save the lowest index
-                    if lc_index is None:
-                        lc_index = idx
+            for lc_slice in lightconer.make_lightcone_slices(coeval, prev_coeval):
+                if lc_slice[0] is None:
+                    # No lightcone slices between these two coevals.
+                    continue
+                quantity, idx, this_lc = lc_slice
+                lightcone.lightcones[quantity][..., idx] = this_lc
+                # save the lowest index
+                if lc_index is None:
+                    lc_index = idx
 
             # only checkpoint if we have slices
             if lightcone_filename and lc_index is not None:
@@ -613,12 +653,12 @@ def generate_lightcone(
     include_dvdr_in_tau21: bool = True,
     apply_rsds: bool = False,
     n_rsd_subcells: int = 4,
-    write: CacheConfig = _cache,
+    write: CacheConfig | bool = _cache,
     cache: OutputCache | None = _ocache,
     regenerate: bool = True,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
-):
+) -> Iterator[LightconeStep]:
     r"""
     Create a generator function for a lightcone run.
 
@@ -651,12 +691,18 @@ def generate_lightcone(
         memory, and can be saved manually later, but including this filename will
         save the lightcone on each iteration, which can be helpful for checkpointing.
 
-    Returns
-    -------
+    Yields
+    ------
+    node_index : int or None
+        The index of the node redshift that was just computed.
+    redshift : float or None
+        The node redshift that was just computed.
+    coeval : :class:`~py21cmfast.drivers.coeval.Coeval` or None
+        The coeval box at the node redshift.
     lightcone : :class:`~py21cmfast.LightCone`
-        The lightcone object.
-    coeval_callback_output : list
-        Only if coeval_callback in not None.
+        The lightcone object, filled up to the current node redshift. If the
+        lightcone in ``lightcone_filename`` is already complete, only this is
+        yielded (and the other values are None).
 
     Other Parameters
     ----------------
@@ -677,11 +723,6 @@ def generate_lightcone(
 
     _check_desired_arrays_exist(lightconer.quantities, inputs)
 
-    iokw = {
-        "cache": cache,
-        "regenerate": regenerate,
-    }
-
     (
         initial_conditions,
         perturbed_fields,
@@ -693,7 +734,8 @@ def generate_lightcone(
         inputs=inputs,
         write=write,
         progressbar=progressbar,
-        **iokw,
+        cache=cache,
+        regenerate=regenerate,
     )
 
     yield from _run_lightcone_from_perturbed_fields(
@@ -710,11 +752,12 @@ def generate_lightcone(
         write=write,
         progressbar=progressbar,
         lightcone_filename=lightcone_filename,
-        **iokw,
+        cache=cache,
+        regenerate=regenerate,
     )
 
 
-def run_lightcone(**kwargs) -> LightCone:
+def run_lightcone(**kwargs: Any) -> LightCone:
     """Run a lightcone simulation and return the final lightcone object.
 
     This simply wraps :func:`generate_lightcone` and returns the final lightcone

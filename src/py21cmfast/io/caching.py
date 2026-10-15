@@ -8,9 +8,10 @@ filename for a given set of parameters).
 import logging
 import re
 import warnings
+from collections.abc import Mapping
 from hashlib import md5
 from pathlib import Path
-from typing import ClassVar, Self, TypedDict, Unpack
+from typing import TYPE_CHECKING, ClassVar, Self, TypedDict, Unpack
 
 import attrs
 import deprecation
@@ -25,6 +26,10 @@ from ..wrapper.outputs import (
     _HashType,
 )
 from .h5 import read_inputs, read_output_struct, write_output_to_hdf5
+
+if TYPE_CHECKING:
+    # Only imported for annotations, to avoid a circular import.
+    from ..drivers.coeval import Coeval
 
 logger = logging.getLogger(__name__)
 
@@ -47,12 +52,12 @@ class OutputCache:
         default=Path(config["direc"]).expanduser(), converter=Path
     )
 
-    _output_to_cache_map: ClassVar = {
+    _output_to_cache_map: ClassVar[dict[str, _HashType]] = {
         kls.__name__: kls._compat_hash
         for kls in _ALL_OUTPUT_STRUCTS.values()
         if not kls._meta
     }
-    _path_structures: ClassVar = {
+    _path_structures: ClassVar[dict[_HashType, str]] = {
         _HashType.user_cosmo: "{matter_cosmo}/{seed}/InitialConditions.h5",
         _HashType.zgrid: "{matter_cosmo}/{seed}/{zgrid}/{redshift}/{cls}.h5",
         _HashType.full: "{matter_cosmo}/{seed}/{zgrid}/{redshift}/{astro_flag}/{cls}.h5",
@@ -70,7 +75,7 @@ class OutputCache:
                     + repr(inputs.matter_options)
                 ).encode()
             ).hexdigest(),
-            "seed": inputs.random_seed,
+            "seed": str(inputs.random_seed),
             "zgrid": md5(repr(inputs.node_redshifts).encode()).hexdigest(),
             "astro_flag": md5(
                 (repr(inputs.astro_params) + repr(inputs.astro_options)).encode()
@@ -81,7 +86,7 @@ class OutputCache:
     def _fill_path_template(
         cls,
         *,
-        kind: str | None = None,
+        kind: str | _HashType | None = None,
         inputs: InputParameters | None = None,
         all_seeds: bool = False,
         redshift: float | None = None,
@@ -97,11 +102,8 @@ class OutputCache:
         # get the hashes
         if inputs is not None:
             hashes = cls._get_hashes(inputs)
-            # format required hashes to string
-            hashes["seed"] = r"\d+" if all_seeds else f"{hashes['seed']:d}"
-            hashes["matter_cosmo"] = f"{hashes['matter_cosmo']}"
-            hashes["zgrid"] = f"{hashes['zgrid']}"
-            hashes["astro_flag"] = f"{hashes['astro_flag']}"
+            if all_seeds:
+                hashes["seed"] = r"\d+"
         else:
             hashes = {
                 "matter_cosmo": ".+?",
@@ -112,15 +114,20 @@ class OutputCache:
 
         # do the conditional formatting
         hashes["redshift"] = f"{redshift:.4f}" if redshift is not None else ".+?"
-        hashes["cls"] = kind if kind in cls._output_to_cache_map else ".+?"
+        hashes["cls"] = (
+            kind
+            if isinstance(kind, str) and kind in cls._output_to_cache_map
+            else ".+?"
+        )
 
         # precedence: outputclass mapped (class name -> template) > template provided as _HashType (template directly) > full astro path
-        path_template = cls._output_to_cache_map.get(kind, kind)
-        template = cls._path_structures.get(
-            path_template, cls._path_structures[_HashType.full]
-        )
-        template = template.format(**hashes)
-        return template
+        if isinstance(kind, _HashType):
+            hash_type = kind
+        elif kind is not None and kind in cls._output_to_cache_map:
+            hash_type = cls._output_to_cache_map[kind]
+        else:
+            hash_type = _HashType.full
+        return cls._path_structures[hash_type].format(**hashes)
 
     def get_filename(self, obj: OutputStruct) -> str:
         """
@@ -229,7 +236,7 @@ class OutputCache:
         files
             list of paths pointing to files matching the filters.
         """
-        kinds_list = self._output_to_cache_map.keys() if kind is None else [kind]
+        kinds_list = list(self._output_to_cache_map) if kind is None else [kind]
         templates = [
             self._fill_path_template(
                 kind=k,
@@ -241,7 +248,7 @@ class OutputCache:
         ]
 
         allfiles = self.direc.glob("**/*")
-        matches = []
+        matches: list[Path] = []
         for fl in allfiles:
             for template in templates:
                 match = re.search(template, str(fl))
@@ -260,25 +267,26 @@ class OutputCache:
         return read_output_struct(existing, struct=obj.__class__.__name__)
 
 
-def _pathfield():
-    return attrs.field(
-        default=None,
-        converter=attrs.converters.optional(Path),
-    )
+def _to_dict_of_paths(
+    x: Mapping[float, str | Path] | None,
+) -> dict[float, Path] | None:
+    """Convert a mapping of redshifts to paths to a dict of floats to Paths."""
+    if x is None:
+        return None
+    if not isinstance(x, Mapping):
+        raise TypeError(
+            f"Expected a mapping of redshifts to paths (or None), got {type(x)}"
+        )
+    return {float(z): Path(d) for z, d in x.items()}
 
 
-def _dict_of_paths_field():
-    def _convert(x: dict | None) -> tuple[Path]:
-        if x is None:
-            return x
-
-        if isinstance(x, dict):
-            return {float(z): Path(d) for z, d in x.items()}
-
-    return attrs.field(
-        default=None,
-        converter=_convert,
-    )
+def _expect_struct[T: OutputStruct](obj: OutputStruct, kls: type[T]) -> T:
+    """Check that an output struct read from the cache is of the expected kind."""
+    if not isinstance(obj, kls):
+        raise TypeError(
+            f"Expected a {kls.__name__} in the cache, but got a {type(obj).__name__}"
+        )
+    return obj
 
 
 @attrs.define
@@ -294,14 +302,30 @@ class RunCache:
     as part of the simulation (e.g. they may be TsBox instances when USE_TS_FLUCT=False).
     """
 
-    InitialConditions: Path = _pathfield()
-    PerturbedField: dict[float, Path] = _dict_of_paths_field()
-    TsBox: dict[float, Path] = _dict_of_paths_field()
-    IonizedBox: dict[float, Path] = _dict_of_paths_field()
-    BrightnessTemp: dict[float, Path] = _dict_of_paths_field()
-    EmissivityFields: dict[float, Path] | None = _dict_of_paths_field()
-    HaloCatalog: dict[float, Path] | None = _dict_of_paths_field()
-    RadiationFields: dict[float, Path] | None = _dict_of_paths_field()
+    InitialConditions: Path | None = attrs.field(
+        default=None, converter=attrs.converters.optional(Path)
+    )
+    PerturbedField: dict[float, Path] | None = attrs.field(
+        default=None, converter=_to_dict_of_paths
+    )
+    TsBox: dict[float, Path] | None = attrs.field(
+        default=None, converter=_to_dict_of_paths
+    )
+    IonizedBox: dict[float, Path] | None = attrs.field(
+        default=None, converter=_to_dict_of_paths
+    )
+    BrightnessTemp: dict[float, Path] | None = attrs.field(
+        default=None, converter=_to_dict_of_paths
+    )
+    EmissivityFields: dict[float, Path] | None = attrs.field(
+        default=None, converter=_to_dict_of_paths
+    )
+    HaloCatalog: dict[float, Path] | None = attrs.field(
+        default=None, converter=_to_dict_of_paths
+    )
+    RadiationFields: dict[float, Path] | None = attrs.field(
+        default=None, converter=_to_dict_of_paths
+    )
     inputs: InputParameters | None = attrs.field(default=None)
     _optional_fields: ClassVar[set[str]] = {"RadiationFields"}
 
@@ -330,7 +354,7 @@ class RunCache:
             inputs=inputs,
         )
 
-        others = {
+        others: dict[str, dict[float, Path]] = {
             "PerturbedField": {},
             "EmissivityFields": {},
             "IonizedBox": {},
@@ -393,7 +417,7 @@ class RunCache:
 
         return cls.from_inputs(inputs, OutputCache(parent))
 
-    def get_required_fields(self) -> dict[str, dict]:
+    def get_required_fields(self) -> dict[str, dict[float, Path]]:
         """Return the dict-typed cache fields that matter for completeness checks."""
         return {
             name: kind
@@ -401,14 +425,22 @@ class RunCache:
             if isinstance(kind, dict) and name not in self._optional_fields
         }
 
-    def is_complete_at(
-        self, z: float | None = None, index: float | None = None
-    ) -> bool:
+    def _node_redshift(self, index: int) -> float:
+        """Return the node redshift with a given index."""
+        if self.inputs is None:
+            raise ValueError(
+                "Cannot determine the node redshifts of a RunCache without inputs"
+            )
+        return self.inputs.node_redshifts[index]
+
+    def is_complete_at(self, z: float | None = None, index: int | None = None) -> bool:
         """Determine whether the simulation has been completed down to a given redshift."""
         if index is not None and z is not None:
             raise ValueError("Cannot specify both z and index")
         if index is not None:
-            z = self.inputs.node_redshifts[index]
+            z = self._node_redshift(index)
+        if z is None:
+            raise ValueError("Must specify either z or index")
 
         return all(kind[z].exists() for kind in self.get_required_fields().values())
 
@@ -418,17 +450,20 @@ class RunCache:
         z: float | None = None,
         index: int | None = None,
         match_z_within: float = 0.01,
-    ):
+    ) -> OutputStruct:
         """Return an output struct of a given kind at or close to a given redshift.
 
         Parameters
         ----------
+        kind : type[OutputStruct] or str
+            The kind of output struct (the class, or its name) to return.
         z : float
             The redshift at which to return an output struct.
         index : int
             The node-redshift index at which to return the output struct.
-        allow_closest : bool
-            Whether to allow the closest redshift available in the cache to be returned.
+        match_z_within : float
+            The maximum difference between the requested and closest available
+            redshift.
 
         Returns
         -------
@@ -453,23 +488,34 @@ class RunCache:
         if index is not None:
             if z is not None:
                 raise ValueError("Cannot specify both z and index")
-            z = self.inputs.node_redshifts[index]
+            z = self._node_redshift(index)
+        if z is None:
+            raise ValueError("Must specify either z or index")
 
-        zs_of_kind = np.array(list(getattr(self, kind).keys()))
+        paths: dict[float, Path] | Path | InputParameters | None = getattr(self, kind)
+        if paths is None or isinstance(paths, Path | InputParameters):
+            raise ValueError(
+                f"The cache has no output structs of kind '{kind}' at each redshift"
+            )
+
+        zs_of_kind = np.array(list(paths.keys()))
         if z not in zs_of_kind:
             closest = np.argmin(np.abs(zs_of_kind - z))
             if abs(zs_of_kind[closest] - z) > match_z_within:
                 raise ValueError(
                     f"No output struct found for kind '{kind}' at redshift {z} (closest available: {zs_of_kind[closest]} at z idx = {closest})"
                 )
-            z = zs_of_kind[closest]
+            z = float(zs_of_kind[closest])
 
-        fl = getattr(self, kind)[z]
-        return read_output_struct(fl)
+        return read_output_struct(paths[z])
 
     def get_ics(self) -> op.InitialConditions:
         """Return the initial conditions."""
-        return read_output_struct(self.InitialConditions)
+        if self.InitialConditions is None:
+            raise ValueError("The cache has no InitialConditions")
+        return _expect_struct(
+            read_output_struct(self.InitialConditions), op.InitialConditions
+        )
 
     def get_all_boxes_at_z(
         self,
@@ -508,7 +554,7 @@ class RunCache:
         z: float | None = None,
         index: int | None = None,
         match_z_within: float = 0.01,
-    ):
+    ) -> "Coeval":
         """Return a Coeval object at or close to a given redshift.
 
         Parameters
@@ -528,18 +574,28 @@ class RunCache:
         from py21cmfast.drivers.coeval import Coeval
 
         boxes = self.get_all_boxes_at_z(z, index, match_z_within, return_ics=True)
+        ts_box = boxes.get("TsBox")
+        emissivity_fields = boxes.get("EmissivityFields")
         return Coeval(
-            initial_conditions=boxes["InitialConditions"],
-            perturbed_field=boxes["PerturbedField"],
-            ionized_box=boxes["IonizedBox"],
-            brightness_temperature=boxes["BrightnessTemp"],
-            ts_box=boxes.get("TsBox"),
-            emissivity_fields=boxes.get("EmissivityFields"),
+            initial_conditions=_expect_struct(
+                boxes["InitialConditions"], op.InitialConditions
+            ),
+            perturbed_field=_expect_struct(boxes["PerturbedField"], op.PerturbedField),
+            ionized_box=_expect_struct(boxes["IonizedBox"], op.IonizedBox),
+            brightness_temperature=_expect_struct(
+                boxes["BrightnessTemp"], op.BrightnessTemp
+            ),
+            ts_box=None if ts_box is None else _expect_struct(ts_box, op.TsBox),
+            emissivity_fields=(
+                None
+                if emissivity_fields is None
+                else _expect_struct(emissivity_fields, op.EmissivityFields)
+            ),
         )
 
     def is_complete(self) -> bool:
         """Whether the cache for the full simulation is complete."""
-        if not self.InitialConditions.exists():
+        if self.InitialConditions is None or not self.InitialConditions.exists():
             return False
 
         for kind in self.get_required_fields().values():
@@ -577,6 +633,9 @@ class CacheConfigUpdate(TypedDict, total=False):
     emissivity_fields: bool
     halo_catalog: bool
     radiation_fields: bool
+    # Deprecated aliases (still accepted, with a DeprecatedWarning).
+    halobox: bool
+    xray_source_box: bool
 
 
 @attrs.define(init=False)
@@ -592,21 +651,35 @@ class CacheConfig:
     halo_catalog: bool = attrs.field(default=True, converter=bool)
     radiation_fields: bool = attrs.field(default=True, converter=bool)
 
-    _deprecated_aliases: ClassVar[dict[str, str]] = {
-        "halobox": "emissivity_fields",
-        "xray_source_box": "radiation_fields",
-    }
-
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: bool, **kwargs: Unpack[CacheConfigUpdate]) -> None:
         """Create the object, accepting deprecated aliases of the fields."""
-        for old, new in self._deprecated_aliases.items():
-            if old in kwargs:
-                self._warn_deprecated_alias(old, new, stacklevel=2)
-                kwargs[new] = kwargs.pop(old)
-        self.__attrs_init__(*args, **kwargs)
+        fields = self._resolve_deprecated_aliases(kwargs)
+        # attrs generates __attrs_init__ (the init it would have created) because of
+        # init=False, but ty does not know about it.
+        self.__attrs_init__(*args, **fields)  # ty: ignore[unresolved-attribute]
+
+    @classmethod
+    def _resolve_deprecated_aliases(
+        cls, kwargs: CacheConfigUpdate, stacklevel: int = 3
+    ) -> CacheConfigUpdate:
+        """Return the given fields, with deprecated aliases renamed (with a warning).
+
+        The stacklevel is that of the caller of the public method (relative to this
+        method).
+        """
+        fields = kwargs.copy()
+        if "halobox" in fields:
+            cls._warn_deprecated_alias("halobox", "emissivity_fields", stacklevel)
+            fields["emissivity_fields"] = fields.pop("halobox")
+        if "xray_source_box" in fields:
+            cls._warn_deprecated_alias(
+                "xray_source_box", "radiation_fields", stacklevel
+            )
+            fields["radiation_fields"] = fields.pop("xray_source_box")
+        return fields
 
     @staticmethod
-    def _warn_deprecated_alias(old: str, new: str, stacklevel: int):
+    def _warn_deprecated_alias(old: str, new: str, stacklevel: int) -> None:
         warnings.warn(
             deprecation.DeprecatedWarning(
                 old,
@@ -619,11 +692,7 @@ class CacheConfig:
 
     def update(self, **kwargs: Unpack[CacheConfigUpdate]) -> Self:
         """Return a new CacheConfig with the given fields updated."""
-        for old, new in self._deprecated_aliases.items():
-            if old in kwargs:
-                self._warn_deprecated_alias(old, new, stacklevel=2)
-                kwargs[new] = kwargs.pop(old)
-        return attrs.evolve(self, **kwargs)
+        return attrs.evolve(self, **self._resolve_deprecated_aliases(kwargs))
 
     @classmethod
     def on(cls, **kwargs: Unpack[CacheConfigUpdate]) -> Self:

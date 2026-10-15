@@ -4,9 +4,10 @@ import logging
 import sys
 import uuid
 import warnings
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field, fields
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import TYPE_CHECKING, Annotated, Any, Literal, TextIO
 
 import attrs
 import matplotlib
@@ -15,9 +16,10 @@ import numpy as np
 from cyclopts import App, Group, Parameter
 from cyclopts import types as cyctp
 from cyclopts import validators as vld
+from matplotlib.figure import Figure
 from rich import box
 from rich.columns import Columns
-from rich.console import Console, group
+from rich.console import Console, RenderableType, group
 from rich.logging import RichHandler
 from rich.panel import Panel
 from rich.rule import Rule
@@ -27,14 +29,15 @@ from rich.text import Text
 from . import __version__, plotting
 from ._templates import TOMLMode, list_templates, write_template
 from .drivers import coeval as cvlmodule
-from .drivers.coeval import generate_coeval
-from .drivers.global_evolution import run_global_evolution
-from .drivers.lightcone import run_lightcone
+from .drivers.coeval import Coeval, generate_coeval
+from .drivers.global_evolution import GlobalEvolution, run_global_evolution
+from .drivers.lightcone import LightCone, run_lightcone
 from .drivers.single_field import compute_initial_conditions
 from .input_serialization import convert_inputs_to_dict
 from .io.caching import CacheConfig, OutputCache, RunCache
 from .io.h5 import load_high_level_simulation
 from .io.migrate import (
+    MigrationResult,
     describe_format_changes,
     migrate_cache,
     migrate_high_level_file,
@@ -65,6 +68,14 @@ AVAILABLE_TEMPLATES: list[str] = [
     str(alias) for tmpl in list_templates() for alias in tmpl["aliases"]
 ] + ["defaults"]
 
+if TYPE_CHECKING:
+    # The valid template names are only known at runtime (they're read from the
+    # template manifest), so to a static type checker they're just strings.
+    TemplateName = str
+else:
+    # At runtime, cyclopts uses the Literal to validate and list the choices.
+    TemplateName = Literal[*AVAILABLE_TEMPLATES]
+
 app = App()
 app.command(
     cfg := App(name="template", help="Manage 21cmFAST configuration files/templates.")
@@ -74,7 +85,7 @@ app.command(dev := App(name="dev", help="Run development tasks."))
 app.command(pred := App(name="predict", help="Predict properties of simulations"))
 
 
-def print_banner():
+def print_banner() -> None:
     """Print a cool banner for 21cmFAST using rich."""
     panel = Panel(
         Text.from_markup("[orange]:duck: 21cmFAST :duck:", justify="center"),
@@ -103,12 +114,12 @@ class ParameterSelection:
     """
 
     param_file: Annotated[
-        list[cyctp.ExistingTomlPath], Parameter(group=_paramgroup)
+        list[cyctp.ExistingTomlPath] | None, Parameter(group=_paramgroup)
     ] = None
     "Path to a TOML configuration file (can be generated with `21cmfast template create`)."
 
     template: Annotated[
-        list[Literal[*AVAILABLE_TEMPLATES]],
+        list[TemplateName],
         Parameter(group=_paramgroup, alias=("--base-template"), consume_multiple=True),
     ] = field(default_factory=lambda: ["defaults"])
 
@@ -143,7 +154,7 @@ cache only boxes that are required more than one step away
     """
 
     outcfg: Annotated[
-        Path,
+        Path | None,
         Parameter(validator=(vld.Path(file_okay=False, dir_okay=False, ext=("toml",)))),
     ] = None
     "A filepath where the full configuration TOML of the run can be written. Random hash if not specified."
@@ -158,25 +169,67 @@ cache only boxes that are required more than one step away
     "Whether to display a progress bar as the simulation runs."
 
 
-def _param_cls_factory(cls: type[InputStruct]) -> type:
-    out = attrs.make_class(
-        cls.__name__,
-        {
-            fld.alias: attrs.field(default=None, type=fld.type)
-            for fld in attrs.fields(cls)
-        },
-        kw_only=True,
-        frozen=True,
-    )
-    out.__doc__ = cls.__doc__.replace(":class:", "")
-    return out
+# The classes below mirror the fields of each InputStruct, but with all defaults set
+# to None (i.e. "not set on the command line"), so that cyclopts can generate CLI
+# options for every simulation parameter. Their fields are generated at runtime (via
+# attrs' ``these``), so a static type checker sees them as attrs classes without
+# fields: that is fine, since they're only ever instantiated by cyclopts, and only
+# read back with ``attrs.asdict``.
 
 
-_AstroOptions = _param_cls_factory(AstroOptions)
-_AstroParams = _param_cls_factory(AstroParams)
-_CosmoParams = _param_cls_factory(CosmoParams)
-_MatterOptions = _param_cls_factory(MatterOptions)
-_SimulationOptions = _param_cls_factory(SimulationOptions)
+def _override_fields(cls: type[InputStruct]) -> dict[str, Any]:
+    """Get attrs field definitions mirroring ``cls``, but all defaulting to None.
+
+    The return type matches the ``these`` argument of ``attrs.define``.
+    """
+    return {
+        fld.alias: attrs.field(default=None, type=fld.type) for fld in attrs.fields(cls)
+    }
+
+
+def _override_doc(cls: type[InputStruct]) -> str:
+    """Get the docstring of ``cls``, which cyclopts uses for the help of each field."""
+    return (cls.__doc__ or "").replace(":class:", "")
+
+
+@attrs.define(kw_only=True, frozen=True, these=_override_fields(AstroOptions))
+class _AstroOptions:
+    pass
+
+
+_AstroOptions.__doc__ = _override_doc(AstroOptions)
+
+
+@attrs.define(kw_only=True, frozen=True, these=_override_fields(AstroParams))
+class _AstroParams:
+    pass
+
+
+_AstroParams.__doc__ = _override_doc(AstroParams)
+
+
+@attrs.define(kw_only=True, frozen=True, these=_override_fields(CosmoParams))
+class _CosmoParams:
+    pass
+
+
+_CosmoParams.__doc__ = _override_doc(CosmoParams)
+
+
+@attrs.define(kw_only=True, frozen=True, these=_override_fields(MatterOptions))
+class _MatterOptions:
+    pass
+
+
+_MatterOptions.__doc__ = _override_doc(MatterOptions)
+
+
+@attrs.define(kw_only=True, frozen=True, these=_override_fields(SimulationOptions))
+class _SimulationOptions:
+    pass
+
+
+_SimulationOptions.__doc__ = _override_doc(SimulationOptions)
 
 
 @Parameter(name="*")
@@ -233,7 +286,7 @@ def _get_inputs(
 
 
 @cfg.command(name="avail")
-def cfg_avail():
+def cfg_avail() -> None:
     """Print all available builtin templates."""
     templates = list_templates()
     for template in templates:
@@ -253,11 +306,12 @@ def cfg_avail():
 
 def pretty_print_inputs(
     inputs: InputParameters, name: str, description: str, mode: TOMLMode = "full"
-):
+) -> None:
+    """Print a summary of the given inputs in a rich panel."""
     inputs_dct = convert_inputs_to_dict(inputs, mode, only_cstruct_params=True)
 
     @group()
-    def get_panel_elements():
+    def get_panel_elements() -> Iterator[RenderableType]:
         yield description + "\n"
 
         for structname, params in inputs_dct.items():
@@ -284,11 +338,9 @@ def pretty_print_inputs(
 
 @cfg.command(name="show")
 def cfg_show(
-    names: Annotated[
-        list[Literal[*AVAILABLE_TEMPLATES]], Parameter(accepts_keys=False)
-    ],
+    names: Annotated[list[TemplateName], Parameter(accepts_keys=False)],
     mode: TOMLMode = "full",
-):
+) -> None:
     """Show and describe an in-built template."""
     template_desc = [
         next(
@@ -382,7 +434,7 @@ def template_create(
     random_seed: Annotated[
         int | None, Parameter(name=["--random-seed", "--seed"])
     ] = None,
-):
+) -> None:
     """Create a new full simulation parameter template.
 
     The created template file (TOML file) contains *all* of the available parameters.
@@ -437,11 +489,20 @@ def _run_setup(
 
     cns.print(Rule("Setting Up The Simulation", characters="="))
 
-    def custom_rich_warning(message: str, *args, **kwargs):
+    def custom_rich_warning(
+        message: Warning | str,
+        category: type[Warning],
+        filename: str,
+        lineno: int,
+        file: TextIO | None = None,
+        line: str | None = None,
+    ) -> None:
         cns.print(f"[orange1]:warning: {message}")
 
     cvlmodule._console = cns
-    warnings.showwarning = custom_rich_warning
+    # ty gives module-level functions their own literal type, so it refuses any
+    # replacement here, even one with the exact same signature.
+    warnings.showwarning = custom_rich_warning  # ty: ignore[invalid-assignment]
     logger.setLevel(options.verbosity)
 
     inputs, modified = _get_inputs(options, params)
@@ -502,7 +563,7 @@ def params(
     matter_options: Annotated[
         _MatterOptions, Parameter(name="*", group="MatterOptions")
     ] = _MatterOptions(),
-):
+) -> None:
     """Show the current simulation parameters."""
     cns.print("Usage: 21cmfast run params --help")
 
@@ -512,7 +573,7 @@ def ics(
     options: RunParams = RunParams(),
     params: Annotated[Parameters, Parameter(show=False, name="*")] = Parameters(),
     nodez_params: NodeRedshiftParameters | None = None,
-):
+) -> None:
     """Run a single iteration of 21cmFAST init, saving results to file.
 
     To specify simulation parameters, use a base template (either via --param-file or
@@ -528,15 +589,17 @@ def ics(
     inputs = _run_setup(options, params, nodez_params=nodez_params)
     cache = OutputCache(options.cachedir)
     rc = RunCache.from_inputs(inputs=inputs, cache=cache)
+    ic_path = rc.InitialConditions
+    assert ic_path is not None  # from_inputs always sets the path of the ICs
 
-    if rc.InitialConditions.exists():
+    if ic_path.exists():
         if options.regenerate:
             cns.print(
                 "[yellow]:warning: Initial conditions already exist, but regeneration is requested. Overriding."
             )
         else:
             cns.print(
-                f"[spring_green3]:duck: Initial conditions already exist at [purple]'{rc.InitialConditions}'[/purple], skipping computation."
+                f"[spring_green3]:duck: Initial conditions already exist at [purple]'{ic_path}'[/purple], skipping computation."
             )
             return
 
@@ -547,9 +610,7 @@ def ics(
         cache=OutputCache(options.cachedir),
     )
 
-    cns.print(
-        f"[spring_green3]:duck: Saved initial conditions to {rc.InitialConditions}"
-    )
+    cns.print(f"[spring_green3]:duck: Saved initial conditions to {ic_path}")
 
 
 @run.command()
@@ -564,7 +625,7 @@ def coeval(
     nodez_params: NodeRedshiftParameters | None = None,
     plot: bool = False,
     show: bool | None = None,
-):
+) -> None:
     """Generate coeval cubes at given redshifts.
 
     To specify simulation parameters, use a base template (either via --param-file or
@@ -632,13 +693,13 @@ def lightcone(
         Path,
         Parameter(validator=(vld.Path(dir_okay=False, file_okay=False, ext=("h5",)),)),
     ] = Path("lightcone.h5"),
-    lightcone_quantities: Annotated[tuple[str], Parameter(alias=("--lq",))] = (
+    lightcone_quantities: Annotated[tuple[str, ...], Parameter(alias=("--lq",))] = (
         "brightness_temp",
     ),
     nodez_params: NodeRedshiftParameters | None = None,
     plot: bool = False,
     show: bool | None = None,
-):
+) -> None:
     """Generate a lightcone between given redshifts.
 
     To specify simulation parameters, use a base template (either via --param-file or
@@ -713,7 +774,7 @@ def global_evolution(
     ] = Path("global-evolution.h5"),
     plot: bool = False,
     show: bool | None = None,
-):
+) -> None:
     """Generate the global evolution between given redshifts.
 
     To specify simulation parameters, use a base template (either via --param-file or
@@ -794,10 +855,13 @@ def _can_show_plots() -> bool:
 
         _, gui_framework = backend_registry.resolve_backend(backend)
     except (ImportError, AttributeError):  # pragma: no cover - matplotlib < 3.9
+        from matplotlib import rcsetup
+
+        # interactive_bk was removed in matplotlib 3.11 (so it's not in the stubs we
+        # type-check against), but it exists in the old versions that get here.
+        interactive_bk = rcsetup.interactive_bk  # ty: ignore[unresolved-attribute]
         gui_framework = (
-            backend
-            if backend.lower() in {b.lower() for b in matplotlib.rcsetup.interactive_bk}
-            else None
+            backend if backend.lower() in {b.lower() for b in interactive_bk} else None
         )
 
     logger.debug(f"Backend {backend!r} -> GUI framework {gui_framework!r}")
@@ -809,7 +873,11 @@ def _as_url(path: Path) -> str:
     return path.resolve().as_uri()
 
 
-def _make_summary_plot(obj, out: Path | None = None, show: bool | None = None):
+def _make_summary_plot(
+    obj: Coeval | LightCone | GlobalEvolution,
+    out: Path | None = None,
+    show: bool | None = None,
+) -> None:
     """Make a default summary plot of ``obj``, writing it to ``out`` and/or showing it.
 
     ``show=None`` (the default) means "show it if we can" -- see
@@ -822,6 +890,8 @@ def _make_summary_plot(obj, out: Path | None = None, show: bool | None = None):
         return
 
     fig, _ = plotting.summary_plot(obj)
+    # We don't pass in any existing axes, so this is always a new top-level Figure.
+    assert isinstance(fig, Figure)
 
     if out is not None:
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -842,7 +912,7 @@ def _summary_plot_path(datafile: Path) -> Path:
     return datafile.with_name(f"{datafile.stem}_summary.png")
 
 
-def _plot_hint(datafile: Path):
+def _plot_hint(datafile: Path) -> None:
     """Tell the user how to make plots of a file they just created."""
     cns.print(
         f"[cyan]:bar_chart: Use [bold]21cmfast plot {datafile}[/bold] to get "
@@ -855,7 +925,7 @@ def plot_output(
     filename: cyctp.ExistingFile,
     out: Annotated[Path | None, Parameter(name=("--out", "-o"))] = None,
     show: bool | None = None,
-):
+) -> None:
     """Make a default summary plot of a saved 21cmFAST simulation output.
 
     The kind of plot produced depends on the kind of file given: a coeval box
@@ -902,7 +972,7 @@ def migrate(
     safe: bool = True,
     explain: bool = False,
     verbose: Annotated[bool, Parameter(name=("--verbose", "-v"))] = False,
-):
+) -> None:
     """Migrate outputs written by an older version of 21cmFAST to the current version.
 
     If SOURCE is a directory, it is treated as a cache of boxes (written by the
@@ -983,14 +1053,17 @@ def _relative(path: Path | None, root: Path | None) -> str:
 
 
 def _print_migration_results(
-    results, verbose: bool, source_root: Path, dest_root: Path | None
-):
+    results: Sequence[MigrationResult],
+    verbose: bool,
+    source_root: Path,
+    dest_root: Path | None,
+) -> None:
     """Print a summary of the results of a migration."""
     table = Table(box=box.SIMPLE)
     for col in ("File", "Version", "Kind", "Status", "Details"):
         table.add_column(col)
 
-    counts = {}
+    counts: dict[str, int] = {}
     for res in results:
         counts[res.status] = counts.get(res.status, 0) + 1
         if not verbose and res.status in ("skipped", "up-to-date"):
@@ -1036,7 +1109,7 @@ def pr_feature(
     params: Parameters = Parameters(),
     redshift_range: tuple[float, float] = (6.0, 30.0),
     outdir: cyctp.ExistingDirectory = Path(),
-):
+) -> None:
     """
     Create standard plots comparing a default simulation against a simulation with a new feature.
 
@@ -1116,19 +1189,25 @@ def pr_feature(
 
     plt.savefig(f"{outdir}/pr_feature_lightcone_2d_brightness_temp.pdf")
 
-    def rms(x, axis=None):
+    def rms(x: np.ndarray, axis: int | tuple[int, ...] | None = None) -> np.ndarray:
         return np.sqrt(np.mean(x**2, axis=axis))
+
+    # run_lightcone always computes the global quantities.
+    gq_default = lc_default.global_quantities
+    gq_new = lc_new.global_quantities
+    assert gq_default is not None
+    assert gq_new is not None
 
     cns.print("Plotting lightcone history...")
     fig, ax = plt.subplots(4, 1, sharex=True, gridspec_kw={"hspace": 0.05})
     ax[0].plot(
         lc_default.inputs.node_redshifts,
-        lc_default.global_quantities["neutral_fraction"],
+        gq_default["neutral_fraction"],
         label="Default",
     )
     ax[0].plot(
         lc_new.inputs.node_redshifts,
-        lc_new.global_quantities["neutral_fraction"],
+        gq_new["neutral_fraction"],
         label="New",
     )
     ax[0].set_ylabel(r"$x_{\rm HI}$")
@@ -1136,12 +1215,12 @@ def pr_feature(
 
     ax[1].plot(
         lc_default.inputs.node_redshifts,
-        lc_default.global_quantities["brightness_temp"],
+        gq_default["brightness_temp"],
         label="Default",
     )
     ax[1].plot(
         lc_new.inputs.node_redshifts,
-        lc_new.global_quantities["brightness_temp"],
+        gq_new["brightness_temp"],
         label="New",
     )
     ax[1].set_ylabel("$T_b$ [K]")
@@ -1153,14 +1232,12 @@ def pr_feature(
     ax[2].plot(lc_default.lightcone_redshifts, rms_diff, label="RMS")
     ax[2].plot(
         lc_new.inputs.node_redshifts,
-        lc_default.global_quantities["neutral_fraction"]
-        - lc_new.global_quantities["neutral_fraction"],
+        gq_default["neutral_fraction"] - gq_new["neutral_fraction"],
         label="$x_{HI}$",
     )
     ax[2].plot(
         lc_new.inputs.node_redshifts,
-        lc_default.global_quantities["brightness_temp"]
-        - lc_new.global_quantities["brightness_temp"],
+        gq_default["brightness_temp"] - gq_new["brightness_temp"],
         label="$T_b$",
     )
     ax[2].legend()
@@ -1179,6 +1256,7 @@ def pr_feature(
     p_default = []
     p_new = []
     z = []
+    k: np.ndarray | None = None
     thickness = 200  # Mpc
     ncells = int(thickness / lc_new.cell_size)
     chunk_size = lc_new.cell_size * ncells
@@ -1204,8 +1282,14 @@ def pr_feature(
 
         start += ncells
 
-    p_default = np.array(p_default).T
-    p_new = np.array(p_new).T
+    if k is None:
+        raise ValueError(
+            f"The lightcone must be at least {thickness} Mpc long to compute the "
+            "power spectrum history."
+        )
+
+    p_default_arr = np.array(p_default).T
+    p_new_arr = np.array(p_new).T
 
     fig, ax = plt.subplots(2, 1, sharex=True)
     ax[0].set_yscale("log")
@@ -1218,7 +1302,7 @@ def pr_feature(
     ]
 
     for i, (pdef, pnew, kk) in enumerate(
-        zip(p_default[inds], p_new[inds], k[inds], strict=True)
+        zip(p_default_arr[inds], p_new_arr[inds], k[inds], strict=True)
     ):
         ax[0].plot(z, pdef, ls="--", label=f"k={kk:.2f}", color=f"C{i}")
         ax[0].plot(z, pnew, ls="-", color=f"C{i}")
@@ -1238,7 +1322,7 @@ def predict_struct_size(
     unit: Literal["b", "kb", "mb", "gb"] | None = None,
     cache_config: Literal["on", "off", "noloop", "last_step_only"] = "on",
     nodez_params: NodeRedshiftParameters = NodeRedshiftParameters(),
-):
+) -> None:
     """Compute the required storage per output kind for given inputs."""
     from .management import get_expected_sizes
 
@@ -1283,7 +1367,7 @@ def predict_storage_size(
     nodez_params: NodeRedshiftParameters = NodeRedshiftParameters(),
     unit: Literal["b", "kb", "mb", "gb"] | None = None,
     cache_config: Literal["on", "off", "noloop", "last_step_only"] = "on",
-):
+) -> None:
     """Compute the required storage for an entire run."""
     from .management import get_total_storage_size
 

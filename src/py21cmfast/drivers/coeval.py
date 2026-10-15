@@ -2,9 +2,9 @@
 
 import logging
 import warnings
-from collections.abc import Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from pathlib import Path
-from typing import Self, get_args
+from typing import Any, Literal, Self, TypedDict, get_args
 
 import attrs
 import deprecation
@@ -20,7 +20,14 @@ from ..io import h5
 from ..io._compat import current_struct_name
 from ..io.caching import CacheConfig, OutputCache, RunCache
 from ..rsds import apply_rsds, include_dvdr_in_tau21
-from ..wrapper.inputs import InputParameters
+from ..wrapper.inputs import (
+    AstroOptions,
+    AstroParams,
+    CosmoParams,
+    InputParameters,
+    MatterOptions,
+    SimulationOptions,
+)
 from ..wrapper.outputs import (
     BrightnessTemp,
     EmissivityFields,
@@ -32,7 +39,11 @@ from ..wrapper.outputs import (
     RadiationFieldsSetup,
     TsBox,
 )
-from ..wrapper.photoncons import _get_photon_nonconservation_data, setup_photon_cons
+from ..wrapper.photoncons import (
+    PhotonConsData,
+    _get_photon_nonconservation_data,
+    setup_photon_cons,
+)
 from . import single_field as sf
 from ._param_config import high_level_func
 
@@ -41,7 +52,14 @@ logger = logging.getLogger(__name__)
 _console = Console()
 
 
-def _progressbar(**kwargs):
+class _IOKwargs(TypedDict):
+    """Caching keyword arguments passed through to the single-field functions."""
+
+    cache: OutputCache | None
+    regenerate: bool | None
+
+
+def _progressbar(*, disable: bool = False) -> Progress:
     return Progress(
         prg.TextColumn("[progress.description]{task.description:>24}"),
         prg.BarColumn(),
@@ -55,8 +73,31 @@ def _progressbar(**kwargs):
         prg.TimeRemainingColumn(),
         "remaining",
         console=_console,
-        **kwargs,
+        disable=disable,
     )
+
+
+def _output_struct_class(tp: object) -> type[OutputStruct] | None:
+    """Return the OutputStruct subclass referred to by a field annotation, if any.
+
+    The annotation may be a class (e.g. ``IonizedBox``) or a union/generic alias
+    (e.g. ``TsBox | None``), in which case the first OutputStruct subclass among its
+    arguments is returned.
+    """
+    candidates = (tp,) if isinstance(tp, type) else get_args(tp)
+    for candidate in candidates:
+        if isinstance(candidate, type) and issubclass(candidate, OutputStruct):
+            return candidate
+    return None
+
+
+def _require_struct[T: OutputStruct](obj: OutputStruct, kind: type[T]) -> T:
+    """Narrow an OutputStruct read from the cache to the expected kind."""
+    if not isinstance(obj, kind):
+        raise TypeError(
+            f"Expected a {kind.__name__} but got a {obj.__class__.__name__}."
+        )
+    return obj
 
 
 @attrs.define
@@ -85,9 +126,9 @@ class Coeval:
             attrs.validators.instance_of(EmissivityFields)
         ),
     )
-    photon_nonconservation_data: dict = attrs.field(factory=dict)
+    photon_nonconservation_data: PhotonConsData = attrs.field(factory=dict)
 
-    def __getattr__(self, name):
+    def __getattr__(self, name: str) -> np.ndarray:
         """
         Get underlying Array objects as attributes.
 
@@ -101,7 +142,7 @@ class Coeval:
 
         Returns
         -------
-        Any
+        np.ndarray
             The value of the requested array from the appropriate OutputStruct object.
 
         Raises
@@ -139,21 +180,14 @@ class Coeval:
     @classmethod
     def get_fields(cls, ignore_structs: tuple[str, ...] = ()) -> list[str]:
         """Obtain a list of name of simulation boxes saved in the Coeval object."""
-        output_structs = []
+        output_structs: list[type[OutputStruct]] = []
         for fld in attrs.fields(cls):
             if fld.name in ignore_structs:
                 continue
 
-            try:
-                if issubclass(fld.type, OutputStruct):
-                    output_structs.append(fld.type)
-            except TypeError:
-                # type is not a class, could be a Union
-                args = get_args(fld.type)
-                for k in args:
-                    if issubclass(k, OutputStruct):
-                        output_structs.append(k)
-                        break
+            kls = _output_struct_class(fld.type)
+            if kls is not None:
+                output_structs.append(kls)
 
         pointer_fields = []
         for struct in output_structs:
@@ -172,32 +206,32 @@ class Coeval:
         return self.brightness_temperature.inputs
 
     @property
-    def simulation_options(self):
+    def simulation_options(self) -> SimulationOptions:
         """Matter Params shared by all datasets."""
         return self.inputs.simulation_options
 
     @property
-    def matter_options(self):
+    def matter_options(self) -> MatterOptions:
         """Matter Flags shared by all datasets."""
         return self.inputs.matter_options
 
     @property
-    def cosmo_params(self):
+    def cosmo_params(self) -> CosmoParams:
         """Cosmo params shared by all datasets."""
         return self.inputs.cosmo_params
 
     @property
-    def astro_options(self):
+    def astro_options(self) -> AstroOptions:
         """Flag Options shared by all datasets."""
         return self.inputs.astro_options
 
     @property
-    def astro_params(self):
+    def astro_params(self) -> AstroParams:
         """Astro params shared by all datasets."""
         return self.inputs.astro_params
 
     @property
-    def random_seed(self):
+    def random_seed(self) -> int:
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
 
@@ -222,25 +256,25 @@ class Coeval:
         self,
         keepset: Sequence[str] | None = None,
         force: bool = False,
-    ):
+    ) -> None:
         """Purge intermediate computational fields to save memory.
 
-        Purges all output structs except those specified in `keep`.
+        Purges all output structs except those specified in `keepset`.
 
         Parameters
         ----------
-        keep : list[str], optional
+        keepset : list[str], optional
             Names of structs to keep (not purge).
         force : bool
             Force purge even if not saved to disk.
         """
-        keepset = set(keepset or [])
+        keep = set(keepset or [])
 
         for name, struct in self.output_structs.items():
-            if name not in keepset and struct is not None:
+            if name not in keep and struct is not None:
                 struct.purge(force=force)
 
-    def save(self, path: str | Path, clobber=False):
+    def save(self, path: str | Path, clobber: bool = False) -> None:
         """Save the Coeval object to disk."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -258,7 +292,9 @@ class Coeval:
         for struct in output_structs.values():
             h5.write_output_to_hdf5(struct, path, mode="a")
 
-    def include_dvdr_in_tau21(self, axis: str = "z", periodic: bool = True):
+    def include_dvdr_in_tau21(
+        self, axis: Literal["x", "y", "z"] = "z", periodic: bool = True
+    ) -> np.ndarray:
         """Include velocity gradient corrections to the brightness temperature field.
 
         Parameters
@@ -299,10 +335,10 @@ class Coeval:
     def apply_rsds(
         self,
         field: str = "brightness_temp",
-        axis: str = "z",
+        axis: Literal["x", "y", "z"] = "z",
         periodic: bool = True,
         n_rsd_subcells: int = 4,
-    ):
+    ) -> np.ndarray:
         """Apply redshift-space distortions to a particular field of the coeval box.
 
         Parameters
@@ -345,8 +381,11 @@ class Coeval:
         )
 
     def apply_velocity_corrections(
-        self, axis: str = "z", periodic: bool = True, n_rsd_subcells: int = 4
-    ):
+        self,
+        axis: Literal["x", "y", "z"] = "z",
+        periodic: bool = True,
+        n_rsd_subcells: int = 4,
+    ) -> np.ndarray:
         """Apply velocity gradient corrections and redshift-space distortions to the brightness temperature field.
 
         Parameters
@@ -404,21 +443,12 @@ class Coeval:
 
         selfdict = attrs.fields_dict(cls)
 
-        type_to_name = {}
+        type_to_name: dict[str, str] = {}
         for k, v in selfdict.items():
-            # Try direct __name__ first (simple, non-generic types)
-            try:
-                if issubclass(v.type, OutputStruct):
-                    type_to_name[v.type.__name__] = k
-            except TypeError:
-                # v.type is a generic alias (e.g. TsBox | None) — check args
-                for arg in get_args(v.type):
-                    try:
-                        if issubclass(arg, OutputStruct):
-                            type_to_name[arg.__name__] = k
-                            break
-                    except TypeError:
-                        continue  # arg is itself a generic alias, skip
+            # v.type may be a class or a generic alias (e.g. TsBox | None)
+            kls = _output_struct_class(v.type)
+            if kls is not None:
+                type_to_name[kls.__name__] = k
 
         with h5py.File(path, "r") as fl:
             if not fl.attrs.get("coeval", False):
@@ -430,7 +460,10 @@ class Coeval:
             photoncons = {k: v[...] for k, v in grp.items()}
             keys.remove("photon_nonconservation_data")
 
-            kwargs = {}
+            # Maps field names to the structs read from the file. Which fields are
+            # present is only known at runtime; their types are checked by the
+            # attrs validators of the class.
+            kwargs: dict[str, Any] = {}
             for k in keys:
                 # Files written by older versions may use older names of the structs.
                 name = current_struct_name(k)
@@ -444,7 +477,7 @@ class Coeval:
                 )
             return cls(photon_nonconservation_data=photoncons, **kwargs)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Determine if this is equal to another object."""
         return (
             isinstance(other, self.__class__)
@@ -455,13 +488,13 @@ class Coeval:
 
 def evolve_halos(
     inputs: InputParameters,
-    all_redshifts: list[float],
+    all_redshifts: Sequence[float],
     write: CacheConfig,
     initial_conditions: InitialConditions,
-    cache: OutputCache,
-    regenerate: bool,
+    cache: OutputCache | None,
+    regenerate: bool | None,
     progressbar: bool = False,
-):
+) -> list[HaloCatalog]:
     """
     Evolve and perturb halo fields across multiple redshifts.
 
@@ -473,15 +506,15 @@ def evolve_halos(
     ----------
     inputs : InputParameters
         Input parameters for the simulation.
-    all_redshifts : list[float]
-        List of redshifts to process, in descending order.
+    all_redshifts : Sequence[float]
+        Redshifts to process, in descending order.
     write : CacheConfig
         Configuration for writing output to cache.
     initial_conditions : InitialConditions
         Initial conditions for the simulation.
-    cache : OutputCache
+    cache : OutputCache or None
         Cache object for storing and retrieving computed results.
-    regenerate : bool
+    regenerate : bool or None
         Flag to indicate whether to regenerate results or use cached values.
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
@@ -503,13 +536,8 @@ def evolve_halos(
             stacklevel=2,
         )
 
-    halofield_list = []
-    kw = {
-        "initial_conditions": initial_conditions,
-        "cache": cache,
-        "regenerate": regenerate,
-    }
-    halos_desc = None
+    halofield_list: list[HaloCatalog] = []
+    halos_desc: HaloCatalog | None = None
     with _progressbar(disable=not progressbar) as _progbar:
         for _i, z in _progbar.track(
             enumerate(all_redshifts[::-1]),
@@ -521,7 +549,9 @@ def evolve_halos(
                 inputs=inputs,
                 descendant_halos=halos_desc,
                 write=write.halo_catalog,
-                **kw,
+                initial_conditions=initial_conditions,
+                cache=cache,
+                regenerate=regenerate,
             )
 
             halofield_list.append(halos)
@@ -542,13 +572,13 @@ def evolve_halos(
 def generate_coeval(
     *,
     inputs: InputParameters | None = None,
-    out_redshifts: float | tuple[float, ...] = (),
+    out_redshifts: float | Sequence[float] | np.ndarray = (),
     regenerate: bool | None = None,
     write: CacheConfig | bool = True,
     cache: OutputCache | None = None,
     initial_conditions: InitialConditions | None = None,
     progressbar: bool = False,
-):
+) -> Iterator[tuple[Coeval, bool]]:
     r"""
     Perform a full coeval simulation of all fields at given redshifts.
 
@@ -598,38 +628,39 @@ def generate_coeval(
     progressbar: bool, optional
         If True, a progress bar will be displayed throughout the simulation. Defaults to False.
 
-    Returns
-    -------
-    coevals : list of :class:`~py21cmfast.drivers.coeval.Coeval`
+    Yields
+    ------
+    coeval : :class:`~py21cmfast.drivers.coeval.Coeval`
         The full data for the Coeval class, with init boxes, perturbed fields, ionized boxes,
-        brightness temperature, and potential data from the conservation of photons. A
-        list of such objects, one for each redshift in ``out_redshifts``.
+        brightness temperature, and potential data from the conservation of photons, at
+        each redshift that is computed.
+    in_outputs : bool
+        Whether the redshift of ``coeval`` is one of the ``out_redshifts``.
     """
+    assert inputs is not None  # always filled in by @high_level_func
+
     if cache is None:
         cache = OutputCache(".")
 
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()
 
-    if not out_redshifts:
-        out_redshifts = inputs.node_redshifts
+    # Normalise the output redshifts (a scalar, sequence or array) to a list.
+    out_zs: list[float] = np.atleast_1d(np.asarray(out_redshifts, dtype=float)).tolist()
 
-    if not out_redshifts and not inputs.node_redshifts:
+    if not out_zs:
+        out_zs = list(inputs.node_redshifts)
+
+    if not out_zs:
         raise ValueError("out_redshifts must be given if inputs has no node redshifts")
 
-    iokw = {
+    iokw: _IOKwargs = {
         "regenerate": regenerate,
         "cache": cache,
     }
 
-    if not hasattr(out_redshifts, "__len__"):
-        out_redshifts = [out_redshifts]
-
-    if isinstance(out_redshifts, np.ndarray):
-        out_redshifts = out_redshifts.tolist()
-
     # Get the list of redshifts we need to scroll through.
-    all_redshifts = _get_required_redshifts_coeval(inputs, out_redshifts)
+    all_redshifts = _get_required_redshifts_coeval(inputs, out_zs)
 
     (
         initial_conditions,
@@ -646,16 +677,16 @@ def generate_coeval(
     )
 
     # get the first node redshift that is above all output redshifts
-    first_out_node = None
+    first_out_node: int | None = None
     if inputs.node_redshifts:
         # if any output redshift is above all nodes, start from the start
-        if max(out_redshifts) > max(inputs.node_redshifts):
+        if max(out_zs) > max(inputs.node_redshifts):
             first_out_node = -1
         # otherwise, find the first node above all user redshifts and start there
-        elif max(out_redshifts) >= min(inputs.node_redshifts):
-            nodes_in_outputs = np.array(inputs.node_redshifts) <= max(out_redshifts)
-            first_out_node = np.where(nodes_in_outputs)[0][0] - 1
-    idx, coeval = _obtain_starting_point_for_scrolling(
+        elif max(out_zs) >= min(inputs.node_redshifts):
+            nodes_in_outputs = np.array(inputs.node_redshifts) <= max(out_zs)
+            first_out_node = int(np.where(nodes_in_outputs)[0][0]) - 1
+    idx, start_coeval = _obtain_starting_point_for_scrolling(
         inputs=inputs,
         initial_conditions=initial_conditions,
         photon_nonconservation_data=photon_nonconservation_data,
@@ -666,11 +697,13 @@ def generate_coeval(
 
     # convert node_redshift index to all_redshift index
     if idx > 0:
-        idx = np.argmin(np.fabs(np.array(all_redshifts) - inputs.node_redshifts[idx]))
+        idx = int(
+            np.argmin(np.fabs(np.array(all_redshifts) - inputs.node_redshifts[idx]))
+        )
 
     prev_coeval = None
 
-    for _, coeval in _redshift_loop_generator(  # noqa: B020
+    for _, coeval in _redshift_loop_generator(
         inputs=inputs,
         all_redshifts=all_redshifts,
         initial_conditions=initial_conditions,
@@ -680,16 +713,16 @@ def generate_coeval(
         write=write,
         progressbar=progressbar,
         iokw=iokw,
-        init_coeval=coeval,
+        init_coeval=start_coeval,
         start_idx=idx + 1,
     ):
-        yield coeval, coeval.redshift in out_redshifts
+        yield coeval, coeval.redshift in out_zs
 
         # Purge the previous coeval after we're done with it
         # Note: we do not attempt to purge emissivity_fields from prev_coeval, since it used in compute_radiation_fields.
         #       emissivity_fields are ultimately purged in emissivity_fields.prepare_for_next_snapshot().
         #       Meanwhile, unnecessary fields from initial_conditions were removed via prepare_for_perturb and prepare_for_spin_temp
-        if prev_coeval is not None and prev_coeval.redshift not in out_redshifts:
+        if prev_coeval is not None and prev_coeval.redshift not in out_zs:
             prev_coeval.prepare_for_next_snapshot(
                 keepset=["initial_conditions", "emissivity_fields"], force=True
             )
@@ -700,7 +733,7 @@ def generate_coeval(
         lib.FreePhotonConsMemory()
 
 
-def run_coeval(**kwargs) -> list[Coeval]:
+def run_coeval(**kwargs: Any) -> list[Coeval]:
     """Run a coeval simulation and return the resulting coeval boxes.
 
     This simply wraps :func:`generate_coeval` and returns a list of coeval objects
@@ -713,11 +746,11 @@ def run_coeval(**kwargs) -> list[Coeval]:
 def _obtain_starting_point_for_scrolling(
     inputs: InputParameters,
     initial_conditions: InitialConditions,
-    photon_nonconservation_data: dict,
-    cache: OutputCache,
-    regenerate: bool,
+    photon_nonconservation_data: PhotonConsData,
+    cache: OutputCache | None,
+    regenerate: bool | None,
     minimum_node: int | None = None,
-):
+) -> tuple[int, Coeval | None]:
     outputs = None
 
     if minimum_node is None:
@@ -725,7 +758,12 @@ def _obtain_starting_point_for_scrolling(
         # the last one.
         minimum_node = len(inputs.node_redshifts) - 1
 
-    if minimum_node < 0 or inputs.matter_options.has_discrete_halos or regenerate:
+    if (
+        minimum_node < 0
+        or inputs.matter_options.has_discrete_halos
+        or regenerate
+        or cache is None  # without a cache, there is nothing to resume from
+    ):
         # TODO: (low priority) implement a backward loop for finding first halo files
         #   Noting that we need *all* the halo fields in the cache to run
         return (
@@ -746,42 +784,62 @@ def _obtain_starting_point_for_scrolling(
 
     # Create a Coeval from the outputs
     if outputs is not None:
-        return idx, Coeval(
-            initial_conditions=initial_conditions,
-            perturbed_field=outputs["PerturbedField"],
-            ionized_box=outputs["IonizedBox"],
-            brightness_temperature=outputs["BrightnessTemp"],
-            ts_box=outputs.get("TsBox", None),
-            emissivity_fields=outputs.get("EmissivityFields", None),
-            photon_nonconservation_data=photon_nonconservation_data,
+        return idx, _coeval_from_cached_boxes(
+            outputs, initial_conditions, photon_nonconservation_data
         )
     else:
         return -1, None
+
+
+def _coeval_from_cached_boxes(
+    outputs: Mapping[str, OutputStruct],
+    initial_conditions: InitialConditions,
+    photon_nonconservation_data: PhotonConsData,
+) -> Coeval:
+    """Create a Coeval from the boxes at one redshift read from a RunCache."""
+    ts_box = outputs.get("TsBox")
+    emissivity_fields = outputs.get("EmissivityFields")
+    return Coeval(
+        initial_conditions=initial_conditions,
+        perturbed_field=_require_struct(outputs["PerturbedField"], PerturbedField),
+        ionized_box=_require_struct(outputs["IonizedBox"], IonizedBox),
+        brightness_temperature=_require_struct(
+            outputs["BrightnessTemp"], BrightnessTemp
+        ),
+        ts_box=None if ts_box is None else _require_struct(ts_box, TsBox),
+        emissivity_fields=(
+            None
+            if emissivity_fields is None
+            else _require_struct(emissivity_fields, EmissivityFields)
+        ),
+        photon_nonconservation_data=photon_nonconservation_data,
+    )
 
 
 def _redshift_loop_generator(
     inputs: InputParameters,
     initial_conditions: InitialConditions,
     all_redshifts: Sequence[float],
-    perturbed_field: list[PerturbedField],
-    halofield_list: list[HaloCatalog],
-    write: CacheConfig,
-    iokw: dict,
+    perturbed_field: Sequence[PerturbedField],
+    halofield_list: Sequence[HaloCatalog],
+    write: CacheConfig | bool,
+    iokw: _IOKwargs,
     progressbar: bool,
-    photon_nonconservation_data: dict,
+    photon_nonconservation_data: PhotonConsData,
     start_idx: int = 0,
     init_coeval: Coeval | None = None,
-):
+) -> Iterator[tuple[int, Coeval]]:
     if isinstance(write, bool):
-        write = CacheConfig()
+        write = CacheConfig() if write else CacheConfig.off()
 
     # Iterate through redshift from top to bottom
-    emissivity_fields_list = []
+    emissivity_fields_list: list[EmissivityFields] = []
 
     # If a cache is provided, check if we can resume from a previous run
     resume_cache = None
-    if iokw.get("cache") is not None:
-        resume_cache = RunCache.from_inputs(inputs, iokw["cache"])
+    cache = iokw.get("cache")
+    if cache is not None:
+        resume_cache = RunCache.from_inputs(inputs, cache)
 
     prev_coeval = init_coeval
     this_coeval = None
@@ -795,10 +853,6 @@ def _redshift_loop_generator(
         this_rad_setup._init_arrays()
         this_rad_setup.dummy = True
 
-    kw = {
-        **iokw,
-        "initial_conditions": initial_conditions,
-    }
     with _progressbar(disable=not progressbar) as _progbar:
         for iz, z in _progbar.track(
             enumerate(all_redshifts),
@@ -812,9 +866,11 @@ def _redshift_loop_generator(
             if iz < start_idx:
                 if resume_cache is not None and z in inputs.node_redshifts:
                     cached_emissivity_fields = resume_cache.get_output_struct_at_z(
-                        "EmissivityFields", z=z
+                        EmissivityFields, z=z
                     )
-                    emissivity_fields_list.append(cached_emissivity_fields)
+                    emissivity_fields_list.append(
+                        _require_struct(cached_emissivity_fields, EmissivityFields)
+                    )
                 continue
 
             this_perturbed_field = perturbed_field[iz]
@@ -831,17 +887,19 @@ def _redshift_loop_generator(
                 previous_ionize_box=getattr(prev_coeval, "ionized_box", None),
                 previous_spin_temp=getattr(prev_coeval, "ts_box", None),
                 write=write.emissivity_fields,
-                **kw,
+                initial_conditions=initial_conditions,
+                **iokw,
             )
 
             if inputs.astro_options.USE_TS_FLUCT:
                 # No need to compute radiation fields if we have cached spin temperature
                 # and the user does not want to write radiation fields to cache
+                ts_paths = resume_cache.TsBox if resume_cache is not None else None
                 ts_cached = (
-                    resume_cache is not None
+                    ts_paths is not None
                     and not iokw.get("regenerate")
-                    and z in resume_cache.TsBox
-                    and resume_cache.TsBox[z].exists()
+                    and z in ts_paths
+                    and ts_paths[z].exists()
                 )
                 skip_radfields = ts_cached and not write.radiation_fields
 
@@ -877,7 +935,8 @@ def _redshift_loop_generator(
                     perturbed_field=this_perturbed_field,
                     radiation_fields=this_radiation_fields,
                     write=write.spin_temp,
-                    **kw,
+                    initial_conditions=initial_conditions,
+                    **iokw,
                 )
                 # Purge RadiationFields because it's enormous
                 # TODO: now that RadiationFields (formerly known as XraySourceBox) does not contain 4D arrays anymore,
@@ -896,7 +955,8 @@ def _redshift_loop_generator(
                 emissivity_fields=this_emissivity_fields,
                 spin_temp=this_spin_temp,
                 write=write.ionized_box,
-                **kw,
+                initial_conditions=initial_conditions,
+                **iokw,
             )
 
             this_bt = sf.brightness_temperature(
@@ -948,56 +1008,61 @@ def _redshift_loop_generator(
         this_rad_setup.purge(force=True)
 
 
+def _is_z_already_cached(resume_cache: RunCache, z: float) -> bool:
+    try:
+        return resume_cache.is_complete_at(z=z)
+    except KeyError:
+        # z isn't one of inputs.node_redshifts (e.g. a user-requested
+        # out_redshift off the node grid), so RunCache can't tell us --
+        # be conservative and assume it needs computing.
+        return False
+
+
 def _setup_ics_and_pfs_for_scrolling(
     all_redshifts: Sequence[float],
     initial_conditions: InitialConditions | None,
     inputs: InputParameters,
     write: CacheConfig,
     progressbar: bool,
-    overdensity_z0: float | None = None,
-    **iokw,
-) -> tuple[InitialConditions, list[PerturbedField], list[HaloCatalog], dict]:
+    overdensity_z0: np.ndarray | float | None = None,
+    cache: OutputCache | None = None,
+    regenerate: bool | None = None,
+) -> tuple[InitialConditions, list[PerturbedField], list[HaloCatalog], PhotonConsData]:
     if initial_conditions is None:
         initial_conditions = sf.compute_initial_conditions(
             inputs=inputs,
             write=write.initial_conditions,
             initial_density=overdensity_z0,
-            **iokw,
+            cache=cache,
+            regenerate=regenerate,
         )
 
     # Only enter the loop if there is something to calculate.
     # If the cache is already complete, we can skip the loop entirely and just read the cached boxes.
     resume_cache = None
-    if iokw.get("cache") is not None and not iokw.get("regenerate"):
-        resume_cache = RunCache.from_inputs(inputs, iokw["cache"])
-
-    def _is_z_already_cached(z: float) -> bool:
-        try:
-            return resume_cache.is_complete_at(z=z)
-        except KeyError:
-            # z isn't one of inputs.node_redshifts (e.g. a user-requested
-            # out_redshift off the node grid), so RunCache can't tell us --
-            # be conservative and assume it needs computing.
-            return False
+    if cache is not None and not regenerate:
+        resume_cache = RunCache.from_inputs(inputs, cache)
 
     batch_already_cached = resume_cache is not None and all(
-        _is_z_already_cached(z) for z in all_redshifts
+        _is_z_already_cached(resume_cache, z) for z in all_redshifts
     )
 
     # We can go ahead and purge some of the stuff in the initial_conditions, but only if
     # it is cached -- otherwise we could be losing information.
     if write.initial_conditions and not batch_already_cached:
         initial_conditions.prepare_for_perturb()
-    kw = {
-        "initial_conditions": initial_conditions,
-        **iokw,
-    }
-    photon_nonconservation_data = {}
+
+    photon_nonconservation_data: PhotonConsData = {}
     if inputs.astro_options.PHOTON_CONS_TYPE != "no-photoncons":
         # Note that we need to pass the inputs directly here.
         # Otherwise, they are taken from initial_conditions, which may have
         # a different (compatible) set of inputs.
-        photon_nonconservation_data = setup_photon_cons(inputs=inputs, **kw)
+        photon_nonconservation_data = setup_photon_cons(
+            inputs=inputs,
+            initial_conditions=initial_conditions,
+            cache=cache,
+            regenerate=regenerate,
+        )
 
     if (
         inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons"
@@ -1011,14 +1076,16 @@ def _setup_ics_and_pfs_for_scrolling(
             f"to a value lower than z = {np.amin(all_redshifts)}."
         )
 
-    perturbed_field = []
+    perturbed_field: list[PerturbedField] = []
     with _progressbar(disable=not progressbar) as _progbar:
         for z in _progbar.track(all_redshifts, description="Perturbing Matter Fields"):
             p = sf.perturb_field(
                 redshift=z,
                 inputs=inputs,
                 write=write.perturbed_field,
-                **kw,
+                initial_conditions=initial_conditions,
+                cache=cache,
+                regenerate=regenerate,
             )
 
             if inputs.matter_options.MINIMIZE_MEMORY and write.perturbed_field:
@@ -1030,7 +1097,9 @@ def _setup_ics_and_pfs_for_scrolling(
         all_redshifts=all_redshifts,
         write=write,
         progressbar=progressbar,
-        **kw,
+        initial_conditions=initial_conditions,
+        cache=cache,
+        regenerate=regenerate,
     )
 
     # Now we can purge initial_conditions further.
@@ -1046,7 +1115,7 @@ def _setup_ics_and_pfs_for_scrolling(
 
 
 def _get_required_redshifts_coeval(
-    inputs: InputParameters, user_redshifts: Sequence
+    inputs: InputParameters, user_redshifts: Sequence[float]
 ) -> list[float]:
     # Add in the redshift defined by the user, and sort in order
     # Turn into a set so that exact matching user-set redshift

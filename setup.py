@@ -10,7 +10,7 @@ from setuptools import find_packages, setup
 THISDIR = Path(__file__).parent.resolve()
 
 
-def _read(name: str):
+def _read(name: str) -> str:
     with (THISDIR / name).open(encoding="utf8") as fl:
         return fl.read()
 
@@ -89,7 +89,7 @@ setup(
         "matplotlib",
         "bidict",
         "cosmotile>=0.2.5",
-        "attrs",
+        "attrs>=22.2",  # for `alias=` in fields
         "tqdm",
         # classy 3.4.0.0 on PyPI is a broken sdist (missing the C sources), so cap it
         "classy>=3.3.4,<3.4",

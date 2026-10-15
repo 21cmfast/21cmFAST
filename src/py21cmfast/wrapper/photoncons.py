@@ -50,9 +50,12 @@ The function map for the photon conservation model looks like::
 """
 
 import logging
+from collections.abc import Mapping
+from typing import Any
 
 import attrs
 import numpy as np
+from numpy.typing import ArrayLike, NDArray
 from scipy.optimize import curve_fit
 
 from ..c_21cmfast import ffi, lib
@@ -62,6 +65,9 @@ from .inputs import InputParameters
 from .outputs import InitialConditions
 
 logger = logging.getLogger(__name__)
+
+type PhotonConsData = Mapping[str, NDArray[np.float64] | float | bool]
+"""Data describing the photon non-conservation correction (keys depend on the model)."""
 
 
 # NOTE: if/when we move the photoncons model data to python we should use this
@@ -78,7 +84,7 @@ class _PhotonConservationState:
         return lib.photon_cons_allocated
 
     @c_memory_allocated.setter
-    def c_memory_allocated(self, val):
+    def c_memory_allocated(self, val: bool) -> None:
         lib.photon_cons_allocated = ffi.cast("bool", val)
 
 
@@ -89,16 +95,19 @@ _photoncons_state = _PhotonConservationState()
 # the global astro params rather than taking any arguments, so the ALPHA_ESC scan in
 # photoncons_alpha depends on each set of inputs being broadcast before we call it.
 @init_c_state(sigma=True)
-def _init_photon_conservation_correction(*, inputs, **kwargs):
+def _init_photon_conservation_correction(
+    *, inputs: InputParameters, **kwargs: Any
+) -> None:
     # This function calculates the global expected evolution of reionisation and saves
     #   it to C global arrays z_Q and Q_value (as well as other non-global confusingly named arrays),
     #   and constructs a GSL interpolator z_at_Q_spline
-    return lib.InitialisePhotonCons()
+    errcode = lib.InitialisePhotonCons()
+    _process_exitcode(errcode, lib.InitialisePhotonCons, ())
 
 
 def _calibrate_photon_conservation_correction(
-    *, redshifts_estimate, nf_estimate, NSpline
-):
+    *, redshifts_estimate: ArrayLike, nf_estimate: ArrayLike, NSpline: int
+) -> None:
     # This function passes the calibration simulation results to C,
     #       Storing a clipped version in global arrays nf_vals and z_vals,
     #       and constructing the GSL interpolator z_NFHistory_spline
@@ -109,10 +118,11 @@ def _calibrate_photon_conservation_correction(
     xHI = ffi.cast("double *", ffi.from_buffer(nf_estimate))
 
     logger.debug(f"PhotonCons nf estimates: {nf_estimate}")
-    return lib.PhotonCons_Calibration(z, xHI, NSpline)
+    errcode = lib.PhotonCons_Calibration(z, xHI, NSpline)
+    _process_exitcode(errcode, lib.PhotonCons_Calibration, (NSpline,))
 
 
-def _calc_zstart_photon_cons():
+def _calc_zstart_photon_cons() -> float:
     # gets the starting redshift of the z-based photon conservation model
     #   Set by neutral fraction astro_params.PHOTONCONS_ZSTART
     from ._utils import _call_c_simple
@@ -120,13 +130,13 @@ def _calc_zstart_photon_cons():
     return _call_c_simple(lib.ComputeZstart_PhotonCons)
 
 
-def _get_photon_nonconservation_data() -> dict:
+def _get_photon_nonconservation_data() -> dict[str, NDArray[np.float64]]:
     """
     Access C global data representing the photon-nonconservation corrections.
 
     .. note::  If photon conservation is switched off via PHOTON_CONS_TYPE='no-photoncons' or the
                initialisation for photon conservation has not been performed yet, this
-               will return None.
+               will return an empty dict.
 
     Returns
     -------
@@ -207,10 +217,11 @@ def _get_photon_nonconservation_data() -> dict:
 # In case this is changed in the future, it is important to set recomb=True
 @init_c_state(sigma=True, recomb=False)
 def setup_photon_cons(
+    *,
     initial_conditions: InitialConditions,
     inputs: InputParameters | None = None,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> PhotonConsData:
     r"""
     Set up the photon non-conservation correction.
 
@@ -251,17 +262,14 @@ def setup_photon_cons(
     )
     _photoncons_state.calibration_inputs = inputs
 
-    # The PHOTON_CONS_TYPE == 1 case is handled in C (for now....), but we get the data anyway
-    if inputs.astro_options.PHOTON_CONS_TYPE == "z-photoncons":
-        photoncons_data = _get_photon_nonconservation_data()
-
     if inputs.astro_options.PHOTON_CONS_TYPE == "alpha-photoncons":
-        photoncons_data = photoncons_alpha(inputs, **kwargs)
+        return photoncons_alpha(inputs, **kwargs)
 
     if inputs.astro_options.PHOTON_CONS_TYPE == "f-photoncons":
-        photoncons_data = photoncons_fesc(inputs)
+        return photoncons_fesc(inputs)
 
-    return photoncons_data
+    # The PHOTON_CONS_TYPE == "z-photoncons" case is handled in C (for now....), but we get the data anyway
+    return _get_photon_nonconservation_data()
 
 
 @init_c_state(
@@ -272,10 +280,11 @@ def setup_photon_cons(
     recomb=True,
 )
 def calibrate_photon_cons(
+    *,
     inputs: InputParameters,
     initial_conditions: InitialConditions,
-    **kwargs,
-):
+    **kwargs: Any,
+) -> None:
     r"""
     Perform a photon conservation calibration simulation.
 
@@ -322,7 +331,7 @@ def calibrate_photon_cons(
     prev_perturb = None
 
     # Arrays for redshift and neutral fraction for the calibration curve
-    neutral_fraction_photon_cons = []
+    neutral_fraction_photon_cons: list[float] = []
 
     # Initialise the analytic expression for the reionisation history
     logger.info("About to start photon conservation correction")
@@ -332,7 +341,7 @@ def calibrate_photon_cons(
     logger.info("Calculating photon conservation zstart")
     z = _calc_zstart_photon_cons()
 
-    fast_node_redshifts = [z]
+    fast_node_redshifts: list[float] = [z]
 
     # NOTE: Not checking any redshift consistency for the calibration run
     #   Since the z-step is Q-dependent, we can't predict the redshifts
@@ -380,14 +389,11 @@ def calibrate_photon_cons(
 
             fast_node_redshifts.append(z)
 
-    fast_node_redshifts = np.array(fast_node_redshifts[::-1])
-    neutral_fraction_photon_cons = np.array(neutral_fraction_photon_cons[::-1])
-
     # Construct the spline for the calibration curve
     logger.info("Calibrating photon conservation correction")
     _calibrate_photon_conservation_correction(
-        redshifts_estimate=fast_node_redshifts,
-        nf_estimate=neutral_fraction_photon_cons,
+        redshifts_estimate=fast_node_redshifts[::-1],
+        nf_estimate=neutral_fraction_photon_cons[::-1],
         NSpline=len(fast_node_redshifts),
     )
 
@@ -395,22 +401,38 @@ def calibrate_photon_cons(
 # (Jdavies): I needed a function to access the delta z from the wrapper
 # get_photoncons_data does not have the edge cases that adjust_redshifts_for_photoncons does
 @init_c_state(broadcast_inputs=True)
-def get_photoncons_dz(inputs, redshift, **kwargs):
-    """Access the delta z arrays from the photon conservation model in C."""
+def get_photoncons_dz(
+    *, inputs: InputParameters, redshift: float, **kwargs: Any
+) -> tuple[float, float, float]:
+    """Access the delta z arrays from the photon conservation model in C.
+
+    Returns
+    -------
+    adjusted_redshift : float
+        The redshift at which the calibration simulation matches the analytic
+        ionisation history at `redshift`.
+    stored_redshift : float
+        The (possibly modified) input redshift.
+    deltaz : float
+        The absolute redshift shift applied by the photon-conservation correction.
+    """
     deltaz = np.zeros(1).astype("f4")
     redshift_pc_in = np.array([redshift]).astype("f4")
     stored_redshift_pc_in = np.array([redshift]).astype("f4")
     lib.adjust_redshifts_for_photoncons(
+        inputs.simulation_options.ZPRIME_STEP_FACTOR,
         ffi.cast("float *", redshift_pc_in.ctypes.data),
         ffi.cast("float *", stored_redshift_pc_in.ctypes.data),
         ffi.cast("float *", deltaz.ctypes.data),
     )
 
-    return redshift_pc_in[0], stored_redshift_pc_in[0], deltaz[0]
+    return float(redshift_pc_in[0]), float(stored_redshift_pc_in[0]), float(deltaz[0])
 
 
 # NOTE: alpha_func here MUST MATCH the C version TODO: remove one of them
-def alpha_func(Q, a_const, a_slope):
+def alpha_func(
+    Q: NDArray[np.floating], a_const: float, a_slope: float
+) -> NDArray[np.floating]:
     """Linear Function to fit in the simpler photon conservation model."""
     return a_const + a_slope * Q
 
@@ -421,7 +443,7 @@ def alpha_func(Q, a_const, a_slope):
 # Q vs z curves for different ALPHA_STAR_ACG, and then finding the aloha star which has the inverse ratio
 # with the reference analytic as the calibration
 # TODO: don't rely on the photoncons functions since they do a bunch of other stuff in C
-def photoncons_alpha(inputs, **kwargs):
+def photoncons_alpha(inputs: InputParameters, **kwargs: Any) -> PhotonConsData:
     """Run the Simpler photons conservation model using ALPHA_ESC.
 
     This adjusts the slope of the escape fraction instead of redshifts to match a global
@@ -528,7 +550,7 @@ def photoncons_alpha(inputs, **kwargs):
             last_alpha = arr_out[i]
 
     # initialise the output structure before the fits
-    results = {
+    results: dict[str, NDArray[np.float64] | float | bool] = {
         "z_calibration": ref_pc_data["z_calibration"],
         "z_analytic": ref_pc_data["z_analytic"],
         "Q_analytic": ref_pc_data["Q_analytic"],
@@ -592,7 +614,7 @@ def photoncons_alpha(inputs, **kwargs):
     return results
 
 
-def photoncons_fesc(inputs):
+def photoncons_fesc(inputs: InputParameters) -> PhotonConsData:
     """Run the Even Simpler photon conservation model using F_ESC10_ACG.
 
     Adjusts the normalisation of the escape fraction to match a global evolution.
@@ -632,7 +654,7 @@ def photoncons_fesc(inputs):
     logger.info(f"Running with F_ESC10_ACG = {popt[0]:.2f} + {popt[1]:.2f} * Q")
 
     # initialise the output structure before the fits
-    results = {
+    results: dict[str, NDArray[np.float64] | float | bool] = {
         "z_calibration": ref_pc_data["z_calibration"],
         "z_analytic": ref_pc_data["z_analytic"],
         "Q_analytic": ref_pc_data["Q_analytic"],

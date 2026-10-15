@@ -1,9 +1,8 @@
 """Module for accounting redshift space distortions."""
 
-from collections.abc import Sequence
-
 import numpy as np
-from astropy import cosmology, units
+from astropy import units
+from astropy.cosmology import FLRW
 from classy import Class
 from cosmotile.cic import cloud_in_cell_los
 from scipy import fft
@@ -47,7 +46,7 @@ def include_dvdr_in_tau21(
         raise ValueError(
             "tau_21 is not provided, but inputs.astro_options.USE_TS_FLUCT is True!"
         )
-    if hasattr(redshifts, "__len__") and len(redshifts) != brightness_temp.shape[-1]:
+    if np.ndim(redshifts) > 0 and np.shape(redshifts)[0] != brightness_temp.shape[-1]:
         raise ValueError(
             "Redshifts must be a float or array with the same size as number of LoS slices"
         )
@@ -88,17 +87,20 @@ def include_dvdr_in_tau21(
     else:
         # We have the spin temperature, and we do *not* make the Taylor approximation
         tb_no_rsds = brightness_temp.copy()
-        tau_21 = np.float64(tau_21)
-        gradient_component = np.float64(np.abs(1.0 + vel_gradient / H))
+        tau = np.asarray(tau_21, dtype=np.float64)
+        gradient_component = np.asarray(
+            np.abs(1.0 + vel_gradient / H).to_value(units.dimensionless_unscaled),
+            dtype=np.float64,
+        )
         with np.errstate(
             divide="ignore", invalid="ignore"
         ):  # Don't show division by 0 warnings
-            gradient_factor = (1.0 - np.exp(-tau_21 / gradient_component)) / (
-                1.0 - (np.exp(-tau_21))
+            gradient_factor = (1.0 - np.exp(-tau / gradient_component)) / (
+                1.0 - (np.exp(-tau))
             )
         # It doesn't really matter what the rsd_factor is when tau_21=0 because the brightness temperature is zero by definition
-        gradient_factor = np.float32(np.where(tau_21 < 1e-10, 1.0, gradient_factor))
-        tb_with_dvdr = tb_no_rsds * gradient_factor.value
+        gradient_factor = np.where(tau < 1e-10, 1.0, gradient_factor).astype(np.float32)
+        tb_with_dvdr = tb_no_rsds * gradient_factor
 
     return tb_with_dvdr
 
@@ -143,7 +145,7 @@ def apply_rsds(
     field_with_rsds
         A box of the field, with redshift space distortions.
     """
-    if hasattr(redshifts, "__len__") and len(redshifts) != field.shape[-1]:
+    if np.ndim(redshifts) > 0 and np.shape(redshifts)[0] != field.shape[-1]:
         raise ValueError(
             "Redshifts must be a float or array with the same size as number of LoS slices"
         )
@@ -269,27 +271,29 @@ def rsds_shift(
 
 def estimate_rsd_displacements(
     classy_output: Class,
-    cosmo: cosmology,
-    redshifts: Sequence[float],
+    # FLRW is wrapped by astropy's ``dataclass_decorator`` (annotated as returning
+    # ``type[Cosmology]``), so ty treats it as a variable rather than a class.
+    cosmo: FLRW,  # ty: ignore[invalid-type-form]
+    redshifts: np.ndarray,
     factor: float = 1.0,
-) -> Sequence[units.Quantity]:
+) -> units.Quantity:
     """Estimate the rms of the redshift space distortions displacement field at given redshifts.
 
     Parameters
     ----------
     classy_output : classy.Class
         An object containing all the information from the CLASS calculation.
-    cosmo: astropy.cosmology
+    cosmo: astropy.cosmology.FLRW
         The assumed cosmology
-    redshifts: list
-        List of the redshifts at which the rms of the displacement field is computed.
+    redshifts: np.ndarray
+        Array of the redshifts at which the rms of the displacement field is computed.
     factor: float, optional
         Factor to multiply the rms velocity from CLASS. Default is 1.
 
     Returns
     -------
-    displacements : np.array
-        The rms of the RSD displacement field.
+    displacements : astropy.units.Quantity
+        The rms of the RSD displacement field (comoving length, in Mpc).
     """
     v_rms = (
         compute_rms(classy_output=classy_output, kind="v_b", redshifts=redshifts)

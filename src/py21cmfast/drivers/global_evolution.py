@@ -2,7 +2,7 @@
 
 import warnings
 from pathlib import Path
-from typing import Self
+from typing import Literal, Self
 
 import attrs
 import h5py
@@ -12,7 +12,15 @@ from .. import __version__
 from ..io import h5
 from ..io.caching import CacheConfig
 from ..wrapper.arrays import Array
-from ..wrapper.inputs import InputParameters
+from ..wrapper.inputs import (
+    AstroOptions,
+    AstroParams,
+    CosmoParams,
+    CosmoTables,
+    InputParameters,
+    MatterOptions,
+    SimulationOptions,
+)
 from ..wrapper.outputs import (
     BrightnessTemp,
     EmissivityFields,
@@ -21,7 +29,11 @@ from ..wrapper.outputs import (
     TsBox,
 )
 from ._global_initialization import c_state
-from .coeval import _redshift_loop_generator, _setup_ics_and_pfs_for_scrolling
+from .coeval import (
+    _IOKwargs,
+    _redshift_loop_generator,
+    _setup_ics_and_pfs_for_scrolling,
+)
 
 
 def compute_global_reionization_at_z(
@@ -81,7 +93,8 @@ def compute_global_reionization_at_z(
         J_LW_21 = 0.0
     else:
         Q_HI = spin_temp.Q_HI
-        J_LW_21 = np.squeeze(spin_temp.J_21_LW) if spin_temp.has("J_21_LW") else 0.0
+        J_21_LW = spin_temp.J_21_LW if spin_temp.has("J_21_LW") else None
+        J_LW_21 = 0.0 if J_21_LW is None else np.squeeze(J_21_LW)
 
     # TODO: I think a more accurate global Q_HI can be achieved by solving an ODE that includes also the recombination rate
     Q_HI = max(0.0, Q_HI)
@@ -108,6 +121,8 @@ def compute_global_reionization_at_z(
         case "NONE":
             v_cb = 0.0
         case "AVG-AUTO" | "FLUCTS":
+            # InputParameters.cosmo_tables always sets V_CB_AVG.
+            assert inputs.cosmo_tables.V_CB_AVG is not None
             v_cb = inputs.cosmo_tables.V_CB_AVG
         case "AVG-DEBUG":
             v_cb = inputs.astro_params.V_CB_AVG_DEBUG
@@ -149,17 +164,17 @@ class GlobalEvolution:
     ----------
     inputs: InputParameters
         The input parameters for the simulation.
-    quantities: dict[str, np.ndarray] | None
+    quantities: dict[str, np.ndarray]
         Arrays of length `node_redshifts` containing the global field across redshift.
     """
 
     inputs: InputParameters = attrs.field(
         validator=attrs.validators.instance_of(InputParameters)
     )
-    quantities: dict[str, np.ndarray] | None = attrs.field(default=None)
+    quantities: dict[str, np.ndarray] = attrs.field(factory=dict)
 
     @classmethod
-    def get_fields(cls, inputs: InputParameters) -> tuple:
+    def get_fields(cls, inputs: InputParameters) -> tuple[str, ...]:
         """Get a list of the names of the available fields in the simulation."""
         possible_outputs = [
             PerturbedField.new(inputs, redshift=0),
@@ -169,56 +184,56 @@ class GlobalEvolution:
         ]
         if inputs.astro_options.USE_TS_FLUCT:
             possible_outputs.append(TsBox.new(inputs, redshift=0))
-        field_names = ("log10_mturn_acg", "log10_mturn_mcg")
+        field_names: tuple[str, ...] = ("log10_mturn_acg", "log10_mturn_mcg")
         for output in possible_outputs:
             field_names += tuple(output.arrays.keys())
         return field_names
 
     @property
-    def simulation_options(self):
+    def simulation_options(self) -> SimulationOptions:
         """Matter params shared by all datasets."""
         return self.inputs.simulation_options
 
     @property
-    def matter_options(self):
+    def matter_options(self) -> MatterOptions:
         """Matter flags shared by all datasets."""
         return self.inputs.matter_options
 
     @property
-    def cosmo_params(self):
+    def cosmo_params(self) -> CosmoParams:
         """Cosmo params shared by all datasets."""
         return self.inputs.cosmo_params
 
     @property
-    def astro_options(self):
+    def astro_options(self) -> AstroOptions:
         """Flag Options shared by all datasets."""
         return self.inputs.astro_options
 
     @property
-    def astro_params(self):
+    def astro_params(self) -> AstroParams:
         """Astro params shared by all datasets."""
         return self.inputs.astro_params
 
     @property
-    def cosmo_tables(self):
+    def cosmo_tables(self) -> CosmoTables:
         """Cosmo tables shared by all datasets."""
         return self.inputs.cosmo_tables
 
     @property
-    def random_seed(self):
+    def random_seed(self) -> int:
         """Random seed shared by all datasets."""
         return self.inputs.random_seed
 
     @property
-    def node_redshifts(self):
+    def node_redshifts(self) -> tuple[float, ...]:
         """Redshifts at which coeval boxes and global quantities are computed."""
         return self.inputs.node_redshifts
 
     def save(
         self,
         path: str | Path,
-        clobber=False,
-    ):
+        clobber: bool = False,
+    ) -> None:
         """Save the global_evolution object to disk."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -255,7 +270,7 @@ class GlobalEvolution:
 
         return cls(**kwargs)
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
         """Determine if this is equal to another object."""
         return (
             isinstance(other, self.__class__)
@@ -266,7 +281,7 @@ class GlobalEvolution:
 
 def run_global_evolution(
     inputs: InputParameters,
-    source_model: str | None = None,
+    source_model: Literal["CONST-ION-EFF", "E-INTEGRAL", "L-INTEGRAL"] | None = None,
     progressbar: bool = False,
     overdensity_z0: float | None = None,
 ) -> GlobalEvolution:
@@ -326,11 +341,13 @@ def run_global_evolution(
                 "Either specify 'source_model' or change SOURCE_MODEL in `inputs` to a model with no discrete halos."
             )
         else:
-            source_model = inputs.matter_options.SOURCE_MODEL
+            model: str = inputs.matter_options.SOURCE_MODEL
+    else:
+        model = source_model
 
-    if source_model not in possible_sources:
+    if model not in possible_sources:
         raise ValueError(
-            f"'source_model' must be one of {possible_sources}, got {source_model} instead."
+            f"'source_model' must be one of {possible_sources}, got {model} instead."
         )
 
     if not inputs.astro_options.USE_TS_FLUCT:
@@ -349,7 +366,7 @@ def run_global_evolution(
         "DIM": 1,  # we need only one cell
         "HII_DIM": 1,  # we need only one cell
         "BOX_LEN": 1e6,  # we need a huge box/cell in order to simulate the global evolution
-        "SOURCE_MODEL": source_model,
+        "SOURCE_MODEL": model,
         "PERTURB_ALGORITHM": "LINEAR",  # no need to do 2LPT
         "USE_INTERPOLATION_TABLES": "sigma-interpolation",  # only need sigma interpolation tables (hmf integrals are evaluated once per snapshot, without interpolation)
         "INTEGRATION_METHOD_ACGS": "GSL-QAG",  # due to above, we ought to use gsl, and not gauss-legendre (BUG?)
@@ -364,16 +381,15 @@ def run_global_evolution(
 
     global_evolution = GlobalEvolution(
         inputs=inputs_one_cell,
-        quantities={},
+        quantities={
+            quantity: np.zeros(len(inputs_one_cell.node_redshifts))
+            for quantity in GlobalEvolution.get_fields(inputs_one_cell)
+        },
     )
-    for quantity in global_evolution.get_fields(inputs_one_cell):
-        global_evolution.quantities[quantity] = np.zeros(
-            len(inputs_one_cell.node_redshifts)
-        )
 
     prev_coeval = None
 
-    iokw = {
+    iokw: _IOKwargs = {
         "cache": None,
         "regenerate": True,
     }

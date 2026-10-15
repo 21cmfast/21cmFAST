@@ -4,8 +4,18 @@ from __future__ import annotations
 
 import contextlib
 import warnings
+from collections.abc import Generator, Mapping
 from pathlib import Path
-from typing import ClassVar
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    ClassVar,
+    Literal,
+    Self,
+    TypedDict,
+    Unpack,
+    overload,
+)
 
 import deprecation
 import yaml as pyyaml
@@ -20,36 +30,72 @@ class ConfigurationError(Exception):
     """An error with the config file."""
 
 
+type ConfigValue = str | Path | bool | float
+"""The type of any value in the configuration."""
+
+type _PathKey = Literal["direc", "external_table_path", "wisdoms_path"]
+type _BoolKey = Literal[
+    "ignore_R_BUBBLE_MAX_error",
+    "EXTRA_EMISSIVITY_FIELDS",
+    "safe_read",
+    "CACHE_ARRAYS_ON_ACCESS",
+]
+
+
+class ConfigOptions(TypedDict, total=False):
+    """The options that can be set in the configuration, with their types."""
+
+    direc: str | Path
+    ignore_R_BUBBLE_MAX_error: bool
+    external_table_path: str | Path
+    HALO_CATALOG_MEM_FACTOR: float
+    EXTRA_EMISSIVITY_FIELDS: bool
+    safe_read: bool
+    CACHE_ARRAYS_ON_ACCESS: bool
+    wisdoms_path: str | Path
+    # Deprecated alias of EXTRA_EMISSIVITY_FIELDS.
+    EXTRA_HALOBOX_FIELDS: bool
+
+
+_DEFAULT_DIREC = "~/21cmFAST-cache"
+
+
 # TODO: force config to be a singleton
-class Config(dict):
+class Config(dict[str, ConfigValue]):
     """Simple over-ride of dict that adds a context manager."""
 
-    _defaults: ClassVar = {
-        "direc": "~/21cmFAST-cache",
+    _defaults: ClassVar[dict[str, ConfigValue]] = {
+        "direc": _DEFAULT_DIREC,
         "ignore_R_BUBBLE_MAX_error": False,
         "external_table_path": _DATA_PATH,
         "HALO_CATALOG_MEM_FACTOR": 1.2,
         "EXTRA_EMISSIVITY_FIELDS": False,
         "safe_read": True,
         "CACHE_ARRAYS_ON_ACCESS": True,
+        "wisdoms_path": Path(_DEFAULT_DIREC) / "wisdoms",
     }
-    _defaults["wisdoms_path"] = Path(_defaults["direc"]) / "wisdoms"
 
-    _deprecated_keys: ClassVar = {
+    _deprecated_keys: ClassVar[dict[str, str]] = {
         "EXTRA_HALOBOX_FIELDS": "EXTRA_EMISSIVITY_FIELDS",
     }
 
     # The C config_settings struct is process-global, but string values are stored in
     # char buffers allocated by cffi. Keep the most recent buffer for each key alive
     # here, so the struct never points at memory freed with a collected instance.
-    _c_string_buffers: ClassVar[dict] = {}
+    # (The values are cffi ``char[]`` cdata objects.)
+    _c_string_buffers: ClassVar[dict[str, Any]] = {}
 
-    def __init__(self, *args, file_name: str | Path | None = None, **kwargs):
+    def __init__(
+        self,
+        *args: Mapping[str, ConfigValue],
+        file_name: str | Path | None = None,
+        **kwargs: Unpack[ConfigOptions],
+    ) -> None:
         if args:
             args = (self._translate_deprecated(dict(args[0])), *args[1:])
-        kwargs = self._translate_deprecated(kwargs)
+        options = self._translate_deprecated({**kwargs})
 
-        super().__init__(*args, **kwargs)
+        super().__init__(*args, **options)
         self.file_name = file_name
         # keep the config settings from the C library here
         self._c_config_settings = StructInstanceWrapper(lib.config_settings, ffi)
@@ -73,14 +119,26 @@ class Config(dict):
         for k in self._c_config_settings:
             self._pass_to_backend(k, self[k])
 
-    def __setitem__(self, key, value):
+    if TYPE_CHECKING:
+        # Precise value types for the known keys (the runtime method is dict's own).
+
+        @overload
+        def __getitem__(self, key: _PathKey) -> str | Path: ...
+        @overload
+        def __getitem__(self, key: _BoolKey) -> bool: ...
+        @overload
+        def __getitem__(self, key: Literal["HALO_CATALOG_MEM_FACTOR"]) -> float: ...
+        @overload
+        def __getitem__(self, key: str) -> ConfigValue: ...
+
+    def __setitem__(self, key: str, value: ConfigValue) -> None:
         """Set an item in the config. Also updating the backend if it exists there."""
         key = self._resolve_deprecated_key(key)
         super().__setitem__(key, value)
         if key in self._c_config_settings:
             self._pass_to_backend(key, value)
 
-    def _pass_to_backend(self, key, value):
+    def _pass_to_backend(self, key: str, value: ConfigValue) -> None:
         """Set the value in the backend."""
         # we should possibly do a typemap for the ffi
         if isinstance(value, Path | str):
@@ -91,19 +149,21 @@ class Config(dict):
             setattr(self._c_config_settings, key, value)
 
     @contextlib.contextmanager
-    def use(self, **kwargs):
+    def use(self, **kwargs: Unpack[ConfigOptions]) -> Generator[Self, None, None]:
         """Context manager for using certain configuration options for a set time."""
-        kwargs = self._translate_deprecated(kwargs)
+        if "direc" in kwargs:
+            kwargs["direc"] = Path(kwargs["direc"]).expanduser().absolute()
+        options = self._translate_deprecated({**kwargs})
         backup = self.copy()
-        for k, v in kwargs.items():
-            self[k] = Path(v).expanduser().absolute() if k == "direc" else v
+        for k, v in options.items():
+            self[k] = v
         try:
             yield self
         finally:
-            for k in kwargs:
+            for k in options:
                 self[k] = backup[k]
 
-    def write(self, fname: str | Path | None = None):
+    def write(self, fname: str | Path | None = None) -> None:
         """Write current configuration to file to make it permanent."""
         fname = fname or self.file_name
         if fname is None:
@@ -117,12 +177,12 @@ class Config(dict):
         with fname.open("w") as fl:
             yaml.dump(self._as_dict(), fl)
 
-    def _as_dict(self):
+    def _as_dict(self) -> dict[str, str | bool | float]:
         """Return a plain dict defining the instance."""
         return {k: str(v) if isinstance(v, Path) else v for k, v in self.items()}
 
     @classmethod
-    def load(cls, file_name: str | Path):
+    def load(cls, file_name: str | Path) -> Self:
         """Create a Config object from a config file."""
         file_name = Path(file_name).expanduser().absolute()
 
@@ -136,7 +196,7 @@ class Config(dict):
             return cls(file_name=file_name)
 
     @classmethod
-    def _resolve_deprecated_key(cls, key):
+    def _resolve_deprecated_key(cls, key: str) -> str:
         """Translate a deprecated config key to its current name, warning once."""
         new_key = cls._deprecated_keys.get(key)
         if new_key is None:
@@ -153,7 +213,9 @@ class Config(dict):
         return new_key
 
     @classmethod
-    def _translate_deprecated(cls, d: dict) -> dict:
+    def _translate_deprecated(
+        cls, d: Mapping[str, ConfigValue]
+    ) -> dict[str, ConfigValue]:
         """Translate any deprecated keys in a dict of config options."""
         return {cls._resolve_deprecated_key(k): v for k, v in d.items()}
 

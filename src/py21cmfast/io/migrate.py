@@ -35,10 +35,10 @@ import logging
 import os
 import tempfile
 import warnings
-from collections.abc import Iterable
+from collections.abc import Generator, Iterable
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Literal
+from typing import Literal, TypedDict
 
 import attrs
 import h5py
@@ -115,6 +115,14 @@ class MigrationResult:
     warnings: tuple[str, ...] = attrs.field(default=(), converter=tuple)
 
 
+class _ResultDetails(TypedDict):
+    """Details shared by the results of migrating a cache file."""
+
+    destination: Path
+    kind: str
+    version: str
+
+
 def _compat_warnings(caught: list[warnings.WarningMessage]) -> list[str]:
     msgs = [
         str(w.message) for w in caught if issubclass(w.category, CompatibilityWarning)
@@ -132,18 +140,18 @@ def _cache_path(cache: OutputCache, obj: ostruct.OutputStruct) -> Path:
 
 
 @contextmanager
-def _atomic_destination(path: Path):
+def _atomic_destination(path: Path) -> Generator[Path]:
     """Yield a unique temporary file that replaces ``path`` once it's written.
 
     No partial file is left behind if writing fails, and concurrent migrations to
     the same destination don't interfere with each other's temporary files.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(
+    fd, tmpname = tempfile.mkstemp(
         dir=path.parent, prefix=f".{path.name}.", suffix=".migrating"
     )
     os.close(fd)
-    tmp = Path(tmp)
+    tmp = Path(tmpname)
     try:
         yield tmp
         tmp.replace(path)
@@ -222,7 +230,7 @@ def migrate_cache_file(
     msgs = _compat_warnings(caught)
 
     destination = _cache_path(cache, obj)
-    common = {"destination": destination, "kind": kind, "version": version}
+    common = _ResultDetails(destination=destination, kind=kind, version=version)
 
     if destination.exists() and destination.samefile(path):
         if not is_legacy(raw.version):

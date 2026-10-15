@@ -56,25 +56,42 @@ usually simply to add the new parameter to the existing attributes using any des
 functionality provided in the ``attrs`` package.
 For instance, if a new variable ``some_param`` was added to the ``matter_params`` struct
 in the ``ComputeInitialConditions`` C function, then the ``MatterParams`` class in
-the wrapper would be modified, adding``some_param=attrs.field(default=<your_value_here>)``
-to the class. If the default value of the parameter is dependent on another parameter, it
-should be placed after it's depenencies in the structure, and be given a default function
-vit the attrs default decorator e.g::
+the wrapper would be modified, adding ``some_param: float = field(default=<your_value_here>)``
+to the class. All fields must be type-annotated (otherwise neither ``attrs`` nor static
+type checkers see them). If the default value of the parameter is dependent on another
+parameter, it should be placed after its dependencies in the structure, and be given a
+default function via ``attrs.Factory`` with ``takes_self=True``, e.g.::
 
-    @DIM.default
-    def _dim_default(self):
+    def _some_param_default(self: MatterParams) -> float:
         return 3 * self.HII_DIM
 
-Here we return either the explicitly set ``DIM``, or 3 by the ``HII_DIM``. In addition, if the
-new parameter is not settable -- if it is completely determined by other parameters -- mark it as
-private with a leading underscore or make it a ``@property`` of the class.
+    ...
+
+        some_param: float = field(
+            default=attrs.Factory(_some_param_default, takes_self=True)
+        )
+
+Validators that depend on other parameters are written the same way, as functions with
+the signature ``(inst, attribute, value) -> None``, passed with ``validator=``. Don't use
+the ``@some_param.default`` and ``@some_param.validator`` decorators: static type checkers
+don't understand them. If the new parameter is not settable -- if it is completely
+determined by other parameters -- make it a ``@property`` of the class. A private field
+(with a leading underscore) that *is* settable needs an explicit ``alias`` (e.g.
+``_some_param: float = field(alias="some_param", ...)``), so that type checkers know the
+name of its ``__init__`` argument.
 
 If you modify an output struct, which usually house a number of array quantities
 (often float pointers, but not necessarily), then you'll again need to modify the
-corresponding class in the wrapper. In particular, you'll need to add an entry for that
-particular array as an ``_arrayfield()`` to the attributes the class and set its shape in the ``new()``
-method. Any output which depends on the new array must also have it added to its
-``get_required_input_arrays()`` method.
+corresponding class in the wrapper. In particular, you'll need to add a private field for
+that array, together with the public descriptor that exposes its data, e.g.::
+
+    _new_box: Array = _arrayfield(alias="new_box")
+    new_box = ArrayProxy[np.ndarray]()
+
+(or ``_arrayfield(alias="new_box", default=None)`` and
+``ArrayProxy[np.ndarray | None]()`` if the array is not always present), and set its shape
+in the ``new()`` method. Any output which depends on the new array must also have it added
+to its ``get_required_input_arrays()`` method.
 
 If the C backend uses new input or output fields, they must be added to the structs
 in the header files ``_inputparams_wrapper.h`` or ``_outputstructs_wrapper.h``.
