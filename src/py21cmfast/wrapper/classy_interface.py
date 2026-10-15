@@ -195,7 +195,7 @@ def get_transfer_function(
             if np.any(needs_high_extrap):
                 # High-k extrapolation: use ratio at k_max
                 T_eh_at_kmax = eh_transfer(k_CLASS.max())
-                eh_ratio_at_kmax = transfer_CLASS[-1] / (
+                eh_ratio_at_kmax = np.abs(transfer_CLASS[-1]) / (
                     k_CLASS.max() ** 2 * T_eh_at_kmax
                 )
                 T_eh_high = eh_transfer(k_transfer[needs_high_extrap])
@@ -206,7 +206,7 @@ def get_transfer_function(
             if np.any(needs_low_extrap):
                 # Low-k extrapolation: use ratio at k_min
                 T_eh_at_kmin = eh_transfer(k_CLASS.min())
-                eh_ratio_at_kmin = transfer_CLASS[0] / (
+                eh_ratio_at_kmin = np.abs(transfer_CLASS[0]) / (
                     k_CLASS.min() ** 2 * T_eh_at_kmin
                 )
                 T_eh_low = eh_transfer(k_transfer[needs_low_extrap])
