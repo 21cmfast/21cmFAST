@@ -584,12 +584,12 @@ def setup_radiation_fields(
     # set up the shells for the calculation of the radiation fields
     rad_setup.setup_shells(inputs=inputs, redshift=redshift)
 
-    # Let's figure out if we really need to go through the C code
-    sfr_allzero = np.all(
-        [
-            np.all(emissivity_fields.get("sfrd_acg") == 0)
-            for emissivity_fields in emissivity_fields_list
-        ]
+    # Newest snapshot first, and stop at the first one with star formation. The
+    # list holds every past node redshift; checking all of them reads each
+    # snapshot's sfrd_acg back from disk and keeps it until the end of the step.
+    sfr_allzero = not any(
+        np.any(emissivity_fields.get("sfrd_acg"))
+        for emissivity_fields in reversed(emissivity_fields_list)
     )
     lowest_shell_above_zmax = rad_setup.zpp_avg.min() >= rad_setup.source_z_max
     need_c = not (sfr_allzero or lowest_shell_above_zmax)
@@ -744,12 +744,12 @@ def compute_radiation_fields(
     if rad_setup is not None:
         radiation_fields.Q_HI = rad_setup.Q_HI_zp
 
-    # Let's figure out if we really need to go through the C code
-    sfr_allzero = np.all(
-        [
-            np.all(emissivity_fields.get("sfrd_acg") == 0)
-            for emissivity_fields in emissivity_fields_list
-        ]
+    # Newest snapshot first, and stop at the first one with star formation. The
+    # list holds every past node redshift; checking all of them reads each
+    # snapshot's sfrd_acg back from disk and keeps it until the end of the step.
+    sfr_allzero = not any(
+        np.any(emissivity_fields.get("sfrd_acg"))
+        for emissivity_fields in reversed(emissivity_fields_list)
     )
     if rad_setup is not None:
         lowest_shell_above_zmax = rad_setup.zpp_avg.min() >= rad_setup.source_z_max
