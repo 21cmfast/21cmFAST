@@ -4,8 +4,11 @@ import numpy as np
 import pytest
 from astropy import units
 
+from py21cmfast.wrapper import classy_interface
 from py21cmfast.wrapper.classy_interface import (
     compute_rms,
+    get_transfer_function,
+    k_transfer,
     run_classy,
 )
 
@@ -27,6 +30,34 @@ def test_classy_runs():
     )
     assert classy_output.Om_ncdm(0) == 0.0
     assert max(classy_output.get_transfer(z=0)["k (h/Mpc)"] * classy_output.h()) < 10.0
+
+
+def test_dm_transfer_extrapolation_is_positive_and_continuous(monkeypatch):
+    """Test the d_m transfer stays positive and continuous across CLASS's k range.
+
+    CLASS's d_m transfer is negative, while the in-range interpolation uses its
+    absolute value; the EH extrapolation outside the CLASS k range must match it.
+    """
+    # Extend the default grid below CLASS's k_min so both extrapolation
+    # branches are exercised.
+    k_grid = np.concatenate((np.logspace(-7, -5.2, 10) / units.Mpc, k_transfer))
+    monkeypatch.setattr(classy_interface, "k_transfer", k_grid)
+
+    classy_output = run_classy(output="mTk,vTk", P_k_max=1.0 / units.Mpc)
+    k_CLASS = classy_output.get_transfer(z=0)["k (h/Mpc)"] * classy_output.h()
+    assert k_grid.value.min() < k_CLASS.min()
+    assert k_grid.value.max() > k_CLASS.max()
+
+    transfer = get_transfer_function(classy_output, kind="d_m").value
+    assert np.all(transfer > 0)
+
+    # No jump at either edge: the step across the boundary must be no larger
+    # than twice the neighbouring in-range step (in log space).
+    log_t = np.log(transfer)
+    i = np.searchsorted(k_grid.value, k_CLASS.max())
+    assert np.abs(log_t[i] - log_t[i - 1]) < 2 * np.abs(log_t[i - 1] - log_t[i - 2])
+    i = np.searchsorted(k_grid.value, k_CLASS.min())
+    assert np.abs(log_t[i] - log_t[i - 1]) < 2 * np.abs(log_t[i + 1] - log_t[i])
 
 
 def test_classy_runs_with_sigma8_A_s(default_input_struct):
