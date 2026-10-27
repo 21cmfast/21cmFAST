@@ -354,7 +354,7 @@ Versioning
 The first thing to mention is that we use strict `semantic versioning <https://semver.org>`_
 (since v2.0). Thus the versions are ``MAJOR.MINOR.PATCH``, with ``MAJOR`` including
 API-breaking changes, ``MINOR`` including new features, and ``PATCH`` fixing bugs or
-documentation etc. If you depend on hmf, you can set your dependency as
+documentation etc. If you depend on 21cmFAST, you can set your dependency as
 ``21cmFAST >= X.Y < X+1`` and not worry that we'll break your code with an update.
 
 To mechanically handle versioning within the package, we use
@@ -365,3 +365,51 @@ version. This means that versions accessed via ``py21cmfast.__version__`` are un
 the exact code in the package (useful for reproducing results). To get the current
 version from command line, simply do ``python -m setuptools-scm`` in the top-level
 directory.
+
+Branching
+~~~~~~~~~
+We keep two kinds of long-lived branches:
+
+* ``main`` is where development happens. It holds the code for the next ``MINOR``
+  release (e.g. v4.4.0).
+* ``release-vX.Y.x`` (e.g. ``release-v4.3.x``) is a maintenance branch for the
+  ``X.Y`` release series. It is created from the ``vX.Y.0`` tag, and all ``vX.Y.Z``
+  patch releases are made from it. It only ever receives bug fixes.
+
+Here ``X``, ``Y`` and ``Z`` stand for version numbers, while the lowercase ``x`` in
+``release-vX.Y.x`` is literally part of the branch name (e.g. ``release-v4.3.x``): a
+single branch serves all the patch releases of a series, each of which is a ``vX.Y.Z``
+tag on it.
+
+**Which branch to target.** Every change is made on a short-lived branch and merged
+through a pull request. If your change fixes a bug that affects the latest release,
+open the pull request against ``release-vX.Y.x``. Everything else -- new features,
+refactors, and fixes to code that only exists on ``main`` -- goes against ``main``.
+
+**Making a patch release.** Create the GitHub release with the tag ``vX.Y.Z`` and
+choose ``release-vX.Y.x`` (not ``main``) as its target. Publishing the release
+triggers the deployment to PyPI.
+
+**Bringing fixes into main.** Fixes merged into ``release-vX.Y.x`` must also reach
+``main``, otherwise they would be missing from the next ``MINOR`` release. To do so,
+open a pull request that merges ``release-vX.Y.x`` into ``main``, at least after each
+patch release. If it has conflicts, resolve them on a temporary branch created from
+``main``::
+
+    git checkout -b merge-release-vX.Y.x origin/main
+    git merge origin/release-vX.Y.x  # resolve the conflicts and commit
+    git push -u origin merge-release-vX.Y.x
+
+and open the pull request from that branch instead. Never resolve the conflicts on
+``release-vX.Y.x`` itself, and never merge ``main`` into ``release-vX.Y.x``: either
+would bring unreleased features into the patch releases. If a fix was merged into
+``main`` first and is also needed in the release series, copy just that commit with
+``git cherry-pick -x <commit>`` onto a branch created from ``release-vX.Y.x``, and open
+a pull request against ``release-vX.Y.x``.
+
+**Lifetime of release branches.** Release branches are not deleted when they are
+merged into ``main``: a repository ruleset protects all ``release-v*.x`` branches from
+deletion and force-pushes. Once ``vX.Y+1.0`` is released, a new ``release-vX.Y+1.x``
+branch is created from its tag. The old branch can be deleted (by first editing the
+ruleset) once the ``X.Y`` series is no longer supported; its releases remain available
+through their tags.

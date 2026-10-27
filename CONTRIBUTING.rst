@@ -72,6 +72,16 @@ The following steps are the same for both *members* and *non-members*:
    Now you can make your changes locally. **Note: as a member, you _must_ do this step.
    If you make changes on main, you will _not_ be able to push them**.
 
+   Base your branch on the branch your pull request will target. If you are fixing a
+   bug in the latest ``X.Y`` release, use its maintenance branch ``release-vX.Y.x``
+   (the lowercase ``x`` is literally part of the name, e.g. ``release-v4.3.x``);
+   otherwise, use ``main``::
+
+    git checkout -b name-of-your-bugfix-or-feature origin/release-vX.Y.x
+
+   See `Branching <https://21cmfast.readthedocs.io/en/latest/notes_for_developers.html#branching>`_
+   in the developer notes for details.
+
 6. When you're done making changes, run ``pytest`` to check that your changes didn't
    break things. You can run a single test or subset of tests as well (see pytest docs)::
 
