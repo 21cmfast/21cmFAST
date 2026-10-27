@@ -410,6 +410,28 @@ a pull request against ``release-vX.Y.x``.
 **Lifetime of release branches.** Release branches are not deleted when they are
 merged into ``main``: a repository ruleset protects all ``release-v*.x`` branches from
 deletion and force-pushes. Once ``vX.Y+1.0`` is released, a new ``release-vX.Y+1.x``
-branch is created from its tag. The old branch can be deleted (by first editing the
-ruleset) once the ``X.Y`` series is no longer supported; its releases remain available
-through their tags.
+branch is created from its tag, so that fixes for the new series have a home straight
+away.
+
+By default, the ``X.Y`` series is no longer supported once ``vX.Y+1.0`` is released:
+new fixes go to ``release-vX.Y+1.x`` only, and no further ``vX.Y.Z`` releases are
+made. Support can be extended for a while if there is a reason to (e.g. if
+``vX.Y+1.0`` removes features that were deprecated in ``X.Y``, or a serious bug is
+found shortly after the new release).
+
+Once the ``X.Y`` series is no longer supported, retire its branch as follows:
+
+1. Make sure that ``main`` contains all of its fixes. The following should print
+   nothing; if it doesn't, do a final merge into ``main`` first::
+
+    git fetch origin
+    git log --oneline origin/main..origin/release-vX.Y.x
+
+2. In the repository settings (Settings → Rules → Rulesets), add
+   ``refs/heads/release-vX.Y.x`` as an exclusion to the ruleset that protects the
+   release branches. Do not disable the whole ruleset, as it also protects the
+   current release branch.
+3. Delete the branch with ``git push origin --delete release-vX.Y.x``, and then
+   remove the exclusion from the ruleset.
+
+The releases of the ``X.Y`` series remain available through their tags.
