@@ -383,8 +383,10 @@ tag on it.
 
 **Which branch to target.** Every change is made on a short-lived branch and merged
 through a pull request. If your change fixes a bug that affects the latest release,
-open the pull request against ``release-vX.Y.x``. Everything else -- new features,
-refactors, and fixes to code that only exists on ``main`` -- goes against ``main``.
+open the pull request against ``release-vX.Y.x``. The same applies to changes that the
+release branch itself needs, such as fixes to the CI workflows (each branch runs its
+own copy of the workflow files). Everything else -- new features, refactors, and fixes
+to code that only exists on ``main`` -- goes against ``main``.
 
 **Making a patch release.** Create the GitHub release with the tag ``vX.Y.Z`` and
 choose ``release-vX.Y.x`` (not ``main``) as its target. Publishing the release
