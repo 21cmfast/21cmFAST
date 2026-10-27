@@ -1,15 +1,17 @@
 name: Test Build Strategies
 
-# Test on all pushes, except when the push is literally just a tag (because we
-# tag automatically via CI, and therefore there's no extra code in that push).
-# Also, only test on pull requests into main.
+# Test on pushes to main and to the release maintenance branches (i.e. the merged
+# result of each PR), and on pull requests into them. Tag pushes are not tested,
+# since there's no extra code in them.
 on:
   push:
-    tags-ignore:
-      - 'v*'
+    branches:
+      - 'main'
+      - 'release-v*.x'
   pull_request:
     branches:
       - 'main'
+      - 'release-v*.x'
 
 
 jobs:
