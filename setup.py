@@ -29,7 +29,8 @@ test_req = [
     "mpmath",
     HMF_REQ,
     "pre-commit",
-    "pytest>=5.0",
+    # pytest-benchmark 5.3.0 uses Node._nodeid, removed in pytest 9.2.
+    "pytest>=5.0,<9.2",
     "pytest-cov",
     "tox",
     "pytest-remotedata>=0.3.2",
