@@ -14,6 +14,7 @@ import attrs
 import deprecation
 import h5py
 import numpy as np
+from astropy import units as un
 from attrs.validators import instance_of, optional
 
 from .arraystate import ArrayState
@@ -102,8 +103,8 @@ class Array:
     disk, and loading from disk while maintaining a consistent state.
 
     .. note:: One deliberate exception to this immutability: accessing a purged
-              array's data directly (e.g. `arr.mean()`, `np.asarray(arr)`, or any
-              other attribute not defined on this class) - rather than through
+              array's data directly (e.g. `arr.mean()`, `np.asarray(arr)`, or
+              `arr.get_quantity()`) - rather than through
               `OutputStruct.get()` - transparently loads it from disk and, unless
               `config["CACHE_ARRAYS_ON_ACCESS"]` is set to False, caches the result
               by mutating `_value`, `state` and `cache_backend` on this instance in
@@ -128,6 +129,12 @@ class Array:
         `OutputStruct.get()`, so that a purged array is transparently reloaded.
     cache_backend
         Optional backend for disk caching.
+    unit
+        Unit of the stored values, or None if unspecified. Scaled units preserve
+        the normalization of the stored data; dimensionless fields use
+        ``astropy.units.dimensionless_unscaled``.
+    description
+        Optional description of the physical quantity.
 
     Examples
     --------
@@ -154,6 +161,12 @@ class Array:
     cache_backend = attrs.field(
         default=None, validator=optional(instance_of(CacheBackend)), kw_only=True
     )
+    unit: un.UnitBase | None = attrs.field(
+        default=None, converter=attrs.converters.optional(un.Unit), kw_only=True
+    )
+    description: str | None = attrs.field(
+        default=None, validator=optional(instance_of(str)), kw_only=True
+    )
 
     @_value.validator
     def _value_validator(self, att, val):
@@ -167,6 +180,10 @@ class Array:
             raise ValueError(
                 f"Data type mismatch: expected {self.dtype}, got {val.dtype}"
             )
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        """Restore metadata defaults for arrays pickled before metadata was added."""
+        self.__dict__.update({"unit": None, "description": None, **state})
 
     def initialize(self):
         """Initialize the array to its initial/default allocated state."""
@@ -271,6 +288,31 @@ class Array:
             object.__setattr__(self, "cache_backend", loaded.cache_backend)
 
         return loaded._value
+
+    def get_quantity(self, *, copy: bool = False) -> un.Quantity:
+        """Return the data as an Astropy Quantity, loading from disk if needed.
+
+        Parameters
+        ----------
+        copy
+            If False (default), share the resolved data's memory. Changes affect
+            that in-memory data and are not written back to disk automatically.
+            Set True for an independent copy. The stored dtype is preserved.
+
+        Returns
+        -------
+        astropy.units.Quantity
+            Data in the stored unit, including any scale factor. Use ``.to()``
+            to convert to another unit.
+
+        Raises
+        ------
+        ValueError
+            If unit metadata is unspecified or the data is unavailable.
+        """
+        if self.unit is None:
+            raise ValueError("Unit metadata is not defined for this array.")
+        return un.Quantity(self._resolve_value(), unit=self.unit, dtype=None, copy=copy)
 
     @property
     def value(self) -> np.ndarray:

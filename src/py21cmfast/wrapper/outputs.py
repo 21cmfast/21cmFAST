@@ -46,6 +46,10 @@ from .structs import StructWrapper
 
 logger = logging.getLogger(__name__)
 
+# Build scaled units once: unit arithmetic can leave reference cycles.
+_IONISATION_RATE_UNIT = un.Unit(1e-12 / un.s)
+_LW_INTENSITY_UNIT = un.Unit(1e-21 * un.erg / (un.s * un.cm**2 * un.Hz * un.sr))
+
 _ALL_OUTPUT_STRUCTS = {}
 
 
@@ -1965,12 +1969,32 @@ class TsBox(OutputStructZ):
             ),
         )
         out = {
-            "spin_temperature": Array(shape, dtype=np.float32),
-            "xray_ionised_fraction": Array(shape, dtype=np.float32),
-            "kinetic_temp_neutral": Array(shape, dtype=np.float32),
+            "spin_temperature": Array(
+                shape,
+                dtype=np.float32,
+                unit=un.K,
+                description="Hydrogen spin temperature.",
+            ),
+            "xray_ionised_fraction": Array(
+                shape,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Residual and X-ray ionized fraction in the mostly neutral gas.",
+            ),
+            "kinetic_temp_neutral": Array(
+                shape,
+                dtype=np.float32,
+                unit=un.K,
+                description="Kinetic temperature of the mostly neutral gas.",
+            ),
         }
         if inputs.astro_options.USE_MCGS:
-            out["J_21_LW"] = Array(shape, dtype=np.float32)
+            out["J_21_LW"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=_LW_INTENSITY_UNIT,
+                description="Lyman-Werner specific intensity averaged over the LW band.",
+            )
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
@@ -2134,27 +2158,86 @@ class IonizedBox(OutputStructZ):
         filter_shape = (n_filtering, *shape)
 
         out = {
-            "neutral_fraction": Array(shape, initfunc=np.ones, dtype=np.float32),
-            "ionisation_rate_G12": Array(shape, dtype=np.float32),
-            "z_reion": Array(shape, dtype=np.float32),
+            "neutral_fraction": Array(
+                shape,
+                initfunc=np.ones,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Neutral hydrogen fraction.",
+            ),
+            "ionisation_rate_G12": Array(
+                shape,
+                dtype=np.float32,
+                unit=_IONISATION_RATE_UNIT,
+                description=(
+                    "Hydrogen photoionization-rate estimate at a filter-scale barrier "
+                    "crossing with recombinations enabled; zero when unrecorded."
+                ),
+            ),
+            "z_reion": Array(
+                shape,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description=(
+                    "Redshift tracked by the cell-centred ionization barrier; "
+                    "-1 when no value is recorded."
+                ),
+            ),
         }
 
         if not inputs.matter_options.MINIMIZE_MEMORY:
-            out["kinetic_temperature"] = Array(shape, dtype=np.float32)
+            out["kinetic_temperature"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=un.K,
+                description="Gas kinetic temperature, including ionized regions.",
+            )
             if inputs.astro_options.RECOMB_MODEL != "none":
-                out["mean_free_path"] = Array(shape, dtype=np.float32)
+                out["mean_free_path"] = Array(
+                    shape,
+                    dtype=np.float32,
+                    unit=un.Mpc,
+                    description=(
+                        "Comoving filter radius used as the mean free path in the "
+                        "photoionization-rate estimate; zero when unrecorded."
+                    ),
+                )
 
         if inputs.astro_options.RECOMB_MODEL == "inhomogeneous":
-            out["cumulative_recombinations"] = Array(shape, dtype=np.float32)
+            out["cumulative_recombinations"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Cumulative recombination count used by the ionization model.",
+            )
         elif inputs.astro_options.RECOMB_MODEL == "homogeneous":
-            out["cumulative_recombinations"] = Array((1, 1, 1), dtype=np.float32)
+            out["cumulative_recombinations"] = Array(
+                (1, 1, 1),
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Cumulative recombination count used by the ionization model.",
+            )
 
         if not inputs.matter_options.lagrangian_source_grid:
-            out["nion_conditional_filtered_acg"] = Array(filter_shape, dtype=np.float32)
+            out["nion_conditional_filtered_acg"] = Array(
+                filter_shape,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description=(
+                    "Internal conditional ionizing-photon state per baryon from atomic "
+                    "cooling galaxies, before normalization to the global mean."
+                ),
+            )
 
             if inputs.astro_options.USE_MCGS:
                 out["nion_conditional_filtered_mcg"] = Array(
-                    filter_shape, dtype=np.float32
+                    filter_shape,
+                    dtype=np.float32,
+                    unit=un.dimensionless_unscaled,
+                    description=(
+                        "Internal conditional ionizing-photon state per baryon from molecular "
+                        "cooling galaxies, before normalization to the global mean."
+                    ),
                 )
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)

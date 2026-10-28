@@ -62,6 +62,48 @@ The ``coeval`` object here has much more than just the ``brightness_temp`` field
 You can plot the (matter) ``density`` field, ``velocity`` field or a number of other
 fields.
 
+Units of Output Arrays
+~~~~~~~~~~~~~~~~~~~~~~
+
+Output fields remain NumPy arrays. For ``TsBox`` and ``IonizedBox``, their
+``Array`` handles also provide unit metadata, a short description, and optional
+Astropy quantity access::
+
+    >>> from astropy import units as u
+    >>> neutral = coevals[0].ionized_box.arrays["neutral_fraction"]
+    >>> neutral.unit == u.dimensionless_unscaled
+    True
+    >>> neutral.description
+    'Neutral hydrogen fraction.'
+    >>> neutral_percent = neutral.get_quantity().to(u.percent)
+
+Scaled units account for the normalization of stored values: a value of 1 in
+``ionisation_rate_G12`` corresponds to :math:`10^{-12}\,\mathrm{s}^{-1}`.
+Likewise, ``TsBox.J_21_LW`` is stored in units of
+:math:`10^{-21}\,\mathrm{erg}\,\mathrm{s}^{-1}\,\mathrm{cm}^{-2}\,\mathrm{Hz}^{-1}\,\mathrm{sr}^{-1}`.
+Temperatures use K. Fractions, redshifts, and the internal photon and recombination
+states are dimensionless.
+
+With MCGs enabled, the conditional photon arrays store accumulated state before
+normalization to the global mean and can contain negative values.
+
+The photoionization-rate and mean-free-path estimates are recorded during
+ionization-barrier crossings when recombinations are enabled. Zero values can
+indicate that no estimate was recorded. ``mean_free_path`` uses comoving Mpc and
+represents the filter radius used in that estimate.
+
+``z_reion`` tracks the cell-centred ionization barrier rather than a complete
+ionization history; ``-1`` means no redshift was recorded for the current output.
+With redshift-based photon conservation, newly recorded redshifts use the
+adjusted redshift.
+
+``get_quantity()`` loads purged data using the usual ``CACHE_ARRAYS_ON_ACCESS``
+setting and shares the data's memory by default. Use ``get_quantity(copy=True)``
+for an independent copy. An unspecified unit is distinct from a dimensionless
+unit: ``get_quantity()`` raises ``ValueError`` for fields whose units have not yet
+been defined. Metadata is reconstructed when reading output-struct cache files;
+the cache format is unchanged.
+
 Simulating a Lightcone
 ~~~~~~~~~~~~~~~~~~~~~~
 

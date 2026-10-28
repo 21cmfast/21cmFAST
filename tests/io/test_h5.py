@@ -10,6 +10,7 @@ import py21cmfast as p21c
 from py21cmfast import InputParameters
 from py21cmfast._templates import list_templates
 from py21cmfast.io import h5
+from py21cmfast.wrapper.outputs import IonizedBox, TsBox
 
 
 class TestHDF5ToDict:
@@ -205,6 +206,51 @@ class TestInputsIO:
 
         monkeypatch.setattr("py21cmfast.wrapper.inputs.run_classy", _raise_recompute)
         assert new.cosmo_tables == inputs.cosmo_tables
+
+
+@pytest.mark.parametrize("struct", [TsBox, IonizedBox])
+@pytest.mark.parametrize("cache_on_access", [False, True])
+def test_output_units_restored_from_cache_without_unit_attributes(
+    default_input_struct_lc, tmp_path, struct, cache_on_access
+):
+    inputs = default_input_struct_lc.evolve_input_structs(
+        USE_TS_FLUCT=True,
+        USE_MCGS=True,
+        V_CB_MODEL="AVG-DEBUG",
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
+    )
+    box = struct.new(inputs=inputs, redshift=10.0)
+    for name, array in box.arrays.items():
+        setattr(box, name, array.with_value(np.full(array.shape, 2, dtype=np.float32)))
+    for name in box._struct.primitive_fields:
+        if getattr(box, name) is None:
+            setattr(box, name, 0.0)
+
+    path = tmp_path / "output.h5"
+    h5.write_output_to_hdf5(box, path)
+    # The existing cache format has no dataset unit/description attributes.
+    with h5py.File(path, "r") as file:
+        for dataset in file[box._name]["OutputFields"].values():
+            assert "unit" not in dataset.attrs
+            assert "description" not in dataset.attrs
+
+    restored = h5.read_output_struct(path)
+    for name, array in restored.arrays.items():
+        assert array.unit == box.arrays[name].unit
+        assert array.description == box.arrays[name].description
+        assert array._value is None
+        assert array.state.on_disk
+        with p21c.config.use(CACHE_ARRAYS_ON_ACCESS=cache_on_access):
+            quantity = array.get_quantity()
+            assert quantity.dtype == np.float32
+            np.testing.assert_array_equal(quantity.value, 2)
+            quantity.value.flat[0] = 3
+            assert array.get_quantity().value.flat[0] == (3 if cache_on_access else 2)
+        assert array.state.computed_in_mem == cache_on_access
+        with h5py.File(path, "r") as file:
+            assert file[box._name]["OutputFields"][name][...].flat[0] == 2
 
 
 class TestLoadHighLevelSimulation:

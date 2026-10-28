@@ -5,6 +5,7 @@ import pickle
 import attrs
 import numpy as np
 import pytest
+from astropy import units as un
 
 from py21cmfast import (
     InitialConditions,  # An example of an output struct
@@ -458,6 +459,95 @@ def test_optional_field_ion(default_input_struct_lc: InputParameters):
     )
     ion = ox.IonizedBox.new(redshift=0.0, inputs=inputs)
     assert "nion_conditional_filtered_mcg" in ion.arrays
+
+
+@pytest.mark.parametrize(
+    ("use_mcgs", "recomb_model"),
+    [
+        (False, "none"),
+        (False, "homogeneous"),
+        (False, "inhomogeneous"),
+        (True, "homogeneous"),
+        (True, "inhomogeneous"),
+    ],
+)
+@pytest.mark.parametrize("minimize_memory", [False, True])
+@pytest.mark.parametrize("source_model", ["E-INTEGRAL", "CHMF-SAMPLER"])
+def test_ts_and_ionized_field_units(
+    default_input_struct_lc, use_mcgs, recomb_model, minimize_memory, source_model
+):
+    inputs = default_input_struct_lc.evolve_input_structs(
+        USE_TS_FLUCT=True,
+        USE_MCGS=use_mcgs,
+        V_CB_MODEL="AVG-DEBUG" if use_mcgs else "NONE",
+        M_TURN_STELLAR_FEEDBACK=5.0 if use_mcgs else 8.7,
+        RECOMB_MODEL=recomb_model,
+        CELL_RECOMB=recomb_model == "homogeneous",
+        R_BUBBLE_MAX=50.0,
+        MINIMIZE_MEMORY=minimize_memory,
+        SOURCE_MODEL=source_model,
+    )
+    units = {
+        "spin_temperature": un.K,
+        "xray_ionised_fraction": un.dimensionless_unscaled,
+        "kinetic_temp_neutral": un.K,
+        "J_21_LW": un.Unit(1e-21 * un.erg / (un.s * un.cm**2 * un.Hz * un.sr)),
+        "neutral_fraction": un.dimensionless_unscaled,
+        "ionisation_rate_G12": un.Unit(1e-12 / un.s),
+        "z_reion": un.dimensionless_unscaled,
+        "mean_free_path": un.Mpc,
+        "cumulative_recombinations": un.dimensionless_unscaled,
+        "kinetic_temperature": un.K,
+        "nion_conditional_filtered_acg": un.dimensionless_unscaled,
+        "nion_conditional_filtered_mcg": un.dimensionless_unscaled,
+    }
+    for struct in (ox.TsBox, ox.IonizedBox):
+        box = struct.new(inputs=inputs, redshift=10.0)
+        for name, array in box.arrays.items():
+            assert array.unit == units[name]
+            assert isinstance(array.description, str)
+            assert array.description
+            assert array._value is None
+            values = np.ones(array.shape, dtype=np.float32)
+            setattr(box, name, array.with_value(values))
+            field = getattr(box, name)
+            assert isinstance(field, np.ndarray)
+            assert not isinstance(field, un.Quantity)
+            assert field.dtype == np.float32
+            np.testing.assert_array_equal(field, values)
+            quantity = box.arrays[name].get_quantity()
+            assert quantity.unit == units[name]
+            assert quantity.dtype == np.float32
+            np.testing.assert_array_equal(quantity.value, values)
+
+
+def test_output_rate_and_lw_quantities_have_physical_normalization(
+    default_input_struct_lc,
+):
+    inputs = default_input_struct_lc.evolve_input_structs(
+        USE_TS_FLUCT=True,
+        USE_MCGS=True,
+        V_CB_MODEL="AVG-DEBUG",
+        M_TURN_STELLAR_FEEDBACK=5.0,
+        RECOMB_MODEL="inhomogeneous",
+        R_BUBBLE_MAX=50.0,
+    )
+    ion = ox.IonizedBox.new(inputs=inputs, redshift=10.0)
+    ion.ionisation_rate_G12 = np.ones(ion.arrays["ionisation_rate_G12"].shape)
+    np.testing.assert_allclose(
+        ion.arrays["ionisation_rate_G12"].get_quantity().to_value(un.s**-1),
+        1e-12,
+        atol=0,
+    )
+    ts = ox.TsBox.new(inputs=inputs, redshift=10.0)
+    ts.J_21_LW = np.ones(ts.arrays["J_21_LW"].shape)
+    np.testing.assert_allclose(
+        ts.arrays["J_21_LW"]
+        .get_quantity()
+        .to_value(un.erg / (un.s * un.cm**2 * un.Hz * un.sr)),
+        1e-21,
+        atol=0,
+    )
 
 
 def test_optional_field_bt(default_input_struct_lc: InputParameters):
