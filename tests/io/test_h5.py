@@ -246,8 +246,12 @@ def test_output_units_restored_from_cache_without_unit_attributes(
             quantity = array.get_quantity()
             assert quantity.dtype == np.float32
             np.testing.assert_array_equal(quantity.value, 2)
-            quantity.value.flat[0] = 3
-            assert array.get_quantity().value.flat[0] == (3 if cache_on_access else 2)
+            assert not quantity.flags.writeable
+            with pytest.raises(ValueError, match="read-only"):
+                quantity.value.flat[0] = 3
+            independent = array.get_quantity(copy=True)
+            independent.value.flat[0] = 3
+            assert array.get_quantity().value.flat[0] == 2
         assert array.state.computed_in_mem == cache_on_access
         with h5py.File(path, "r") as file:
             assert file[box._name]["OutputFields"][name][...].flat[0] == 2

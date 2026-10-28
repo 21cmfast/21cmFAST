@@ -295,9 +295,9 @@ class Array:
         Parameters
         ----------
         copy
-            If False (default), share the resolved data's memory. Changes affect
-            that in-memory data and are not written back to disk automatically.
-            Set True for an independent copy. The stored dtype is preserved.
+            If False (default), return a read-only view sharing the resolved
+            data's memory. Set True for an independent, writable copy. The
+            stored dtype is preserved.
 
         Returns
         -------
@@ -309,10 +309,25 @@ class Array:
         ------
         ValueError
             If unit metadata is unspecified or the data is unavailable.
+
+        Notes
+        -----
+        A shared view reflects changes made to the underlying data. Use ``.to()``
+        to convert units without rescaling those data in place.
+
+        Existing array setters and :meth:`with_value` expect raw numerical values
+        in the stored unit. Before assigning a Quantity back, convert it with
+        ``quantity.to_value(array.unit)``. Changes are not written back to disk
+        automatically.
         """
         if self.unit is None:
             raise ValueError("Unit metadata is not defined for this array.")
-        return un.Quantity(self._resolve_value(), unit=self.unit, dtype=None, copy=copy)
+        quantity = un.Quantity(
+            self._resolve_value(), unit=self.unit, dtype=None, copy=copy
+        )
+        if not copy:
+            quantity.flags.writeable = False
+        return quantity
 
     @property
     def value(self) -> np.ndarray:

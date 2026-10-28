@@ -98,11 +98,19 @@ With redshift-based photon conservation, newly recorded redshifts use the
 adjusted redshift.
 
 ``get_quantity()`` loads purged data using the usual ``CACHE_ARRAYS_ON_ACCESS``
-setting and shares the data's memory by default. Use ``get_quantity(copy=True)``
-for an independent copy. An unspecified unit is distinct from a dimensionless
-unit: ``get_quantity()`` raises ``ValueError`` for fields whose units have not yet
-been defined. Metadata is reconstructed when reading output-struct cache files;
-the cache format is unchanged.
+setting. By default, it returns a read-only view sharing the data's memory. The
+view reflects later changes to the underlying data. Use ``.to()`` to convert units,
+or ``get_quantity(copy=True)`` for an independent, writable copy.
+
+Existing array setters expect raw numerical values in the field's stored unit.
+Before assigning a Quantity back, convert it to those values, for example with
+``neutral_percent.to_value(neutral.unit)``. Setters do not convert Quantity units
+automatically.
+
+An unspecified unit is distinct from a dimensionless unit: ``get_quantity()``
+raises ``ValueError`` for fields whose units have not yet been defined. Metadata
+is reconstructed when reading output-struct cache files; the cache format is
+unchanged.
 
 Simulating a Lightcone
 ~~~~~~~~~~~~~~~~~~~~~~

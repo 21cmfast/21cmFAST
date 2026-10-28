@@ -132,17 +132,73 @@ def test_get_quantity_distinguishes_dimensionless_from_unspecified_units():
     np.testing.assert_array_equal(dimensionless.get_quantity().value, values)
 
 
-def test_get_quantity_shares_memory_unless_copy_requested():
+def test_get_quantity_shares_read_only_memory_unless_copy_requested() -> None:
     array = Array((2,), dtype=np.float32, unit=un.K).with_value(np.ones(2))
     view = array.get_quantity()
     independent = array.get_quantity(copy=True)
     assert independent.dtype == array.dtype
     assert np.shares_memory(view, array._value)
     assert not np.shares_memory(independent, array._value)
+    assert not view.flags.writeable
+    assert independent.flags.writeable
+    assert array._value.flags.writeable
 
-    view[0] = 2 * un.K
+    with pytest.raises(ValueError, match="read-only"):
+        view[0] = 2 * un.K
     independent[1] = 3 * un.K
-    np.testing.assert_array_equal(np.asarray(array), [2, 1])
+    np.testing.assert_array_equal(np.asarray(array), [1, 1])
+
+    # A read-only view still follows changes made through the existing raw API.
+    np.asarray(array)[0] = 4
+    np.testing.assert_array_equal(view.to_value(un.K), [4, 1])
+    np.testing.assert_array_equal(independent.to_value(un.K), [1, 3])
+
+
+@pytest.mark.parametrize("dtype", [np.float32, np.float64, np.int64])
+@pytest.mark.parametrize(
+    ("unit", "converted_unit"),
+    [
+        (un.K, un.mK),
+        (un.Unit(1e-12 / un.s), un.s**-1),
+        (un.dimensionless_unscaled, un.percent),
+    ],
+)
+def test_shared_quantity_unit_conversion_preserves_stored_values(
+    dtype: type[np.generic], unit: un.UnitBase, converted_unit: un.UnitBase
+) -> None:
+    values = np.array([1, 2], dtype=dtype)
+    expected = values.copy()
+    array = Array(values.shape, dtype=dtype, unit=unit).with_value(values)
+    quantity = array.get_quantity()
+
+    try:
+        quantity <<= converted_unit
+    except ValueError as error:
+        if "read-only" not in str(error):
+            raise
+    else:
+        # Astropy can fall back to a copy if an in-place cast is impossible.
+        assert quantity.unit == converted_unit
+        assert not np.shares_memory(quantity, np.asarray(array))
+        np.testing.assert_allclose(quantity.to_value(unit), expected)
+
+    assert array.unit == unit
+    assert array._value.flags.writeable
+    np.testing.assert_array_equal(np.asarray(array), expected)
+
+
+def test_quantity_conversion_can_be_edited_without_changing_stored_values() -> None:
+    array = Array((1,), dtype=np.float32, unit=un.K).with_value(
+        np.array([100.0], dtype=np.float32)
+    )
+    converted = array.get_quantity().to(un.mK)
+    assert converted.flags.writeable
+    assert not np.shares_memory(converted, np.asarray(array))
+    np.testing.assert_allclose(converted.value, [100000.0])
+
+    converted[0] = 200000 * un.mK
+    np.testing.assert_array_equal(np.asarray(array), [100.0])
+    assert array.unit == un.K
 
 
 def test_get_quantity_on_uncomputed_array_does_not_allocate():

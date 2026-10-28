@@ -550,6 +550,22 @@ def test_output_rate_and_lw_quantities_have_physical_normalization(
     )
 
 
+def test_quantity_converted_to_stored_unit_can_be_assigned(
+    default_input_struct_lc: InputParameters,
+) -> None:
+    box = ox.TsBox.new(inputs=default_input_struct_lc, redshift=10.0)
+    field = box.arrays["spin_temperature"]
+    box.spin_temperature = np.ones(field.shape, dtype=np.float32)
+
+    converted = box.arrays["spin_temperature"].get_quantity().to(un.mK)
+    converted += 1000 * un.mK
+    box.spin_temperature = converted.to_value(field.unit)
+
+    assert box.arrays["spin_temperature"].unit == un.K
+    assert box.spin_temperature.dtype == np.float32
+    np.testing.assert_array_equal(box.spin_temperature, 2.0)
+
+
 def test_optional_field_bt(default_input_struct_lc: InputParameters):
     """Ensure that the correct BrightnessTemp fields are set based on the parameters."""
     bt = ox.BrightnessTemp.new(redshift=0.0, inputs=default_input_struct_lc)
