@@ -28,11 +28,18 @@ import h5py
 import matplotlib as mpl
 import numpy as np
 import pytest
+from astropy import units as un
 
 from py21cmfast import Coeval, LightCone, OutputCache
 from py21cmfast.wrapper.inputs import Table1D
 
 from . import produce_integration_test_data as prd
+from .integration_units import (
+    assert_physical_type,
+    assert_quantity_close,
+    assert_reference_fields,
+    read_quantity,
+)
 
 logger = logging.getLogger("py21cmfast")
 logger.setLevel(logging.INFO)
@@ -50,14 +57,33 @@ options_marked = [
 options_pt = list(prd.OPTIONS_PT.keys())
 
 
-def _record_mismatch(request, *args, **kwargs):
-    """Record a reference-data mismatch on the test report (summarised in conftest.py)."""
-    stats = prd.failure_stats(*args, **kwargs)
-    if stats is None:
+def _record_mismatch(request, test, truth, inputs, abs_tol, rel_tol, name):
+    """Record a failed physical comparison for the final assertion and plots."""
+    # A dimension error is always fatal, independently of the numerical policy.
+    assert_physical_type(test, truth, name=name)
+    try:
+        assert_quantity_close(
+            test, truth, rtol=rel_tol, atol=abs_tol * truth.unit, name=name
+        )
+    except AssertionError as error:
+        if (
+            test.shape == truth.shape
+            and np.all(np.isfinite(test))
+            and np.all(np.isfinite(truth))
+        ):
+            stats = prd.failure_stats(
+                test.to_value(truth.unit), truth.value, inputs, abs_tol, rel_tol, name
+            )
+        else:
+            stats = None
+        summary, message = (
+            stats if stats is not None else (f"{name}: physical mismatch", str(error))
+        )
+    else:
         return False
-    summary, message = stats
     request.node.user_properties.append(("reference_mismatch", message))
     request.node.user_properties.append(("reference_mismatch_summary", summary))
+    print(message)
     return True
 
 
@@ -67,13 +93,19 @@ def test_power_spectra_coeval(request, name, module_direc, plt):
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
 
     # First get pre-made data
+    inputs = prd.get_all_options_struct(redshift, **kwargs)["inputs"]
+    expected_fields = prd.get_power_fields(inputs, kind="coeval")
     true_powers = {}
     with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
-        true_k = fl["coeval"]["k"][...]
+        assert "coeval" in fl, f"Missing reference group coeval in {fl.filename}"
+        assert_reference_fields(
+            fl["coeval"], {"k"} | {f"power_{key}" for key in expected_fields}
+        )
+        true_k = read_quantity(fl["coeval"]["k"])
         for key, value in fl["coeval"].items():
             if key.startswith("power_"):
                 fieldname = "_".join(key.split("_")[1:])
-                true_powers[fieldname] = value[...]
+                true_powers[fieldname] = read_quantity(value)
                 print(f"{key} --> {fieldname} loaded")
 
     # Now compute the Coeval object
@@ -82,21 +114,22 @@ def test_power_spectra_coeval(request, name, module_direc, plt):
     )
 
     assert isinstance(cv, Coeval)
+    assert set(test_powers) == expected_fields, (
+        "Simulated power fields differ from the configuration."
+    )
     assert np.all(np.isfinite(cv.brightness_temp))
 
-    assert np.allclose(true_k, test_k)
+    assert_quantity_close(test_k, true_k, rtol=1e-5, atol=1e-8 * true_k.unit, name="k")
 
     any_failed = False
-    # Differences from the reference data are recorded rather than asserted, and
-    # summarised at the end of the run (see issue #450 on making these checks robust).
-    for key in prd.COEVAL_FIELDS:
-        if key not in true_powers:
-            continue
+    # Compare physical values after unit conversion. Record every numerical
+    # mismatch before asserting, so failed tests still produce comparison plots.
+    for key in sorted(expected_fields):
         any_failed |= _record_mismatch(
             request,
             test_powers[key],
             true_powers[key],
-            [test_k],
+            [test_k.to_value(true_k.unit)],
             abs_tol=0,
             rel_tol=1e-4,
             name=key,
@@ -105,6 +138,8 @@ def test_power_spectra_coeval(request, name, module_direc, plt):
     if plt == mpl.pyplot and any_failed:
         make_coeval_comparison_plot(true_k, test_k, true_powers, test_powers, plt)
 
+    assert not any_failed, "Coeval physical values differ from the reference data."
+
 
 @pytest.mark.parametrize("name", options_marked)
 def test_power_spectra_lightcone(request, name, module_direc, plt, benchmark):
@@ -112,16 +147,25 @@ def test_power_spectra_lightcone(request, name, module_direc, plt, benchmark):
     print(f"Options used for the test {name} at z={redshift}: ", kwargs)
 
     # First get pre-made data
+    inputs = prd.get_all_options_struct(redshift, lc=True, **kwargs)["inputs"]
+    expected_fields = prd.get_power_fields(inputs, kind="lightcone")
     with h5py.File(prd.get_filename("power_spectra", name), "r") as fl:
+        assert "lightcone" in fl, f"Missing reference group lightcone in {fl.filename}"
+        assert_reference_fields(
+            fl["lightcone"],
+            {"k"}
+            | {f"power_{key}" for key in expected_fields}
+            | {f"global_{key}" for key in prd.GLOBAL_FIELDS},
+        )
         true_powers = {}
         true_global = {}
-        true_k = fl["lightcone"]["k"][...]
+        true_k = read_quantity(fl["lightcone"]["k"])
         for key in fl["lightcone"]:
             fieldname = "_".join(key.split("_")[1:])
             if key.startswith("power_"):
-                true_powers[fieldname] = fl["lightcone"][key][...]
+                true_powers[fieldname] = read_quantity(fl["lightcone"][key])
             elif key.startswith("global_"):
-                true_global[fieldname] = fl["lightcone"][key][...]
+                true_global[fieldname] = read_quantity(fl["lightcone"][key])
 
     # Now compute the lightcone
     test_k, test_powers, lc = benchmark.pedantic(
@@ -153,22 +197,26 @@ def test_power_spectra_lightcone(request, name, module_direc, plt, benchmark):
         )
 
     assert isinstance(lc, LightCone)
+    assert set(test_powers) == expected_fields, (
+        "Simulated power fields differ from the configuration."
+    )
     assert np.all(np.isfinite(lc.lightcones["brightness_temp"]))
 
-    test_global = {k: lc.global_quantities[k] for k in true_global}
-    assert np.allclose(true_k, test_k)
+    units = prd.lightcone_field_units(lc)
+    test_global = {
+        key: un.Quantity(lc.global_quantities[key], units[key], dtype=None, copy=False)
+        for key in prd.GLOBAL_FIELDS
+    }
+    assert_quantity_close(test_k, true_k, rtol=1e-5, atol=1e-8 * true_k.unit, name="k")
 
     any_failed = False
-    # Differences from the reference data are recorded rather than asserted, and
-    # summarised at the end of the run (see issue #450 on making these checks robust).
-    for key in prd.LIGHTCONE_FIELDS:
-        if key not in true_powers:
-            continue
+    # Record all failed physical comparisons before asserting.
+    for key in sorted(expected_fields):
         any_failed |= _record_mismatch(
             request,
             test_powers[key],
             true_powers[key],
-            [test_k],
+            [test_k.to_value(true_k.unit)],
             abs_tol=0,
             rel_tol=1e-4,
             name=key,
@@ -188,7 +236,9 @@ def test_power_spectra_lightcone(request, name, module_direc, plt, benchmark):
 
     # For globals, we should assert that they are close
     for key, value in true_global.items():
-        np.testing.assert_allclose(value, lc.global_quantities[key], atol=0, rtol=1e-3)
+        assert_quantity_close(test_global[key], value, rtol=1e-3, name=key)
+
+    assert not any_failed, "Lightcone physical values differ from the reference data."
 
 
 plot_ylab = {
@@ -280,6 +330,14 @@ def make_comparison_plot(
     ylab=None,
     make_lower_ylab=True,
 ):
+    if isinstance(true, un.Quantity):
+        ylab = f"{ylab} [{true.unit}]"
+        test = test.to_value(true.unit)
+        true = true.value
+    if isinstance(xtrue, un.Quantity):
+        xlab = f"{xlab} [{xtrue.unit}]"
+        x = x.to_value(xtrue.unit)
+        xtrue = xtrue.value
     ax[0].plot(xtrue, true, label="True")
     ax[0].plot(x, test, label="Test")
     if logx:
@@ -316,24 +374,42 @@ def test_perturb_field_data(name):
 
     # First get pre-made data
     with h5py.File(prd.get_filename("perturb_field_data", name), "r") as f:
-        power_dens = f["power_dens"][...]
-        power_vel = f["power_vel"][...]
-        pdf_dens = f["pdf_dens"][...]
-        pdf_vel = f["pdf_vel"][...]
+        power_dens = read_quantity(f["power_dens"])
+        power_vel = read_quantity(f["power_vel"])
+        pdf_dens = read_quantity(f["pdf_dens"])
+        pdf_vel = read_quantity(f["pdf_vel"])
+        axes = {
+            key: read_quantity(f[key]) for key in ("k_dens", "k_vel", "x_dens", "x_vel")
+        }
 
     (
-        _k_dens,
+        k_dens,
         p_dens,
-        _k_vel,
+        k_vel,
         p_vel,
-        _x_dens,
+        x_dens,
         y_dens,
-        _x_vel,
+        x_vel,
         y_vel,
         _ic,
     ) = prd.produce_perturb_field_data(redshift, **kwargs)
 
-    np.testing.assert_allclose(p_dens, power_dens, atol=5e-3, rtol=1e-3)
-    np.testing.assert_allclose(p_vel, power_vel, atol=5e-3, rtol=1e-3)
-    np.testing.assert_allclose(y_dens, pdf_dens, atol=5e-3, rtol=1e-3)
-    np.testing.assert_allclose(y_vel, pdf_vel, atol=5e-3, rtol=1e-3)
+    for dataset_name, actual, reference in (
+        ("power_dens", p_dens, power_dens),
+        ("power_vel", p_vel, power_vel),
+        ("pdf_dens", y_dens, pdf_dens),
+        ("pdf_vel", y_vel, pdf_vel),
+    ):
+        assert_quantity_close(
+            actual, reference, rtol=1e-3, atol=5e-3 * reference.unit, name=dataset_name
+        )
+    for dataset_name, actual in (
+        ("k_dens", k_dens),
+        ("k_vel", k_vel),
+        ("x_dens", x_dens),
+        ("x_vel", x_vel),
+    ):
+        reference = axes[dataset_name]
+        assert_quantity_close(
+            actual, reference, rtol=1e-5, atol=1e-8 * reference.unit, name=dataset_name
+        )

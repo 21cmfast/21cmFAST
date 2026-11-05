@@ -11,6 +11,7 @@ The following introductory tutorials will help you get started with ``21cmFAST``
    tutorials/lightcones
    tutorials/global_evolution
    tutorials/caching
+   tutorials/output_units
    tutorials/cli_usage
 
 We also have some more specific tutorials concerning specific physical models:

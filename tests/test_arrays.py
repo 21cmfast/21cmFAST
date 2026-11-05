@@ -67,7 +67,9 @@ def backend(raw_value):
 
 @pytest.fixture
 def in_memory_array(raw_value):
-    return Array(shape=raw_value.shape).with_value(raw_value)
+    return Array(
+        shape=raw_value.shape, unit=un.dimensionless_unscaled, description="Test field."
+    ).with_value(raw_value)
 
 
 @pytest.fixture
@@ -77,7 +79,105 @@ def purged_array(in_memory_array, backend):
 
 @pytest.fixture
 def uncomputed_array():
-    return Array(shape=(3, 3, 3))
+    return Array(
+        shape=(3, 3, 3), unit=un.dimensionless_unscaled, description="Test field."
+    )
+
+
+def _restore_legacy_metadata(array: Array) -> Array:
+    """Restore the state of an Array saved before unit metadata existed."""
+    state = dict(array.__dict__)
+    for name in ("unit", "description", "_legacy_metadata"):
+        state.pop(name, None)
+    restored = object.__new__(Array)
+    restored.__setstate__(state)
+    return restored
+
+
+@pytest.mark.parametrize(
+    "metadata", [{}, {"unit": un.K}, {"description": "Temperature."}]
+)
+def test_new_array_requires_both_metadata_arguments(metadata: dict) -> None:
+    with pytest.raises(TypeError):
+        Array((2,), **metadata)
+
+
+@pytest.mark.parametrize(
+    ("metadata", "error"),
+    [
+        ({"unit": None, "description": "Temperature."}, TypeError),
+        ({"unit": un.K, "description": None}, TypeError),
+        ({"unit": un.K, "description": ""}, ValueError),
+        ({"unit": un.K, "description": " \t"}, ValueError),
+        ({"unit": un.K, "description": 3}, TypeError),
+    ],
+)
+def test_new_array_rejects_missing_or_blank_metadata(
+    metadata: dict, error: type[Exception]
+) -> None:
+    with pytest.raises(error):
+        Array((2,), **metadata)
+
+
+def test_legacy_metadata_survives_functional_transitions(
+    raw_value: np.ndarray, backend: CacheBackend
+) -> None:
+    legacy = _restore_legacy_metadata(
+        Array(raw_value.shape, unit=un.K, description="Temperature.")
+    )
+    initialized = legacy.initialize()
+    computed = initialized.with_value(raw_value)
+    purged = computed.purged_to_disk(backend)
+    loaded = purged.loaded_from_disk()
+    for array in (
+        initialized,
+        computed,
+        purged,
+        loaded,
+        loaded.trimmed((2, 2, 2)),
+        loaded.without_value(),
+    ):
+        assert array.unit is None
+        assert array.description is None
+        with pytest.raises(ValueError, match="Unit metadata is not defined"):
+            array.get_quantity()
+    np.testing.assert_array_equal(np.asarray(loaded), raw_value)
+    assert not copy.deepcopy(purged).state.computed_in_mem
+    restored = pickle.loads(pickle.dumps(purged))
+    assert restored.unit is None
+    assert restored.description is None
+    np.testing.assert_array_equal(np.asarray(restored), raw_value)
+
+
+@pytest.mark.parametrize(
+    "missing", [("unit",), ("description",), ("unit", "description")]
+)
+def test_partial_legacy_metadata_keeps_raw_access(missing: tuple[str, ...]) -> None:
+    values = np.array([1.0, 2.0])
+    array = Array((2,), unit=un.K, description="Temperature.").with_value(values)
+    for name in (*missing, "_legacy_metadata"):
+        object.__delattr__(array, name)
+    restored = pickle.loads(pickle.dumps(array))
+    updated = restored.with_value(values + 1)
+    np.testing.assert_array_equal(np.asarray(updated), values + 1)
+    if "unit" in missing:
+        with pytest.raises(ValueError, match="Unit metadata is not defined"):
+            updated.get_quantity()
+    else:
+        assert updated.get_quantity().unit == un.K
+        np.testing.assert_array_equal(updated.get_quantity().value, values + 1)
+
+
+def test_repaired_legacy_metadata_uses_new_array_validation() -> None:
+    legacy = _restore_legacy_metadata(
+        Array((2,), unit=un.K, description="Temperature.")
+    )
+    repaired = attrs.evolve(legacy, unit="K", description="Temperature.")
+    assert repaired.unit == un.K
+    with pytest.raises(TypeError, match="unit"):
+        attrs.evolve(repaired, unit=None)
+    with pytest.raises(ValueError, match="description"):
+        attrs.evolve(repaired, description="")
 
 
 @pytest.mark.parametrize("unit", [un.K, "K"])
@@ -92,7 +192,9 @@ def test_unit_metadata_is_normalized_without_allocating(unit):
 @pytest.mark.parametrize("dtype", [np.float32, np.float64, np.int64])
 def test_get_quantity_preserves_values_and_dtype(dtype):
     values = np.arange(3, dtype=dtype)
-    array = Array(values.shape, dtype=dtype, unit=un.K).with_value(values)
+    array = Array(
+        values.shape, dtype=dtype, unit=un.K, description="Test field."
+    ).with_value(values)
     quantity = array.get_quantity()
     assert isinstance(quantity, un.Quantity)
     assert quantity.unit == un.K
@@ -112,28 +214,36 @@ def test_get_quantity_preserves_values_and_dtype(dtype):
     ],
 )
 def test_get_quantity_applies_stored_unit_scale(unit, physical_unit, scale):
-    array = Array((2,), unit=unit).with_value(np.array([1.0, 2.0]))
+    array = Array((2,), unit=unit, description="Test field.").with_value(
+        np.array([1.0, 2.0])
+    )
     np.testing.assert_allclose(
         array.get_quantity().to_value(physical_unit), [scale, 2 * scale], atol=0
     )
     np.testing.assert_array_equal(np.asarray(array), [1.0, 2.0])
 
 
-def test_get_quantity_distinguishes_dimensionless_from_unspecified_units():
+def test_get_quantity_distinguishes_dimensionless_from_legacy_unknown_units():
     values = np.array([0.25, 0.75])
-    array = Array(values.shape).with_value(values)
+    array = _restore_legacy_metadata(
+        Array(values.shape, unit=un.K, description="Temperature.")
+    ).with_value(values)
     assert array.unit is None
     assert array.description is None
     with pytest.raises(ValueError, match="Unit metadata is not defined"):
         array.get_quantity()
 
-    dimensionless = attrs.evolve(array, unit=un.dimensionless_unscaled)
+    dimensionless = attrs.evolve(
+        array, unit=un.dimensionless_unscaled, description="Fraction."
+    )
     assert dimensionless.get_quantity().unit == un.dimensionless_unscaled
     np.testing.assert_array_equal(dimensionless.get_quantity().value, values)
 
 
 def test_get_quantity_shares_read_only_memory_unless_copy_requested() -> None:
-    array = Array((2,), dtype=np.float32, unit=un.K).with_value(np.ones(2))
+    array = Array(
+        (2,), dtype=np.float32, unit=un.K, description="Test field."
+    ).with_value(np.ones(2))
     view = array.get_quantity()
     independent = array.get_quantity(copy=True)
     assert independent.dtype == array.dtype
@@ -168,7 +278,9 @@ def test_shared_quantity_unit_conversion_preserves_stored_values(
 ) -> None:
     values = np.array([1, 2], dtype=dtype)
     expected = values.copy()
-    array = Array(values.shape, dtype=dtype, unit=unit).with_value(values)
+    array = Array(
+        values.shape, dtype=dtype, unit=unit, description="Test field."
+    ).with_value(values)
     quantity = array.get_quantity()
 
     try:
@@ -188,9 +300,9 @@ def test_shared_quantity_unit_conversion_preserves_stored_values(
 
 
 def test_quantity_conversion_can_be_edited_without_changing_stored_values() -> None:
-    array = Array((1,), dtype=np.float32, unit=un.K).with_value(
-        np.array([100.0], dtype=np.float32)
-    )
+    array = Array(
+        (1,), dtype=np.float32, unit=un.K, description="Test field."
+    ).with_value(np.array([100.0], dtype=np.float32))
     converted = array.get_quantity().to(un.mK)
     assert converted.flags.writeable
     assert not np.shares_memory(converted, np.asarray(array))
@@ -202,7 +314,7 @@ def test_quantity_conversion_can_be_edited_without_changing_stored_values() -> N
 
 
 def test_get_quantity_on_uncomputed_array_does_not_allocate():
-    array = Array((2,), unit=un.K)
+    array = Array((2,), unit=un.K, description="Test field.")
     with pytest.raises(ValueError, match="not on disk and not initialized"):
         array.get_quantity()
     assert array._value is None
@@ -228,8 +340,9 @@ def test_get_quantity_loads_purged_data_with_existing_cache_policy(
 
 
 def test_missing_unit_metadata_does_not_load_purged_data(purged_array, backend):
+    legacy = _restore_legacy_metadata(purged_array)
     with pytest.raises(ValueError, match="Unit metadata is not defined"):
-        purged_array.get_quantity()
+        legacy.get_quantity()
     assert backend.read_count == 0
     assert purged_array._value is None
 
@@ -255,7 +368,9 @@ def test_unit_metadata_survives_array_transitions_and_pickle(raw_value, backend)
 def test_pickle_without_unit_metadata_retains_existing_array_operations(
     state, raw_value, backend
 ):
-    array = Array(raw_value.shape)
+    array = Array(
+        raw_value.shape, unit=un.dimensionless_unscaled, description="Test field."
+    )
     if state != "uncomputed":
         array = array.with_value(raw_value)
     if state == "purged":
@@ -264,6 +379,7 @@ def test_pickle_without_unit_metadata_retains_existing_array_operations(
     # Match the dictionary stored by Array before metadata was added.
     object.__delattr__(array, "unit")
     object.__delattr__(array, "description")
+    object.__delattr__(array, "_legacy_metadata")
     restored = pickle.loads(pickle.dumps(array))
 
     assert restored.unit is None

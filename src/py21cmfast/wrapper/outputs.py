@@ -46,9 +46,23 @@ from .structs import StructWrapper
 
 logger = logging.getLogger(__name__)
 
-# Build scaled units once: unit arithmetic can leave reference cycles.
+# Reuse composite units across output construction.
 _IONISATION_RATE_UNIT = un.Unit(1e-12 / un.s)
 _LW_INTENSITY_UNIT = un.Unit(1e-21 * un.erg / (un.s * un.cm**2 * un.Hz * un.sr))
+_VELOCITY_UNIT = un.Mpc / un.s
+_RELATIVE_VELOCITY_UNIT = un.km / un.s
+_MASS_DENSITY_UNIT = un.M_sun / un.Mpc**3
+_SFR_UNIT = un.M_sun / un.s
+_SFR_DENSITY_UNIT = _SFR_UNIT / un.Mpc**3
+_XRAY_LUMINOSITY_UNIT = un.Unit(1e38 * un.erg / un.s)
+_XRAY_EMISSIVITY_UNIT = _XRAY_LUMINOSITY_UNIT / un.Mpc**3
+_XRAY_IONIZATION_RATE_UNIT = un.s**-1
+_XRAY_HEATING_RATE_UNIT = un.K / un.s
+_HEATING_FREQ_INTEGRAL_UNIT = un.erg * un.cm**2 * un.Hz
+_IONIZATION_FREQ_INTEGRAL_UNIT = un.cm**2 * un.Hz
+_LYA_FREQ_INTEGRAL_UNIT = un.cm**3 / un.sr
+_LYA_SPECTRUM_UNIT = un.Hz**-1
+_LYA_NUMBER_INTENSITY_UNIT = un.cm**-2 / (un.s * un.Hz * un.sr)
 
 _ALL_OUTPUT_STRUCTS = {}
 
@@ -623,37 +637,112 @@ class InitialConditions(OutputStruct):
         )
 
         out = {
-            "lowres_density": Array(shape, dtype=np.float32),
-            "hires_density": Array(hires_shape, dtype=np.float32),
+            "lowres_density": Array(
+                shape,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Low-resolution linear matter density contrast.",
+            ),
+            "hires_density": Array(
+                hires_shape,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="High-resolution linear matter density contrast.",
+            ),
         }
         if inputs.matter_options.PERTURB_ON_HIGH_RES:
             out |= {
-                "hires_vx": Array(hires_shape, dtype=np.float32),
-                "hires_vy": Array(hires_shape, dtype=np.float32),
-                "hires_vz": Array(hires_shape, dtype=np.float32),
+                "hires_vx": Array(
+                    hires_shape,
+                    dtype=np.float32,
+                    unit=un.Mpc,
+                    description="Growth-factor-independent comoving displacement along x, first order.",
+                ),
+                "hires_vy": Array(
+                    hires_shape,
+                    dtype=np.float32,
+                    unit=un.Mpc,
+                    description="Growth-factor-independent comoving displacement along y, first order.",
+                ),
+                "hires_vz": Array(
+                    hires_shape,
+                    dtype=np.float32,
+                    unit=un.Mpc,
+                    description="Growth-factor-independent comoving displacement along z, first order.",
+                ),
             }
         else:
             out |= {
-                "lowres_vx": Array(shape, dtype=np.float32),
-                "lowres_vy": Array(shape, dtype=np.float32),
-                "lowres_vz": Array(shape, dtype=np.float32),
+                "lowres_vx": Array(
+                    shape,
+                    dtype=np.float32,
+                    unit=un.Mpc,
+                    description="Growth-factor-independent comoving displacement along x, first order.",
+                ),
+                "lowres_vy": Array(
+                    shape,
+                    dtype=np.float32,
+                    unit=un.Mpc,
+                    description="Growth-factor-independent comoving displacement along y, first order.",
+                ),
+                "lowres_vz": Array(
+                    shape,
+                    dtype=np.float32,
+                    unit=un.Mpc,
+                    description="Growth-factor-independent comoving displacement along z, first order.",
+                ),
             }
 
         if inputs.matter_options.PERTURB_ALGORITHM == "2LPT":
             out |= {
-                "hires_vx_2LPT": Array(hires_shape, dtype=np.float32),
-                "hires_vy_2LPT": Array(hires_shape, dtype=np.float32),
-                "hires_vz_2LPT": Array(hires_shape, dtype=np.float32),
+                "hires_vx_2LPT": Array(
+                    hires_shape,
+                    dtype=np.float32,
+                    unit=un.Mpc,
+                    description="Growth-factor-independent comoving displacement along x, second order.",
+                ),
+                "hires_vy_2LPT": Array(
+                    hires_shape,
+                    dtype=np.float32,
+                    unit=un.Mpc,
+                    description="Growth-factor-independent comoving displacement along y, second order.",
+                ),
+                "hires_vz_2LPT": Array(
+                    hires_shape,
+                    dtype=np.float32,
+                    unit=un.Mpc,
+                    description="Growth-factor-independent comoving displacement along z, second order.",
+                ),
             }
             if not inputs.matter_options.PERTURB_ON_HIGH_RES:
                 out |= {
-                    "lowres_vx_2LPT": Array(shape, dtype=np.float32),
-                    "lowres_vy_2LPT": Array(shape, dtype=np.float32),
-                    "lowres_vz_2LPT": Array(shape, dtype=np.float32),
+                    "lowres_vx_2LPT": Array(
+                        shape,
+                        dtype=np.float32,
+                        unit=un.Mpc,
+                        description="Growth-factor-independent comoving displacement along x, second order.",
+                    ),
+                    "lowres_vy_2LPT": Array(
+                        shape,
+                        dtype=np.float32,
+                        unit=un.Mpc,
+                        description="Growth-factor-independent comoving displacement along y, second order.",
+                    ),
+                    "lowres_vz_2LPT": Array(
+                        shape,
+                        dtype=np.float32,
+                        unit=un.Mpc,
+                        description="Growth-factor-independent comoving displacement along z, second order.",
+                    ),
                 }
 
         if inputs.matter_options.V_CB_MODEL == "FLUCTS":
-            out["lowres_vcb"] = Array(shape, dtype=np.float32)
+            out["lowres_vcb"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=_RELATIVE_VELOCITY_UNIT,
+                description="Baryon-dark-matter relative speed.",
+            )
 
         return cls(inputs=inputs, **out, **kw)
 
@@ -789,15 +878,35 @@ class PerturbedField(OutputStructZ):
         shape = (dim, dim, int(inputs.simulation_options.NON_CUBIC_FACTOR * dim))
 
         out = {
-            "density": Array(shape, dtype=np.float32),
+            "density": Array(
+                shape,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Evolved matter density contrast.",
+            ),
         }
 
         # No need for velocities in a homogeneous universe!
         if dim > 1:
-            out["velocity_z"] = Array(shape, dtype=np.float32)
+            out["velocity_z"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=_VELOCITY_UNIT,
+                description="Comoving peculiar velocity along z.",
+            )
             if inputs.matter_options.KEEP_3D_VELOCITIES:
-                out["velocity_x"] = Array(shape, dtype=np.float32)
-                out["velocity_y"] = Array(shape, dtype=np.float32)
+                out["velocity_x"] = Array(
+                    shape,
+                    dtype=np.float32,
+                    unit=_VELOCITY_UNIT,
+                    description="Comoving peculiar velocity along x.",
+                )
+                out["velocity_y"] = Array(
+                    shape,
+                    dtype=np.float32,
+                    unit=_VELOCITY_UNIT,
+                    description="Comoving peculiar velocity along y.",
+                )
 
         return cls(inputs=inputs, redshift=redshift, **out, **kw)
 
@@ -919,11 +1028,36 @@ class HaloCatalog(OutputStructZ):
 
         return cls(
             inputs=inputs,
-            halo_masses=Array((buffer_size,), dtype=np.float32),
-            star_rng=Array((buffer_size,), dtype=np.float32),
-            sfr_rng=Array((buffer_size,), dtype=np.float32),
-            xray_rng=Array((buffer_size,), dtype=np.float32),
-            halo_coords=Array((buffer_size, 3), dtype=np.float32),
+            halo_masses=Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=un.M_sun,
+                description="Halo mass.",
+            ),
+            star_rng=Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Correlated Gaussian random variate for the stellar mass scaling relation.",
+            ),
+            sfr_rng=Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Correlated Gaussian random variate for the star-formation rate scaling relation.",
+            ),
+            xray_rng=Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Correlated Gaussian random variate for the X-ray luminosity scaling relation.",
+            ),
+            halo_coords=Array(
+                (buffer_size, 3),
+                dtype=np.float32,
+                unit=un.Mpc,
+                description="Comoving halo coordinates.",
+            ),
             redshift=redshift,
             buffer_size=buffer_size,
             **kw,
@@ -1065,19 +1199,64 @@ class PerturbedHaloCatalog(OutputStructZ):
             )
 
         out = {
-            "halo_coords": Array((buffer_size, 3), dtype=np.float32),
-            "halo_masses": Array((buffer_size,), dtype=np.float32),
-            "stellar_masses_acg": Array((buffer_size,), dtype=np.float32),
-            "sfr_acg": Array((buffer_size,), dtype=np.float32),
-            "n_ion": Array((buffer_size,), dtype=np.float32),
+            "halo_coords": Array(
+                (buffer_size, 3),
+                dtype=np.float32,
+                unit=un.Mpc,
+                description="Displaced comoving halo coordinates.",
+            ),
+            "halo_masses": Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=un.M_sun,
+                description="Halo mass.",
+            ),
+            "stellar_masses_acg": Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=un.M_sun,
+                description="Stellar mass in atomic-cooling galaxies.",
+            ),
+            "sfr_acg": Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=_SFR_UNIT,
+                description="Star-formation rate in atomic-cooling galaxies.",
+            ),
+            "n_ion": Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=un.Mpc**3,
+                description="Volume-equivalent escaped ionizing-photon contribution.",
+            ),
         }
         if inputs.astro_options.USE_TS_FLUCT:
-            out["xray_luminosity"] = Array((buffer_size,), dtype=np.float32)
+            out["xray_luminosity"] = Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=_XRAY_LUMINOSITY_UNIT,
+                description="X-ray luminosity.",
+            )
         if inputs.astro_options.RECOMB_MODEL != "none":
-            out["fesc_weighted_sfr"] = Array((buffer_size,), dtype=np.float32)
+            out["fesc_weighted_sfr"] = Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=_SFR_UNIT,
+                description="Star-formation rate weighted by ionizing yield and escape fraction.",
+            )
         if inputs.astro_options.USE_MCGS:
-            out["stellar_masses_mcg"] = Array((buffer_size,), dtype=np.float32)
-            out["sfr_mcg"] = Array((buffer_size,), dtype=np.float32)
+            out["stellar_masses_mcg"] = Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=un.M_sun,
+                description="Stellar mass in molecular-cooling galaxies.",
+            )
+            out["sfr_mcg"] = Array(
+                (buffer_size,),
+                dtype=np.float32,
+                unit=_SFR_UNIT,
+                description="Star-formation rate in molecular-cooling galaxies.",
+            )
 
         return cls(
             inputs=inputs,
@@ -1207,27 +1386,74 @@ class EmissivityFields(OutputStructZ):
 
         # TODO: right now it's a waste of memory and time to compute n_ion for Eulerian source models,
         # this might change in the future
-        out = {"n_ion": Array(shape, dtype=np.float32)}
+        out = {
+            "n_ion": Array(
+                shape,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Escaped ionizing-photon budget per mean baryon in the comoving cell.",
+            )
+        }
 
         # TODO: similarly, as above, fesc_weighted_sfrd is only needed for Lagrangian source models at the moment, but this might change
         if (
             inputs.astro_options.RECOMB_MODEL != "none"
             and inputs.matter_options.lagrangian_source_grid
         ):
-            out["fesc_weighted_sfrd"] = Array(shape, dtype=np.float32)
+            out["fesc_weighted_sfrd"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=_SFR_DENSITY_UNIT,
+                description="Comoving star-formation-rate density weighted by ionizing yield and escape fraction.",
+            )
 
         if inputs.astro_options.USE_TS_FLUCT:
-            out["xray_emissivity"] = Array(shape, dtype=np.float32)
-            out["sfrd_acg"] = Array(shape, dtype=np.float32)
+            out["xray_emissivity"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=_XRAY_EMISSIVITY_UNIT,
+                description="Comoving X-ray luminosity density.",
+            )
+            out["sfrd_acg"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=_SFR_DENSITY_UNIT,
+                description="Comoving star-formation-rate density in atomic-cooling galaxies.",
+            )
             if inputs.astro_options.USE_MCGS:
-                out["sfrd_mcg"] = Array(shape, dtype=np.float32)
+                out["sfrd_mcg"] = Array(
+                    shape,
+                    dtype=np.float32,
+                    unit=_SFR_DENSITY_UNIT,
+                    description="Comoving star-formation-rate density in molecular-cooling galaxies.",
+                )
 
         if config["EXTRA_EMISSIVITY_FIELDS"]:
-            out["halo_number"] = Array(shape, dtype=np.float32)
-            out["halo_mass_density"] = Array(shape, dtype=np.float32)
-            out["stellar_mass_density_acg"] = Array(shape, dtype=np.float32)
+            out["halo_number"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Deposited halo count per cell.",
+            )
+            out["halo_mass_density"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=_MASS_DENSITY_UNIT,
+                description="Comoving halo mass density.",
+            )
+            out["stellar_mass_density_acg"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=_MASS_DENSITY_UNIT,
+                description="Comoving stellar mass density in atomic-cooling galaxies.",
+            )
             if inputs.astro_options.USE_MCGS:
-                out["stellar_mass_density_mcg"] = Array(shape, dtype=np.float32)
+                out["stellar_mass_density_mcg"] = Array(
+                    shape,
+                    dtype=np.float32,
+                    unit=_MASS_DENSITY_UNIT,
+                    description="Comoving stellar mass density in molecular-cooling galaxies.",
+                )
 
         return cls(
             inputs=inputs,
@@ -1629,74 +1855,174 @@ class RadiationFieldsSetup(OutputStructZ):
         )
 
         out = {
-            "R_values": Array((inputs.astro_params.N_STEP_TS,), dtype=np.float64),
-            "zpp_avg": Array((inputs.astro_params.N_STEP_TS,), dtype=np.float64),
-            "zpp_edges": Array((inputs.astro_params.N_STEP_TS,), dtype=np.float64),
+            "R_values": Array(
+                (inputs.astro_params.N_STEP_TS,),
+                dtype=np.float64,
+                unit=un.Mpc,
+                description="Comoving radiation-shell radius.",
+            ),
+            "zpp_avg": Array(
+                (inputs.astro_params.N_STEP_TS,),
+                dtype=np.float64,
+                unit=un.dimensionless_unscaled,
+                description="Radiation-shell mean redshift.",
+            ),
+            "zpp_edges": Array(
+                (inputs.astro_params.N_STEP_TS,),
+                dtype=np.float64,
+                unit=un.dimensionless_unscaled,
+                description="Radiation-shell outer-edge redshift.",
+            ),
             "freq_int_heat_tbl": Array(
-                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS),
+                dtype=np.float64,
+                unit=_HEATING_FREQ_INTEGRAL_UNIT,
+                description="X-ray heating frequency integral.",
             ),
             "freq_int_ion_tbl": Array(
-                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS),
+                dtype=np.float64,
+                unit=_IONIZATION_FREQ_INTEGRAL_UNIT,
+                description="X-ray ionization frequency integral.",
             ),
             "freq_int_lya_tbl": Array(
-                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS),
+                dtype=np.float64,
+                unit=_LYA_FREQ_INTEGRAL_UNIT,
+                description="X-ray-induced Lyman-alpha frequency integral.",
             ),
             "freq_int_heat_tbl_diff": Array(
-                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS),
+                dtype=np.float64,
+                unit=_HEATING_FREQ_INTEGRAL_UNIT,
+                description="Adjacent electron-fraction difference of the X-ray heating frequency integral.",
             ),
             "freq_int_ion_tbl_diff": Array(
-                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS),
+                dtype=np.float64,
+                unit=_IONIZATION_FREQ_INTEGRAL_UNIT,
+                description="Adjacent electron-fraction difference of the X-ray ionization frequency integral.",
             ),
             "freq_int_lya_tbl_diff": Array(
-                (x_int_NXHII, inputs.astro_params.N_STEP_TS), dtype=np.float64
+                (x_int_NXHII, inputs.astro_params.N_STEP_TS),
+                dtype=np.float64,
+                unit=_LYA_FREQ_INTEGRAL_UNIT,
+                description="Adjacent electron-fraction difference of the X-ray-induced Lyman-alpha frequency integral.",
             ),
-            "inverse_diff": Array((x_int_NXHII,), dtype=np.float32),
-            "m_xHII_low_box": Array(shape, dtype=np.int32),
-            "inverse_val_box": Array(shape, dtype=np.float32),
-            "filtered_sfrd_acg_for_lya": Array(shape, dtype=np.float32),
-            "filtered_xray_emissivity": Array(shape, dtype=np.float32),
+            "inverse_diff": Array(
+                (x_int_NXHII,),
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Inverse electron-fraction interval for frequency-table interpolation.",
+            ),
+            "m_xHII_low_box": Array(
+                shape,
+                dtype=np.int32,
+                unit=un.dimensionless_unscaled,
+                description="Lower electron-fraction interpolation-table index.",
+            ),
+            "inverse_val_box": Array(
+                shape,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="Electron-fraction interpolation weight.",
+            ),
+            "filtered_sfrd_acg_for_lya": Array(
+                shape,
+                dtype=np.float32,
+                unit=_SFR_DENSITY_UNIT,
+                description="Shell-filtered comoving star-formation-rate density for Lyman-alpha from atomic-cooling galaxies.",
+            ),
+            "filtered_xray_emissivity": Array(
+                shape,
+                dtype=np.float32,
+                unit=_XRAY_EMISSIVITY_UNIT,
+                description="Shell-filtered comoving X-ray luminosity density.",
+            ),
         }
 
         if inputs.astro_options.USE_MCGS:
-            out["filtered_sfrd_mcg_for_lya"] = Array(shape, dtype=np.float32)
+            out["filtered_sfrd_mcg_for_lya"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=_SFR_DENSITY_UNIT,
+                description="Shell-filtered comoving star-formation-rate density for Lyman-alpha from molecular-cooling galaxies.",
+            )
             if inputs.astro_options.LYA_MULTIPLE_SCATTERING:
-                out["filtered_sfrd_acg_for_lw"] = Array(shape, dtype=np.float32)
-                out["filtered_sfrd_mcg_for_lw"] = Array(shape, dtype=np.float32)
+                out["filtered_sfrd_acg_for_lw"] = Array(
+                    shape,
+                    dtype=np.float32,
+                    unit=_SFR_DENSITY_UNIT,
+                    description="Shell-filtered comoving star-formation-rate density for Lyman-Werner from atomic-cooling galaxies.",
+                )
+                out["filtered_sfrd_mcg_for_lw"] = Array(
+                    shape,
+                    dtype=np.float32,
+                    unit=_SFR_DENSITY_UNIT,
+                    description="Shell-filtered comoving star-formation-rate density for Lyman-Werner from molecular-cooling galaxies.",
+                )
 
         if inputs.astro_options.USE_LYA_HEATING:
             out["lya_flux_continuum_prefactor_acg"] = Array(
-                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                (inputs.astro_params.N_STEP_TS,),
+                dtype=np.float64,
+                unit=_LYA_SPECTRUM_UNIT,
+                description="Redshift-weighted Lyman-alpha continuum spectral factor for atomic-cooling galaxies.",
             )
             out["lya_flux_injected_prefactor_acg"] = Array(
-                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                (inputs.astro_params.N_STEP_TS,),
+                dtype=np.float64,
+                unit=_LYA_SPECTRUM_UNIT,
+                description="Redshift-weighted Lyman-alpha injected spectral factor for atomic-cooling galaxies.",
             )
         else:
             out["lya_flux_continuum_injected_prefactor_acg"] = Array(
-                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                (inputs.astro_params.N_STEP_TS,),
+                dtype=np.float64,
+                unit=_LYA_SPECTRUM_UNIT,
+                description="Redshift-weighted Lyman-alpha continuum plus injected spectral factor for atomic-cooling galaxies.",
             )
 
         if inputs.astro_options.USE_MCGS:
             out["lyw_flux_prefactor_acg"] = Array(
-                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                (inputs.astro_params.N_STEP_TS,),
+                dtype=np.float64,
+                unit=un.dimensionless_unscaled,
+                description="Redshift-weighted energy-integrated Lyman-Werner spectral factor for atomic-cooling galaxies.",
             )
             out["lyw_flux_prefactor_mcg"] = Array(
-                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                (inputs.astro_params.N_STEP_TS,),
+                dtype=np.float64,
+                unit=un.dimensionless_unscaled,
+                description="Redshift-weighted energy-integrated Lyman-Werner spectral factor for molecular-cooling galaxies.",
             )
             if inputs.astro_options.USE_LYA_HEATING:
                 out["lya_flux_continuum_prefactor_mcg"] = Array(
-                    (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                    (inputs.astro_params.N_STEP_TS,),
+                    dtype=np.float64,
+                    unit=_LYA_SPECTRUM_UNIT,
+                    description="Redshift-weighted Lyman-alpha continuum spectral factor for molecular-cooling galaxies.",
                 )
                 out["lya_flux_injected_prefactor_mcg"] = Array(
-                    (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                    (inputs.astro_params.N_STEP_TS,),
+                    dtype=np.float64,
+                    unit=_LYA_SPECTRUM_UNIT,
+                    description="Redshift-weighted Lyman-alpha injected spectral factor for molecular-cooling galaxies.",
                 )
             else:
                 out["lya_flux_continuum_injected_prefactor_mcg"] = Array(
-                    (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                    (inputs.astro_params.N_STEP_TS,),
+                    dtype=np.float64,
+                    unit=_LYA_SPECTRUM_UNIT,
+                    description="Redshift-weighted Lyman-alpha continuum plus injected spectral factor for molecular-cooling galaxies.",
                 )
 
         if inputs.astro_options.USE_MCGS:
             out["ave_log10_MturnLW"] = Array(
-                (inputs.astro_params.N_STEP_TS,), dtype=np.float64
+                (inputs.astro_params.N_STEP_TS,),
+                dtype=np.float64,
+                unit=un.dimensionless_unscaled,
+                description="Mean log10(M_turn/M_sun) for molecular-cooling galaxies.",
             )
 
         return cls(
@@ -1825,20 +2151,55 @@ class RadiationFields(OutputStructZ):
 
         # TODO: the arrays below are defined as np.float64, but should be np.float32 - see https://github.com/21cmfast/21cmFAST/issues/744
         out = {
-            "xray_ionization_rate": Array(shape, dtype=np.float64),
-            "xray_lya_flux": Array(shape, dtype=np.float64),
+            "xray_ionization_rate": Array(
+                shape,
+                dtype=np.float64,
+                unit=_XRAY_IONIZATION_RATE_UNIT,
+                description="X-ray contribution to the electron-fraction time derivative.",
+            ),
+            "xray_lya_flux": Array(
+                shape,
+                dtype=np.float64,
+                unit=_LYA_NUMBER_INTENSITY_UNIT,
+                description="Lyman-alpha photon-number specific intensity from X-rays; photon counts are implicit.",
+            ),
         }
         if inputs.astro_options.USE_MCGS:
-            out["lyw_flux"] = Array(shape, dtype=np.float64)
+            out["lyw_flux"] = Array(
+                shape,
+                dtype=np.float64,
+                unit=_LW_INTENSITY_UNIT,
+                description="Band-averaged Lyman-Werner specific energy intensity.",
+            )
 
         if inputs.astro_options.USE_X_RAY_HEATING:
-            out["xray_heating_rate"] = Array(shape, dtype=np.float64)
+            out["xray_heating_rate"] = Array(
+                shape,
+                dtype=np.float64,
+                unit=_XRAY_HEATING_RATE_UNIT,
+                description="X-ray contribution to the gas-temperature time derivative.",
+            )
 
         if inputs.astro_options.USE_LYA_HEATING:
-            out["lya_flux_continuum"] = Array(shape, dtype=np.float64)
-            out["lya_flux_injected"] = Array(shape, dtype=np.float64)
+            out["lya_flux_continuum"] = Array(
+                shape,
+                dtype=np.float64,
+                unit=_LYA_NUMBER_INTENSITY_UNIT,
+                description="Stellar Lyman-alpha continuum photon-number specific intensity; photon counts are implicit.",
+            )
+            out["lya_flux_injected"] = Array(
+                shape,
+                dtype=np.float64,
+                unit=_LYA_NUMBER_INTENSITY_UNIT,
+                description="Stellar Lyman-alpha injected photon-number specific intensity; photon counts are implicit.",
+            )
         else:
-            out["lya_flux_continuum_injected"] = Array(shape, dtype=np.float64)
+            out["lya_flux_continuum_injected"] = Array(
+                shape,
+                dtype=np.float64,
+                unit=_LYA_NUMBER_INTENSITY_UNIT,
+                description="Stellar Lyman-alpha continuum plus injected photon-number specific intensity; photon counts are implicit.",
+            )
 
         return cls(
             inputs=inputs,
@@ -2179,7 +2540,7 @@ class IonizedBox(OutputStructZ):
                 dtype=np.float32,
                 unit=un.dimensionless_unscaled,
                 description=(
-                    "Redshift tracked by the cell-centred ionization barrier; "
+                    "Redshift at which the cell was ionized; "
                     "-1 when no value is recorded."
                 ),
             ),
@@ -2208,14 +2569,14 @@ class IonizedBox(OutputStructZ):
                 shape,
                 dtype=np.float32,
                 unit=un.dimensionless_unscaled,
-                description="Cumulative recombination count used by the ionization model.",
+                description="Cumulative recombination count per baryon.",
             )
         elif inputs.astro_options.RECOMB_MODEL == "homogeneous":
             out["cumulative_recombinations"] = Array(
                 (1, 1, 1),
                 dtype=np.float32,
                 unit=un.dimensionless_unscaled,
-                description="Cumulative recombination count used by the ionization model.",
+                description="Cumulative recombination count per baryon.",
             )
 
         if not inputs.matter_options.lagrangian_source_grid:
@@ -2393,9 +2754,21 @@ class BrightnessTemp(OutputStructZ):
             ),
         )
 
-        out = {"brightness_temp": Array(shape, dtype=np.float32)}
+        out = {
+            "brightness_temp": Array(
+                shape,
+                dtype=np.float32,
+                unit=un.mK,
+                description="21-cm brightness temperature contrast.",
+            )
+        }
         if inputs.astro_options.USE_TS_FLUCT:
-            out["tau_21"] = Array(shape, dtype=np.float32)
+            out["tau_21"] = Array(
+                shape,
+                dtype=np.float32,
+                unit=un.dimensionless_unscaled,
+                description="21-cm optical depth.",
+            )
 
         return cls(
             inputs=inputs,

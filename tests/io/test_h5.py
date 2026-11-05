@@ -10,7 +10,7 @@ import py21cmfast as p21c
 from py21cmfast import InputParameters
 from py21cmfast._templates import list_templates
 from py21cmfast.io import h5
-from py21cmfast.wrapper.outputs import IonizedBox, TsBox
+from py21cmfast.wrapper import outputs as ox
 
 
 class TestHDF5ToDict:
@@ -208,12 +208,14 @@ class TestInputsIO:
         assert new.cosmo_tables == inputs.cosmo_tables
 
 
-@pytest.mark.parametrize("struct", [TsBox, IonizedBox])
+@pytest.mark.parametrize("struct", list(ox._ALL_OUTPUT_STRUCTS.values()))
 @pytest.mark.parametrize("cache_on_access", [False, True])
 def test_output_units_restored_from_cache_without_unit_attributes(
     default_input_struct_lc, tmp_path, struct, cache_on_access
 ):
     inputs = default_input_struct_lc.evolve_input_structs(
+        HII_DIM=2,
+        DIM=4,
         USE_TS_FLUCT=True,
         USE_MCGS=True,
         V_CB_MODEL="AVG-DEBUG",
@@ -221,9 +223,13 @@ def test_output_units_restored_from_cache_without_unit_attributes(
         RECOMB_MODEL="inhomogeneous",
         R_BUBBLE_MAX=50.0,
     )
-    box = struct.new(inputs=inputs, redshift=10.0)
+    options = {"redshift": 10.0} if issubclass(struct, ox.OutputStructZ) else {}
+    if struct in (ox.HaloCatalog, ox.PerturbedHaloCatalog):
+        options.update(buffer_size=3, n_halos=3)
+    with p21c.config.use(EXTRA_EMISSIVITY_FIELDS=True):
+        box = struct.new(inputs=inputs, **options)
     for name, array in box.arrays.items():
-        setattr(box, name, array.with_value(np.full(array.shape, 2, dtype=np.float32)))
+        setattr(box, name, array.with_value(np.full(array.shape, 2, dtype=array.dtype)))
     for name in box._struct.primitive_fields:
         if getattr(box, name) is None:
             setattr(box, name, 0.0)
@@ -244,7 +250,7 @@ def test_output_units_restored_from_cache_without_unit_attributes(
         assert array.state.on_disk
         with p21c.config.use(CACHE_ARRAYS_ON_ACCESS=cache_on_access):
             quantity = array.get_quantity()
-            assert quantity.dtype == np.float32
+            assert quantity.dtype == box.arrays[name].dtype
             np.testing.assert_array_equal(quantity.value, 2)
             assert not quantity.flags.writeable
             with pytest.raises(ValueError, match="read-only"):

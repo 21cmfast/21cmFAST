@@ -13,7 +13,6 @@ import numpy as np
 from astropy import constants
 from astropy import units as un
 
-from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -86,9 +85,7 @@ def compute_initial_conditions(
             setattr(
                 ics,
                 array,
-                Array(shape=shape, dtype=np.float32)
-                .initialize()
-                .with_value(val=value * np.ones(shape)),
+                ics.arrays[array].initialize().with_value(val=value * np.ones(shape)),
             )
         return ics
     else:
@@ -107,7 +104,7 @@ def compute_initial_conditions(
                 )
 
             ics.hires_density = (
-                Array(shape=shape, dtype=np.float32)
+                ics.arrays["hires_density"]
                 .initialize()
                 ._with_value_not_computed(val=initial_density)
             )

@@ -11,7 +11,6 @@ import numpy as np
 from .. import __version__
 from ..io import h5
 from ..io.caching import CacheConfig
-from ..wrapper.arrays import Array
 from ..wrapper.inputs import InputParameters
 from ..wrapper.outputs import (
     BrightnessTemp,
@@ -131,9 +130,7 @@ def compute_global_reionization_at_z(
         setattr(
             box,
             name,
-            Array(shape=shape, dtype=np.float32)
-            .initialize()
-            .with_value(val=val * np.ones(shape)),
+            box.arrays[name].initialize().with_value(val=val * np.ones(shape)),
         )
     box.log10_mturn_ave_acg = np.log10(M_turn_acg)
     if M_turn_mcg is not None:

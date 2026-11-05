@@ -91,6 +91,16 @@ def _array_value_repr(x: np.ndarray | None) -> str:
         )
 
 
+def _quantity_from_values(
+    values: np.ndarray, unit: un.UnitBase, *, copy: bool
+) -> un.Quantity:
+    """Wrap resolved values with the same dtype and shared/copy policy."""
+    quantity = un.Quantity(values, unit=unit, dtype=None, copy=copy)
+    if not copy:
+        quantity.flags.writeable = False
+    return quantity
+
+
 @attrs.define(slots=False, frozen=True)
 class Array:
     """
@@ -130,16 +140,18 @@ class Array:
     cache_backend
         Optional backend for disk caching.
     unit
-        Unit of the stored values, or None if unspecified. Scaled units preserve
+        Required unit of the stored values. Scaled units preserve
         the normalization of the stored data; dimensionless fields use
-        ``astropy.units.dimensionless_unscaled``.
+        ``astropy.units.dimensionless_unscaled``. Old pickles may retain None
+        when their unit is unknown; raw access remains available in that case.
     description
-        Optional description of the physical quantity.
+        Required, nonempty description of the physical quantity. Legacy pickles
+        can retain unknown metadata for raw access; they are not new declarations.
 
     Examples
     --------
     # Create an array with specific shape and initialize
-    arr = Array(shape=(10, 10))
+    arr = Array(shape=(10, 10), unit=un.K, description="Temperature.")
     initialized_arr = arr.initialize()
 
     # Set a value and write to disk
@@ -162,11 +174,43 @@ class Array:
         default=None, validator=optional(instance_of(CacheBackend)), kw_only=True
     )
     unit: un.UnitBase | None = attrs.field(
-        default=None, converter=attrs.converters.optional(un.Unit), kw_only=True
+        converter=attrs.converters.optional(un.Unit), kw_only=True
     )
-    description: str | None = attrs.field(
-        default=None, validator=optional(instance_of(str)), kw_only=True
+    description: str | None = attrs.field(kw_only=True)
+    # Only deserialization sets this compatibility marker. attrs.evolve must
+    # carry it through raw-data/state transitions on old standalone arrays.
+    _legacy_metadata: bool = attrs.field(
+        default=False,
+        kw_only=True,
+        alias="_legacy_metadata",
+        validator=instance_of(bool),
+        repr=False,
+        eq=False,
     )
+
+    @unit.validator
+    def _unit_validator(self, att: attrs.Attribute, value: un.UnitBase | None) -> None:
+        if value is None and not self._legacy_metadata:
+            raise TypeError("unit must be specified for a new Array.")
+
+    @description.validator
+    def _description_validator(self, att: attrs.Attribute, value: str | None) -> None:
+        if value is None and self._legacy_metadata:
+            return
+        if not isinstance(value, str):
+            raise TypeError("description must be a string for a new Array.")
+        if not value.strip() and not self._legacy_metadata:
+            raise ValueError("description must be nonempty for a new Array.")
+
+    def __attrs_post_init__(self) -> None:
+        """Return a fully repaired legacy array to normal metadata validation."""
+        if (
+            self._legacy_metadata
+            and self.unit is not None
+            and self.description
+            and self.description.strip()
+        ):
+            object.__setattr__(self, "_legacy_metadata", False)
 
     @_value.validator
     def _value_validator(self, att, val):
@@ -183,7 +227,14 @@ class Array:
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         """Restore metadata defaults for arrays pickled before metadata was added."""
-        self.__dict__.update({"unit": None, "description": None, **state})
+        restored = {"unit": None, "description": None, **state}
+        description = restored["description"]
+        restored["_legacy_metadata"] = (
+            restored["unit"] is None
+            or not isinstance(description, str)
+            or not description.strip()
+        )
+        self.__dict__.update(restored)
 
     def initialize(self):
         """Initialize the array to its initial/default allocated state."""
@@ -322,12 +373,7 @@ class Array:
         """
         if self.unit is None:
             raise ValueError("Unit metadata is not defined for this array.")
-        quantity = un.Quantity(
-            self._resolve_value(), unit=self.unit, dtype=None, copy=copy
-        )
-        if not copy:
-            quantity.flags.writeable = False
-        return quantity
+        return _quantity_from_values(self._resolve_value(), self.unit, copy=copy)
 
     @property
     def value(self) -> np.ndarray:
@@ -411,7 +457,77 @@ _ARRAY_ONLY_NAMES = frozenset(
 )
 
 
-class _LegacyArrayView(np.ndarray):
+class _OutputArrayView(np.ndarray):
+    """Expose optional quantity access without making raw fields implicitly unitful."""
+
+    _array: Array | None = None
+
+    def __array_finalize__(self, obj: np.ndarray | None) -> None:
+        """Do not carry the source handle into slices, copies or computed data."""
+        self._array = None
+
+    def __getattribute__(self, name: str) -> Any:
+        """Offer quantity access only on the directly resolved output field."""
+        if name == "get_quantity" and super().__getattribute__("_array") is None:
+            raise AttributeError("This derived NumPy array has no field metadata.")
+        return super().__getattribute__(name)
+
+    def get_quantity(self, *, copy: bool = False) -> un.Quantity:
+        """Return the observed field values as an Astropy Quantity.
+
+        Parameters
+        ----------
+        copy
+            If False (default), return a read-only view sharing these values.
+            Set True for an independent, writable copy. The dtype is preserved.
+
+        Returns
+        -------
+        astropy.units.Quantity
+            The observed values in the field's stored unit.
+
+        Raises
+        ------
+        ValueError
+            If the unit of a legacy field is unknown.
+
+        Notes
+        -----
+        Reading the output field has already resolved its data. This method
+        does not read the cache again or follow a replacement field. Slices and
+        derived raw arrays do not retain this accessor; convert to Quantity
+        before performing operations that should propagate units.
+        """
+        unit = self._array.unit
+        if unit is None:
+            raise ValueError("Unit metadata is not defined for this array.")
+        return _quantity_from_values(np.asarray(self), unit, copy=copy)
+
+    def __array_ufunc__(
+        self, ufunc: Any, method: str, *inputs: Any, **kwargs: Any
+    ) -> Any:
+        """Compute on raw values, preserving explicitly supplied output objects."""
+        inputs = tuple(
+            np.asarray(i) if isinstance(i, _OutputArrayView) else i for i in inputs
+        )
+        outputs = kwargs.get("out")
+        if outputs is not None:
+            converted = tuple(
+                np.asarray(o) if isinstance(o, _OutputArrayView) else o for o in outputs
+            )
+            kwargs["out"] = converted if method == "__call__" else converted[0]
+        result = getattr(ufunc, method)(*inputs, **kwargs)
+        if outputs is None or method == "at":
+            return result
+        if ufunc.nout == 1:
+            return outputs[0] if outputs[0] is not None else result
+        return tuple(
+            out if out is not None else value
+            for out, value in zip(outputs, result, strict=True)
+        )
+
+
+class _LegacyArrayView(_OutputArrayView):
     """A plain numpy array that still answers `Array`-only attributes, with a warning.
 
     `OutputStruct` array attributes used to give you an `Array`; they now give you the
@@ -421,37 +537,14 @@ class _LegacyArrayView(np.ndarray):
     `.value`, `.state`, `.purged_to_disk()` and friends - are forwarded to the
     underlying `Array` after emitting a `DeprecatedWarning`.
 
-    Remove this class, and `_as_legacy_view`, when `Array.value` is removed in v5.
+    Remove this legacy forwarding layer when `Array.value` is removed in v5;
+    the quantity accessor on `_OutputArrayView` is independent of that shim.
     """
 
     #: The `Array` this view was resolved from. Deliberately *not* propagated to
     #: derived arrays (see `__array_finalize__`), so only the object handed back by
     #: `ArrayProxy.__get__` answers the legacy API.
     _array: Array | None = None
-
-    def __array_finalize__(self, obj):
-        """Deliberately do not carry the originating `Array` into derived arrays.
-
-        Slices, views and computed results are new data, not the struct's array, so
-        they must behave as plain numpy arrays. With `_array` left as None,
-        `__getattr__` raises `AttributeError` for the legacy names exactly as an
-        `np.ndarray` would - which also keeps `hasattr()` probes (astropy does a few)
-        answering the same way they would for a real array.
-
-        Nothing is lost for backwards compatibility: the old `Array` defined no
-        operators or `__getitem__`, so `ic.hires_density[0].value` never worked.
-        """
-
-    def __array_ufunc__(self, ufunc, method, *inputs, **kwargs):
-        """Compute on plain arrays, so this transitional type never leaks into results."""
-        inputs = tuple(
-            np.asarray(i) if type(i) is _LegacyArrayView else i for i in inputs
-        )
-        if (out := kwargs.get("out")) is not None:
-            kwargs["out"] = tuple(
-                np.asarray(o) if type(o) is _LegacyArrayView else o for o in out
-            )
-        return getattr(ufunc, method)(*inputs, **kwargs)
 
     def __getattr__(self, name: str) -> Any:
         """Forward `Array`-only attributes to the originating `Array`, with a warning.
@@ -485,8 +578,8 @@ class _LegacyArrayView(np.ndarray):
 
 
 def _as_legacy_view(value: np.ndarray, array: Array) -> _LegacyArrayView:
-    """Wrap resolved data in the transitional view, without copying it."""
-    view = value.view(_LegacyArrayView)
+    """Wrap resolved data with optional quantity access and legacy forwarding."""
+    view = np.asarray(value).view(_LegacyArrayView)
     view._array = array
     return view
 
@@ -497,7 +590,8 @@ class ArrayProxy:
     The `Array` itself is stored in a private attrs field (`_<name>`) and remains
     reachable via `OutputStruct.arrays[<name>]`, which is where the memory-management
     API lives. Reading the public attribute gives you the data, loading it from disk
-    first if it has been purged.
+    first if it has been purged. The returned view provides ``get_quantity()`` for
+    explicit unit-aware access; units and descriptions live on the Array manager.
 
     Whether that load is *kept* is governed by `config["CACHE_ARRAYS_ON_ACCESS"]`: by
     default the loaded data is cached back onto the struct, so repeated access is
