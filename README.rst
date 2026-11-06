@@ -46,7 +46,7 @@ large-scale cosmological 21-cm signal. The speed of ``21cmFAST`` is important
 to produce simulations that are large enough (several Gpc across) to represent modern
 low-frequency observations.
 
-Full **documentation** (with `examples <https://21cmfast.readthedocs.io/tutorials.html>`_,
+Full **documentation** (with `examples <https://21cmfast.readthedocs.io/en/latest/tutorials.html>`_,
 `installation instructions <https://21cmfast.readthedocs.io/en/latest/installation.html>`_ and
 `full API reference <https://21cmfast.readthedocs.io/en/latest/reference/index.html>`_)
 found at https://21cmfast.readthedocs.io.
