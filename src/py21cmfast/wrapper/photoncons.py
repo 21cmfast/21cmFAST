@@ -291,7 +291,11 @@ def calibrate_photon_cons(
     See docs of :func:`compute_initial_conditions` for more information.
     """
     # avoiding circular imports by importing here
-    from ..drivers.single_field import compute_ionization_field, perturb_field
+    from ..drivers.single_field import (
+        compute_emissivity_fields,
+        compute_ionization_field,
+        perturb_field,
+    )
 
     # Create a new astro_params and astro_options just for the photon_cons correction
     # NOTE: Since the calibration cannot do recombinations, we set the R_BUBBLE_MAX
@@ -311,6 +315,9 @@ def calibrate_photon_cons(
         RECOMB_MODEL="none",
         USE_MCGS=False,
         SOURCE_MODEL=source_model_calibration[inputs.matter_options.SOURCE_MODEL],
+        # The upper stellar turnover needs discrete halos, and the analytic Q(z) that
+        # the calibration is matched to has none either (as in global_evolution).
+        USE_UPPER_STELLAR_TURNOVER=False,
         PHOTON_CONS_TYPE="no-photoncons",
         R_BUBBLE_MAX=(
             15
@@ -338,6 +345,15 @@ def calibrate_photon_cons(
     #   Since the z-step is Q-dependent, we can't predict the redshifts
     inputs_calibration = inputs_calibration.clone(node_redshifts=None)
 
+    # The calibration may use another SOURCE_MODEL than the run. That doesn't change
+    # the initial conditions, but SOURCE_MODEL is part of their compatibility hash, so
+    # give the calibration the same arrays, labelled with the calibration's inputs.
+    if (
+        inputs_calibration.matter_options.SOURCE_MODEL
+        != initial_conditions.matter_options.SOURCE_MODEL
+    ):
+        initial_conditions = attrs.evolve(initial_conditions, inputs=inputs_calibration)
+
     # The calibration simulation deliberately runs with modified inputs, so hold them
     # open for the whole loop: the calls inside then share a single scope instead of
     # each rebuilding the backend, and everything after the loop sees `inputs` again.
@@ -352,12 +368,25 @@ def calibrate_photon_cons(
                 **kwargs,
             )
 
+            # Lagrangian source grids (L-INTEGRAL) need the emissivity fields.
+            emissivity_fields = None
+            if inputs_calibration.matter_options.lagrangian_source_grid:
+                emissivity_fields = compute_emissivity_fields(
+                    redshift=z,
+                    inputs=inputs_calibration,
+                    initial_conditions=initial_conditions,
+                    perturbed_field=this_perturb,
+                    previous_ionize_box=ib,
+                    **kwargs,
+                )
+
             ib2 = compute_ionization_field(
                 inputs=inputs_calibration,
                 previous_ionized_box=ib,
                 initial_conditions=initial_conditions,
                 perturbed_field=this_perturb,
                 previous_perturbed_field=prev_perturb,
+                emissivity_fields=emissivity_fields,
                 **kwargs,
             )
 

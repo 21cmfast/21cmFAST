@@ -102,6 +102,37 @@ def test_inhomo_reco_is_removed():
         AstroOptions(INHOMO_RECO=True)
 
 
+@pytest.mark.parametrize(
+    ("alias", "replacement"),
+    [
+        (
+            {
+                "USE_MINI_HALOS": True,
+                "USE_TS_FLUCT": True,
+                "RECOMB_MODEL": "inhomogeneous",
+            },
+            {"USE_MCGS": False},
+        ),
+        ({"INHOMO_RECO": True}, {"RECOMB_MODEL": "none"}),
+    ],
+)
+def test_clone_drops_deprecated_aliases(alias, replacement):
+    """A deprecated alias does not contradict a new value of the field replacing it.
+
+    The alias only gives its value to the new field when the instance is created.
+    """
+    with pytest.warns(deprecation.DeprecatedWarning):
+        opts = AstroOptions(**alias)
+
+    new = opts.clone(**replacement)
+    for name, value in replacement.items():
+        assert getattr(new, name) == value
+
+    # The other parameters keep their values, which came from the alias.
+    assert opts.clone(USE_LYA_HEATING=False).USE_MCGS == opts.USE_MCGS
+    assert opts.clone(USE_LYA_HEATING=False).RECOMB_MODEL == opts.RECOMB_MODEL
+
+
 def test_use_relative_velocities_deprecated_warning():
     """Test that using USE_RELATIVE_VELOCITIES=True shows deprecation warning."""
     with pytest.warns(

@@ -3,10 +3,19 @@
 from operator import eq
 from typing import Any
 
+import numpy as np
+
 from .wrapper.inputs import InputParameters
 
 # allow print functions and ambiguous unicode characters
 # ruff: noqa: RUF001
+
+
+def _array_aware_eq(a: Any, b: Any) -> bool:
+    """Compare two values, element-wise (and as a whole) if either is an array."""
+    if isinstance(a, np.ndarray) or isinstance(b, np.ndarray):
+        return np.shape(a) == np.shape(b) and bool(np.array_equal(a, b))
+    return bool(eq(a, b))
 
 
 def recursive_difference(
@@ -35,7 +44,7 @@ def recursive_difference(
             if diff:
                 out[key] = diff
         else:
-            _eq = cmprules.get(type(val1), eq)
+            _eq = cmprules.get(type(val1), _array_aware_eq)
             if not _eq(val1, dct2.get(key, None)):
                 out[key] = val1
 
