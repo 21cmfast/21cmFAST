@@ -294,21 +294,13 @@ def test_lc_global_quantities(
         rtol=1e-5,
     )
 
-    # Every coeval came from the cache. Of the fields that the lightcone needs only
-    # for global quantities, only the requested ones were read, once per node
-    # redshift. (The redshift loop also loads each PerturbedField, whatever the
-    # global quantities.)
+    # Every coeval came from the cache, and only the lightcone's field and the
+    # requested global quantities were read, once per node redshift.
     n_nodes = len(default_input_struct_lc.node_redshifts)
     read_fields = [dataset.split("/")[-1] for dataset in reads]
+    assert set(read_fields) == {"brightness_temp", "neutral_fraction"}
     assert read_fields.count("brightness_temp") == n_nodes
     assert read_fields.count("neutral_fraction") == n_nodes
-    not_requested = {
-        name
-        for kind in (p21c.EmissivityFields, p21c.IonizedBox, p21c.BrightnessTemp)
-        for name in kind.new(default_input_struct_lc, redshift=0).arrays
-    } - {"brightness_temp", "neutral_fraction"}
-    assert not_requested
-    assert not not_requested & set(read_fields)
 
 
 def test_lc_global_quantities_default(
@@ -371,3 +363,49 @@ def test_lc_global_quantities_resume(
     assert set(lc2.global_quantities) == set(lc.global_quantities)
 
     fname.unlink()
+
+
+# The "tiny" template sets R_BUBBLE_MAX with recombinations on, which warns.
+@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+def test_lc_from_cache_reads_only_what_it_needs(tmp_path, monkeypatch):
+    """From cached coevals, a lightcone reads only its own fields.
+
+    With discrete halos and spin temperature, the redshift loop used to load every
+    PerturbedField and HaloCatalog array, and the emissivity fields for the
+    radiation fields, at every node redshift, although nothing was computed.
+    """
+    inputs = (
+        p21c.InputParameters.from_template(["latest-discrete", "tiny"], random_seed=5)
+        .evolve_input_structs(USE_TS_FLUCT=True, Z_HEAT_MAX=15)
+        .with_logspaced_redshifts(zmin=10, zmax=15)
+    )
+    lcn = p21c.RectilinearLightconer.between_redshifts(
+        min_redshift=10.5,
+        max_redshift=14.0,
+        resolution=inputs.simulation_options.cell_size,
+        cosmo=inputs.cosmo_params.cosmo,
+        quantities=("brightness_temp",),
+    )
+    kwargs = {
+        "lightconer": lcn,
+        "inputs": inputs,
+        "cache": p21c.OutputCache(tmp_path),
+        "include_dvdr_in_tau21": False,
+    }
+    lc = p21c.run_lightcone(**kwargs)
+
+    reads = _count_array_reads(monkeypatch)
+    lc_cached = p21c.run_lightcone(
+        regenerate=False, global_quantities=("brightness_temp",), **kwargs
+    )
+
+    np.testing.assert_array_equal(
+        lc_cached.lightcones["brightness_temp"], lc.lightcones["brightness_temp"]
+    )
+    np.testing.assert_array_equal(
+        lc_cached.global_quantities["brightness_temp"],
+        lc.global_quantities["brightness_temp"],
+    )
+    assert reads == ["/BrightnessTemp/OutputFields/brightness_temp"] * len(
+        inputs.node_redshifts
+    )

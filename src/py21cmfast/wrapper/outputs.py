@@ -1327,7 +1327,14 @@ class EmissivityFields(OutputStructZ):
                 keep += ["sfrd_acg", "xray_emissivity"]
                 if self.astro_options.USE_MCGS:
                     keep += ["sfrd_mcg"]
-        self.prepare(keep=keep, force=force)
+        # Only flush: the arrays we keep stay where they are. Those that are only on
+        # disk (e.g. read from the cache) are read when a computation needs them.
+        flush = [
+            k
+            for k, array in self.arrays.items()
+            if k not in keep and array.state.initialized
+        ]
+        self.prepare(flush=flush, keep=[], force=force)
 
     @property
     def count(self) -> Array:
