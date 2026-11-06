@@ -595,6 +595,11 @@ class AngularLightconer(Lightconer):
             raise ValueError("longitude must be in the range [0, 2pi]")
         if value.shape != self.latitude.shape:
             raise ValueError("longitude and latitude must have the same shape")
+        if value.ndim == 2 and value.shape[0] == 0:
+            raise ValueError(
+                "2D latitude and longitude need at least one direction per pixel "
+                "(their first dimension is empty)"
+            )
         if value.ndim == 2 and not _COSMOTILE_AVERAGES_SUBSAMPLES:
             raise ValueError(
                 "Pixels averaged over several directions (2D latitude and longitude) "
@@ -631,8 +636,8 @@ class AngularLightconer(Lightconer):
         order
             The ordering of the pixels, "ring" or "nested".
         pixels
-            The indices (in ``order``) of the pixels to include, for a map of part of
-            the sky. All ``12 * nside**2`` pixels by default.
+            The distinct indices (in ``order``) of the pixels to include, for a map of
+            part of the sky. All ``12 * nside**2`` pixels by default.
         subsample_level
             If 0 (the default), each pixel takes the value of the field at its
             centre. If ``k > 0``, each pixel is the mean of the field at the centres
@@ -695,10 +700,11 @@ class AngularLightconer(Lightconer):
                 or not np.issubdtype(pixels.dtype, np.integer)
                 or pixels.min() < 0
                 or pixels.max() >= hp.npix
+                or np.unique(pixels).size != pixels.size
             ):
                 raise ValueError(
-                    "pixels must be a non-empty 1D array of pixel indices between 0 "
-                    f"and {hp.npix - 1}"
+                    "pixels must be a non-empty 1D array of distinct pixel indices "
+                    f"between 0 and {hp.npix - 1}"
                 )
             lat, lon = lat[..., pixels], lon[..., pixels]
 

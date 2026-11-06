@@ -60,12 +60,23 @@ def test_healpix_partial_sky():
         {"pixels": [-1]},
         {"pixels": [0.5]},
         {"pixels": []},
+        {"pixels": [3, 5, 3]},
     ],
 )
 def test_healpix_bad_inputs(kwargs):
     with pytest.raises(ValueError, match=r"order|subsample_level|pixels"):
         lcn.AngularLightconer.healpix(
             nside=8, lc_redshifts=np.linspace(6, 7, 5), **kwargs
+        )
+
+
+def test_no_empty_subsamples():
+    """2D directions need at least one direction per pixel."""
+    with pytest.raises(ValueError, match="at least one direction per pixel"):
+        lcn.AngularLightconer(
+            longitude=np.zeros((0, 10)),
+            latitude=np.zeros((0, 10)),
+            lc_redshifts=np.linspace(6, 7, 5),
         )
 
 
