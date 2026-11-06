@@ -307,6 +307,8 @@ def test_lc_global_quantities_default(
     lc, rectlcn, ic, default_input_struct_lc, cache, monkeypatch
 ):
     """By default, the mean of every field is saved, which reads every field."""
+    from py21cmfast.io.caching import RunCache
+
     reads = _count_array_reads(monkeypatch)
     lc_all = p21c.run_lightcone(
         lightconer=rectlcn,
@@ -324,6 +326,22 @@ def test_lc_global_quantities_default(
         "log10_mturn_acg",
         "log10_mturn_mcg",
     }
+
+    # The saved values are the means of the cached boxes, read independently.
+    run = RunCache.from_inputs(default_input_struct_lc, cache)
+    for iz, z in enumerate(default_input_struct_lc.node_redshifts):
+        coeval = run.get_coeval_at_z(z)
+        for name in fields:
+            if name.startswith("log10_mturn"):
+                expected = getattr(coeval.ionized_box, f"log10_mturn_ave_{name[-3:]}")
+            else:
+                expected = np.mean(getattr(coeval, name))
+            np.testing.assert_allclose(
+                lc_all.global_quantities[name][iz],
+                expected,
+                rtol=1e-6,
+                err_msg=f"{name} at z={z}",
+            )
 
 
 def test_lc_global_quantities_bad(rectlcn, default_input_struct_lc):
