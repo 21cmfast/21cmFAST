@@ -435,6 +435,51 @@ def test_integration_dimensions_fail_independently_of_numerical_comparison(
         case.compare()
 
 
+@pytest.mark.parametrize(("scale", "fails"), [(1.2, False), (1.3, True)])
+def test_integration_reports_smaller_power_mismatches(
+    integration_reference: SimpleNamespace, scale: float, fails: bool
+) -> None:
+    case = integration_reference
+    case.powers["spin_temperature"] *= scale
+    if fails:
+        with pytest.raises(
+            AssertionError, match=r"physical values differ.*spin_temperature"
+        ):
+            case.compare()
+    else:
+        case.compare()
+    assert any(
+        key == "reference_mismatch_summary" and value.startswith("spin_temperature ")
+        for key, value in case.request.node.user_properties
+    )
+
+
+@pytest.mark.parametrize(
+    ("field", "tail_power", "fails"),
+    [
+        ("z_reion", 1e-15, False),
+        ("z_reion", 1e-12, True),
+        ("neutral_fraction", 1e-15, True),
+    ],
+)
+def test_integration_zero_power_roundoff_is_limited_to_reionization_redshift(
+    integration_reference: SimpleNamespace, field: str, tail_power: float, fails: bool
+) -> None:
+    case = integration_reference
+    with h5py.File(case.path, "r+") as reference:
+        reference[case.kind][f"power_{field}"][...] = [1.0, 0.0]
+    case.powers[field] = (np.array([1.0, tail_power]) * u.Mpc**3).to(u.kpc**3)
+    if fails:
+        with pytest.raises(AssertionError, match=rf"physical values differ.*{field}"):
+            case.compare()
+    else:
+        case.compare()
+    assert any(
+        key == "reference_mismatch_summary" and value.startswith(f"{field} ")
+        for key, value in case.request.node.user_properties
+    )
+
+
 def test_physical_dimension_check_ignores_global_equivalencies() -> None:
     mass = [1.0] * u.kg
     energy = mass.to(u.J, equivalencies=u.mass_energy())
