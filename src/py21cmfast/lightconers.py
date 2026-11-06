@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from functools import cached_property, partial
 
 import attrs
+import cosmotile
 import deprecation
 import numpy as np
 from astropy import units
@@ -30,6 +31,10 @@ from .wrapper.inputs import (
 
 _LIGHTCONERS = {}
 _LENGTH = "length"
+
+#: Whether cosmotile can average each pixel over several directions (2D latitude and
+#: longitude), which it can since v0.3.
+_COSMOTILE_AVERAGES_SUBSAMPLES = hasattr(cosmotile, "healpix_subpixel_lonlat")
 
 
 @attrs.define(kw_only=True, slots=False)
@@ -547,7 +552,19 @@ def _rotation_eq(x, y):
 
 @attrs.define(kw_only=True, slots=False)
 class AngularLightconer(Lightconer):
-    """Angular lightcone slices constructed from rectlinear coevals."""
+    """Angular lightcone slices constructed from rectlinear coevals.
+
+    Each slice holds the field on a spherical shell, at the given directions
+    (``latitude`` and ``longitude``) as seen from ``origin``, with the coeval box
+    tiled periodically. The slices have shape ``(n_pixels,)``, and the lightcone
+    ``(n_pixels, n_slices)``.
+
+    ``latitude`` (in [-pi/2, pi/2]) and ``longitude`` (in [0, 2pi]) are either
+    1D arrays of the ``n_pixels`` directions, or 2D arrays of shape
+    ``(n_subsamples, n_pixels)``, in which case each pixel is the mean of the field
+    over its ``n_subsamples`` directions (this needs cosmotile >= 0.3). For maps on a
+    HEALPix grid, use :meth:`healpix`.
+    """
 
     latitude: np.ndarray = attrs.field(eq=attrs.cmp_using(eq=np.allclose))
     longitude: np.ndarray = attrs.field(eq=attrs.cmp_using(eq=np.allclose))
@@ -572,16 +589,122 @@ class AngularLightconer(Lightconer):
 
     @longitude.validator
     def _longitude_validator(self, attribute, value):
-        if value.ndim != 1:
-            raise ValueError("longitude must be 1-dimensional")
+        if value.ndim not in (1, 2):
+            raise ValueError("longitude must be 1- or 2-dimensional")
         if np.any(value < 0) or np.any(value > 2 * np.pi):
             raise ValueError("longitude must be in the range [0, 2pi]")
         if value.shape != self.latitude.shape:
             raise ValueError("longitude and latitude must have the same shape")
+        if value.ndim == 2 and not _COSMOTILE_AVERAGES_SUBSAMPLES:
+            raise ValueError(
+                "Pixels averaged over several directions (2D latitude and longitude) "
+                f"need cosmotile >= 0.3, but cosmotile {cosmotile.__version__} is "
+                "installed."
+            )
 
     @origin.default
     def _origin_default(self):
         return np.zeros(3) * pixel
+
+    @classmethod
+    def healpix(
+        cls,
+        nside: int,
+        *,
+        order: str = "ring",
+        pixels: Sequence[int] | np.ndarray | None = None,
+        subsample_level: int = 0,
+        **kw,
+    ):
+        r"""Create an angular lightconer whose slices are HEALPix maps.
+
+        Each slice is a map of the field on the pixels of a HEALPix grid, on a
+        spherical shell around ``origin`` (the corner of the box by default). The
+        lightcone has shape ``(n_pixels, n_slices)``, so ``lightcone[:, i]`` is the
+        map of slice ``i``, in the pixel order given by ``order``. It can be used
+        directly with healpy and other HEALPix codes.
+
+        Parameters
+        ----------
+        nside
+            The HEALPix ``Nside`` of the maps (a power of 2).
+        order
+            The ordering of the pixels, "ring" or "nested".
+        pixels
+            The indices (in ``order``) of the pixels to include, for a map of part of
+            the sky. All ``12 * nside**2`` pixels by default.
+        subsample_level
+            If 0 (the default), each pixel takes the value of the field at its
+            centre. If ``k > 0``, each pixel is the mean of the field at the centres
+            of its ``4**k`` sub-pixels (the pixels of ``Nside = nside * 2**k`` that
+            tile it). Pixels larger than the coeval cells then average the field
+            instead of aliasing it. The cost grows as ``4**k``. Needs cosmotile >= 0.3.
+
+        Other Parameters
+        ----------------
+        kw
+            If ``min_redshift`` is given, all other parameters are passed to
+            :meth:`between_redshifts` (e.g. ``min_redshift``, ``max_redshift``,
+            ``resolution``, ``origin``, ``quantities``), otherwise to the
+            constructor (with ``lc_distances`` or ``lc_redshifts``).
+
+        Returns
+        -------
+        AngularLightconer
+            The angular lightconer.
+
+        Notes
+        -----
+        The coeval box is tiled periodically. A shell at comoving distance
+        :math:`\chi` crosses a box of side :math:`L` about :math:`\chi / L` times
+        along each axis, so the same structures appear every :math:`L / \chi`
+        radians on the sky, which gives spurious angular correlations on those
+        scales. A partial sky (``pixels``) smaller than :math:`L / \chi` avoids
+        repeated structures.
+
+        With ``subsample_level=0``, each pixel is a point sample, and the map carries
+        the cell window of the coeval box but not the HEALPix pixel window.
+        """
+        from astropy_healpix import HEALPix
+
+        if order not in ("ring", "nested"):
+            raise ValueError(f"order must be 'ring' or 'nested', not {order!r}")
+        if subsample_level < 0:
+            raise ValueError("subsample_level must be non-negative")
+
+        hp = HEALPix(nside=nside, order=order)
+
+        if subsample_level == 0:
+            lon, lat = hp.healpix_to_lonlat(np.arange(hp.npix))
+            lat, lon = lat.radian, lon.radian
+        elif not _COSMOTILE_AVERAGES_SUBSAMPLES:
+            raise ValueError(
+                "subsample_level > 0 needs cosmotile >= 0.3, but cosmotile "
+                f"{cosmotile.__version__} is installed."
+            )
+        else:
+            lat, lon = cosmotile.healpix_subpixel_lonlat(
+                nside=nside, order=order, subsample_level=subsample_level
+            )
+
+        if pixels is not None:
+            pixels = np.asarray(pixels)
+            if (
+                pixels.ndim != 1
+                or pixels.size == 0
+                or not np.issubdtype(pixels.dtype, np.integer)
+                or pixels.min() < 0
+                or pixels.max() >= hp.npix
+            ):
+                raise ValueError(
+                    "pixels must be a non-empty 1D array of pixel indices between 0 "
+                    f"and {hp.npix - 1}"
+                )
+            lat, lon = lat[..., pixels], lon[..., pixels]
+
+        if "min_redshift" in kw:
+            return cls.between_redshifts(latitude=lat, longitude=lon, **kw)
+        return cls(latitude=lat, longitude=lon, **kw)
 
     @classmethod
     def like_rectilinear(
@@ -681,7 +804,7 @@ class AngularLightconer(Lightconer):
 
     def get_shape(self, simulation_options: SimulationOptions) -> tuple[int, int]:
         """Get the shape of the lightcone slices."""
-        return (len(self.longitude), len(self.lc_redshifts))
+        return (self.longitude.shape[-1], len(self.lc_redshifts))
 
     def validate_options(
         self,

@@ -7,6 +7,7 @@ options work/don't work as intended.
 
 import numpy as np
 import pytest
+from astropy import units
 
 import py21cmfast as p21c
 
@@ -87,6 +88,52 @@ def test_lightcone_coords(lc):
         np.diff(lc.lightcone_coords.to_value("Mpc")),
         lc.simulation_options.BOX_LEN / lc.simulation_options.HII_DIM,
     )
+
+
+@pytest.mark.parametrize(
+    "subsample_level",
+    [
+        0,
+        pytest.param(
+            1,
+            marks=pytest.mark.skipif(
+                not p21c.lightconers._COSMOTILE_AVERAGES_SUBSAMPLES,
+                reason="pixels averaged over sub-samples need cosmotile >= 0.3",
+            ),
+        ),
+    ],
+)
+def test_healpix_lightcone(
+    ic,
+    default_input_struct_lc,
+    lightcone_min_redshift,
+    max_redshift,
+    cache,
+    subsample_level,
+):
+    """A full-sky HEALPix lightcone, with the dv/dr correction."""
+    lcn = p21c.AngularLightconer.healpix(
+        nside=4,
+        subsample_level=subsample_level,
+        min_redshift=lightcone_min_redshift,
+        max_redshift=max_redshift,
+        resolution=ic.simulation_options.cell_size,
+        cosmo=ic.cosmo_params.cosmo,
+        origin=np.full(3, ic.simulation_options.HII_DIM / 2) * units.pixel,
+        quantities=("brightness_temp", "density"),
+    )
+    lc = p21c.run_lightcone(
+        lightconer=lcn,
+        initial_conditions=ic,
+        inputs=default_input_struct_lc,
+        cache=cache,
+    )
+
+    shape = (192, len(lcn.lc_distances))
+    for name in ("brightness_temp", "density", "los_velocity"):
+        assert lc.lightcones[name].shape == shape
+        assert np.all(np.isfinite(lc.lightcones[name]))
+        assert np.std(lc.lightcones[name]) > 0
 
 
 def test_run_lc_bad_inputs(
