@@ -124,13 +124,21 @@ class TestRecursiveDifference:
 
         assert recursive_difference(a, b) == {}
 
+    def test_arrays(self):
+        """Arrays are compared element-wise (and by shape) by default."""
+        a = {"a": np.zeros(10), "b": np.zeros(3)}
+
+        assert recursive_difference(a, {"a": np.zeros(10), "b": np.zeros(3)}) == {}
+        assert set(recursive_difference(a, {"a": np.ones(10), "b": None})) == {"a", "b"}
+        assert set(recursive_difference({"b": None}, a)) == {"b"}
+        assert set(recursive_difference(a, {"a": np.zeros(9), "b": (0, 0, 0)})) == {"a"}
+
     def test_comparison_rules(self):
         """Test that passing cmprules works as expected."""
         a = {"a": np.zeros(10)}
-        b = {"a": np.zeros(10)}
+        b = {"a": np.full(10, 1e-10)}
 
-        with pytest.raises(ValueError, match="The truth value of an array"):
-            recursive_difference(a, b)
+        assert set(recursive_difference(a, b)) == {"a"}
 
         cmprules = {np.ndarray: lambda x, y: np.allclose(x, y)}
         assert recursive_difference(a, b, cmprules=cmprules) == {}

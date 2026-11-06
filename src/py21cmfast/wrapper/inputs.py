@@ -285,7 +285,17 @@ class InputStruct:
         return self._struct.cstruct
 
     def clone(self, **kwargs):
-        """Make a fresh copy of the instance with arbitrary parameters updated."""
+        """Make a fresh copy of the instance with arbitrary parameters updated.
+
+        Deprecated aliases (e.g. ``USE_MINI_HALOS``) only pass their value to the field
+        that replaced them when an instance is created. When parameters are updated,
+        they are not carried over to the copy (unless given again), so that they
+        cannot contradict a new value of the field that replaced them.
+        """
+        if kwargs:
+            for att in attrs.fields(self.__class__):
+                if att.metadata.get("deprecated", False) and att.alias not in kwargs:
+                    kwargs[att.alias] = None
         return evolve(self, **kwargs)
 
     def asdict(self) -> dict:
