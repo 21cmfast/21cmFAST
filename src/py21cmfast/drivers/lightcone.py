@@ -408,6 +408,31 @@ def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParamete
         )
 
 
+#: Global quantities that are scalars of the IonizedBox rather than means of a field,
+#: so they cost nothing and are always saved.
+_SCALAR_GLOBAL_QUANTITIES = ("log10_mturn_acg", "log10_mturn_mcg")
+
+
+def _resolve_global_quantities(
+    global_quantities: Sequence[str] | None, inputs: InputParameters
+) -> tuple[str, ...]:
+    """Return the names of the global quantities to save, checking that they exist."""
+    available = LightCone.get_fields(inputs)
+    if global_quantities is None:
+        return available
+
+    if isinstance(global_quantities, str):
+        global_quantities = (global_quantities,)
+
+    unknown = [q for q in global_quantities if q not in available]
+    if unknown:
+        raise ValueError(
+            f"The global quantities {unknown} are not available for these inputs. "
+            f"The available ones are: {available}"
+        )
+    return tuple(dict.fromkeys((*_SCALAR_GLOBAL_QUANTITIES, *global_quantities)))
+
+
 def setup_lightcone_instance(
     lightconer: Lightconer,
     scrollz: Sequence[float],
@@ -416,10 +441,29 @@ def setup_lightcone_instance(
     apply_rsds: bool,
     photon_nonconservation_data: dict,
     lightcone_filename: Path | None = None,
+    global_quantities: Sequence[str] | None = None,
 ) -> LightCone:
-    """Return a LightCone instance given a lightconer as input."""
+    """Return a LightCone instance given a lightconer as input.
+
+    ``global_quantities`` are the names of the global quantities to save (all the
+    fields of :meth:`LightCone.get_fields` if None). When resuming from
+    ``lightcone_filename``, the file's global quantities are used, and if
+    ``global_quantities`` is given it must name the same ones.
+    """
+    requested = global_quantities
+    global_quantities = _resolve_global_quantities(global_quantities, inputs)
+
     if lightcone_filename and Path(lightcone_filename).exists():
         lightcone = LightCone.from_file(lightcone_filename, remove_buffer=False)
+        if requested is not None and set(lightcone.global_quantities) != set(
+            global_quantities
+        ):
+            raise ValueError(
+                f"The lightcone file {lightcone_filename} has the global quantities "
+                f"{tuple(lightcone.global_quantities)}, not the requested "
+                f"{global_quantities}. To resume it, pass the global_quantities of the "
+                "run that wrote it."
+            )
         idx = lightcone._last_completed_node
         logger.info("Read in LC file")
         if idx < len(scrollz) - 1:
@@ -456,7 +500,7 @@ def setup_lightcone_instance(
             global_quantities={},
             photon_nonconservation_data=photon_nonconservation_data,
         )
-        for quantity in lightcone.get_fields(inputs):
+        for quantity in global_quantities:
             lightcone.global_quantities[quantity] = np.zeros(len(scrollz))
 
     return lightcone
@@ -477,6 +521,7 @@ def _run_lightcone_from_perturbed_fields(
     write: CacheConfig = _cache,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
+    global_quantities: Sequence[str] | None = None,
     **iokw,
 ):
     # Get the redshift through which we scroll and evaluate the ionization field.
@@ -491,6 +536,7 @@ def _run_lightcone_from_perturbed_fields(
         apply_rsds=apply_rsds,
         lightcone_filename=lightcone_filename,
         photon_nonconservation_data=photon_nonconservation_data,
+        global_quantities=global_quantities,
     )
     if lightcone._last_completed_node == len(scrollz) - 1:
         logger.info("Lightcone already full. Returning.")
@@ -618,6 +664,7 @@ def generate_lightcone(
     regenerate: bool = True,
     progressbar: bool = False,
     lightcone_filename: str | Path | None = None,
+    global_quantities: Sequence[str] | None = None,
 ):
     r"""
     Create a generator function for a lightcone run.
@@ -650,6 +697,17 @@ def generate_lightcone(
         The filename to which to save the lightcone. The lightcone is returned in
         memory, and can be saved manually later, but including this filename will
         save the lightcone on each iteration, which can be helpful for checkpointing.
+    global_quantities : sequence of str, optional
+        The fields whose mean over the box is saved at every node redshift, in
+        ``lightcone.global_quantities``. By default, every field returned by
+        :meth:`LightCone.get_fields`. Each of these fields is read at every node
+        redshift to take its mean, so when the coevals come from the cache, all of
+        them are read from disk at every node redshift. Pass only the fields you
+        need (e.g. ``lightconer.quantities``) to read only those. The turnover
+        masses ``log10_mturn_acg`` and ``log10_mturn_mcg`` are scalars of the
+        ionized box, cost nothing, and are always included. When resuming from
+        ``lightcone_filename``, give the same global quantities as the run that
+        wrote the file, or leave this as None.
 
     Returns
     -------
@@ -676,6 +734,8 @@ def generate_lightcone(
         write = CacheConfig() if write else CacheConfig.off()
 
     _check_desired_arrays_exist(lightconer.quantities, inputs)
+    if global_quantities is not None:
+        global_quantities = _resolve_global_quantities(global_quantities, inputs)
 
     iokw = {
         "cache": cache,
@@ -710,6 +770,7 @@ def generate_lightcone(
         write=write,
         progressbar=progressbar,
         lightcone_filename=lightcone_filename,
+        global_quantities=global_quantities,
         **iokw,
     )
 
