@@ -246,3 +246,184 @@ def test_lc_lowerz_than_photon_cons(
         p21c.run_lightcone(
             lightconer=lcn, initial_conditions=ic, inputs=inputs, cache=cache
         )
+
+
+def _count_array_reads(monkeypatch) -> list[str]:
+    """Record the dataset of every array read from the cache from now on."""
+    from py21cmfast.wrapper.arrays import Array
+
+    reads = []
+    loaded_from_disk = Array.loaded_from_disk
+
+    def counting(self, *args, **kwargs):
+        reads.append(self.cache_backend.dataset)
+        return loaded_from_disk(self, *args, **kwargs)
+
+    monkeypatch.setattr(Array, "loaded_from_disk", counting)
+    return reads
+
+
+def test_lc_global_quantities(
+    lc, rectlcn, ic, default_input_struct_lc, cache, monkeypatch
+):
+    """Only the requested global quantities are saved, and only they are read."""
+    reads = _count_array_reads(monkeypatch)
+    lc_some = p21c.run_lightcone(
+        lightconer=rectlcn,
+        initial_conditions=ic,
+        inputs=default_input_struct_lc,
+        cache=cache,
+        regenerate=False,
+        include_dvdr_in_tau21=False,
+        global_quantities=("brightness_temp", "neutral_fraction"),
+    )
+
+    assert set(lc_some.global_quantities) == {
+        "brightness_temp",
+        "neutral_fraction",
+        "log10_mturn_acg",
+        "log10_mturn_mcg",
+    }
+    for name, values in lc_some.global_quantities.items():
+        np.testing.assert_allclose(
+            values, lc.global_quantities[name], rtol=1e-6, err_msg=name
+        )
+    np.testing.assert_allclose(
+        lc_some.lightcones["brightness_temp"],
+        lc.lightcones["brightness_temp"],
+        rtol=1e-5,
+    )
+
+    # Every coeval came from the cache, and only the lightcone's field and the
+    # requested global quantities were read, once per node redshift.
+    n_nodes = len(default_input_struct_lc.node_redshifts)
+    read_fields = [dataset.split("/")[-1] for dataset in reads]
+    assert set(read_fields) == {"brightness_temp", "neutral_fraction"}
+    assert read_fields.count("brightness_temp") == n_nodes
+    assert read_fields.count("neutral_fraction") == n_nodes
+
+
+def test_lc_global_quantities_default(
+    lc, rectlcn, ic, default_input_struct_lc, cache, monkeypatch
+):
+    """By default, the mean of every field is saved, which reads every field."""
+    from py21cmfast.io.caching import RunCache
+
+    reads = _count_array_reads(monkeypatch)
+    lc_all = p21c.run_lightcone(
+        lightconer=rectlcn,
+        initial_conditions=ic,
+        inputs=default_input_struct_lc,
+        cache=cache,
+        regenerate=False,
+        include_dvdr_in_tau21=False,
+    )
+
+    fields = p21c.LightCone.get_fields(default_input_struct_lc)
+    assert set(lc_all.global_quantities) == set(fields)
+    assert set(lc.global_quantities) == set(fields)
+    assert {dataset.split("/")[-1] for dataset in reads} == set(fields) - {
+        "log10_mturn_acg",
+        "log10_mturn_mcg",
+    }
+
+    # The saved values are the means of the cached boxes, read independently.
+    run = RunCache.from_inputs(default_input_struct_lc, cache)
+    for iz, z in enumerate(default_input_struct_lc.node_redshifts):
+        coeval = run.get_coeval_at_z(z)
+        for name in fields:
+            if name.startswith("log10_mturn"):
+                expected = getattr(coeval.ionized_box, f"log10_mturn_ave_{name[-3:]}")
+            else:
+                expected = np.mean(getattr(coeval, name))
+            np.testing.assert_allclose(
+                lc_all.global_quantities[name][iz],
+                expected,
+                rtol=1e-6,
+                err_msg=f"{name} at z={z}",
+            )
+
+
+def test_lc_global_quantities_bad(rectlcn, default_input_struct_lc):
+    with pytest.raises(ValueError, match="global quantities \\['spin_temperature'\\]"):
+        p21c.run_lightcone(
+            lightconer=rectlcn,
+            inputs=default_input_struct_lc,
+            global_quantities=("brightness_temp", "spin_temperature"),
+        )
+
+
+def test_lc_global_quantities_resume(
+    ic, rectlcn, default_input_struct_lc, tmpdirec, cache
+):
+    """A lightcone file can only be resumed with its own global quantities."""
+    fname = tmpdirec / "lightcone_global_quantities.h5"
+    kwargs = {
+        "lightconer": rectlcn,
+        "initial_conditions": ic,
+        "inputs": default_input_struct_lc,
+        "lightcone_filename": fname,
+        "cache": cache,
+        "regenerate": False,
+    }
+    lc = p21c.run_lightcone(global_quantities=("neutral_fraction",), **kwargs)
+    assert set(lc.global_quantities) == {
+        "neutral_fraction",
+        "log10_mturn_acg",
+        "log10_mturn_mcg",
+    }
+
+    with pytest.raises(ValueError, match="has the global quantities"):
+        p21c.run_lightcone(global_quantities=("brightness_temp",), **kwargs)
+
+    # Without global_quantities, those of the file are used.
+    lc2 = p21c.run_lightcone(**kwargs)
+    assert set(lc2.global_quantities) == set(lc.global_quantities)
+
+    fname.unlink()
+
+
+# The "tiny" template sets R_BUBBLE_MAX with recombinations on, which warns.
+@pytest.mark.filterwarnings("ignore:^You are setting R_BUBBLE_MAX:UserWarning")
+def test_lc_from_cache_reads_only_what_it_needs(tmp_path, monkeypatch):
+    """From cached coevals, a lightcone reads only its own fields.
+
+    With discrete halos and spin temperature, the redshift loop used to load every
+    PerturbedField and HaloCatalog array, and the emissivity fields for the
+    radiation fields, at every node redshift, although nothing was computed.
+    """
+    inputs = (
+        p21c.InputParameters.from_template(["latest-discrete", "tiny"], random_seed=5)
+        .evolve_input_structs(USE_TS_FLUCT=True, Z_HEAT_MAX=15)
+        .with_logspaced_redshifts(zmin=10, zmax=15)
+    )
+    lcn = p21c.RectilinearLightconer.between_redshifts(
+        min_redshift=10.5,
+        max_redshift=14.0,
+        resolution=inputs.simulation_options.cell_size,
+        cosmo=inputs.cosmo_params.cosmo,
+        quantities=("brightness_temp",),
+    )
+    kwargs = {
+        "lightconer": lcn,
+        "inputs": inputs,
+        "cache": p21c.OutputCache(tmp_path),
+        "include_dvdr_in_tau21": False,
+    }
+    lc = p21c.run_lightcone(**kwargs)
+
+    reads = _count_array_reads(monkeypatch)
+    lc_cached = p21c.run_lightcone(
+        regenerate=False, global_quantities=("brightness_temp",), **kwargs
+    )
+
+    np.testing.assert_array_equal(
+        lc_cached.lightcones["brightness_temp"], lc.lightcones["brightness_temp"]
+    )
+    np.testing.assert_array_equal(
+        lc_cached.global_quantities["brightness_temp"],
+        lc.global_quantities["brightness_temp"],
+    )
+    assert reads == ["/BrightnessTemp/OutputFields/brightness_temp"] * len(
+        inputs.node_redshifts
+    )
