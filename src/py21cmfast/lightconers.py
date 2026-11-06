@@ -669,6 +669,14 @@ class AngularLightconer(Lightconer):
 
         With ``subsample_level=0``, each pixel is a point sample, and the map carries
         the cell window of the coeval box but not the HEALPix pixel window.
+
+        To match ``nside`` and ``subsample_level`` to the cells of the coeval box,
+        use :func:`healpix_nside_for_cell_size` and
+        :func:`healpix_subsample_level_for_cell_size`. Pixels much smaller than the
+        cells sample the same cells again, and gain little. At the scale of large
+        simulations the matching ``nside`` can make very large maps (Nside 8192 has
+        8e8 pixels per shell); a coarser ``nside`` with the matching
+        ``subsample_level`` averages the cells instead of resolving them.
         """
         from astropy_healpix import HEALPix
 
@@ -836,3 +844,93 @@ class AngularLightconer(Lightconer):
             )
 
         return lightconer
+
+
+def _healpix_pixel_side(nside: int) -> float:
+    """Return the side of a HEALPix pixel (the root of its area), in radians."""
+    return np.sqrt(np.pi / 3) / nside
+
+
+def healpix_nside_for_cell_size(
+    cell_size: Quantity[_LENGTH], distance: Quantity[_LENGTH]
+) -> int:
+    r"""Return the smallest HEALPix Nside whose pixels are no larger than a cell.
+
+    A HEALPix pixel has a side (the square root of its area) of
+    :math:`\sqrt{\pi / 3} / N_{\rm side}` radians, and a coeval cell of size
+    :math:`\Delta` subtends :math:`\Delta / \chi` radians at comoving distance
+    :math:`\chi`. This returns the smallest power of 2 whose pixels are no larger
+    than that. Finer pixels sample the same cells again, and gain little.
+
+    A cell subtends a larger angle on near shells than on far ones. With the
+    farthest distance of a lightcone, the pixels resolve the cells on every shell.
+    With a nearer distance, the pixels are larger than the cells further out, where
+    each pixel should then be averaged over sub-pixels (see
+    :func:`healpix_subsample_level_for_cell_size`).
+
+    Parameters
+    ----------
+    cell_size
+        The cell size of the coeval box, e.g. ``simulation_options.cell_size``.
+    distance
+        The comoving distance at which pixels and cells should match.
+
+    Returns
+    -------
+    int
+        The Nside, a power of 2.
+
+    Examples
+    --------
+    For 1.5 Mpc cells out to z = 35 (11773 Mpc with Planck18):
+
+    >>> from astropy import units
+    >>> healpix_nside_for_cell_size(1.5 * units.Mpc, 11773 * units.Mpc)
+    8192
+    """
+    if not (cell_size > 0 and distance > 0):
+        raise ValueError("cell_size and distance must be positive")
+    ratio = (distance / cell_size).to_value(units.dimensionless_unscaled)
+    return 2 ** max(0, int(np.ceil(np.log2(_healpix_pixel_side(1) * ratio))))
+
+
+def healpix_subsample_level_for_cell_size(
+    nside: int, cell_size: Quantity[_LENGTH], distance: Quantity[_LENGTH]
+) -> int:
+    """Return the smallest ``subsample_level`` whose sub-pixels are no larger than a cell.
+
+    With ``subsample_level = k`` (see :meth:`AngularLightconer.healpix`), each pixel
+    is the mean over its ``4**k`` sub-pixels, the pixels of ``Nside = nside * 2**k``.
+    This returns the smallest ``k`` for which those sub-pixels are no larger than a
+    coeval cell at ``distance`` (see :func:`healpix_nside_for_cell_size`), so that the
+    average takes in every cell inside the pixel. It is 0 if the pixels themselves are
+    no larger than the cells. Use the farthest distance of the lightcone, where the
+    cells subtend the smallest angle. Each level costs four times as many samples.
+
+    Parameters
+    ----------
+    nside
+        The Nside of the maps.
+    cell_size
+        The cell size of the coeval box, e.g. ``simulation_options.cell_size``.
+    distance
+        The comoving distance at which sub-pixels and cells should match.
+
+    Returns
+    -------
+    int
+        The sub-sample level.
+
+    Examples
+    --------
+    Maps of Nside 2048 from a box of 1.5 Mpc cells out to z = 35 (11773 Mpc with
+    Planck18) need 16 sub-pixels per pixel:
+
+    >>> from astropy import units
+    >>> healpix_subsample_level_for_cell_size(2048, 1.5 * units.Mpc, 11773 * units.Mpc)
+    2
+    """
+    if nside < 1:
+        raise ValueError("nside must be positive")
+    matching = healpix_nside_for_cell_size(cell_size, distance)
+    return max(0, int(np.ceil(np.log2(matching / nside))))

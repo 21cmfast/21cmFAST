@@ -161,3 +161,48 @@ def test_healpix_subsamples_ring_order():
 
     np.testing.assert_allclose(ring.latitude, nested.latitude[:, ring_to_nested])
     np.testing.assert_allclose(ring.longitude, nested.longitude[:, ring_to_nested])
+
+
+@pytest.mark.parametrize("cells_away", [0.3, 1.0, 37.0, 1000.0, 7848.7])
+def test_nside_for_cell_size(cells_away):
+    """The pixels are no larger than a cell, and those of Nside / 2 are larger."""
+    cell = 1.5 * un.Mpc
+    distance = cells_away * cell
+    nside = lcn.healpix_nside_for_cell_size(cell, distance)
+    cell_angle = (cell / distance).to_value("") * un.rad
+
+    assert nside & (nside - 1) == 0  # a power of 2
+    assert HEALPix(nside=nside).pixel_resolution <= cell_angle
+    if nside > 1:
+        assert HEALPix(nside=nside // 2).pixel_resolution > cell_angle
+
+    # Only the ratio of the two lengths matters.
+    assert lcn.healpix_nside_for_cell_size(1500 * un.kpc, distance.to("Gpc")) == nside
+
+
+def test_subsample_level_for_cell_size():
+    cell, distance = 1.5 * un.Mpc, 11773 * un.Mpc
+    matching = lcn.healpix_nside_for_cell_size(cell, distance)
+    assert matching == 8192
+
+    assert lcn.healpix_subsample_level_for_cell_size(matching, cell, distance) == 0
+    assert lcn.healpix_subsample_level_for_cell_size(2 * matching, cell, distance) == 0
+    for level in range(1, 5):
+        nside = matching // 2**level
+        assert lcn.healpix_subsample_level_for_cell_size(nside, cell, distance) == level
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        (0 * un.Mpc, 100 * un.Mpc),
+        (1 * un.Mpc, -100 * un.Mpc),
+    ],
+)
+def test_nside_for_cell_size_bad_inputs(args):
+    with pytest.raises(ValueError, match="must be positive"):
+        lcn.healpix_nside_for_cell_size(*args)
+    with pytest.raises(ValueError, match="must be positive"):
+        lcn.healpix_subsample_level_for_cell_size(16, *args)
+    with pytest.raises(ValueError, match="nside must be positive"):
+        lcn.healpix_subsample_level_for_cell_size(0, 1 * un.Mpc, 100 * un.Mpc)
