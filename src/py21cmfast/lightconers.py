@@ -564,6 +564,14 @@ def _dimensionless(x: np.ndarray | Quantity) -> np.ndarray:
     return Quantity(x, units.dimensionless_unscaled).value
 
 
+#: Roughly how many cells of a coeval box can be interpolated in redshift in the time
+#: it takes to sample the box in one direction (trilinear ``map_coordinates``). Measured
+#: on one core for 128^3 and 256^3 boxes and 10^3-10^6 directions (HEALPix and random):
+#: the two ways of making an angular slice cost the same at about 9-20 cells per
+#: direction. Used by ``AngularLightconer`` to choose between them.
+_CELLS_PER_SAMPLE = 16
+
+
 def _rotation_eq(x, y):
     """Compare two rotations."""
     if x is None and y is None:
@@ -588,6 +596,13 @@ class AngularLightconer(Lightconer):
         default=None,
         eq=attrs.cmp_using(eq=_rotation_eq),
         validator=attrs.validators.optional(attrs.validators.instance_of(Rotation)),
+    )
+    # Whether slices sample (tile) the coevals before interpolating in redshift (True)
+    # or interpolate the boxes first (False). None chooses for each slice; see
+    # samples_first().
+    tile_first: bool | None = attrs.field(
+        default=None,
+        validator=attrs.validators.optional(attrs.validators.instance_of(bool)),
     )
 
     def __attrs_post_init__(self) -> None:
@@ -681,24 +696,24 @@ class AngularLightconer(Lightconer):
     ) -> np.ndarray:
         """Make one lightcone slice of a field from the two coevals that bracket it.
 
-        Each coeval is sampled at the pixels of the slice, and the two sets of samples
-        are interpolated to the slice's distance. Since both steps are linear in the
-        field, this gives the same result (to rounding) as interpolating the whole
-        box in distance and then sampling it, at a small fraction of the cost.
+        If the slice samples the coevals first (see :attr:`tile_first` and
+        :meth:`samples_first`), each coeval is sampled at the pixels of the slice, and
+        the two sets of samples are interpolated to the slice's distance. Since both
+        steps are linear in the field, this gives the same result (to rounding) as
+        interpolating the whole box in distance and then sampling it, which is done
+        otherwise (as in :meth:`Lightconer.interpolate_slice`).
 
         The "mean_max" interpolation (used for ``z_reion``) is a rule applied cell by
         cell, so for ``interpolation_order=1`` it is applied at the eight cells
         around each sample point before they are weighted, which again gives the same
-        result as sampling the interpolated box. For ``interpolation_order > 1``, the
-        spline pre-filter acts on the whole box, so the whole box is interpolated
-        first, as in :meth:`Lightconer.interpolate_slice`.
+        result as sampling the interpolated box.
         """
-        if self.interpolation_order > 1:
+        interpolator = self._get_interpolator(lcd)
+        if not self.samples_first(coeval_a.size, interpolator):
             return super().interpolate_slice(
                 lcd, coeval_a, coeval_b, dc_a, dc_b, coeval_res, kind=kind
             )
 
-        interpolator = self._get_interpolator(lcd)
         if kind == "mean_max" and self.interpolation_order == 1:
             return self._trilinear_mean_max(
                 interpolator, lcd, coeval_a, coeval_b, dc_a, dc_b
@@ -726,13 +741,14 @@ class AngularLightconer(Lightconer):
     ) -> np.ndarray:
         """Make one slice of the line-of-sight velocity from two bracketing coevals.
 
-        The line-of-sight component of the 3D velocity of each coeval is taken at the
-        pixels of the slice, and the two are interpolated to the slice's distance,
-        like :meth:`interpolate_slice` does.
+        If the slice samples the coevals first (see :meth:`interpolate_slice`), the
+        line-of-sight component of the 3D velocity of each coeval is taken at the
+        pixels of the slice, and the two are interpolated to the slice's distance.
+        Otherwise the three velocity boxes are interpolated in distance first.
         """
         kind = self.interp_kinds.get("velocity", "mean")
-        if kind == "mean" and self.interpolation_order <= 1:
-            interpolator = self._get_interpolator(lcd)
+        interpolator = self._get_interpolator(lcd)
+        if kind == "mean" and self.samples_first(c_a.velocity_x.size, interpolator):
             # cosmotile needs Quantities here, since the pixel coordinates are.
             los_a, los_b = make_lightcone_slice_vector_field(
                 [
@@ -821,6 +837,43 @@ class AngularLightconer(Lightconer):
         if weights is not None:
             out = (weights[:, None] * out.reshape(weights.size, -1)).sum(axis=0)
         return out
+
+    def samples_first(self, n_cells: int, interpolator: partial) -> bool:
+        """Whether a slice samples the coevals first, or interpolates the boxes first.
+
+        A slice between two coevals can be made in two ways that give the same result
+        (to rounding): interpolate the whole boxes in redshift and then sample (tile)
+        the interpolated box at the directions of the slice, or sample each box first
+        and then interpolate the samples in redshift. The first costs about one
+        operation per cell plus one sample per direction, the second two samples per
+        direction. Unless ``tile_first`` forces one way, a slice samples first when
+        the box has more than ``_CELLS_PER_SAMPLE`` (16) cells per direction. For
+        example, a 1500^3 box with a ring of 2^15 directions samples first, while a
+        228^3 box with a HEALPix map of Nside 1024 (1.3e7 directions) interpolates
+        the box first. Only ``interpolation_order`` 0 and 1 can sample first; higher
+        orders pre-filter the whole box.
+
+        Parameters
+        ----------
+        n_cells
+            The number of cells of the coeval box.
+        interpolator
+            The interpolator onto the slice (its coordinates give the number of
+            directions sampled, sub-samples included).
+
+        Returns
+        -------
+        bool
+            ``tile_first`` if it is set, otherwise whether sampling first is cheaper:
+            whether the box has more than ``_CELLS_PER_SAMPLE`` cells per direction.
+            Always False for ``interpolation_order > 1``.
+        """
+        if self.interpolation_order > 1:
+            return False
+        if self.tile_first is not None:
+            return self.tile_first
+        n_samples = np.shape(interpolator.keywords["coordinates"])[-1]
+        return n_samples * _CELLS_PER_SAMPLE < n_cells
 
     def _get_interpolator(self, lcd: Quantity[pixel]) -> partial:
         """Return the (cached) interpolator onto the slice at distance ``lcd``."""

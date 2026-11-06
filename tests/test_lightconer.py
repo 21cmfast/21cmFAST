@@ -363,11 +363,12 @@ def _full_box_slices(lightconer, c1, c2):
         yield q, idx, np.asarray(new), np.asarray(old)
 
 
+@pytest.mark.parametrize("tile_first", [True, False, None])
 @pytest.mark.parametrize("interpolation_order", [0, 1, 3])
-def test_angular_slices_sample_first(interpolation_order):
-    """Every quantity, los_velocity included, gives the same slices as before."""
+def test_angular_slices_sample_first(interpolation_order, tile_first):
+    """Every quantity, los_velocity included, gives the same slices either way."""
     c1, c2 = _random_coevals()
-    lightconer = _angular_lightconer(interpolation_order)
+    lightconer = _angular_lightconer(interpolation_order, tile_first=tile_first)
 
     seen = set()
     for q, idx, new, old in _full_box_slices(lightconer, c1, c2):
@@ -385,7 +386,7 @@ def test_angular_mean_max_needs_cells():
     So the test above does check the eight-cell evaluation of the rule.
     """
     c1, c2 = _random_coevals()
-    lightconer = _angular_lightconer(interpolation_order=1)
+    lightconer = _angular_lightconer(interpolation_order=1, tile_first=True)
     cosmo = c1.cosmo_params.cosmo
     eq = un.pixel_scale(c1.simulation_options.cell_size / un.pixel)
     dc1 = cosmo.comoving_distance(c1.redshift).to(un.pixel, eq)
@@ -426,3 +427,53 @@ def test_angular_mean_max_subsamples():
     )
     assert out.shape == (lat.shape[1],)
     np.testing.assert_allclose(out, interp(box), rtol=1e-12, atol=1e-12)
+
+
+def _interpolator_with(n_directions: int) -> SimpleNamespace:
+    """Stand in for a cosmotile interpolator onto ``n_directions`` directions."""
+    return SimpleNamespace(
+        keywords={"coordinates": np.broadcast_to(0.0, (3, n_directions))}
+    )
+
+
+def test_angular_samples_first_choice():
+    """The cheaper way is chosen, unless one is forced or the order needs the box."""
+    lightconer = _angular_lightconer(interpolation_order=1)
+
+    # A big box seen through few directions (the EOS26 ring): sample first.
+    assert lightconer.samples_first(1500**3, _interpolator_with(2**15))
+    # A HEALPix map of Nside 1024 has about as many directions as a 228^3 box has
+    # cells: interpolate the box first.
+    assert not lightconer.samples_first(228**3, _interpolator_with(12 * 1024**2))
+
+    small_box, many = 64**3, _interpolator_with(10**6)
+    assert not lightconer.samples_first(small_box, many)
+    forced = _angular_lightconer(interpolation_order=1, tile_first=True)
+    assert forced.samples_first(small_box, many)
+    forced = _angular_lightconer(interpolation_order=0, tile_first=False)
+    assert not forced.samples_first(1500**3, _interpolator_with(10))
+
+    # Spline orders pre-filter the whole box, so they never sample first.
+    spline = _angular_lightconer(interpolation_order=3, tile_first=True)
+    assert not spline.samples_first(1500**3, _interpolator_with(10))
+
+
+@pytest.mark.parametrize("tile_first", [True, False])
+def test_angular_slices_use_the_chosen_way(tile_first, monkeypatch):
+    """Interpolating the boxes first goes through Lightconer.interpolate_slice."""
+    calls = []
+    base = lcn.Lightconer.interpolate_slice
+
+    def counting(self, *args, **kwargs):
+        calls.append(args[0])
+        return base(self, *args, **kwargs)
+
+    monkeypatch.setattr(lcn.Lightconer, "interpolate_slice", counting)
+    c1, c2 = _random_coevals()
+    lightconer = _angular_lightconer(interpolation_order=1, tile_first=tile_first)
+    n_slices = sum(
+        q == "density" for q, _, _ in lightconer.make_lightcone_slices(c1, c2)
+    )
+
+    assert n_slices > 0
+    assert len(calls) == (0 if tile_first else 4 * n_slices)
