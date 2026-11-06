@@ -2,6 +2,7 @@
 
 import re
 from dataclasses import dataclass
+from types import SimpleNamespace
 
 import deprecation
 import numpy as np
@@ -266,3 +267,162 @@ def test_validation_options_angular(ang_lcner):
         ang_lcner.validate_options(
             inputs=inputs, include_dvdr_in_tau21=True, apply_rsds=True
         )
+
+
+# ======================================================================================
+# Angular lightcones: sampling the coevals first gives the same slices
+# ======================================================================================
+
+
+def _random_coevals(seed: int = 1, hii_dim: int = 24, box_len: float = 48.0):
+    """Two coeval-like objects at z = 6.0 and 6.2, with random fields.
+
+    ``z_reion`` is -1 in "neutral" cells and positive elsewhere, with more neutral
+    cells at the higher redshift, so that its "mean_max" rule matters.
+    """
+    rng = np.random.default_rng(seed)
+    so = SimulationOptions(BOX_LEN=box_len, HII_DIM=hii_dim)
+    shape = (hii_dim,) * 3
+
+    def coeval(redshift, neutral):
+        fields = {
+            name: rng.normal(size=shape).astype(np.float32)
+            for name in (
+                "brightness_temp",
+                "density",
+                "tau_21",
+                "velocity_x",
+                "velocity_y",
+                "velocity_z",
+            )
+        }
+        fields["z_reion"] = np.where(
+            rng.uniform(size=shape) < neutral, -1, rng.uniform(6, 12, size=shape)
+        ).astype(np.float32)
+        return SimpleNamespace(
+            redshift=redshift,
+            simulation_options=so,
+            cosmo_params=CosmoParams(),
+            **fields,
+        )
+
+    return coeval(6.0, 0.3), coeval(6.2, 0.6)
+
+
+def _angular_lightconer(interpolation_order: int, nside: int = 8, **kwargs):
+    hp = HEALPix(nside=nside)
+    lon, lat = hp.healpix_to_lonlat(np.arange(hp.npix))
+    return lcn.AngularLightconer.between_redshifts(
+        min_redshift=6.0,
+        max_redshift=6.2,
+        resolution=2 * un.Mpc,
+        latitude=lat.radian,
+        longitude=lon.radian,
+        interpolation_order=interpolation_order,
+        origin=np.array([12.0, 12.0, 12.0]) * un.pixel,
+        quantities=("brightness_temp", "density", "z_reion", "tau_21", "los_velocity"),
+        **kwargs,
+    )
+
+
+def _full_box_slices(lightconer, c1, c2):
+    """Make the slices by interpolating the whole boxes in distance, then sampling.
+
+    This is how ``AngularLightconer`` made them before it sampled the coevals first.
+    """
+    for q, idx, new in lightconer.make_lightcone_slices(c1, c2):
+        cosmo = c1.cosmo_params.cosmo
+        eq = un.pixel_scale(c1.simulation_options.cell_size / un.pixel)
+        dc1 = cosmo.comoving_distance(c1.redshift).to(un.pixel, eq)
+        dc2 = cosmo.comoving_distance(c2.redshift).to(un.pixel, eq)
+        lcd = lightconer.get_lc_distances_in_pixels(c1.simulation_options.cell_size)[
+            idx
+        ]
+        if q == "los_velocity":
+            boxes = [
+                lightconer.redshift_interpolation(
+                    lcd,
+                    getattr(c1, f"velocity_{ax}"),
+                    getattr(c2, f"velocity_{ax}"),
+                    dc1,
+                    dc2,
+                )
+                for ax in "xyz"
+            ]
+            old = lightconer.construct_los_velocity_lightcone(lcd, boxes)
+        else:
+            box = lightconer.redshift_interpolation(
+                lcd,
+                getattr(c1, q),
+                getattr(c2, q),
+                dc1,
+                dc2,
+                kind=lightconer.interp_kinds.get(q, "mean"),
+            )
+            old = lightconer.construct_lightcone(lcd, box)
+        yield q, idx, np.asarray(new), np.asarray(old)
+
+
+@pytest.mark.parametrize("interpolation_order", [0, 1, 3])
+def test_angular_slices_sample_first(interpolation_order):
+    """Every quantity, los_velocity included, gives the same slices as before."""
+    c1, c2 = _random_coevals()
+    lightconer = _angular_lightconer(interpolation_order)
+
+    seen = set()
+    for q, idx, new, old in _full_box_slices(lightconer, c1, c2):
+        assert new.shape == (len(lightconer.longitude),)
+        np.testing.assert_allclose(
+            new, old, rtol=0, atol=2e-6 * np.abs(old).max(), err_msg=f"{q}, {idx}"
+        )
+        seen.add(q)
+    assert seen == set(lightconer.quantities)
+
+
+def test_angular_mean_max_needs_cells():
+    """Applying z_reion's "mean_max" rule to samples would not give the same slice.
+
+    So the test above does check the eight-cell evaluation of the rule.
+    """
+    c1, c2 = _random_coevals()
+    lightconer = _angular_lightconer(interpolation_order=1)
+    cosmo = c1.cosmo_params.cosmo
+    eq = un.pixel_scale(c1.simulation_options.cell_size / un.pixel)
+    dc1 = cosmo.comoving_distance(c1.redshift).to(un.pixel, eq)
+    dc2 = cosmo.comoving_distance(c2.redshift).to(un.pixel, eq)
+    lcd = lightconer.get_lc_distances_in_pixels(c1.simulation_options.cell_size)[1]
+
+    interp = lightconer._get_interpolator(lcd)
+    exact = lightconer.interpolate_slice(
+        lcd, c1.z_reion, c2.z_reion, dc1, dc2, None, kind="mean_max"
+    )
+    on_samples = lightconer.redshift_interpolation(
+        lcd, interp(c1.z_reion), interp(c2.z_reion), dc1, dc2, kind="mean_max"
+    )
+    assert not np.allclose(exact, on_samples)
+
+
+def test_angular_mean_max_subsamples():
+    """The "mean_max" rule also works for pixels averaged over sub-samples."""
+    cosmotile = pytest.importorskip("cosmotile")
+    if not hasattr(cosmotile, "healpix_subpixel_lonlat"):
+        pytest.skip("sub-sampled pixels need cosmotile >= 0.3")
+
+    c1, c2 = _random_coevals()
+    lightconer = _angular_lightconer(interpolation_order=1)
+    lat, lon = cosmotile.healpix_subpixel_lonlat(nside=4, subsample_level=1)
+    interp = cosmotile.make_lightcone_slice_interpolator(
+        latitude=lat,
+        longitude=lon,
+        distance_to_shell=600.0,
+        origin=np.array([12.0, 12.0, 12.0]),
+    )
+
+    out = lightconer._trilinear_mean_max(
+        interp, 600.0, c1.z_reion, c2.z_reion, 590, 610
+    )
+    box = lightconer.redshift_interpolation(
+        600.0, c1.z_reion, c2.z_reion, 590, 610, kind="mean_max"
+    )
+    assert out.shape == (lat.shape[1],)
+    np.testing.assert_allclose(out, interp(box), rtol=1e-12, atol=1e-12)
