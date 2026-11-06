@@ -48,7 +48,7 @@ low-frequency observations.
 
 Full **documentation** (with `examples <https://21cmfast.readthedocs.io/en/latest/tutorials.html>`_,
 `installation instructions <https://21cmfast.readthedocs.io/en/latest/installation.html>`_ and
-`full API reference <https://21cmfast.readthedocs.io/en/latest/reference/index.html>`_)
+`full API reference <https://21cmfast.readthedocs.io/en/latest/autoapi/py21cmfast/index.html>`_)
 found at https://21cmfast.readthedocs.io.
 
 To acknowledge the use of ``21cmFAST``, please see the
