@@ -21,7 +21,6 @@ from py21cmfast import (
     TsBox,
 )
 from py21cmfast.drivers.single_field import setup_radiation_fields
-from py21cmfast.wrapper.arrays import Array
 
 
 @pytest.fixture(scope="module")
@@ -741,16 +740,15 @@ def test_radiation_fields_with_zero_sfr(
     # This is needed because the input arrays must be in a computed state.
     fields = ["sfrd_acg", "xray_emissivity"]
     if use_mcgs:
-        fields += ["sfrd_mcg", "log10_mturn_mcg_ave"]
-    shape = emissivity_fields1.arrays["sfrd_acg"].shape
-    array = (
-        Array(shape=shape, dtype=np.float32)
-        .initialize()
-        .with_value(val=np.zeros(shape))
-    )
+        fields += ["sfrd_mcg"]
     for emissivity_fields in [emissivity_fields1, emissivity_fields2]:
         for name in fields:
-            setattr(emissivity_fields, name, array.computed())
+            array = emissivity_fields.arrays[name]
+            setattr(
+                emissivity_fields,
+                name,
+                array.initialize().with_value(np.zeros(array.shape)),
+            )
         if use_mcgs:
             emissivity_fields.log10_mturn_mcg_ave = 5.0
 

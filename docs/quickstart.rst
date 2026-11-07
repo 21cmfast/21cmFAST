@@ -62,6 +62,14 @@ The ``coeval`` object here has much more than just the ``brightness_temp`` field
 You can plot the (matter) ``density`` field, ``velocity`` field or a number of other
 fields.
 
+Units of Output Arrays
+~~~~~~~~~~~~~~~~~~~~~~
+
+Output-structure fields are NumPy arrays. Their ``Array`` handles provide unit
+metadata and Astropy quantity access. See
+:doc:`tutorials/output_units` for examples of inspecting metadata and converting
+units.
+
 Simulating a Lightcone
 ~~~~~~~~~~~~~~~~~~~~~~
 
