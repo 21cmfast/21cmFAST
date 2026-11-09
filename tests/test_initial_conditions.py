@@ -188,6 +188,54 @@ def test_initial_density_array(
     )
 
 
+def test_initial_density_skips_cache_read(
+    ic: p21c.InitialConditions,
+    default_input_struct: p21c.InputParameters,
+    single_pxl_array_mean_zero: np.ndarray,
+    cache: p21c.OutputCache,
+):
+    """Test that a cached box is not returned in place of the given initial_density."""
+    # The session-wide ic fixture is written to this cache with the same inputs.
+    assert cache.find_existing(ic) is not None
+
+    ic_with_cache = p21c.compute_initial_conditions(
+        inputs=default_input_struct,
+        initial_density=single_pxl_array_mean_zero,
+        cache=cache,
+    )
+    assert np.all(ic_with_cache.hires_density == single_pxl_array_mean_zero)
+
+    # The checks on initial_density run even though the cache holds a match.
+    with pytest.raises(
+        ValueError,
+        match="The shape of your high resolution initial_density is not consistent with inputs!",
+    ):
+        p21c.compute_initial_conditions(
+            inputs=default_input_struct,
+            initial_density=np.zeros((single_pxl_array_mean_zero.shape[0] * 2,) * 3),
+            cache=cache,
+        )
+
+
+def test_initial_density_not_written_to_cache(
+    default_input_struct: p21c.InputParameters,
+    single_pxl_array_mean_zero: np.ndarray,
+    tmp_path,
+):
+    """Test that a box made from initial_density cannot be written to the cache."""
+    cache = p21c.OutputCache(tmp_path)
+    with pytest.raises(ValueError, match="cannot be written to the cache"):
+        p21c.compute_initial_conditions(
+            inputs=default_input_struct,
+            initial_density=single_pxl_array_mean_zero,
+            cache=cache,
+            write=True,
+        )
+
+    seeded = p21c.InitialConditions.new(inputs=default_input_struct)
+    assert cache.find_existing(seeded) is None
+
+
 def test_bad_initial_density_array(
     default_input_struct: p21c.InitialConditions, single_pxl_array_mean_zero: np.ndarray
 ):
