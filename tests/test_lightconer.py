@@ -195,10 +195,10 @@ def test_angular_lightconer_bad_instantiation():
     hp = HEALPix(nside=4)
     lon, lat = hp.healpix_to_lonlat(np.arange(hp.npix))
 
-    with pytest.raises(ValueError, match="longitude must be 1-dimensional"):
+    with pytest.raises(ValueError, match="longitude must be 1- or 2-dimensional"):
         lcn.AngularLightconer(
-            longitude=lon[None, :].radian,
-            latitude=lat.radian,
+            longitude=lon[None, None, :].radian,
+            latitude=lat[None, None, :].radian,
             lc_redshifts=np.linspace(6, 7, 10),
         )
 
