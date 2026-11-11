@@ -217,7 +217,7 @@ def determine_halo_catalog(
 
 
 @single_field_func
-@init_c_state(broadcast_inputs=True)
+@init_c_state(sigma=True)
 def perturb_halo_catalog(
     *,
     initial_conditions: InitialConditions,
