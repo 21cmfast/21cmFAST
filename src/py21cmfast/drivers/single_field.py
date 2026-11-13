@@ -54,6 +54,8 @@ def compute_initial_conditions(
         A realization of the density field on the high resolution grid.
         This input can also be used to determine the global density field,
         in case we have a single cell in the box.
+        When given, the cache is not read, and ``write=True`` raises a ValueError,
+        since cached files are identified by the input parameters and random seed only.
     regenerate : bool, optional
         Whether to force regeneration of data, even if matching cached data is found.
     cache
@@ -217,7 +219,7 @@ def determine_halo_catalog(
 
 
 @single_field_func
-@init_c_state(broadcast_inputs=True)
+@init_c_state(sigma=True)
 def perturb_halo_catalog(
     *,
     initial_conditions: InitialConditions,
