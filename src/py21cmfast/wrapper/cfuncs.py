@@ -1163,7 +1163,7 @@ def sample_halos_from_conditions(
     }
 
 
-@init_c_state(broadcast_inputs=True)
+@init_c_state(sigma=True)
 def convert_halo_properties(
     *,
     redshift: float,
