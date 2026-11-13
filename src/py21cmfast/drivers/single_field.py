@@ -65,6 +65,16 @@ def compute_initial_conditions(
     -------
     :class:`~InitialConditions`
     """
+    if initial_density is not None and (
+        inputs.matter_options.FIX_IC_AMPLITUDES
+        or inputs.matter_options.INVERT_IC_PHASES
+    ):
+        raise ValueError(
+            "FIX_IC_AMPLITUDES and INVERT_IC_PHASES only apply to initial conditions "
+            "drawn from the random seed, not to a given initial_density. Fix or invert "
+            "the initial_density yourself, and leave both options False."
+        )
+
     # Initialize memory for the boxes that will be returned.
     ics = InitialConditions.new(inputs=inputs)
 

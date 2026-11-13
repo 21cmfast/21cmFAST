@@ -100,11 +100,32 @@ void adj_complex_conj(fftwf_complex *HIRES_box) {
     }
 }
 
+// adj_complex_conj() keeps only the real part of the seven modes that are their own complex
+// conjugate (the Nyquist corners of the box). With fixed amplitudes, set each of them to
+// +-sqrt(VOLUME * P(k)), with the sign of that real part.
+void fix_self_conjugate_amplitudes(fftwf_complex *box, int grid_dim[3], double box_len[3]) {
+    int corner, axis;
+    int n[3];
+    double k, k_sq;
+    index_huge index;
+    for (corner = 1; corner < 8; corner++) {
+        k_sq = 0.;
+        for (axis = 0; axis < 3; axis++) {
+            n[axis] = ((corner >> axis) & 1) ? grid_dim[axis] / 2 : 0;
+            k = index_to_k(n[axis], box_len[axis], grid_dim[axis]);
+            k_sq += k * k;
+        }
+        index = grid_index_fftw_c(n[0], n[1], n[2], grid_dim);
+        box[index] = copysign(sqrt(VOLUME * power_in_k(sqrt(k_sq))), crealf(box[index]));
+    }
+}
+
 void sample_ic_modes(fftwf_complex *box, int grid_dim[3], double box_len[3], gsl_rng *r[]) {
     int n_x, n_y, n_z;
 #pragma omp parallel private(n_x, n_y, n_z) num_threads(simulation_options_global -> N_THREADS)
     {
-        double a, b;
+        double a, b, norm;
+        double complex mode;
         double k_x, k_y, k_z, k_mag, p;
         int thread_num = omp_get_thread_num();
 #pragma omp for
@@ -126,8 +147,21 @@ void sample_ic_modes(fftwf_complex *box, int grid_dim[3], double box_len[3], gsl
                     a = gsl_ran_ugaussian(r[thread_num]);
                     b = gsl_ran_ugaussian(r[thread_num]);
 
-                    box[grid_index_fftw_c(n_x, n_y, n_z, grid_dim)] =
-                        sqrt(VOLUME * p / 2.0) * (a + b * I);
+                    // Fixed and paired fields (Angulo & Pontzen 2016) are made from the same
+                    // draws, so they have the same phases as the default field.
+                    if (matter_options_global->FIX_IC_AMPLITUDES) {
+                        // keep the phase of the draw, but set |mode|^2 = VOLUME * P(k)
+                        norm = hypot(a, b);
+                        mode =
+                            (norm > 0) ? sqrt(VOLUME * p) * (a + b * I) / norm : sqrt(VOLUME * p);
+                    } else {
+                        mode = sqrt(VOLUME * p / 2.0) * (a + b * I);
+                    }
+                    // the paired field has every phase shifted by pi
+                    if (matter_options_global->INVERT_IC_PHASES) {
+                        mode = -mode;
+                    }
+                    box[grid_index_fftw_c(n_x, n_y, n_z, grid_dim)] = mode;
                 }
             }
         }
@@ -136,6 +170,10 @@ void sample_ic_modes(fftwf_complex *box, int grid_dim[3], double box_len[3], gsl
 
     // *****  Adjust the complex conjugate relations for a real array  ***** //
     adj_complex_conj(box);
+
+    if (matter_options_global->FIX_IC_AMPLITUDES) {
+        fix_self_conjugate_amplitudes(box, grid_dim, box_len);
+    }
 }
 
 void compute_relative_velocities(fftwf_complex *box, fftwf_complex *box_saved, float *out_vcb_pt) {

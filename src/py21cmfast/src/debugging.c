@@ -91,11 +91,14 @@ void writeMatterOptions(MatterOptions *p) {
         "       HALO_FILTER=%2d\n"
         "       SOURCE_MODEL=%2d\n"
         "       SMOOTH_EVOLVED_DENSITY_FIELD=%1d\n"
-        "       DEXM_OPTIMIZE=%1d\n",
+        "       DEXM_OPTIMIZE=%1d\n"
+        "       FIX_IC_AMPLITUDES=%1d\n"
+        "       INVERT_IC_PHASES=%1d\n",
         p->HMF, p->POWER_SPECTRUM, p->V_CB_MODEL, p->PERTURB_ON_HIGH_RES, p->USE_FFTW_WISDOM,
         p->USE_INTERPOLATION_TABLES, p->PERTURB_ALGORITHM, p->MINIMIZE_MEMORY,
         p->KEEP_3D_VELOCITIES, p->SAMPLE_METHOD, p->FILTER, p->HALO_FILTER, p->SOURCE_MODEL,
-        p->SMOOTH_EVOLVED_DENSITY_FIELD, p->DEXM_OPTIMIZE);
+        p->SMOOTH_EVOLVED_DENSITY_FIELD, p->DEXM_OPTIMIZE, p->FIX_IC_AMPLITUDES,
+        p->INVERT_IC_PHASES);
 }
 
 void writeCosmoParams(CosmoParams *p) {
