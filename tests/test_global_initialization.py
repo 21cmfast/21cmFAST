@@ -1,5 +1,6 @@
 """Test the GlobalInitializationManager class."""
 
+import threading
 from contextlib import contextmanager
 
 import numpy as np
@@ -420,6 +421,32 @@ def test_scope_is_not_rebuilt_per_call(monkeypatch, n_calls):
 
     # One on entering the outer function, one on entering the scope, one on leaving it.
     assert len(frees) == 3
+
+
+def test_scope_in_another_thread_waits_for_the_open_scope():
+    """A scope opened in a second thread must wait until the first thread's has closed.
+
+    The backend keeps a single set of C globals, so if both threads could set it up at
+    once, one would compute with the other's inputs or tables.
+    """
+    first_inputs, second_inputs = _two_differing_inputs()
+    second_entered = threading.Event()
+    seen_by_second = []
+
+    def second_thread():
+        with c_state(second_inputs):
+            seen_by_second.append(_GlobalInitManagerSingleton.inputs)
+            second_entered.set()
+
+    with c_state(first_inputs):
+        thread = threading.Thread(target=second_thread)
+        thread.start()
+        assert not second_entered.wait(timeout=0.5)
+        assert _GlobalInitManagerSingleton.inputs == first_inputs
+
+    thread.join(timeout=10)
+    assert second_entered.is_set()
+    assert seen_by_second == [second_inputs]
 
 
 @pytest.fixture(scope="module")
