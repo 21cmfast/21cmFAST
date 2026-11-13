@@ -138,3 +138,4 @@ you can run
 
 This will output an ``InitialConditions`` instance where all of its fields (initial densities and velocities) are consistent
 with your input ``my_hires_density_field``. You can then pass ``ics`` as an input to higher level functions (``run_coeval`` or ``run_lightcone``).
+These initial conditions are never read from or written to the cache, since cached files are identified by the input parameters and random seed only.

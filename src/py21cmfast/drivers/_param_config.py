@@ -450,6 +450,20 @@ class single_field_func(_OutputStructComputationInspect):  # noqa: N801
         regen = kwargs.pop("regenerate", cache is None)
         write = kwargs.pop("write", False)
 
+        if kwargs.get("initial_density") is not None:
+            # Cached files are named after the input parameters and the random seed.
+            # A box made from a user-supplied density field has the same name as the
+            # one made from the seed, so it can be neither read from nor written to
+            # the cache.
+            if write:
+                raise ValueError(
+                    f"{self._kls.__name__} computed from initial_density cannot be "
+                    "written to the cache, because the cache would return it in place "
+                    "of the one computed from the random seed. Pass the returned "
+                    "object on directly instead."
+                )
+            regen = True
+
         out = self._handle_read_from_cache(inputs, current_redshift, cache, regen)
 
         if "inputs" in self._signature.parameters:
