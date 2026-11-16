@@ -14,6 +14,10 @@ from scipy.spatial.transform import Rotation
 from py21cmfast import AstroOptions, CosmoParams, InputParameters, SimulationOptions
 from py21cmfast import lightconers as lcn
 
+#: Some of these tests call the methods that lightconers had in v4.3, which still work
+#: but are deprecated (tests/test_lightconer_protocol.py checks that they warn).
+V43_METHODS = "ignore:.* is deprecated as of 4.4.0:deprecation.DeprecatedWarning"
+
 
 @pytest.fixture(scope="module")
 def rect_lcner():
@@ -68,6 +72,7 @@ def test_equality(
     assert rect_lcner == rect_lcner  # noqa: PLR0124  # reflexivity of __eq__
 
 
+@pytest.mark.filterwarnings(V43_METHODS)
 @pytest.mark.parametrize("lc", ["rect_lcner", "ang_lcner"])
 def test_uniform_coevals(request, lc):
     """Test that uniform boxes interpolate the way we want."""
@@ -82,6 +87,7 @@ def test_uniform_coevals(request, lc):
     assert np.all(out[..., 0] == 0)
 
 
+@pytest.mark.filterwarnings(V43_METHODS)
 def test_incompatible_coevals(rect_lcner):
     z6 = get_uniform_coeval(redshift=6.0, fill=0)
     z7 = get_uniform_coeval(redshift=7.0, fill=1.0)
@@ -106,6 +112,7 @@ def test_incompatible_coevals(rect_lcner):
         next(rect_lcner.make_lightcone_slices(z6, z7))
 
 
+@pytest.mark.filterwarnings(V43_METHODS)
 def test_coeval_redshifts_outside_box(rect_lcner):
     z0 = rect_lcner.lc_redshifts[0] - 3
     z1 = rect_lcner.lc_redshifts[0] - 1
@@ -119,6 +126,7 @@ def test_coeval_redshifts_outside_box(rect_lcner):
     assert out is None
 
 
+@pytest.mark.filterwarnings(V43_METHODS)
 def test_bad_coeval_sizes_for_redshift_interp(rect_lcner):
     c1 = np.zeros((10, 10, 10))
     c2 = np.zeros((20, 20, 20))
@@ -129,6 +137,7 @@ def test_bad_coeval_sizes_for_redshift_interp(rect_lcner):
         rect_lcner.redshift_interpolation(3.0, c1, c2, 1, 4)
 
 
+@pytest.mark.filterwarnings(V43_METHODS)
 def test_bad_kind_for_redshift_interp(rect_lcner):
     c1 = np.zeros((10, 10, 10))
     c2 = np.zeros((10, 10, 10))
@@ -256,6 +265,7 @@ def test_rotation_equality():
     assert lc1 != lc3
 
 
+@pytest.mark.filterwarnings(V43_METHODS)
 def test_validation_options_angular(ang_lcner):
     inputs = InputParameters(node_redshifts=np.array([5.0, 8.0]), random_seed=42)
     inputs.evolve_input_structs(KEEP_3D_VELOCITIES=False)

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import warnings
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -97,8 +98,11 @@ def _prepare_lightconer(
     d_node_max = cosmo.comoving_distance(max(inputs.node_redshifts))
     if not ((d_node_min <= lcd.min()) and (lcd.max() <= d_node_max)):
         try:
-            zmin = z_at_value(cosmo.comoving_distance, lcd.min()).value
-            zmax = z_at_value(cosmo.comoving_distance, lcd.max()).value
+            with warnings.catch_warnings():
+                # astropy warns before it raises, if there is no such redshift.
+                warnings.simplefilter("ignore")
+                zmin = z_at_value(cosmo.comoving_distance, lcd.min()).value
+                zmax = z_at_value(cosmo.comoving_distance, lcd.max()).value
             lc_range = f"{zmin} to {zmax}"
         except CosmologyError:
             # Distances that no (reasonable) redshift corresponds to.
