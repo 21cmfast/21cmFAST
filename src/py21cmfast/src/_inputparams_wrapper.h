@@ -75,6 +75,8 @@ typedef struct MatterOptions {
     bool KEEP_3D_VELOCITIES;
     bool DEXM_OPTIMIZE;
     bool SMOOTH_EVOLVED_DENSITY_FIELD;
+    bool FIX_IC_AMPLITUDES;
+    bool INVERT_IC_PHASES;
     hmf_model_t HMF;
     v_cb_model_t V_CB_MODEL;
     power_spectrum_t POWER_SPECTRUM;

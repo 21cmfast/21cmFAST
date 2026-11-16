@@ -773,6 +773,27 @@ class MatterOptions(InputStruct):
     KEEP_3D_VELOCITIES
         Whether to keep the 3D velocities in the ICs.
         If False, only the z velocity is kept.
+    FIX_IC_AMPLITUDES
+        Whether to fix the amplitude of every Fourier mode of the initial density field
+        to the input power spectrum, :math:`|\delta_k|^2 = V P(k)`, keeping the random
+        phases ("fixed" initial conditions; Angulo & Pontzen 2016, MNRAS 462, L1). This
+        removes the scatter of the mode amplitudes, and with it most of the cosmic
+        variance of two-point statistics. A fixed field is not Gaussian in its one-point
+        statistics. It only applies to fields drawn from ``random_seed``, not to an
+        ``initial_density`` given to :func:`~py21cmfast.compute_initial_conditions`.
+    INVERT_IC_PHASES
+        Whether to shift the phase of every Fourier mode of the initial density field by
+        :math:`\pi`, which multiplies the field by -1. A run with this option and the
+        same ``random_seed`` *and* ``N_THREADS`` as another run is that run's "paired"
+        partner (Angulo & Pontzen 2016): averaging a statistic over the pair cancels
+        its leading-order cosmic variance. Combined with ``FIX_IC_AMPLITUDES`` this
+        gives "fixed and paired" runs. The random numbers are drawn by one generator per
+        thread, so the phases depend on ``N_THREADS``. First-order quantities (the
+        linear density and velocity fields) change sign, second-order ones (the 2LPT
+        terms and the relative velocity :math:`|v_{cb}|`) do not. The halo sampler and
+        the stochastic scatter of halo properties draw their own random numbers, which
+        are not paired. Like ``FIX_IC_AMPLITUDES``, it only applies to fields drawn
+        from ``random_seed``.
     V_CB_MODEL
         The model to use for the relative velocity field between the (cold) dark matter and the baryons,
         at the moment of kinematic decoupling. Options are:
@@ -828,6 +849,8 @@ class MatterOptions(InputStruct):
     ] = choice_field(default="hmf-interpolation")
     MINIMIZE_MEMORY: bool = field(default=False, converter=bool)
     KEEP_3D_VELOCITIES: bool = field(default=False, converter=bool)
+    FIX_IC_AMPLITUDES: bool = field(default=False, converter=bool)
+    INVERT_IC_PHASES: bool = field(default=False, converter=bool)
     SAMPLE_METHOD: Literal[
         "MASS-LIMITED", "NUMBER-LIMITED", "PARTITION", "BINARY-SPLIT"
     ] = choice_field(
