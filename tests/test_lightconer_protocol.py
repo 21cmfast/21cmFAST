@@ -690,3 +690,167 @@ def test_angular_lightconer_from_tuesday():
         "velocity_y",
         "velocity_z",
     )
+
+
+# ======================================================================================
+# Smaller paths: errors, deprecated entry points and helpers
+# ======================================================================================
+def test_redshift_interpolation_mean_max():
+    a, b = np.array([1.0, -1.0, 2.0]), np.array([3.0, 5.0, -2.0])
+    np.testing.assert_allclose(lcn.redshift_interpolation(2, a, b, 1, 3), [2, 2, 0])
+    # Where the two values have opposite signs, the larger is taken.
+    np.testing.assert_allclose(
+        lcn.redshift_interpolation(2, a, b, 1, 3, kind="mean_max"), [2, 5, 2]
+    )
+
+
+def test_first_los_index():
+    from py21cmfast.drivers.lightcone import _first_los_index
+
+    assert _first_los_index((..., 4), 10) == 4
+    assert _first_los_index((..., slice(3, 7)), 10) == 3
+    assert _first_los_index((..., slice(None, None, 2)), 10) == 0
+    assert _first_los_index((..., np.array([5, 2, 8])), 10) == 2
+    # Where the chunk is along the line of sight is not always known.
+    assert _first_los_index(4, 10) is None
+    assert _first_los_index((), 10) is None
+    assert _first_los_index((..., None), 10) is None
+
+
+def test_make_checkpoint_still_works(lc, tmp_path):
+    """The method that the driver used in v4.3 writes slices from the far end."""
+    fname = tmp_path / "checkpoint.h5"
+    full = lc.lightcones["brightness_temp"]
+    n = full.shape[-1]
+
+    partial = attrs.evolve(
+        lc,
+        lightcones={"brightness_temp": np.zeros_like(full)},
+        global_quantities={
+            k: np.zeros_like(v) for k, v in lc.global_quantities.items()
+        },
+    )
+    partial.save(fname)
+
+    for lcidx, node in ((n - 5, 1), (n - 12, 2)):
+        partial.lightcones["brightness_temp"][..., lcidx:] = full[..., lcidx:]
+        for k, v in lc.global_quantities.items():
+            partial.global_quantities[k][: node + 1] = v[: node + 1]
+        partial.make_checkpoint(fname, lcidx=lcidx, node_index=node)
+        assert partial._last_completed_lcidx == lcidx
+        assert partial._last_completed_node == node
+
+    on_disk = LightCone.from_file(fname)
+    np.testing.assert_array_equal(
+        on_disk.lightcones["brightness_temp"][..., n - 12 :], full[..., n - 12 :]
+    )
+    assert np.all(on_disk.lightcones["brightness_temp"][..., : n - 12] == 0)
+    np.testing.assert_array_equal(
+        on_disk.global_quantities["brightness_temp"][:3],
+        lc.global_quantities["brightness_temp"][:3],
+    )
+
+
+def test_deprecated_make_lightcone_slices_without_slices(
+    rectlcn, default_input_struct_lc
+):
+    """As in v4.3, two coevals with no slice between them give one empty item."""
+    inputs = default_input_struct_lc
+    coevals = [
+        SimpleNamespace(
+            redshift=z,
+            simulation_options=inputs.simulation_options,
+            cosmo_params=inputs.cosmo_params,
+            brightness_temp=np.zeros((35, 35, 35)),
+        )
+        for z in (5.0, 5.1)
+    ]
+    with pytest.warns(deprecation.DeprecatedWarning, match="make_lightcone_slices"):
+        (item,) = rectlcn.make_lightcone_slices(*coevals)
+    quantity, index, values = item
+    assert quantity is None
+    assert values is None
+    assert len(index) == 0
+
+
+def test_deprecated_find_required_lightcone_limits(
+    default_input_struct_lc, old_style_class
+):
+    from py21cmfast.rsds import find_required_lightcone_limits
+    from py21cmfast.wrapper.classy_interface import run_classy
+
+    inputs = default_input_struct_lc
+    zs = sorted(inputs.node_redshifts)
+    rect = p21c.RectilinearLightconer.between_redshifts(
+        min_redshift=zs[2],
+        max_redshift=zs[-3],
+        resolution=inputs.simulation_options.cell_size,
+        cosmo=inputs.cosmo_params.cosmo,
+    )
+    classy = run_classy(output="vTk")
+    expected = find_required_lightcone_limits(rect, classy_output=classy, inputs=inputs)
+
+    with pytest.warns(
+        deprecation.DeprecatedWarning, match="find_required_lightcone_limits"
+    ):
+        limits = rect.find_required_lightcone_limits(classy, inputs=inputs)
+    assert limits == expected
+
+    # The base class of v4.3 has the method too (and the same line of sight).
+    old = old_style_class(lc_distances=rect.lc_distances, cosmo=rect.cosmo)
+    assert old.find_required_lightcone_limits(classy, inputs=inputs) == expected
+
+
+def test_old_style_lightconer_errors(old_style_class, rectlcn, default_input_struct_lc):
+    """The base class of v4.3 checks the coevals, and can leave a field missing."""
+    inputs = default_input_struct_lc
+    old = old_style_class(
+        lc_distances=rectlcn.lc_distances,
+        cosmo=rectlcn.cosmo,
+        quantities=("brightness_temp", "density"),
+    )
+
+    def coeval(z, **kw):
+        fields = {
+            "simulation_options": inputs.simulation_options,
+            "cosmo_params": inputs.cosmo_params,
+            "brightness_temp": np.zeros((35, 35, 35)),
+            **kw,
+        }
+        return SimpleNamespace(redshift=z, **fields)
+
+    other_options = inputs.simulation_options.clone(BOX_LEN=51)
+    with pytest.raises(ValueError, match="same user parameters"):
+        next(
+            old.make_lightcone_slices(
+                coeval(20), coeval(21, simulation_options=other_options)
+            )
+        )
+    other_cosmo = inputs.cosmo_params.clone(SIGMA_8=0.9)
+    with pytest.raises(ValueError, match="same cosmological parameters"):
+        next(
+            old.make_lightcone_slices(coeval(20), coeval(21, cosmo_params=other_cosmo))
+        )
+
+    # Through the protocol, a field that the snapshots do not have is an
+    # AttributeError for the lightconer (as with a Coeval), whatever its name.
+    zs = inputs.node_redshifts[2:4]
+    session = old.start(lcn.context_from_inputs(inputs, node_redshifts=zs))
+    assert list(session.ingest(CoevalSnapshot(coeval(zs[0])))) == []
+    with pytest.raises(AttributeError, match="density"):
+        list(session.ingest(CoevalSnapshot(coeval(zs[1]))))
+    assert session.finish() == ()
+
+    # The default sub-selection of the base class is the whole box.
+    box = np.ones((2, 2, 2))
+    assert lcn.Lightconer.coeval_subselect(old, 1.0, box, 1.0) is box
+
+
+def test_angular_lightconer_needs_a_recent_tuesday(monkeypatch):
+    """A tuesday without the lightconers is said to be too old."""
+    core = pytest.importorskip("tuesday.core.lightcones")
+    monkeypatch.delitem(sys.modules, "py21cmfast.lightconers.angular", raising=False)
+    monkeypatch.delattr(core, "AngularLightconer")
+
+    with pytest.raises(ImportError, match="too old to have it"):
+        _ = lcn.AngularLightconer
