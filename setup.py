@@ -44,6 +44,14 @@ test_req = [
 
 doc_req = ["nbsphinx", "numpydoc", "sphinx >= 1.3", "furo", "ipython", "pandoc"]
 
+# Lightconers other than the rectilinear one (e.g. AngularLightconer) are in tuesday.
+# TODO: before this is released, require the first release of tuesday-eor that has
+# the lightconers in tuesday.core.lightcones, instead of the branch that adds them.
+lightcones_req = [
+    "tuesday-eor @ git+https://github.com/21cmfast/tuesday@claude/practical-meitner-qd0qop"
+]
+test_req += lightcones_req
+
 setup(
     name="21cmFAST",
     license="MIT license",
@@ -99,7 +107,12 @@ setup(
         "deprecation",
         "packaging",
     ],
-    extras_require={"tests": test_req, "docs": doc_req, "dev": test_req + doc_req},
+    extras_require={
+        "lightcones": lightcones_req,
+        "tests": test_req,
+        "docs": doc_req,
+        "dev": test_req + doc_req,
+    },
     setup_requires=["cffi>=1.0", "setuptools_scm"],
     entry_points={"console_scripts": ["21cmfast = py21cmfast.cli:app"]},
     cffi_modules=[f"{THISDIR}/build_cffi.py:ffi"],

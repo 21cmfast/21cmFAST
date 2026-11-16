@@ -3,7 +3,7 @@
 import logging
 import warnings
 from collections import deque
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from functools import cached_property
 from pathlib import Path
 from typing import Self
@@ -17,8 +17,15 @@ from astropy.cosmology import z_at_value
 from .. import __version__
 from ..c_21cmfast import lib
 from ..io import h5
-from ..io.caching import CacheConfig, OutputCache
-from ..lightconers import Lightconer, RectilinearLightconer
+from ..io.caching import CacheConfig, OutputCache, RunCache
+from ..lightconers import (
+    Chunk,
+    CoevalSnapshot,
+    LightconerProtocol,
+    LightconeSession,
+    context_from_inputs,
+    prepare_lightconer,
+)
 from ..rsds import apply_rsds as _apply_rsds
 from ..rsds import include_dvdr_in_tau21 as _apply_dvdr_in_tau21
 from ..wrapper.inputs import InputParameters
@@ -33,6 +40,7 @@ from ..wrapper.outputs import (
 )
 from ._param_config import high_level_func
 from .coeval import (
+    Coeval,
     _obtain_starting_point_for_scrolling,
     _redshift_loop_generator,
     _setup_ics_and_pfs_for_scrolling,
@@ -220,10 +228,14 @@ class LightCone:
         h5._write_inputs_to_group(self.inputs, path)
 
     def make_checkpoint(self, path: str | Path, lcidx: int, node_index: int):
-        """Write updated lightcone data to file."""
+        """Write updated lightcone data to file.
+
+        This writes all the slices from index ``lcidx`` up to the last one that was
+        written, so it is only right for lightcones that are filled slice by slice,
+        from the last to the first. :meth:`write_chunks` has no such restriction.
+        """
         with h5py.File(path, "a") as fl:
             last_completed_lcidx = fl.attrs["last_completed_lcidx"]
-            last_completed_node = fl.attrs["last_completed_node"]
 
             save_idx = (
                 len(self.lightcone_distances)
@@ -233,17 +245,55 @@ class LightCone:
             for k, v in self.lightcones.items():
                 fl["lightcones"][k][..., lcidx:save_idx] = v[..., lcidx:save_idx]
 
-            global_q = fl["global_quantities"]
-            for k, v in self.global_quantities.items():
-                global_q[k][last_completed_node + 1 : node_index + 1] = v[
-                    last_completed_node + 1 : node_index + 1
-                ]
+            self._checkpoint_node(fl, node_index, lcidx)
 
+    def write_chunks(self, path: str | Path, chunks: Iterable[Chunk], node_index: int):
+        """Write the parts of the lightcone made at one node redshift to file.
+
+        Parameters
+        ----------
+        path
+            The file, which must have been written by :meth:`save`.
+        chunks
+            The parts of the lightcone that are new (which must already be in
+            ``lightcones``).
+        node_index
+            The index of the node redshift that is now complete.
+        """
+        lcidx = None
+        with h5py.File(path, "a") as fl:
+            rewritten = set()
+            for quantity, index, _ in chunks:
+                if quantity in rewritten:
+                    continue
+                dataset = fl["lightcones"][quantity]
+                try:
+                    dataset[index] = self.lightcones[quantity][index]
+                except (TypeError, ValueError):
+                    # An index that numpy accepts, but not h5py.
+                    dataset[...] = self.lightcones[quantity]
+                    rewritten.add(quantity)
+
+                first = _first_los_index(index, len(self.lightcone_distances))
+                if first is not None and (lcidx is None or first < lcidx):
+                    lcidx = first
+
+            self._checkpoint_node(fl, node_index, lcidx)
+
+    def _checkpoint_node(self, fl: h5py.File, node_index: int, lcidx: int | None):
+        """Write the global quantities up to a node, and mark it as complete."""
+        last_completed_node = fl.attrs["last_completed_node"]
+        global_q = fl["global_quantities"]
+        for k, v in self.global_quantities.items():
+            global_q[k][last_completed_node + 1 : node_index + 1] = v[
+                last_completed_node + 1 : node_index + 1
+            ]
+
+        fl.attrs["last_completed_node"] = node_index
+        self._last_completed_node = node_index
+        if lcidx is not None:
             fl.attrs["last_completed_lcidx"] = lcidx
-            fl.attrs["last_completed_node"] = node_index
-
             self._last_completed_lcidx = lcidx
-            self._last_completed_node = node_index
 
     def _finalize_lightcone_at_last_redshift(
         self,
@@ -251,7 +301,7 @@ class LightCone:
         apply_rsds: bool,
         n_rsd_subcells: int,
         inputs: InputParameters,
-        lightconer: Lightconer,
+        lightconer: LightconerProtocol,
         lc_distances: np.ndarray,
         lowz_buffer_pixels: int,
         highz_buffer_pixels: int,
@@ -384,11 +434,12 @@ def _get_all_possible_arrays(inputs: InputParameters) -> list[str]:
     possible_outputs = [
         InitialConditions.new(inputs),
         PerturbedField.new(inputs, redshift=0),
-        TsBox.new(inputs, redshift=0),
         EmissivityFields.new(inputs, redshift=0),
         IonizedBox.new(inputs, redshift=0),
         BrightnessTemp.new(inputs, redshift=0),
     ]
+    if inputs.astro_options.USE_TS_FLUCT:
+        possible_outputs.append(TsBox.new(inputs, redshift=0))
     return [name for output in possible_outputs for name in output.arrays]
 
 
@@ -397,10 +448,18 @@ def _check_desired_arrays_exist(desired_arrays: list[str], inputs: InputParamete
     unknown = [
         name
         for name in desired_arrays
-        if name
-        not in [*possible_arrays, "log10_mturn_acg", "log10_mturn_mcg", "los_velocity"]
+        if name not in [*possible_arrays, "log10_mturn_acg", "log10_mturn_mcg"]
     ]
 
+    if "los_velocity" in unknown:
+        raise ValueError(
+            "The lightconer asks for a field called 'los_velocity', which is not a "
+            "field of the simulation. The velocity corrections (include_dvdr_in_tau21 "
+            "and apply_rsds) need a 'los_velocity' lightcone, which the lightconer "
+            "must make from the velocity fields: its required_fields() should name "
+            "those (e.g. 'velocity_z'). Otherwise, set include_dvdr_in_tau21=False "
+            "and apply_rsds=False."
+        )
     if unknown:
         raise ValueError(
             f"The following arrays: {unknown} were asked for but are not computed for the "
@@ -433,8 +492,30 @@ def _resolve_global_quantities(
     return tuple(dict.fromkeys((*_SCALAR_GLOBAL_QUANTITIES, *global_quantities)))
 
 
+def _first_los_index(index, n_slices: int) -> int | None:
+    """Return the first index along the line of sight of a chunk, if it is known."""
+    if not isinstance(index, tuple) or not index:
+        return None
+    last = index[-1]
+    if isinstance(last, slice):
+        return last.indices(n_slices)[0]
+    try:
+        return int(np.min(last))
+    except (TypeError, ValueError):
+        return None
+
+
+def _store_chunks(lightcone: LightCone, chunks: Iterable[Chunk]) -> list[Chunk]:
+    """Put parts of the lightcone in their place, and return where they went."""
+    stored = []
+    for quantity, index, values in chunks:
+        lightcone.lightcones[quantity][index] = values
+        stored.append(Chunk(quantity, index, None))
+    return stored
+
+
 def setup_lightcone_instance(
-    lightconer: Lightconer,
+    lightconer: LightconerProtocol,
     scrollz: Sequence[float],
     inputs: InputParameters,
     include_dvdr_in_tau21: bool,
@@ -442,8 +523,12 @@ def setup_lightcone_instance(
     photon_nonconservation_data: dict,
     lightcone_filename: Path | None = None,
     global_quantities: Sequence[str] | None = None,
+    shape: tuple[int, ...] | None = None,
 ) -> LightCone:
     """Return a LightCone instance given a lightconer as input.
+
+    ``shape`` is the shape of the lightcone of each quantity (that of the session
+    that the lightconer starts for these inputs, if None).
 
     ``global_quantities`` are the names of the global quantities to save (all the
     fields of :meth:`LightCone.get_fields` if None). When resuming from
@@ -471,27 +556,23 @@ def setup_lightcone_instance(
                 f"starting at z={scrollz[idx + 1]}, step ({idx + 2}/{len(scrollz)}"
             )
     else:
-        lcn_cls = (
-            LightCone
-            if isinstance(lightconer, RectilinearLightconer)
-            else AngularLightcone
-        )
+        if shape is None:
+            context = context_from_inputs(inputs, node_redshifts=scrollz)
+            shape = lightconer.start(context).shape
+        shape = tuple(shape)
+
+        # A lightcone with two transverse axes is a box. Any other is "angular":
+        # its pixels are directions on the sky.
+        lcn_cls = LightCone if len(shape) == 3 else AngularLightcone
         lc = {
-            quantity: np.zeros(
-                lightconer.get_shape(inputs.simulation_options),
-                dtype=np.float32,
-            )
+            quantity: np.zeros(shape, dtype=np.float32)
             for quantity in lightconer.quantities
         }
 
         if include_dvdr_in_tau21 or apply_rsds:
-            lc["los_velocity"] = np.zeros(
-                lightconer.get_shape(inputs.simulation_options), dtype=np.float32
-            )
+            lc["los_velocity"] = np.zeros(shape, dtype=np.float32)
         if include_dvdr_in_tau21 and inputs.astro_options.USE_TS_FLUCT:
-            lc["tau_21"] = np.zeros(
-                lightconer.get_shape(inputs.simulation_options), dtype=np.float32
-            )
+            lc["tau_21"] = np.zeros(shape, dtype=np.float32)
 
         lightcone = lcn_cls(
             lightcone_distances=lightconer.lc_distances,
@@ -510,7 +591,7 @@ def _run_lightcone_from_perturbed_fields(
     *,
     initial_conditions: InitialConditions,
     perturbed_fields: Sequence[PerturbedField],
-    lightconer: Lightconer,
+    lightconer: LightconerProtocol,
     inputs: InputParameters,
     lc_distances: np.array,
     photon_nonconservation_data: dict,
@@ -527,6 +608,10 @@ def _run_lightcone_from_perturbed_fields(
     # Get the redshift through which we scroll and evaluate the ionization field.
     scrollz = np.array([pf.redshift for pf in perturbed_fields])
 
+    # The lightconer makes the lightcone. Everything it keeps between redshifts
+    # (earlier boxes, interpolators, ...) is in the session it starts here.
+    session = lightconer.start(context_from_inputs(inputs, node_redshifts=scrollz))
+
     # Create the LightCone instance, loading from file if needed
     lightcone = setup_lightcone_instance(
         lightconer=lightconer,
@@ -537,7 +622,9 @@ def _run_lightcone_from_perturbed_fields(
         lightcone_filename=lightcone_filename,
         photon_nonconservation_data=photon_nonconservation_data,
         global_quantities=global_quantities,
+        shape=session.shape,
     )
+    _check_lightcone_matches_session(lightcone, lightconer, session)
     if lightcone._last_completed_node == len(scrollz) - 1:
         logger.info("Lightcone already full. Returning.")
         yield None, None, None, lightcone
@@ -558,6 +645,10 @@ def _run_lightcone_from_perturbed_fields(
             f"redshift of the lightcone. Repeating the higher-z calculations...",
             stacklevel=2,
         )
+
+    if prev_coeval is not None:
+        # We are resuming: give the session the boxes it would have had by now.
+        _prime_session(session, prev_coeval, idx, inputs, iokw.get("cache"))
 
     # Find how many pixels on either end of the lightcone are in the "buffer" region.
     # These are used to generate RSDs, but are then removed from the lightcone before
@@ -603,24 +694,15 @@ def _run_lightcone_from_perturbed_fields(
         # Update photon conservation data in-place
         lightcone.photon_nonconservation_data |= coeval.photon_nonconservation_data
 
-        # Get lightcone slices
-        lc_index = None
-        if prev_coeval is not None:
-            for quantity, idx, this_lc in lightconer.make_lightcone_slices(
-                coeval,
-                prev_coeval,
-            ):
-                if this_lc is not None:
-                    lightcone.lightcones[quantity][..., idx] = this_lc
-                    # save the lowest index
-                    if lc_index is None:
-                        lc_index = idx
+        # Give the fields of this redshift to the lightconer, and store the parts
+        # of the lightcone that it returns.
+        chunks = _store_chunks(lightcone, session.ingest(CoevalSnapshot(coeval)))
+        if iz == len(scrollz) - 1:
+            chunks += _store_chunks(lightcone, session.finish())
 
-            # only checkpoint if we have slices
-            if lightcone_filename and lc_index is not None:
-                lightcone.make_checkpoint(
-                    lightcone_filename, lcidx=lc_index, node_index=iz
-                )
+        # only checkpoint if the lightcone has changed
+        if lightcone_filename and chunks:
+            lightcone.write_chunks(lightcone_filename, chunks, node_index=iz)
 
         # last redshift things
         if iz == len(scrollz) - 1:
@@ -650,10 +732,53 @@ def _run_lightcone_from_perturbed_fields(
         prev_coeval = coeval
 
 
+def _check_lightcone_matches_session(
+    lightcone: LightCone, lightconer: LightconerProtocol, session: LightconeSession
+):
+    """Check that a lightcone (perhaps read from file) is the one being made."""
+    for quantity in lightconer.quantities:
+        if quantity not in lightcone.lightcones:
+            raise ValueError(
+                f"The lightcone to resume has no '{quantity}' lightcone. It has "
+                f"{tuple(lightcone.lightcones)}."
+            )
+        shape = lightcone.lightcones[quantity].shape
+        if shape != tuple(session.shape):
+            raise ValueError(
+                f"The lightcone to resume has '{quantity}' of shape {shape}, but the "
+                f"lightconer makes lightcones of shape {tuple(session.shape)}."
+            )
+
+
+def _prime_session(
+    session: LightconeSession,
+    coeval: Coeval,
+    node_index: int,
+    inputs: InputParameters,
+    cache: OutputCache | None,
+):
+    """Pass a new session the latest boxes of an earlier run, to carry on after them.
+
+    ``coeval`` is the box of the last node of the earlier run. A session that makes
+    each part of the lightcone from more than two consecutive boxes
+    (``resume_depth > 1``) also gets the boxes before it, from the cache. Whatever
+    the session returns is dropped: it is already in the lightcone.
+    """
+    earlier = range(max(0, node_index - session.resume_depth + 1), node_index)
+    coevals = []
+    if len(earlier):
+        run_cache = RunCache.from_inputs(inputs, cache)
+        coevals = [run_cache.get_coeval_at_z(index=i) for i in earlier]
+
+    for box in (*coevals, coeval):
+        for _ in session.ingest(CoevalSnapshot(box)):
+            pass
+
+
 @high_level_func
 def generate_lightcone(
     *,
-    lightconer: Lightconer,
+    lightconer: LightconerProtocol,
     inputs: InputParameters,
     initial_conditions: InitialConditions | None = None,
     include_dvdr_in_tau21: bool = True,
@@ -674,8 +799,12 @@ def generate_lightcone(
 
     Parameters
     ----------
-    lightconer : :class:`~Lightconer`
-        This object specifies the dimensions, redshifts, and quantities required by the lightcone run
+    lightconer : :class:`~py21cmfast.lightconers.LightconerProtocol`
+        The object that makes the lightcone from the boxes of each node redshift. It
+        specifies the dimensions, redshifts, and quantities of the lightcone, and
+        how the boxes are interpolated onto it. 21cmFAST comes with
+        :class:`~py21cmfast.RectilinearLightconer`. Any object that follows the
+        :class:`~py21cmfast.lightconers.LightconerProtocol` can be used.
     inputs: :class:`~InputParameters`
         This object specifies the input parameters for the run, including the random seed
     initial_conditions : :class:`~InitialConditions`, optional
@@ -725,7 +854,8 @@ def generate_lightcone(
 
     # Validate the lightconer options and return a "ghost" lightconer if we require
     # some extra buffer pixels (e.g. for RSDs).
-    lightconer = lightconer.validate_options(
+    lightconer = prepare_lightconer(
+        lightconer,
         inputs=inputs,
         include_dvdr_in_tau21=include_dvdr_in_tau21,
         apply_rsds=apply_rsds,
@@ -733,7 +863,7 @@ def generate_lightcone(
     if isinstance(write, bool):
         write = CacheConfig() if write else CacheConfig.off()
 
-    _check_desired_arrays_exist(lightconer.quantities, inputs)
+    _check_desired_arrays_exist(lightconer.required_fields(), inputs)
     if global_quantities is not None:
         global_quantities = _resolve_global_quantities(global_quantities, inputs)
 

@@ -70,8 +70,8 @@ def test_lightcone_quantities(
         quantities=("spin_temperature", "density"),
     )
 
-    # Raise an error since we're not doing spin temp.
-    with pytest.raises(AttributeError):
+    # Raise an error (before anything is run) since we're not doing spin temp.
+    with pytest.raises(ValueError, match="spin_temperature"):
         p21c.run_lightcone(
             lightconer=lcn_ts,
             initial_conditions=ic,

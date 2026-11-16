@@ -28,6 +28,7 @@ __all__ = [
     "InputParameters",
     "IonizedBox",
     "LightCone",
+    "LightconerProtocol",
     "MatterOptions",
     "OutputCache",
     "PerturbedField",
@@ -100,7 +101,7 @@ from .io.h5 import (
     read_output_struct,
     write_output_to_hdf5,
 )
-from .lightconers import AngularLightconer, RectilinearLightconer
+from .lightconers import LightconerProtocol, RectilinearLightconer
 from .wrapper.cfuncs import (
     compute_luminosity_function,
     compute_tau,
@@ -130,3 +131,10 @@ from .wrapper.outputs import (
 from .wrapper.photoncons import setup_photon_cons
 
 configure_logging()
+
+
+def __getattr__(name: str):
+    """Import the objects that need optional dependencies when they are asked for."""
+    if name == "AngularLightconer":
+        return lightconers.AngularLightconer
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
