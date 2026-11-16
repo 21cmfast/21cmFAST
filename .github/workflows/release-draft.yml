@@ -1,6 +1,13 @@
 name: Update Draft Release
 
-on: push
+# Only keep the draft of the next release from main up to date. There is a single
+# draft, so pushes to any other branch (including the release maintenance branches)
+# would retarget it and overwrite its notes. Notes for patch releases made from a
+# release-vX.Y.x branch are generated when creating the release on GitHub instead.
+on:
+  push:
+    branches:
+      - 'main'
 
 permissions:
   contents: write
