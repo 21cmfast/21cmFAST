@@ -7,6 +7,7 @@ options work/don't work as intended.
 
 import numpy as np
 import pytest
+from astropy import units
 
 import py21cmfast as p21c
 
@@ -86,6 +87,71 @@ def test_lightcone_coords(lc):
     np.testing.assert_allclose(
         np.diff(lc.lightcone_coords.to_value("Mpc")),
         lc.simulation_options.BOX_LEN / lc.simulation_options.HII_DIM,
+    )
+
+
+@pytest.mark.parametrize(
+    "subsample_level",
+    [
+        0,
+        pytest.param(
+            1,
+            marks=pytest.mark.skipif(
+                not p21c.lightconers._COSMOTILE_AVERAGES_SUBSAMPLES,
+                reason="pixels averaged over sub-samples need cosmotile >= 0.3",
+            ),
+        ),
+    ],
+)
+def test_healpix_lightcone(
+    ic,
+    default_input_struct_lc,
+    lightcone_min_redshift,
+    max_redshift,
+    cache,
+    subsample_level,
+):
+    """A full-sky HEALPix lightcone, with the dv/dr correction."""
+    lcn = p21c.AngularLightconer.healpix(
+        nside=4,
+        subsample_level=subsample_level,
+        min_redshift=lightcone_min_redshift,
+        max_redshift=max_redshift,
+        resolution=ic.simulation_options.cell_size,
+        cosmo=ic.cosmo_params.cosmo,
+        origin=np.full(3, ic.simulation_options.HII_DIM / 2) * units.pixel,
+        quantities=("brightness_temp", "density"),
+    )
+    kwargs = {
+        "lightconer": lcn,
+        "initial_conditions": ic,
+        "inputs": default_input_struct_lc,
+        "cache": cache,
+    }
+    lc = p21c.run_lightcone(**kwargs)
+
+    shape = (192, len(lcn.lc_distances))
+    for name in ("brightness_temp", "density", "los_velocity"):
+        assert lc.lightcones[name].shape == shape
+        assert np.all(np.isfinite(lc.lightcones[name]))
+        assert np.std(lc.lightcones[name]) > 0
+
+    # The brightness temperature is the uncorrected one with the dv/dr correction
+    # applied along each pixel's line of sight.
+    lc_raw = p21c.run_lightcone(regenerate=False, include_dvdr_in_tau21=False, **kwargs)
+    expected = p21c.rsds.include_dvdr_in_tau21(
+        brightness_temp=lc_raw.lightcones["brightness_temp"],
+        los_velocity=lc.lightcones["los_velocity"],
+        redshifts=lc.lightcone_redshifts,
+        inputs=default_input_struct_lc,
+        tau_21=None,
+        periodic=False,
+    )
+    assert not np.allclose(
+        lc.lightcones["brightness_temp"], lc_raw.lightcones["brightness_temp"]
+    )
+    np.testing.assert_allclose(
+        lc.lightcones["brightness_temp"], expected, rtol=1e-5, atol=1e-5
     )
 
 
