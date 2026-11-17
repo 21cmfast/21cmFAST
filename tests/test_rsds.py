@@ -7,12 +7,17 @@ from astropy import units
 import py21cmfast as p21c
 from py21cmfast import InputParameters, run_coeval
 from py21cmfast.lightconers import AngularLightconer, RectilinearLightconer
-from py21cmfast.rsds import apply_rsds, include_dvdr_in_tau21, rsds_shift
+from py21cmfast.rsds import (
+    apply_rsds,
+    find_required_lightcone_limits,
+    include_dvdr_in_tau21,
+    rsds_shift,
+)
 from py21cmfast.wrapper.classy_interface import run_classy
 
 
 class TestFindRequiredLightconeLimits:
-    """Tests of the find_required_lightcone_limits method."""
+    """Tests of the find_required_lightcone_limits function."""
 
     def setup_class(self):
         """Set up the RectilinearLightconer for testing."""
@@ -33,7 +38,9 @@ class TestFindRequiredLightconeLimits:
     def test_limits_are_reasonable(self):
         """Test that the limits returned by find_required_lightcone_limits are reasonable."""
         classy = run_classy(output="vTk")
-        limits = self.lcner.find_required_lightcone_limits(classy, inputs=self.inputs)
+        limits = find_required_lightcone_limits(
+            self.lcner, classy_output=classy, inputs=self.inputs
+        )
         assert len(limits) == 2
         assert limits[0] < limits[1]
         assert limits[0] <= self.lcner.lc_distances.min()

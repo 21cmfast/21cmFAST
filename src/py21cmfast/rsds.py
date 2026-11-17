@@ -298,3 +298,86 @@ def estimate_rsd_displacements(
     # The multiplication by (1+z)=1/a is because CLASS returns the *proper* velocity field,
     # while we work in *comoving* coordinates
     return v_rms / cosmo.H(redshifts) * (1.0 + redshifts)
+
+
+def find_required_lightcone_limits(
+    lightconer,
+    classy_output: Class,
+    inputs: InputParameters,
+) -> list[units.Quantity]:
+    """Obtain the distance limits required for a lightcone to include RSDs.
+
+    This is a *crude* estimation of the maximum/minimum lightcone limits that are
+    required in order to simulate all the "mass" that enters the requested
+    ligthcone (due to RSD shift). We use the rms of the velocity field from linear
+    perturbation theory in order to determine the required lightcone limits.
+    If no limit is found, it means that the limits of node_redshifts are not
+    sufficient and an error is raised.
+
+    Parameters
+    ----------
+    lightconer
+        The lightconer (any object with the ``lc_distances`` of the lightcone). If it
+        has the attribute ``los_velocity_rms_factor``, that is the ratio of the rms
+        of the velocity along its line of sight to the rms of the full velocity
+        (taken to be 1 otherwise).
+    classy_output : classy.Class
+        An object containing all the information from the CLASS calculation.
+    inputs: InputParameters
+        The input parameters corresponding to the box.
+
+    Returns
+    -------
+    lcd_limits_rsd : list
+        List that contains the limits of the required lightcone distances.
+    """
+    cosmo = inputs.cosmo_params.cosmo
+    lc_distances = lightconer.lc_distances
+    # The velocity rms that CLASS returns corresponds to the magnitude of the velocity vector.
+    # In case of rectilinear lightcones, since we shift the cells only along one axis (e.g. z-axis),
+    # we need the rms of the correponding component of the velocity vector, which is smaller by sqrt(3)
+    # due to isotropy
+    factor = getattr(lightconer, "los_velocity_rms_factor", 1.0)
+    z_node_limits = [min(inputs.node_redshifts), max(inputs.node_redshifts)]
+    lcd_limits = [lc_distances.min(), lc_distances.max()]
+    signs = [-1, 1]
+    lcd_limits_rsd = []
+    for sign, z_node_limit, lcd_limit in zip(
+        signs, z_node_limits, lcd_limits, strict=False
+    ):
+        distances_out = (
+            np.arange(
+                lcd_limit.value,
+                cosmo.comoving_distance(z_node_limit).value,
+                inputs.simulation_options.cell_size.value * sign,
+            )
+            * lcd_limit.unit
+        )
+        if len(distances_out) > 0:
+            displacements = estimate_rsd_displacements(
+                classy_output=classy_output,
+                cosmo=cosmo,
+                redshifts=cosmology.z_at_value(cosmo.comoving_distance, distances_out),
+                factor=factor,
+            )
+            if sign < 0:
+                out_indices = distances_out + displacements < lcd_limit
+            else:
+                out_indices = distances_out - displacements > lcd_limit
+        else:
+            out_indices = False
+        if np.any(out_indices):
+            # If there are displaced coordinates outside the lightcone box, we return the
+            # corresponding distance that is closest to the original lightcone boundaries
+            lcd_limits_rsd.append(distances_out[out_indices][0])
+        else:
+            lcz = cosmology.z_at_value(
+                cosmo.comoving_distance, units.Quantity(lcd_limits)
+            ).value
+            raise ValueError(
+                f"You have set apply_rsds to True with node redshifts between {min(inputs.node_redshifts)} and {max(inputs.node_redshifts)} "
+                f"and lightcone redshifts between {lcz.min()} and {lcz.max()}. "
+                "However, RSDs are expected to contribute the lightcone from higer/lower rdshifts. "
+                "Extend the limits of node redshifts to avoid this error."
+            )
+    return lcd_limits_rsd
