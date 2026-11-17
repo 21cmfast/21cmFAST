@@ -1,12 +1,20 @@
 """Test the GlobalInitializationManager class."""
 
+import threading
 from contextlib import contextmanager
 
 import numpy as np
 import pytest
 from py21cmfast.c_21cmfast import lib
 
-from py21cmfast import Coeval, InputParameters, run_coeval
+from py21cmfast import (
+    Coeval,
+    InputParameters,
+    compute_initial_conditions,
+    determine_halo_catalog,
+    perturb_halo_catalog,
+    run_coeval,
+)
 from py21cmfast.drivers import _global_initialization
 from py21cmfast.drivers._global_initialization import (
     GlobalInitializationManager,
@@ -14,6 +22,7 @@ from py21cmfast.drivers._global_initialization import (
     c_state,
     init_c_state,
 )
+from py21cmfast.wrapper import cfuncs as cf
 
 N_REPEAT = 10
 
@@ -412,3 +421,104 @@ def test_scope_is_not_rebuilt_per_call(monkeypatch, n_calls):
 
     # One on entering the outer function, one on entering the scope, one on leaving it.
     assert len(frees) == 3
+
+
+def test_scope_in_another_thread_waits_for_the_open_scope():
+    """A scope opened in a second thread must wait until the first thread's has closed.
+
+    The backend keeps a single set of C globals, so if both threads could set it up at
+    once, one would compute with the other's inputs or tables.
+    """
+    first_inputs, second_inputs = _two_differing_inputs()
+    second_entered = threading.Event()
+    seen_by_second = []
+
+    def second_thread():
+        with c_state(second_inputs):
+            seen_by_second.append(_GlobalInitManagerSingleton.inputs)
+            second_entered.set()
+
+    with c_state(first_inputs):
+        thread = threading.Thread(target=second_thread)
+        thread.start()
+        assert not second_entered.wait(timeout=0.5)
+        assert _GlobalInitManagerSingleton.inputs == first_inputs
+
+    thread.join(timeout=10)
+    assert second_entered.is_set()
+    assert seen_by_second == [second_inputs]
+
+
+@pytest.fixture(scope="module")
+def sampled_halos(default_input_struct_ts):
+    """Initial conditions and a sampled halo catalogue, without feedback or minihalos.
+
+    The CLASS power spectrum needs its tables to be set up before sigma(M) can be
+    evaluated (the analytic ones do not).
+    """
+    inputs = default_input_struct_ts.evolve_input_structs(
+        POWER_SPECTRUM="CLASS",
+        K_MAX_FOR_CLASS=1.0,
+        SOURCE_MODEL="CHMF-SAMPLER",
+        SAMPLER_MIN_MASS=5e9,
+        R_BUBBLE_MAX=50.0,
+        USE_MCGS=False,
+        USE_REIONIZATION_PHOTOHEATING_FEEDBACK=False,
+    )
+    ics = compute_initial_conditions(inputs=inputs, write=False)
+    halos = determine_halo_catalog(
+        redshift=10.0, initial_conditions=ics, inputs=inputs, write=False
+    )
+    assert halos.n_halos > 0
+    return inputs, ics, halos
+
+
+def test_perturb_halo_catalog_sets_up_sigma(sampled_halos):
+    """perturb_halo_catalog computes halo properties, which need the sigma(M) tables.
+
+    Called on a freed backend (as in a new process that reads its boxes from the
+    cache), it must set them up itself, and give what it gives inside a scope that
+    has them.
+    """
+    inputs, ics, halos = sampled_halos
+    with c_state(inputs, sigma=True):
+        expected = perturb_halo_catalog(
+            initial_conditions=ics, halo_catalog=halos, regenerate=True, write=False
+        )
+
+    _GlobalInitManagerSingleton.free()
+    perturbed = perturb_halo_catalog(
+        initial_conditions=ics, halo_catalog=halos, regenerate=True, write=False
+    )
+
+    n_halos = perturbed.n_halos
+    assert n_halos == expected.n_halos > 0
+    assert np.all(perturbed.get("sfr_acg")[:n_halos] > 0)
+    for name in ("halo_coords", "sfr_acg", "stellar_masses_acg"):
+        np.testing.assert_array_equal(perturbed.get(name), expected.get(name))
+
+
+def test_convert_halo_properties_sets_up_sigma(sampled_halos):
+    """convert_halo_properties needs the sigma(M) tables and must set them up itself.
+
+    Without them it logged a GSL error and returned zero SFRs, without raising.
+    """
+    inputs, _, halos = sampled_halos
+    n_halos = halos.n_halos
+    kwargs = {
+        "redshift": 10.0,
+        "inputs": inputs,
+        **{
+            name: halos.get(name)[:n_halos]
+            for name in ("halo_masses", "star_rng", "sfr_rng", "xray_rng")
+        },
+    }
+    with c_state(inputs, sigma=True):
+        expected = cf.convert_halo_properties(**kwargs)
+
+    _GlobalInitManagerSingleton.free()
+    props = cf.convert_halo_properties(**kwargs)
+
+    assert np.all(props["sfr_acg"] > 0)
+    for name, values in expected.items():
+        np.testing.assert_array_equal(props[name], values)

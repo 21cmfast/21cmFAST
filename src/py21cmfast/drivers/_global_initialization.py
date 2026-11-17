@@ -9,11 +9,14 @@ correspond to only one :class:`~InputParameters` at a time. Functions declare th
 they need with :func:`init_c_state`, which sets it up on entry and hands back whatever
 the enclosing scope had on exit. Code that deliberately computes with modified inputs
 should hold them open with :func:`c_state`, so that the calls it makes share one scope.
+Only one thread uses the backend at a time. A scope opened in another thread waits until
+the open one has closed.
 """
 
 import atexit
 import functools
 import logging
+import threading
 from collections.abc import Callable, Generator
 from contextlib import AbstractContextManager, contextmanager
 
@@ -52,6 +55,12 @@ class GlobalInitializationManager:
 
     # The state as it was on entry to each currently-open scope, innermost last.
     _scopes: list[_BackendState] = attrs.field(factory=list, init=False, repr=False)
+
+    # Held by the thread whose scopes are open, from setting up the backend until handing
+    # it back. Re-entrant, so that a thread can open nested scopes.
+    _lock: threading.RLock = attrs.field(
+        factory=threading.RLock, init=False, repr=False
+    )
 
     def __new__(cls, *args, **kwargs):
         """Ensure this class is a singleton."""
@@ -132,24 +141,25 @@ class GlobalInitializationManager:
         recomb: bool = False,
     ) -> Generator[None, None, None]:
         """Initialize the global state for a set of inputs, and hand it back on exit."""
-        self._scopes.append(self._snapshot())
-        try:
-            self.init(
-                inputs,
-                broadcast_inputs=broadcast_inputs,
-                ps=ps,
-                sigma=sigma,
-                heat=heat,
-                recomb=recomb,
-            )
-            yield
-        finally:
-            previous = self._scopes.pop()
-            # Only hand the state back if we're returning into another scope. At the
-            # top level nothing is relying on the old state, and keeping what we just
-            # built lets consecutive calls with the same inputs reuse the tables.
-            if self._scopes:
-                self._restore(previous)
+        with self._lock:
+            self._scopes.append(self._snapshot())
+            try:
+                self.init(
+                    inputs,
+                    broadcast_inputs=broadcast_inputs,
+                    ps=ps,
+                    sigma=sigma,
+                    heat=heat,
+                    recomb=recomb,
+                )
+                yield
+            finally:
+                previous = self._scopes.pop()
+                # Only hand the state back if we're returning into another scope. At the
+                # top level nothing is relying on the old state, and keeping what we just
+                # built lets consecutive calls with the same inputs reuse the tables.
+                if self._scopes:
+                    self._restore(previous)
 
     def _snapshot(self) -> _BackendState:
         """Record the current state, so that it can be handed back later."""
