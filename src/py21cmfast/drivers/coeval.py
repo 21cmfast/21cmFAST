@@ -759,6 +759,16 @@ def _obtain_starting_point_for_scrolling(
         return -1, None
 
 
+def _in_cache(
+    resume_cache: RunCache | None, kind: str, redshift: float, iokw: dict
+) -> bool:
+    """Whether the box of this kind at this redshift will be read from the cache."""
+    if resume_cache is None or iokw.get("regenerate"):
+        return False
+    paths = getattr(resume_cache, kind) or {}
+    return redshift in paths and paths[redshift].exists()
+
+
 def _redshift_loop_generator(
     inputs: InputParameters,
     initial_conditions: InitialConditions,
@@ -817,12 +827,13 @@ def _redshift_loop_generator(
                     emissivity_fields_list.append(cached_emissivity_fields)
                 continue
 
+            # The perturbed field and halo catalog are not loaded here: each
+            # computation below loads the arrays it needs (OutputStruct._compute), and
+            # boxes found in the cache need none of them.
             this_perturbed_field = perturbed_field[iz]
-            this_perturbed_field.load_all()
 
             if inputs.matter_options.has_discrete_halos:
                 this_halofield = halofield_list[iz]
-                this_halofield.load_all()
             this_emissivity_fields = sf.compute_emissivity_fields(
                 inputs=inputs,
                 halo_catalog=this_halofield,
@@ -836,14 +847,12 @@ def _redshift_loop_generator(
 
             if inputs.astro_options.USE_TS_FLUCT:
                 # No need to compute radiation fields if we have cached spin temperature
-                # and the user does not want to write radiation fields to cache
-                ts_cached = (
-                    resume_cache is not None
-                    and not iokw.get("regenerate")
-                    and z in resume_cache.TsBox
-                    and resume_cache.TsBox[z].exists()
+                # and the user does not want to write radiation fields to cache, or
+                # they are cached too
+                skip_radfields = _in_cache(resume_cache, "TsBox", z, iokw) and (
+                    not write.radiation_fields
+                    or _in_cache(resume_cache, "RadiationFields", z, iokw)
                 )
-                skip_radfields = ts_cached and not write.radiation_fields
 
                 this_radiation_fields = None
 

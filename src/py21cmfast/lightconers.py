@@ -6,6 +6,7 @@ import warnings
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from functools import cached_property, partial
+from typing import TYPE_CHECKING
 
 import attrs
 import deprecation
@@ -27,6 +28,9 @@ from .wrapper.inputs import (
     Planck18,  # Not *quite* the same as astropy's Planck18
     SimulationOptions,
 )
+
+if TYPE_CHECKING:
+    from .drivers.coeval import Coeval
 
 _LIGHTCONERS = {}
 _LENGTH = "length"
@@ -169,8 +173,8 @@ class Lightconer(ABC):
 
     def make_lightcone_slices(
         self,
-        c1: Coeval,  # noqa: F821
-        c2: Coeval,  # noqa: F821
+        c1: Coeval,
+        c2: Coeval,
     ) -> tuple[dict[str, np.ndarray], np.ndarray]:
         """
         Make lightcone slices out of two coeval objects.
@@ -219,80 +223,98 @@ class Lightconer(ABC):
         lc_distances = pixlcdist[lcidx]
 
         lc_quantities = self.quantities
+        coeval_res = c1.simulation_options.cell_size
 
         for idx, lcd in zip(lcidx, lc_distances, strict=True):
             for q in lc_quantities:
                 if q == "los_velocity":
                     continue
-                box1 = self.coeval_subselect(
-                    lcd, getattr(c1, q), c1.simulation_options.cell_size
-                )
-                box2 = self.coeval_subselect(
-                    lcd, getattr(c2, q), c2.simulation_options.cell_size
-                )
-                box = self.redshift_interpolation(
-                    lcd, box1, box2, dc1, dc2, kind=self.interp_kinds.get(q, "mean")
-                )
 
-                yield q, idx, self.construct_lightcone(lcd, box)
+                yield (
+                    q,
+                    idx,
+                    self.interpolate_slice(
+                        lcd,
+                        getattr(c1, q),
+                        getattr(c2, q),
+                        dc1,
+                        dc2,
+                        coeval_res,
+                        kind=self.interp_kinds.get(q, "mean"),
+                    ),
+                )
 
                 if "los_velocity" in self.quantities and q == self.quantities[0]:
                     # While doing the first quantity, also add in the los velocity, if desired.
                     # Doing it now means we can keep whatever cached interpolation setup
                     # is used to do construct_lightcone().
-                    if isinstance(self, AngularLightconer):
-                        boxes1 = [
-                            self.coeval_subselect(
-                                lcd,
-                                getattr(c1, f"velocity_{q}"),
-                                c1.simulation_options.cell_size,
-                            )
-                            for q in "xyz"
-                        ]
-                        boxes2 = [
-                            self.coeval_subselect(
-                                lcd,
-                                getattr(c2, f"velocity_{q}"),
-                                c2.simulation_options.cell_size,
-                            )
-                            for q in "xyz"
-                        ]
-
-                        interpolated_boxes = [
-                            self.redshift_interpolation(
-                                lcd,
-                                box1,
-                                box2,
-                                dc1,
-                                dc2,
-                                kind=self.interp_kinds.get("velocity", "mean"),
-                            )
-                            for (box1, box2) in zip(boxes1, boxes2, strict=True)
-                        ]
-                    else:
-                        # TODO: get the correct component according to self.line_of_sight_axis
-                        box1 = self.coeval_subselect(
-                            lcd, c1.velocity_z, c1.simulation_options.cell_size
-                        )
-                        box2 = self.coeval_subselect(
-                            lcd, c2.velocity_z, c2.simulation_options.cell_size
-                        )
-                        interpolated_boxes = self.redshift_interpolation(
-                            lcd,
-                            box1,
-                            box2,
-                            dc1,
-                            dc2,
-                            kind=self.interp_kinds.get("velocity_z", "mean"),
-                        )
                     yield (
                         "los_velocity",
                         idx,
-                        self.construct_los_velocity_lightcone(
-                            lcd,
-                            interpolated_boxes,
-                        ),
+                        self.interpolate_los_velocity_slice(lcd, c1, c2, dc1, dc2),
                     )
+
+    def interpolate_slice(
+        self,
+        lcd: Quantity[pixel],
+        coeval_a: np.ndarray,
+        coeval_b: np.ndarray,
+        dc_a: Quantity[pixel],
+        dc_b: Quantity[pixel],
+        coeval_res: Quantity[_LENGTH],
+        kind: str = "mean",
+    ) -> np.ndarray:
+        """Make one lightcone slice of a field from the two coevals that bracket it.
+
+        The coevals are first sub-selected (:meth:`coeval_subselect`), then
+        interpolated to the slice's distance (:meth:`redshift_interpolation`), then
+        made into a slice (:meth:`construct_lightcone`).
+
+        Parameters
+        ----------
+        lcd
+            The comoving distance of the slice, in pixels.
+        coeval_a, coeval_b
+            The field in the two coeval boxes.
+        dc_a, dc_b
+            The comoving distances of the two coeval boxes, in pixels.
+        coeval_res
+            The cell size of the coeval boxes.
+        kind
+            The kind of interpolation in distance (see :meth:`redshift_interpolation`).
+        """
+        box_a = self.coeval_subselect(lcd, coeval_a, coeval_res)
+        box_b = self.coeval_subselect(lcd, coeval_b, coeval_res)
+        box = self.redshift_interpolation(lcd, box_a, box_b, dc_a, dc_b, kind=kind)
+        return self.construct_lightcone(lcd, box)
+
+    def interpolate_los_velocity_slice(
+        self,
+        lcd: Quantity[pixel],
+        c_a: Coeval,
+        c_b: Coeval,
+        dc_a: Quantity[pixel],
+        dc_b: Quantity[pixel],
+    ) -> np.ndarray:
+        """Make one slice of the line-of-sight velocity from two bracketing coevals.
+
+        By default, this is the z-component of the velocity, interpolated like
+        :meth:`interpolate_slice` does, and made into a slice by
+        :meth:`construct_los_velocity_lightcone`.
+        """
+        # TODO: get the correct component according to self.line_of_sight_axis
+        coeval_res = c_a.simulation_options.cell_size
+        box_a = self.coeval_subselect(lcd, c_a.velocity_z, coeval_res)
+        box_b = self.coeval_subselect(lcd, c_b.velocity_z, coeval_res)
+        box = self.redshift_interpolation(
+            lcd,
+            box_a,
+            box_b,
+            dc_a,
+            dc_b,
+            kind=self.interp_kinds.get("velocity_z", "mean"),
+        )
+        return self.construct_los_velocity_lightcone(lcd, box)
 
     def coeval_subselect(
         self, lcd: float, coeval: np.ndarray, coeval_res: Quantity[_LENGTH]
@@ -537,6 +559,19 @@ class RectilinearLightconer(Lightconer):
         )
 
 
+def _dimensionless(x: np.ndarray | Quantity) -> np.ndarray:
+    """Return a dimensionless array or Quantity as a plain array."""
+    return Quantity(x, units.dimensionless_unscaled).value
+
+
+#: Roughly how many cells of a coeval box can be interpolated in redshift in the time
+#: it takes to sample the box in one direction (trilinear ``map_coordinates``). Measured
+#: on one core for 128^3 and 256^3 boxes and 10^3-10^6 directions (HEALPix and random):
+#: the two ways of making an angular slice cost the same at about 9-20 cells per
+#: direction. Used by ``AngularLightconer`` to choose between them.
+_CELLS_PER_SAMPLE = 16
+
+
 def _rotation_eq(x, y):
     """Compare two rotations."""
     if x is None and y is None:
@@ -561,6 +596,13 @@ class AngularLightconer(Lightconer):
         default=None,
         eq=attrs.cmp_using(eq=_rotation_eq),
         validator=attrs.validators.optional(attrs.validators.instance_of(Rotation)),
+    )
+    # Whether slices sample (tile) the coevals before interpolating in redshift (True)
+    # or interpolate the boxes first (False). None chooses for each slice; see
+    # samples_first().
+    tile_first: bool | None = attrs.field(
+        default=None,
+        validator=attrs.validators.optional(attrs.validators.instance_of(bool)),
     )
 
     def __attrs_post_init__(self) -> None:
@@ -642,17 +684,107 @@ class AngularLightconer(Lightconer):
             **kw,
         )
 
+    def interpolate_slice(
+        self,
+        lcd: Quantity[pixel],
+        coeval_a: np.ndarray,
+        coeval_b: np.ndarray,
+        dc_a: Quantity[pixel],
+        dc_b: Quantity[pixel],
+        coeval_res: Quantity[_LENGTH],
+        kind: str = "mean",
+    ) -> np.ndarray:
+        """Make one lightcone slice of a field from the two coevals that bracket it.
+
+        If the slice samples the coevals first (see :attr:`tile_first` and
+        :meth:`samples_first`), each coeval is sampled at the pixels of the slice, and
+        the two sets of samples are interpolated to the slice's distance. Since both
+        steps are linear in the field, this gives the same result (to rounding) as
+        interpolating the whole box in distance and then sampling it, which is done
+        otherwise (as in :meth:`Lightconer.interpolate_slice`).
+
+        The "mean_max" interpolation (used for ``z_reion``) is a rule applied cell by
+        cell, so for ``interpolation_order=1`` it is applied at the eight cells
+        around each sample point before they are weighted, which again gives the same
+        result as sampling the interpolated box.
+        """
+        interpolator = self._get_interpolator(lcd)
+        if not self.samples_first(coeval_a.size, interpolator):
+            return super().interpolate_slice(
+                lcd, coeval_a, coeval_b, dc_a, dc_b, coeval_res, kind=kind
+            )
+
+        if kind == "mean_max" and self.interpolation_order == 1:
+            return self._trilinear_mean_max(
+                interpolator, lcd, coeval_a, coeval_b, dc_a, dc_b
+            )
+
+        # Order 0 picks one cell per pixel, so any cell-by-cell rule commutes with it.
+        return _dimensionless(
+            self.redshift_interpolation(
+                lcd,
+                interpolator(coeval_a),
+                interpolator(coeval_b),
+                dc_a,
+                dc_b,
+                kind=kind,
+            )
+        )
+
+    def interpolate_los_velocity_slice(
+        self,
+        lcd: Quantity[pixel],
+        c_a: Coeval,
+        c_b: Coeval,
+        dc_a: Quantity[pixel],
+        dc_b: Quantity[pixel],
+    ) -> np.ndarray:
+        """Make one slice of the line-of-sight velocity from two bracketing coevals.
+
+        If the slice samples the coevals first (see :meth:`interpolate_slice`), the
+        line-of-sight component of the 3D velocity of each coeval is taken at the
+        pixels of the slice, and the two are interpolated to the slice's distance.
+        Otherwise the three velocity boxes are interpolated in distance first.
+        """
+        kind = self.interp_kinds.get("velocity", "mean")
+        interpolator = self._get_interpolator(lcd)
+        if kind == "mean" and self.samples_first(c_a.velocity_x.size, interpolator):
+            # cosmotile needs Quantities here, since the pixel coordinates are.
+            los_a, los_b = make_lightcone_slice_vector_field(
+                [
+                    [
+                        getattr(c, f"velocity_{ax}") << units.dimensionless_unscaled
+                        for ax in "xyz"
+                    ]
+                    for c in (c_a, c_b)
+                ],
+                interpolator,
+            )
+            return _dimensionless(
+                self.redshift_interpolation(lcd, los_a, los_b, dc_a, dc_b, kind=kind)
+            )
+
+        coeval_res = c_a.simulation_options.cell_size
+        boxes = [
+            self.redshift_interpolation(
+                lcd,
+                self.coeval_subselect(lcd, getattr(c_a, f"velocity_{ax}"), coeval_res),
+                self.coeval_subselect(lcd, getattr(c_b, f"velocity_{ax}"), coeval_res),
+                dc_a,
+                dc_b,
+                kind=kind,
+            )
+            for ax in "xyz"
+        ]
+        return self.construct_los_velocity_lightcone(lcd, boxes)
+
     def construct_lightcone(
         self,
         lcd: Quantity[pixel],
         box: np.ndarray,
     ) -> tuple[np.ndarray, np.ndarray]:
         """Construct the lightcone slices from bracketing coevals."""
-        if self._cache["lcd"] == lcd:
-            interpolator = self._cache["interpolator"]
-        else:
-            interpolator = self._refresh_cache(lcd)
-        return interpolator(box)
+        return self._get_interpolator(lcd)(box)
 
     def construct_los_velocity_lightcone(
         self,
@@ -660,11 +792,94 @@ class AngularLightconer(Lightconer):
         velocities: Sequence[np.ndarray],
     ):
         """Construct the LoS velocity lightcone from 3D velocities."""
+        return next(
+            make_lightcone_slice_vector_field([velocities], self._get_interpolator(lcd))
+        )
+
+    def _trilinear_mean_max(
+        self,
+        interpolator: partial,
+        lcd: Quantity[pixel],
+        coeval_a: np.ndarray,
+        coeval_b: np.ndarray,
+        dc_a: Quantity[pixel],
+        dc_b: Quantity[pixel],
+    ) -> np.ndarray:
+        """Sample the "mean_max" interpolation of two coevals, trilinearly.
+
+        This is what sampling ``redshift_interpolation(..., kind="mean_max")`` of the
+        whole boxes with ``interpolator`` gives (``map_coordinates`` with ``order=1``
+        and ``mode="grid-wrap"``), but the rule is only evaluated at the eight cells
+        around each sample point.
+        """
+        coords = Quantity(interpolator.keywords["coordinates"], pixel).value
+        shape = np.array(coeval_a.shape)[:, None]
+        floor = np.floor(coords)
+        frac = coords - floor
+        lower = floor.astype(np.int64) % shape
+        upper = (lower + 1) % shape
+
+        out = np.zeros(coords.shape[1])
+        for corner in np.ndindex(2, 2, 2):
+            index = tuple(upper[ax] if c else lower[ax] for ax, c in enumerate(corner))
+            weight = np.prod(
+                [frac[ax] if c else 1 - frac[ax] for ax, c in enumerate(corner)],
+                axis=0,
+            )
+            out += weight * _dimensionless(
+                self.redshift_interpolation(
+                    lcd, coeval_a[index], coeval_b[index], dc_a, dc_b, kind="mean_max"
+                )
+            )
+
+        # With sub-sampled pixels (cosmotile >= 0.3), average the sub-samples.
+        weights = interpolator.keywords.get("weights")
+        if weights is not None:
+            out = (weights[:, None] * out.reshape(weights.size, -1)).sum(axis=0)
+        return out
+
+    def samples_first(self, n_cells: int, interpolator: partial) -> bool:
+        """Whether a slice samples the coevals first, or interpolates the boxes first.
+
+        A slice between two coevals can be made in two ways that give the same result
+        (to rounding): interpolate the whole boxes in redshift and then sample (tile)
+        the interpolated box at the directions of the slice, or sample each box first
+        and then interpolate the samples in redshift. The first costs about one
+        operation per cell plus one sample per direction, the second two samples per
+        direction. Unless ``tile_first`` forces one way, a slice samples first when
+        the box has more than ``_CELLS_PER_SAMPLE`` (16) cells per direction. For
+        example, a 1500^3 box with a ring of 2^15 directions samples first, while a
+        228^3 box with a HEALPix map of Nside 1024 (1.3e7 directions) interpolates
+        the box first. Only ``interpolation_order`` 0 and 1 can sample first; higher
+        orders pre-filter the whole box.
+
+        Parameters
+        ----------
+        n_cells
+            The number of cells of the coeval box.
+        interpolator
+            The interpolator onto the slice (its coordinates give the number of
+            directions sampled, sub-samples included).
+
+        Returns
+        -------
+        bool
+            ``tile_first`` if it is set, otherwise whether sampling first is cheaper:
+            whether the box has more than ``_CELLS_PER_SAMPLE`` cells per direction.
+            Always False for ``interpolation_order > 1``.
+        """
+        if self.interpolation_order > 1:
+            return False
+        if self.tile_first is not None:
+            return self.tile_first
+        n_samples = np.shape(interpolator.keywords["coordinates"])[-1]
+        return n_samples * _CELLS_PER_SAMPLE < n_cells
+
+    def _get_interpolator(self, lcd: Quantity[pixel]) -> partial:
+        """Return the (cached) interpolator onto the slice at distance ``lcd``."""
         if self._cache["lcd"] == lcd:
-            interpolator = self._cache["interpolator"]
-        else:
-            interpolator = self._refresh_cache(lcd)
-        return next(make_lightcone_slice_vector_field([velocities], interpolator))
+            return self._cache["interpolator"]
+        return self._refresh_cache(lcd)
 
     def _refresh_cache(self, lcd):
         result = make_lightcone_slice_interpolator(

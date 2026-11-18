@@ -1,15 +1,17 @@
 name: Test Build Strategies
 
-# Test on all pushes, except when the push is literally just a tag (because we
-# tag automatically via CI, and therefore there's no extra code in that push).
-# Also, only test on pull requests into main.
+# Test on pushes to main and to the release maintenance branches (i.e. the merged
+# result of each PR), and on pull requests into them. Tag pushes are not tested,
+# since there's no extra code in them.
 on:
   push:
-    tags-ignore:
-      - 'v*'
+    branches:
+      - 'main'
+      - 'release-v*.x'
   pull_request:
     branches:
       - 'main'
+      - 'release-v*.x'
 
 
 jobs:
@@ -22,7 +24,7 @@ jobs:
         os:
         - macos-26       # arm64-based os. Cycle out when it gets out of date
         - macos-26-intel # intel-based os. Cycle out when it gets out of date
-        - macos-14       # arm64-based os. Cycle out when it gets out of date
+        - macos-15       # arm64-based os. Cycle out when it gets out of date
         - ubuntu-latest  # Linux-based os / only other is 22.04 which is surely old enough not to test any more
 
         python-version: ["3.12", "3.14"]  # bracket the versions we support.
@@ -33,7 +35,7 @@ jobs:
             compiler: clang
           - python-version: "3.14"
             compiler: gcc
-          - os: macos-14
+          - os: macos-15
             python-version: "3.14"
 
     defaults:
@@ -83,7 +85,7 @@ jobs:
         os:
         - macos-26       # arm64-based os. Cycle out when it gets out of date
         - macos-26-intel # intel-based os. Cycle out when it gets out of date
-        - macos-14       # arm64-based os. Cycle out when it gets out of date
+        - macos-15       # arm64-based os. Cycle out when it gets out of date
 
         python-version: ["3.12", "3.14"]  # bracket the versions we support.
         compiler: ["gcc", "clang"]
@@ -93,7 +95,7 @@ jobs:
             compiler: gcc
           - python-version: "3.14"
             compiler: clang
-          - os: macos-14
+          - os: macos-15
             python-version: "3.12"
 
     steps:
