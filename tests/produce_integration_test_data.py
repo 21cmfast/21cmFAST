@@ -19,7 +19,7 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import tyro
-from powerbox import get_power
+from astropy import units as un
 from rich.console import Console
 from rich.rule import Rule
 
@@ -37,6 +37,12 @@ from py21cmfast import (
     run_lightcone,
 )
 from py21cmfast.lightconers import RectilinearLightconer
+from py21cmfast.wrapper.outputs import BrightnessTemp, IonizedBox, PerturbedField, TsBox
+
+if __package__:
+    from .integration_units import field_unit, power_spectrum, write_quantity
+else:
+    from integration_units import field_unit, power_spectrum, write_quantity
 
 cns = Console()
 logger = logging.getLogger("py21cmfast")
@@ -81,6 +87,8 @@ COEVAL_FIELDS = LIGHTCONE_FIELDS.copy()
 COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_vx_2LPT")
 COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_vx")
 COEVAL_FIELDS.insert(COEVAL_FIELDS.index("spin_temperature"), "lowres_density")
+
+GLOBAL_FIELDS = ("neutral_fraction", "brightness_temp")
 
 OPTIONS_TESTRUNS = {
     "simple": [18, {}],
@@ -371,12 +379,15 @@ def produce_coeval_power_spectra(redshift: float, cache: OutputCache, **kwargs):
 
     for field in fields_to_compute:
         if hasattr(coeval, field):
-            result = get_power(
+            quantity = un.Quantity(
                 getattr(coeval, field),
-                boxlength=coeval.simulation_options.BOX_LEN,
-                bins_upto_boxlen=True,
+                field_unit(coeval.output_structs.values(), field),
+                dtype=None,
+                copy=False,
             )
-            p[field], k = result.power, result.bin_avg
+            p[field], k = power_spectrum(
+                quantity, coeval.simulation_options.BOX_LEN * un.Mpc
+            )
 
     return k, p, coeval
 
@@ -398,6 +409,50 @@ def get_lc_fields(inputs):
         quantities.remove("cumulative_recombinations")
 
     return quantities
+
+
+def get_power_fields(
+    inputs: InputParameters, *, kind: Literal["coeval", "lightcone"]
+) -> set[str]:
+    """Identify required power fields from configuration, not surviving references.
+
+    Parameters
+    ----------
+    inputs
+        Inputs selected by the integration-test configuration.
+    kind
+        Coeval or lightcone reference group being checked.
+
+    Returns
+    -------
+    set of str
+        Required fields, accounting for optional thermal and initial-condition data.
+    """
+    fields = set(get_lc_fields(inputs))
+    if kind == "coeval":
+        fields.add("lowres_density")
+        if not inputs.matter_options.PERTURB_ON_HIGH_RES:
+            fields.add("lowres_vx")
+            if inputs.matter_options.PERTURB_ALGORITHM == "2LPT":
+                fields.add("lowres_vx_2LPT")
+        if inputs.astro_options.RECOMB_MODEL == "homogeneous":
+            # Coeval homogeneous recombinations are scalar, not a spatial field.
+            fields.remove("cumulative_recombinations")
+    return fields
+
+
+def lightcone_field_units(lightcone: LightCone) -> dict[str, un.UnitBase]:
+    """Resolve lightcone field units from the corresponding output declarations."""
+    inputs = lightcone.inputs
+    definitions = [
+        cls.new(inputs=inputs, redshift=inputs.node_redshifts[0])
+        for cls in (PerturbedField, IonizedBox, BrightnessTemp)
+    ]
+    if inputs.astro_options.USE_TS_FLUCT:
+        definitions.append(TsBox.new(inputs=inputs, redshift=inputs.node_redshifts[0]))
+    names = set(LIGHTCONE_FIELDS) & lightcone.lightcones.keys()
+    names |= set(GLOBAL_FIELDS)
+    return {name: field_unit(definitions, name) for name in names}
 
 
 def produce_lc_power_spectra(redshift: float, cache: OutputCache, **kwargs):
@@ -423,14 +478,15 @@ def produce_lc_power_spectra(redshift: float, cache: OutputCache, **kwargs):
     )
 
     p = {}
+    units = lightcone_field_units(lightcone)
     for field in LIGHTCONE_FIELDS:
         if field in lightcone.lightcones:
-            result = get_power(
-                lightcone.lightcones[field],
-                boxlength=lightcone.lightcone_dimensions,
-                bins_upto_boxlen=True,
+            quantity = un.Quantity(
+                lightcone.lightcones[field], units[field], dtype=None, copy=False
             )
-            p[field], k = result.power, result.bin_avg
+            p[field], k = power_spectrum(
+                quantity, un.Quantity(lightcone.lightcone_dimensions, un.Mpc)
+            )
 
     return k, p, lightcone
 
@@ -439,31 +495,20 @@ def produce_perturb_field_data(redshift, **kwargs):
     options = get_all_options_struct(redshift, lc=False, **kwargs)
     del options["out_redshifts"]
 
-    velocity_normalisation = 1e16
-
     init_box = compute_initial_conditions(**options)
     pt_box = perturb_field(redshift=redshift, initial_conditions=init_box)
-
-    dens_result = get_power(
-        pt_box.get("density"),
-        boxlength=options["inputs"].simulation_options.BOX_LEN,
-        bins_upto_boxlen=True,
+    density = pt_box.arrays["density"].get_quantity().to(un.dimensionless_unscaled)
+    # Preserve the historical histogram coordinate: one stored unit is 10^-16 Mpc/s.
+    velocity = (
+        pt_box.arrays["velocity_z"].get_quantity().to(un.Unit(1e-16 * un.Mpc / un.s))
     )
-    p_dens, k_dens = dens_result.power, dens_result.bin_avg
-    vel_result = get_power(
-        pt_box.get("velocity_z") * velocity_normalisation,
-        boxlength=options["inputs"].simulation_options.BOX_LEN,
-        bins_upto_boxlen=True,
-    )
-    p_vel, k_vel = vel_result.power, vel_result.bin_avg
+    boxlength = options["inputs"].simulation_options.BOX_LEN * un.Mpc
+    p_dens, k_dens = power_spectrum(density, boxlength)
+    p_vel, k_vel = power_spectrum(velocity, boxlength)
 
-    def hist(kind, xmin, xmax, nbins):
-        data = pt_box.get(kind)
-        if kind == "velocity_z":
-            data = velocity_normalisation * data
-
+    def hist(data: un.Quantity, xmin: float, xmax: float, nbins: int):
         bins, edges = np.histogram(
-            data,
+            data.value,
             bins=np.linspace(xmin, xmax, nbins),
             range=[xmin, xmax],
             density=True,
@@ -473,10 +518,10 @@ def produce_perturb_field_data(redshift, **kwargs):
 
         X = np.array([left, right]).T.flatten()
         Y = np.array([bins, bins]).T.flatten()
-        return X, Y
+        return un.Quantity(X, data.unit), un.Quantity(Y, data.unit**-1)
 
-    X_dens, Y_dens = hist("density", -0.8, 2.0, 50)
-    X_vel, Y_vel = hist("velocity_z", -2, 2, 50)
+    X_dens, Y_dens = hist(density, -0.8, 2.0, 50)
+    X_vel, Y_vel = hist(velocity, -2, 2, 50)
 
     return k_dens, p_dens, k_vel, p_vel, X_dens, Y_dens, X_vel, Y_vel, init_box
 
@@ -522,17 +567,24 @@ def produce_power_spectra_for_tests(
         fl.attrs["BOX_LEN"] = coeval.simulation_options.BOX_LEN
 
         coeval_grp = fl.create_group("coeval")
-        coeval_grp["k"] = k
+        write_quantity(coeval_grp, "k", k)
         for key, val in p.items():
-            coeval_grp[f"power_{key}"] = val
+            write_quantity(coeval_grp, f"power_{key}", val)
 
         lc_grp = fl.create_group("lightcone")
-        lc_grp["k"] = k_l
+        write_quantity(lc_grp, "k", k_l)
         for key, val in p_l.items():
-            lc_grp[f"power_{key}"] = val
+            write_quantity(lc_grp, f"power_{key}", val)
 
-        lc_grp["global_neutral_fraction"] = lc.global_quantities["neutral_fraction"]
-        lc_grp["global_brightness_temp"] = lc.global_quantities["brightness_temp"]
+        units = lightcone_field_units(lc)
+        for key in GLOBAL_FIELDS:
+            write_quantity(
+                lc_grp,
+                f"global_{key}",
+                un.Quantity(
+                    lc.global_quantities[key], units[key], dtype=None, copy=False
+                ),
+            )
         if lc.inputs.matter_options.POWER_SPECTRUM == "CLASS":
             cosmo_tbls_grp = fl.create_group("cosmo_tables")
             trans_density_grp = cosmo_tbls_grp.create_group("transfer_density")
@@ -577,17 +629,17 @@ def produce_data_for_perturb_field_tests(name, redshift, force, **kwargs):
         fl.attrs["DIM"] = init_box.simulation_options.DIM
         fl.attrs["BOX_LEN"] = init_box.simulation_options.BOX_LEN
 
-        fl["power_dens"] = p_dens
-        fl["k_dens"] = k_dens
+        write_quantity(fl, "power_dens", p_dens)
+        write_quantity(fl, "k_dens", k_dens)
 
-        fl["power_vel"] = p_vel
-        fl["k_vel"] = k_vel
+        write_quantity(fl, "power_vel", p_vel)
+        write_quantity(fl, "k_vel", k_vel)
 
-        fl["pdf_dens"] = Y_dens
-        fl["x_dens"] = X_dens
+        write_quantity(fl, "pdf_dens", Y_dens)
+        write_quantity(fl, "x_dens", X_dens)
 
-        fl["pdf_vel"] = Y_vel
-        fl["x_vel"] = X_vel
+        write_quantity(fl, "pdf_vel", Y_vel)
+        write_quantity(fl, "x_vel", X_vel)
 
     cns.print(f"\tProduced {fname}")
     return fname

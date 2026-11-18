@@ -372,9 +372,7 @@ def pytest_terminal_summary(terminalreporter):
     """Print one line per integration test whose output differs from the reference data."""
     if not _REFERENCE_MISMATCHES:
         return
-    terminalreporter.write_sep(
-        "=", "reference data mismatches (not failures; see GitHub issue #450)"
-    )
+    terminalreporter.write_sep("=", "physical reference data mismatches")
     for nodeid, fields in sorted(_REFERENCE_MISMATCHES.items()):
         test = nodeid.split("::")[-1]
         terminalreporter.write_line(f"{test}: {', '.join(fields)}")
